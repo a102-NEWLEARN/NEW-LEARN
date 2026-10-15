@@ -1,0 +1,55 @@
+<!-- @dsCard group="NEW:LEARN Patterns" height=320 width=960 subtitle="추천 이슈 카드" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>추천 이슈 카드 — NEW:LEARN</title>
+<style>
+  html, body { margin:0; background:var(--bg-layer-default); }
+  .stage { padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+  .nl-issue-card__meta b { font-weight:500; color:var(--fg-neutral); }
+</style>
+</head>
+<body class="nl-root">
+<div class="stage">
+<div class="nl-issue-grid">
+  <a class="nl-issue-card" href="#">
+    <span class="nl-issue-card__category">경제</span>
+    <h3 class="nl-issue-card__title">가계부채 관리 대책과 금리 인하 논의</h3>
+    <div class="nl-issue-card__latest"><span class="nl-issue-card__latest-label">최근 사건</span><p class="nl-issue-card__latest-text">금융당국, 주택담보대출 한도 조정안 발표</p></div>
+    <div class="nl-issue-card__meta"><span><i data-icon="square2-stacked"></i>사건 <b class="nl-num">12</b></span><span><i data-icon="article"></i>기사 <b class="nl-num">148</b></span></div>
+  </a>
+  <a class="nl-issue-card is-selected" href="#" aria-current="true">
+    <span class="nl-issue-card__category">산업</span>
+    <h3 class="nl-issue-card__title">국내 반도체 산업 지원 법안</h3>
+    <div class="nl-issue-card__latest"><span class="nl-issue-card__latest-label">최근 사건</span><p class="nl-issue-card__latest-text">국회 상임위, 보조금 조항 수정안 의결</p></div>
+    <div class="nl-issue-card__meta"><span><i data-icon="square2-stacked"></i>사건 <b class="nl-num">8</b></span><span><i data-icon="article"></i>기사 <b class="nl-num">96</b></span></div>
+  </a>
+  <a class="nl-issue-card" href="#">
+    <span class="nl-issue-card__category">사회</span>
+    <h3 class="nl-issue-card__title">수도권 광역 교통망 확충 계획</h3>
+    <div class="nl-issue-card__latest"><span class="nl-issue-card__latest-label">최근 사건</span><p class="nl-issue-card__latest-text">광역 철도 신규 노선의 착공 일정 조정 검토</p></div>
+    <div class="nl-issue-card__meta"><span><i data-icon="square2-stacked"></i>사건 <b class="nl-num">5</b></span><span><i data-icon="article"></i>기사 <b class="nl-num">41</b></span></div>
+  </a>
+</div>
+<p class="note">기본 · 선택(가운데, aria-current) · Hover는 테두리 #D1D3D8 · 예시 데이터</p>
+</div>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!-- @dsCard group="NEW:LEARN Patterns" height=400 width=720 subtitle="최신 기사 리스트" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>최신 기사 리스트 — NEW:LEARN</title>
+<style>
+  html, body { margin:0; background:var(--bg-layer-default); }
+  .stage { padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+
+</style>
+</head>
+<body class="nl-root">
+<div class="stage">
+<ul class="nl-article-list" style="border:1px solid var(--stroke-neutral-weak); border-radius:var(--radius-r4); overflow:hidden; max-width:640px">
+  <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">반도체 지원 법안, 상임위 통과…보조금 비율은 낮아져</p><p class="nl-article__meta">한빛일보<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+  <li><a class="nl-article is-selected" href="#" aria-current="true"><div class="nl-article__body"><p class="nl-article__title">“세액공제 확대가 실효성 더 커”…업계 반응 엇갈려</p><p class="nl-article__meta">새날경제<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+  <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">지역 공장 부지 선정 기준 발표, 비수도권 가점 신설</p><p class="nl-article__meta">온누리뉴스<span class="nl-dot-sep"></span>10월 13일</p></div></a></li>
+  <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">법 시행 시점 두고 정부·업계 설명 달라</p><p class="nl-article__meta">바른신문<span class="nl-dot-sep"></span>10월 12일</p></div></a></li>
+</ul>
+<p class="note">두 번째 행 = 지금 읽는 기사(선택) · Hover #F7F8F9 · 눌림 #F3F4F5 · 구분선은 좌우 20px 안쪽</p>
+</div>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>

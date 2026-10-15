@@ -1,0 +1,66 @@
+<!-- @dsCard group="NEW:LEARN Patterns" height=840 width=560 subtitle="사건 상세 패널" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>사건 상세 패널 — NEW:LEARN</title>
+<style>
+  html, body { margin:0; background:var(--bg-layer-default); }
+  .stage { padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+
+</style>
+</head>
+<body class="nl-root">
+<div class="stage">
+<section class="nl-panel" aria-label="사건 상세">
+  <header class="nl-panel__header">
+    <span class="nl-panel__eyebrow">국내 반도체 산업 지원 법안 · 사건 5/8</span>
+    <h2 class="nl-panel__title">국회 상임위, 보조금 조항 수정안 의결</h2>
+    <span class="nl-panel__date"><i data-icon="calendar"></i><span class="nl-num">2026년 10월 14일 (수)</span></span>
+    <button class="nl-icon-button nl-panel__close" aria-label="닫기"><i data-icon="xmark"></i></button>
+  </header>
+  <div class="nl-panel__section">
+    <h3 class="nl-section-label">요약</h3>
+    <p class="nl-panel__summary">상임위원회가 반도체 지원 법안의 보조금 조항을 고친 수정안을 의결했어요. 직접 보조금 비율은 최대 30%에서 20%로 낮아지고, 대신 설비 투자 세액공제 범위가 넓어졌어요.</p>
+  </div>
+  <div class="nl-panel__section">
+    <h3 class="nl-section-label">원문 근거 2</h3>
+    <figure class="nl-evidence" style="margin:0">
+      <blockquote class="nl-evidence__quote" style="margin:0">“수정안은 보조금 지원 비율을 최대 20%로 낮추고, 국가전략기술 설비 투자에 대한 세액공제를 확대하는 내용을 담았다.”</blockquote>
+      <figcaption class="nl-evidence__source">새날경제<span class="nl-dot-sep"></span>10월 14일 09:12<a class="nl-link" href="#">원문 보기</a></figcaption>
+    </figure>
+    <figure class="nl-evidence" style="margin:0">
+      <blockquote class="nl-evidence__quote" style="margin:0">“위원회는 이날 전체회의를 열어 해당 수정안을 의결하고 본회의에 넘겼다.”</blockquote>
+      <figcaption class="nl-evidence__source">한빛일보<span class="nl-dot-sep"></span>10월 14일 11:40<a class="nl-link" href="#">원문 보기</a></figcaption>
+    </figure>
+  </div>
+  <div class="nl-panel__tabs nl-tabs nl-tabs--small" role="tablist" style="padding:0 24px; border-top:1px solid var(--stroke-neutral-subtle)">
+    <button class="nl-tab" role="tab" aria-selected="true">관련 기사<span class="nl-tab__count nl-num">12</span></button>
+    <button class="nl-tab" role="tab" aria-selected="false">관점<span class="nl-tab__count nl-num">3</span></button>
+  </div>
+  <ul class="nl-article-list nl-article-list--compact nl-panel__tabpanel">
+    <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">보조금 대신 세액공제…업계 “방향은 맞지만 규모 아쉬워”</p><p class="nl-article__meta">새날경제<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+    <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">[해설] 수정안에서 달라진 세 가지</p><p class="nl-article__meta">한빛일보<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+    <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">야당 “지원 대상 기준 모호” 지적</p><p class="nl-article__meta">온누리뉴스<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+  </ul>
+</section>
+</div>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>
