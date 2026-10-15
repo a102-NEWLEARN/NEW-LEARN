@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>프로토타입 따라가기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style>
+/* 유저 플로우(user-flow.html)와 같은 톤. 위: 페르소나 고르기, 가운데: 프로토타입 화면(단순화) + 안내, 아래: 단계 목록 */
+:root {
+  --bg: #FFFFFF; --card: #FFFFFF; --fg: #191C1A; --fg-2: #363B38; --fg-3: #59605C; --muted: #6F7672;
+  --line: rgba(25, 28, 26, .10); --line-2: rgba(25, 28, 26, .18); --tint: #F5F7F6; --tint-2: #EEF1EF;
+  --accent: #2F7D4F; --accent-bg: #EFF6F1; --accent-line: rgba(47, 125, 79, .32);
+  --red: #CC4545; --red-bg: #FDF1F1; --red-line: rgba(204, 69, 69, .28);
+  --blue: #3A62C2; --blue-bg: #EDF2FC; --orange: #B5651A; --orange-bg: #FDF3E8; --grey: #6F7672;
+  --hot: #E8590C; --hot-ring: rgba(232, 89, 12, .45); --on-accent: #FFFFFF;
+  --wf-bg: #FFFFFF; --wf-side: #F6F7F6; --wf-line: rgba(25, 28, 26, .12); --wf-fill: #EEF0EF; --wf-text: #2A2F2C; --wf-muted: #7A817D; --wf-scrim: rgba(20, 24, 22, .38);
+  --f-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "SFMono-Regular", Menlo, Consolas, ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --card: #181D1A; --fg: #E6EBE8; --fg-2: #C9D0CC; --fg-3: #A9B2AD; --muted: #8E9792;
+  --line: rgba(230, 235, 232, .12); --line-2: rgba(230, 235, 232, .22); --tint: #1B211E; --tint-2: #232A26;
+  --accent: #62BE88; --accent-bg: #15261C; --accent-line: rgba(98, 190, 136, .38);
+  --red: #F08080; --red-bg: #2A1819; --red-line: rgba(240, 128, 128, .36);
+  --blue: #93B3F2; --blue-bg: #1A2337; --orange: #E6A464; --orange-bg: #2C2117; --grey: #8E9792;
+  --hot: #FF8A4C; --hot-ring: rgba(255, 138, 76, .45); --on-accent: #0C1A11;
+  --wf-bg: #181D1A; --wf-side: #141916; --wf-line: rgba(230, 235, 232, .14); --wf-fill: #232A26; --wf-text: #DDE3E0; --wf-muted: #8E9792; --wf-scrim: rgba(0, 0, 0, .55);
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #121614; --card: #181D1A; --fg: #E6EBE8; --fg-2: #C9D0CC; --fg-3: #A9B2AD; --muted: #8E9792;
+  --line: rgba(230, 235, 232, .12); --line-2: rgba(230, 235, 232, .22); --tint: #1B211E; --tint-2: #232A26;
+  --accent: #62BE88; --accent-bg: #15261C; --accent-line: rgba(98, 190, 136, .38);
+  --red: #F08080; --red-bg: #2A1819; --red-line: rgba(240, 128, 128, .36);
+  --blue: #93B3F2; --blue-bg: #1A2337; --orange: #E6A464; --orange-bg: #2C2117; --grey: #8E9792;
+  --hot: #FF8A4C; --hot-ring: rgba(255, 138, 76, .45); --on-accent: #0C1A11;
+  --wf-bg: #181D1A; --wf-side: #141916; --wf-line: rgba(230, 235, 232, .14); --wf-fill: #232A26; --wf-text: #DDE3E0; --wf-muted: #8E9792; --wf-scrim: rgba(0, 0, 0, .55);
+  color-scheme: dark;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-sans); font-weight: 450; line-height: 1.65; -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: break-word; }
+b, strong { font-weight: 700; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 24px; }
+
+/* 머리말 */
+header { padding-block: 44px 28px; }
+.top-links { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+.top-links a { text-decoration: none; font-size: .9rem; font-weight: 700; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--fg-3); }
+.top-links a:hover { border-color: var(--accent-line); background: var(--accent-bg); color: var(--accent); }
+.eyebrow { font-family: var(--f-mono); font-size: .74rem; letter-spacing: .16em; color: var(--muted); margin-bottom: 18px; }
+h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.1; font-weight: 800; letter-spacing: -.035em; }
+h1 .a { color: var(--accent); } h1 .g { color: var(--muted); }
+.sub { max-width: 720px; margin-top: 18px; font-size: 1.04rem; color: var(--fg-2); }
+.sub .hot { color: var(--hot); font-weight: 800; }
+
+/* 페르소나 고르기 */
+.pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.pick button { text-align: left; display: flex; gap: 14px; align-items: center; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); transition: border-color .15s, background .15s; }
+.pick button:hover { border-color: var(--line-2); }
+.pick button[aria-selected="true"] { border: 2px solid var(--accent); background: var(--accent-bg); padding: 15px 17px; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-size: 1.15rem; font-weight: 800; flex: none; background: var(--accent-bg); color: var(--accent); border: 2px solid var(--accent-line); }
+.avatar.b { background: var(--blue-bg); color: var(--blue); border-color: var(--blue); }
+.pick .nm { font-weight: 800; font-size: 1.08rem; }
+.pick .rl { font-size: .88rem; color: var(--muted); }
+.pick .fl { margin-left: auto; font-size: .78rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--accent-line); color: var(--accent); white-space: nowrap; }
+.pick .fl.b { border-color: var(--blue); color: var(--blue); }
+
+/* 무대 */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.device { border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; background: var(--wf-bg); box-shadow: 0 8px 28px rgba(0, 0, 0, .08); }
+.device .chrome { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; background: var(--tint); border-bottom: 1px solid var(--line); }
+.device .chrome i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); }
+.device .chrome span { margin-left: 10px; font-family: var(--f-mono); font-size: .72rem; color: var(--muted); }
+.viewport { position: relative; overflow: hidden; }
+.app { position: absolute; left: 0; top: 0; width: 960px; height: 600px; transform-origin: 0 0; }
+
+.guide { border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: var(--card); display: grid; gap: 14px; position: sticky; top: 16px; }
+.prog { display: flex; align-items: center; gap: 10px; font-size: .84rem; font-weight: 700; color: var(--muted); }
+.prog .bar { flex: 1; height: 6px; border-radius: 999px; background: var(--tint-2); overflow: hidden; }
+.prog .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .25s; }
+.scr-chip { justify-self: start; font-size: .78rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--tint-2); color: var(--fg-3); }
+.climax { justify-self: start; font-size: .76rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--orange-bg); color: var(--orange); }
+.guide h2 { font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.3; }
+.gblock { display: grid; gap: 4px; }
+.gblock .lbl { font-size: .76rem; font-weight: 800; letter-spacing: .06em; color: var(--muted); }
+.gblock.do .lbl { color: var(--hot); }
+.gblock p { color: var(--fg-2); }
+.gblock.do p { color: var(--fg); font-weight: 700; }
+.tip { font-size: .9rem; color: var(--fg-3); background: var(--tint); border-radius: 10px; padding: 10px 12px; }
+.tip b { color: var(--fg); }
+.tip .tg { display: inline-block; font-size: .72rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; margin-right: 6px; vertical-align: 1px; }
+.tip .tg.later { border: 1px dashed var(--line-2); color: var(--muted); }
+.tip .tg.check { background: var(--red-bg); color: var(--red); }
+.tip .tg.proto { background: var(--blue-bg); color: var(--blue); }
+.done { border: 1px solid var(--accent-line); background: var(--accent-bg); border-radius: 12px; padding: 12px 14px; color: var(--fg-2); }
+.done b { display: block; color: var(--accent); font-size: .8rem; letter-spacing: .04em; margin-bottom: 2px; }
+.nav { display: flex; gap: 8px; }
+.nav button { flex: 1; height: 44px; border-radius: 12px; font-weight: 800; border: 1px solid var(--line-2); }
+.nav button.next { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.nav button:disabled { opacity: .4; cursor: default; }
+.keys { font-size: .8rem; color: var(--muted); text-align: center; }
+kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; background: var(--tint); }
+
+/* 단계 목록 */
+.trail { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.trail button { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); font-size: .88rem; color: var(--fg-3); }
+.trail button .no { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .78rem; font-weight: 800; background: var(--tint-2); color: var(--fg-3); }
+.trail button.past .no { background: var(--accent-bg); color: var(--accent); }
+.trail button.cur { border-color: var(--accent); color: var(--fg); font-weight: 700; }
+.trail button.cur .no { background: var(--accent); color: var(--on-accent); }
+.trail button.star .no { background: var(--orange-bg); color: var(--orange); }
+.trail button.star.cur .no { background: var(--orange); color: #fff; }
+.foot { padding-block: 40px 72px; color: var(--muted); font-size: .9rem; }
+.foot p + p { margin-top: 4px; }
+
+/* ── 프로토타입 와이어프레임 (960×600 고정, 화면 폭에 맞춰 축소) ── */
+.app { font-family: var(--f-sans); font-size: 12px; line-height: 1.45; color: var(--wf-text); background: var(--wf-bg); }
+.app * { box-sizing: border-box; }
+.w-top { position: absolute; left: 0; right: 0; top: 0; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--wf-line); background: var(--wf-bg); }
+.w-logo { font-weight: 800; font-size: 14px; letter-spacing: -.02em; color: var(--accent); width: 120px; }
+.w-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; color: var(--wf-muted); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w-tab.on { background: var(--wf-fill); color: var(--wf-text); font-weight: 700; }
+.w-sp { flex: 1; }
+.w-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--wf-line); font-weight: 700; white-space: nowrap; background: var(--wf-bg); }
+.w-btn.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.w-btn.off { color: var(--wf-muted); border-style: dashed; }
+.w-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--wf-muted); font-size: 14px; }
+.w-body { position: absolute; left: 0; right: 0; top: 44px; bottom: 0; display: flex; }
+.w-side { flex: none; height: 100%; background: var(--wf-side); border-right: 1px solid var(--wf-line); overflow: hidden; }
+.w-side.col { width: 52px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 10px; }
+.w-side.col .w-ico { width: 36px; height: 34px; }
+.w-side.col hr { width: 24px; border: 0; border-top: 1px solid var(--wf-line); margin: 4px 0; }
+.w-side.open { width: 210px; padding: 10px 8px; }
+.w-quick { height: 30px; border-radius: 8px; display: flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--wf-muted); background: var(--wf-bg); border: 1px solid var(--wf-line); }
+.w-quick kbd { margin-left: auto; font-size: 10px; }
+.w-sec { font-size: 10.5px; font-weight: 700; color: var(--wf-muted); padding: 12px 8px 4px; letter-spacing: .04em; }
+.w-cat { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 7px; }
+.w-cat .cv { width: 12px; color: var(--wf-muted); font-size: 10px; }
+.w-yr { font-size: 10px; color: var(--wf-muted); padding: 4px 8px 2px 26px; }
+.w-iss { padding: 5px 8px 5px 26px; border-radius: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w-iss.cur { background: var(--accent-bg); color: var(--accent); font-weight: 700; }
+.w-evs { margin: 2px 0 4px 26px; border-left: 1px solid var(--wf-line); }
+.w-ev { display: flex; gap: 6px; padding: 3px 8px; font-size: 11px; white-space: nowrap; overflow: hidden; }
+.w-ev span:first-child { color: var(--wf-muted); }
+.w-ev.cur { color: var(--accent); font-weight: 700; }
+.w-main { position: relative; flex: 1; min-width: 0; height: 100%; overflow: hidden; }
+.w-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 340px; background: var(--wf-bg); border-left: 1px solid var(--wf-line); box-shadow: -8px 0 24px rgba(0, 0, 0, .07); padding: 16px 18px; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+.w-ph { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--wf-muted); }
+.w-ph .x { margin-left: auto; font-size: 14px; }
+.w-pt { font-size: 15px; font-weight: 800; line-height: 1.35; }
+.w-box { border: 1px solid var(--wf-line); border-radius: 10px; padding: 10px 12px; }
+.w-lbl { font-size: 10.5px; font-weight: 800; color: var(--wf-muted); letter-spacing: .03em; margin-bottom: 4px; }
+.w-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--wf-line); }
+.w-row:last-child { border-bottom: 0; }
+.w-row .pr { font-weight: 700; }
+.w-row .dt { color: var(--wf-muted); font-size: 11px; }
+.w-row .go { margin-left: auto; color: var(--wf-muted); }
+.w-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--wf-fill); flex: none; display: grid; place-items: center; font-size: 9px; font-weight: 800; color: var(--wf-muted); }
+.w-pill { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.w-pill.upd { background: var(--orange-bg); color: var(--orange); }
+.w-pill.con { background: var(--red-bg); color: var(--red); }
+.w-pill.new { background: var(--blue-bg); color: var(--blue); }
+.w-pill.rep { background: var(--wf-fill); color: var(--wf-muted); }
+.w-pill.ai { border: 1px solid var(--wf-line); color: var(--wf-muted); }
+.w-q { font-size: 11.5px; line-height: 1.55; color: var(--wf-text); }
+.w-q mark { background: var(--accent-bg); color: var(--accent); font-weight: 700; padding: 0 2px; border-radius: 3px; }
+.w-src { font-size: 10.5px; color: var(--wf-muted); margin-top: 3px; }
+.w-src u { text-decoration: none; color: var(--accent); font-weight: 700; }
+.w-note { font-size: 11px; color: var(--red); background: var(--red-bg); border-radius: 8px; padding: 6px 8px; }
+.w-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.w-chip { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--wf-line); color: var(--wf-muted); }
+.w-chip.on { background: var(--wf-text); border-color: var(--wf-text); color: var(--wf-bg); font-weight: 700; }
+.w-line { height: 7px; border-radius: 4px; background: var(--wf-fill); margin: 6px 0; }
+.w-scrim { position: absolute; inset: 0; background: var(--wf-scrim); display: grid; place-items: center; }
+.w-modal { width: 470px; background: var(--wf-bg); border-radius: 14px; padding: 22px 24px; box-shadow: 0 16px 40px rgba(0, 0, 0, .25); display: flex; flex-direction: column; gap: 12px; }
+.w-modal h4 { font-size: 17px; font-weight: 800; }
+.w-input { height: 40px; border: 1.5px solid var(--accent); border-radius: 10px; display: flex; align-items: center; padding: 0 12px; font-family: var(--f-mono); }
+.w-input .cur { width: 1.5px; height: 16px; background: var(--wf-text); margin-left: 1px; }
+.w-toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--wf-text); color: var(--wf-bg); border-radius: 8px; padding: 8px 14px; font-size: 11.5px; white-space: nowrap; }
+
+/* 홈 */
+.w-home { padding: 26px 34px; display: flex; flex-direction: column; gap: 16px; }
+.w-home .dt { color: var(--wf-muted); font-size: 11px; }
+.w-home h3 { font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+.w-search { height: 40px; border: 1px solid var(--wf-line); border-radius: 10px; display: flex; align-items: center; padding: 0 12px; color: var(--wf-muted); gap: 8px; }
+.w-h { font-size: 13.5px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; }
+.w-h span { font-size: 11px; font-weight: 500; color: var(--wf-muted); }
+.w-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.w-card { border: 1px solid var(--wf-line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.w-card .c { font-size: 10.5px; color: var(--wf-muted); }
+.w-card .t { font-weight: 800; font-size: 13px; line-height: 1.35; }
+.w-card .m { font-size: 10.5px; color: var(--wf-muted); }
+.w-card .l { margin-top: 4px; color: var(--accent); font-weight: 700; font-size: 11px; }
+.w-arts { border: 1px solid var(--wf-line); border-radius: 12px; padding: 4px 12px; }
+
+/* 이슈 에볼루션 맵 */
+.w-ihead { padding: 14px 20px 12px; border-bottom: 1px solid var(--wf-line); display: flex; align-items: flex-end; gap: 12px; }
+.w-ihead .c { font-size: 10.5px; color: var(--wf-muted); }
+.w-ihead .t { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.w-ihead .m { font-size: 11px; color: var(--wf-muted); }
+.w-ihead .r { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.w-tl { position: absolute; left: 0; right: 0; top: 74px; bottom: 0; }
+.w-lane { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--wf-line); }
+.w-lane span { position: absolute; left: 12px; top: 4px; font-size: 10px; color: var(--wf-muted); }
+.w-axis { position: absolute; left: 0; right: 0; bottom: 30px; border-top: 1px solid var(--wf-line); }
+.w-mon { position: absolute; bottom: 10px; font-size: 10.5px; color: var(--wf-muted); transform: translateX(-50%); }
+.w-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.w-node .o { border-radius: 50%; background: var(--wf-bg); border: 2px solid var(--wf-muted); }
+.w-node .o.main { border-color: var(--accent); background: var(--accent-bg); }
+.w-node.sel .o { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 5px var(--accent-bg); }
+.w-node .lb { font-size: 10.5px; font-weight: 700; white-space: nowrap; text-align: center; line-height: 1.25; }
+.w-node .lb small { display: block; font-weight: 500; color: var(--wf-muted); font-size: 9.5px; }
+.w-mk { position: absolute; transform: translate(-50%, -100%); }
+.w-zoom { position: absolute; left: 14px; bottom: 44px; display: flex; gap: 4px; }
+.w-zoom span { width: 26px; height: 26px; border: 1px solid var(--wf-line); border-radius: 7px; display: grid; place-items: center; color: var(--wf-muted); background: var(--wf-bg); font-size: 12px; }
+
+/* 기사 마인드맵 */
+.w-mhead { padding: 12px 20px; border-bottom: 1px solid var(--wf-line); display: flex; align-items: center; gap: 10px; }
+.w-mhead .c { font-size: 10.5px; color: var(--wf-muted); }
+.w-mhead .t { font-size: 14.5px; font-weight: 800; }
+.w-mhead .r { margin-left: auto; display: flex; gap: 6px; }
+.w-mm { position: absolute; left: 0; top: 58px; width: 908px; height: 498px; transform-origin: 0 0; }
+.w-mm svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.w-mm svg line { stroke: var(--wf-line); stroke-width: 1.6; }
+.w-mn { position: absolute; transform: translate(-50%, -50%); border-radius: 10px; padding: 6px 11px; white-space: nowrap; font-size: 11.5px; background: var(--wf-bg); border: 1px solid var(--wf-line); }
+.w-mn.core { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 800; font-size: 12.5px; padding: 10px 14px; max-width: 260px; white-space: normal; text-align: center; }
+.w-mn.grp { background: var(--wf-fill); font-weight: 800; border-color: transparent; }
+.w-mn.sel { border: 2px solid var(--accent); background: var(--accent-bg); color: var(--accent); font-weight: 700; }
+
+/* 랜딩 */
+.w-land { position: absolute; inset: 0; background: var(--wf-bg); }
+.w-lnav { height: 54px; display: flex; align-items: center; gap: 16px; padding: 0 34px; border-bottom: 1px solid var(--wf-line); }
+.w-lnav .lk { color: var(--wf-muted); }
+.w-hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 30px; padding: 58px 46px 0; align-items: center; }
+.w-hero .ey { color: var(--accent); font-weight: 800; font-size: 12px; }
+.w-hero h3 { font-size: 34px; line-height: 1.25; font-weight: 800; letter-spacing: -.03em; margin: 10px 0 14px; }
+.w-hero p { color: var(--wf-muted); font-size: 13px; }
+.w-hero .bt { display: flex; gap: 8px; margin-top: 22px; }
+.w-hero .bt .w-btn { height: 40px; padding: 0 16px; font-size: 13px; }
+.w-heroart { height: 300px; border-radius: 16px; background: var(--wf-fill); position: relative; overflow: hidden; }
+
+/* 분석 중 */
+.w-ana { position: absolute; inset: 0; display: grid; place-items: center; }
+.w-anabox { width: 380px; display: flex; flex-direction: column; gap: 12px; }
+.w-anabox h4 { font-size: 18px; font-weight: 800; text-align: center; }
+.w-anabox .u { text-align: center; font-family: var(--f-mono); color: var(--wf-muted); font-size: 11px; }
+.w-st { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--wf-line); border-radius: 10px; }
+.w-st .s { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 800; flex: none; }
+.w-st.ok .s { background: var(--accent); color: var(--on-accent); }
+.w-st.run { border-color: var(--accent-line); }
+.w-st.run .s { border: 2px solid var(--accent); border-right-color: transparent; }
+.w-st.wait { color: var(--wf-muted); }
+.w-st.wait .s { border: 1.5px solid var(--wf-line); }
+
+/* 원문 보기 */
+.w-reader { width: 560px; max-height: 500px; }
+.w-reader p.par { font-size: 12px; line-height: 1.7; color: var(--wf-muted); }
+.w-reader p.par mark { background: var(--accent-bg); color: var(--wf-text); font-weight: 700; padding: 1px 2px; border-radius: 3px; box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* 누를 곳 */
+.is-target { z-index: 3; outline: 2.5px solid var(--hot); outline-offset: 3px; border-radius: 10px; cursor: pointer; animation: ring 1.5s ease-out infinite; }
+@keyframes ring { 0% { box-shadow: 0 0 0 0 var(--hot-ring); } 70% { box-shadow: 0 0 0 14px rgba(0, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); } }
+@media (prefers-reduced-motion: reduce) { .is-target { animation: none; } }
+.w-pin { position: absolute; z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 5px; transform: translate(-50%, -100%); background: var(--hot); color: #fff; font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, .2); }
+.w-pin::after { content: ""; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); border: 5px solid transparent; border-bottom: 0; border-top-color: var(--hot); }
+.w-pin.below { transform: translate(-50%, 0); }
+.w-pin.below::after { top: -5px; bottom: auto; border-top: 0; border-bottom: 5px solid var(--hot); }
+.w-pin.right { transform: translate(0, -50%); }
+.w-pin.right::after { left: -5px; top: 50%; bottom: auto; transform: translateY(-50%); border: 5px solid transparent; border-left: 0; border-right-color: var(--hot); }
+
+@media (max-width: 980px) {
+  .stage { grid-template-columns: 1fr; }
+  .guide { position: static; }
+}
+@media (max-width: 760px) {
+  .wrap { padding-inline: 16px; }
+  header { padding-block: 32px 20px; }
+  .pick { grid-template-columns: 1fr; }
+  .w-pin { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <nav class="top-links" aria-label="관련 문서">
+    <a href="user-flow.html">← 유저 플로우</a>
+    <a href="prototype/NEW-LEARN%20%ED%94%84%EB%A1%9C%ED%86%A0%ED%83%80%EC%9E%85%20v12.html">프로토타입 v12 열기</a>
+  </nav>
+  <div class="eyebrow">NEW:LEARN · 프로토타입 따라가기 · v12 기준 · 2026-10-15</div>
+  <h1>버튼 하나씩,<br><span class="a">따라가 보기</span><span class="g">.</span></h1>
+  <p class="sub">페르소나를 고르면 프로토타입 v12에서 어디를 눌러 이동하는지 단계별로 보여 줍니다. 화면 안의 <span class="hot">주황색 표시</span>를 누르거나 <kbd>→</kbd> 키로 다음 단계로 넘어가세요.</p>
+</header>
+
+<main class="wrap">
+  <div class="pick" role="tablist" aria-label="페르소나">
+    <button role="tab" id="tab-seoyun" data-p="seoyun" aria-selected="true"><span class="avatar" aria-hidden="true">서</span><span><span class="nm">서윤</span><br><span class="rl">매일 아침 동향을 챙기는 취준생</span></span><span class="fl">Flow A</span></button>
+    <button role="tab" id="tab-hyunwoo" data-p="hyunwoo" aria-selected="false"><span class="avatar b" aria-hidden="true">현</span><span><span class="nm">현우</span><br><span class="rl">기사 링크 하나로 일을 받은 직장인</span></span><span class="fl b">Flow B</span></button>
+  </div>
+
+  <div class="stage">
+    <div>
+      <div class="device">
+        <div class="chrome" aria-hidden="true"><i></i><i></i><i></i><span>NEW:LEARN 프로토타입 v12 (단순화한 화면)</span></div>
+        <div class="viewport" id="vp"><div class="app" id="app" aria-live="polite"></div></div>
+      </div>
+      <ol class="trail" id="trail" aria-label="단계"></ol>
+    </div>
+    <aside class="guide" aria-live="polite">
+      <div class="prog"><span id="g-count">1 / 9</span><span class="bar"><i id="g-bar"></i></span></div>
+      <span class="climax" id="g-climax" hidden>★ 핵심 순간</span>
+      <span class="scr-chip" id="g-screen"></span>
+      <h2 id="g-title"></h2>
+      <div class="gblock do" id="g-do-wrap"><span class="lbl">누를 곳</span><p id="g-do"></p></div>
+      <div class="gblock"><span class="lbl">그러면</span><p id="g-then"></p></div>
+      <p class="tip" id="g-tip" hidden></p>
+      <div class="done" id="g-done" hidden></div>
+      <div class="nav"><button id="b-prev">이전</button><button class="next" id="b-next">다음</button></div>
+      <div class="keys"><kbd>←</kbd> <kbd>→</kbd> 로도 넘길 수 있어요</div>
+    </aside>
+  </div>
+</main>
+
+<footer class="wrap foot">
+  <p>화면은 프로토타입 v12를 단순하게 다시 그린 것입니다. 실제 배치와 색은 프로토타입을 확인하세요.</p>
+  <p>여정 설명과 팀 확인 사항: <a href="user-flow.html">user-flow.html</a> · 원본 <a href="user-flow.md">user-flow.md</a></p>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 프로토타입 데이터 (v12에서 가져옴) ── */
+  var EVENTS = [
+    { id: 'E1', d: '08.04', t: '검토 보도', day: 3, lane: 0, r: 7 },
+    { id: 'E2', d: '08.21', t: '공식 발표', day: 20, lane: 0, r: 13 },
+    { id: 'E3', d: '09.02', t: '보조금 협상', day: 32, lane: 0, r: 8 },
+    { id: 'E4', d: '09.10', t: '노조 반발', day: 40, lane: 1, r: 8 },
+    { id: 'E5', d: '09.12', t: '회사 반박', day: 42, lane: 1, r: 7, lo: 28 },
+    { id: 'E6', d: '09.24', t: '25조 원 상향', day: 54, lane: 0, r: 11 },
+    { id: 'E7', d: '10.06', t: '착공식', day: 66, lane: 0, r: 9 },
+    { id: 'E8', d: '10.09', t: '인력 수급 우려', day: 69, lane: 0, r: 8, lo: 28 }
+  ];
+  var MARKS = { E3: ['new', '새 정보'], E4: ['upd', '갱신'], E6: ['upd', '갱신 20조→25조'], E8: ['con', '상충 후보'] };
+  var ISSUE = '한빛반도체 미국 공장 건설';
+  var MM_GARAM = {
+    core: '한빛반도체, 텍사스 공장 20조 원 투자 공식 발표',
+    groups: [
+      ['누가', ['한빛반도체', '이도윤 대표', '텍사스 주정부']],
+      ['언제', ['2026년 8월 21일 발표', '2026년 4분기 착공 예정', '2028년 양산 목표']],
+      ['무엇을', ['텍사스 테일러시 공장 건설', '총 20조 원 투자']],
+      ['왜', ['북미 고객사 수요 대응', '관세·공급망 리스크 대응']],
+      ['어떻게', ['2단계로 나눠 투자', '현지 인력 2,000명 채용']]
+    ]
+  };
+  var MM_BAREUN = {
+    core: '텍사스 공장, 숙련 엔지니어 부족에 일정 지연 우려',
+    groups: [
+      ['누가', ['현지 업계', '한빛반도체']],
+      ['언제', ['2026년 10월 9일 보도']],
+      ['무엇을', ['숙련 엔지니어 부족', '공정 엔지니어 약 900명 부족']],
+      ['왜', ['일정 지연 가능성']],
+      ['어떻게', ['회사 "일정 변경 계획 없음"']]
+    ]
+  };
+  var MM_NURI = {
+    core: '한빛반도체, 텍사스 공장 투자 25조 원으로 상향',
+    groups: [
+      ['누가', ['한빛반도체', '텍사스 주정부']],
+      ['언제', ['2026년 9월 24일 발표', '2단계 증설 2029년']],
+      ['무엇을', ['총 투자 25조 원으로 상향', '첨단 패키징 라인 추가']],
+      ['왜', ['보조금 확정']],
+      ['어떻게', ['2단계 증설 앞당김']]
+    ]
+  };
+
+  /* ── 화면 조각 ── */
+  function topbar(tabs) {
+    var h = '<div class="w-top"><span class="w-logo">NEW:LEARN</span>';
+    tabs.forEach(function (t, i) { h += '<span class="w-tab' + (i === tabs.length - 1 ? ' on' : '') + '">' + t + '</span>'; });
+    h += '<span class="w-sp"></span><span class="w-btn pri" data-hl="gen">＋ 생성</span><span class="w-ico" title="나의 뉴스함">▢</span><span class="w-ico" title="마이페이지">◯</span></div>';
+    return h;
+  }
+  function sideCollapsed() {
+    return '<aside class="w-side col"><span class="w-ico">»</span><span class="w-ico">⌘</span><hr><span class="w-ico">⌂</span><span class="w-ico">☆</span><span class="w-ico">▢</span><span class="w-ico" data-hl="side-grid">▦</span></aside>';
+  }
+  function sideOpen(opt) {
+    opt = opt || {};
+    var cats = ['정치', '사회', '경제', '국제', '스포츠', '문화/연예', 'IT/과학'];
+    var econ = [ISSUE, '기준금리 동결 논란', '온라인 플랫폼 수수료 규제', '전기차 배터리 수출 둔화', '청년 전세대출 제도 개편'];
+    var h = '<aside class="w-side open"><div class="w-quick">⌘ 빠른 이동<kbd>⌘K</kbd></div><div class="w-sec">이슈 탐색</div>';
+    cats.forEach(function (c) {
+      var open = c === '경제';
+      h += '<div class="w-cat"><span class="cv">' + (open ? '▾' : '▸') + '</span>' + c + '</div>';
+      if (open) {
+        h += '<div class="w-yr">2026</div>';
+        econ.forEach(function (t, i) {
+          var cur = opt.cur && i === 0;
+          h += '<div class="w-iss' + (cur ? ' cur' : '') + '"' + (i === 0 ? ' data-hl="issue-1"' : '') + '>' + t + '</div>';
+          if (cur) {
+            h += '<div class="w-evs">';
+            EVENTS.slice(4).forEach(function (e) { h += '<div class="w-ev"><span>' + e.d.replace('.', '.') + '</span><span>' + e.t + '</span></div>'; });
+            h += '</div>';
+          }
+        });
+      }
+    });
+    return h + '</aside>';
+  }
+  function frame(tabs, side, main, extra) {
+    return topbar(tabs) + '<div class="w-body">' + side + '<div class="w-main">' + main + '</div></div>' + (extra || '');
+  }
+
+  function landing() {
+    return '<div class="w-land"><div class="w-lnav"><span class="w-logo">NEW:LEARN</span><span class="lk">주요 기능</span><span class="lk">근거와 신뢰</span><span class="lk">자주 묻는 질문</span><span class="w-sp" style="flex:1"></span><span class="w-btn">로그인</span><span class="w-btn pri">서비스 둘러보기</span></div>' +
+      '<div class="w-hero"><div><div class="ey">뉴스를 넘어, 흐름을 읽다.</div><h3>기사는 많아도,<br>이슈는 한 흐름으로.</h3><p>같은 사건을 다룬 기사는 하나로 묶고,<br>시간에 따라 달라진 내용은 원문 근거와 함께 보여줘요.</p>' +
+      '<div class="bt"><span class="w-btn pri" data-hl="enter">서비스 둘러보기 →</span><span class="w-btn" data-hl="landing-mm">기사로 마인드맵 만들기</span></div></div>' +
+      '<div class="w-heroart">' + miniTimeline() + '</div></div></div>';
+  }
+  function miniTimeline() {
+    var h = '<svg viewBox="0 0 400 300" width="100%" height="100%" aria-hidden="true"><line x1="30" y1="170" x2="370" y2="170" stroke="currentColor" opacity=".18" stroke-width="2"/>';
+    [[50, 6], [110, 12], [170, 8], [240, 10], [300, 8], [350, 7]].forEach(function (p) { h += '<circle cx="' + p[0] + '" cy="170" r="' + p[1] + '" fill="var(--accent)" opacity=".7"/>'; });
+    return h + '</svg>';
+  }
+
+  function home(opt) {
+    opt = opt || {};
+    var main = '<div class="w-home"><div><div class="dt">10월 11일 일요일 · 좋은 아침이에요</div><h3>오늘의 이슈를 탐색해 보세요</h3></div>' +
+      '<div class="w-search">⌕ 이슈, 사건, 기사 검색<span style="margin-left:auto"><kbd>⌘K</kbd></span></div>' +
+      '<div class="w-h">최근 업데이트</div><div class="w-cards">' +
+      card('경제', ISSUE, '최근 · 10.09 업데이트 · 사건 8 · 기사 23') + card('경제', '기준금리 동결 논란', '사건 5 · 기사 14') + card('경제', '온라인 플랫폼 수수료 규제', '사건 6 · 기사 17') + '</div>' +
+      '<div class="w-h">최신 기사<span>누르면 그 기사의 마인드맵이 열려요</span></div>' +
+      '<div class="w-chips"><span class="w-chip on">전체</span><span class="w-chip">정치</span><span class="w-chip">사회</span><span class="w-chip">경제</span><span class="w-chip">국제</span><span class="w-chip">스포츠</span><span class="w-chip">문화/연예</span><span class="w-chip">IT/과학</span></div>' +
+      '<div class="w-arts">' + artRow('새벽타임즈', '10.09', '텍사스 공장, 숙련 엔지니어 부족 우려') + artRow('바른신문', '10.09', '현지 인력 수급 비상… 900명 부족') + artRow('누리경제', '10.06', '한빛반도체 텍사스 공장 착공') + '</div></div>';
+    return frame(['홈'], opt.side === 'open' ? sideOpen() : sideCollapsed(), main, opt.extra);
+  }
+  function card(c, t, m) { return '<div class="w-card"><span class="c">' + c + '</span><span class="t">' + t + '</span><span class="m">' + m + '</span><span class="l">이슈 흐름 보기 →</span></div>'; }
+  function artRow(p, d, t) { return '<div class="w-row"><span class="w-dot">' + p[0] + '</span><span class="pr">' + p + '</span><span class="dt">' + d + '</span><span>' + t + '</span><span class="go">마인드맵 보기</span></div>'; }
+
+  function issueMap(opt) {
+    opt = opt || {};
+    var inset = opt.panel ? 340 : 0;
+    var sideW = opt.side === 'open' ? 210 : 52;
+    var W = 960 - sideW - inset, H = 556 - 74;
+    var x = function (day) { return 60 + (W - 110) * day / 72; };
+    var laneY = [H * 0.38, H * 0.68];
+    var main = '<div class="w-ihead"><div><div class="c">경제 · 2026.08 – 10</div><div class="t">' + ISSUE + '</div><div class="m">사건 8 · 기사 23 · 언론사 5</div></div>' +
+      '<div class="r"><span class="w-btn" data-hl="changes-btn">⟳ 변화 7</span><span class="w-btn off">관점 비교 · 곧 제공</span><span class="w-ico">🔔</span></div></div><div class="w-tl">';
+    main += '<div class="w-lane" style="top:' + (laneY[0] - 46) + 'px"><span>주요 흐름</span></div><div class="w-lane" style="top:' + (laneY[1] - 40) + 'px"><span>반응 · 반박</span></div>';
+    var svg = '<svg style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true">';
+    var mainIds = ['E1', 'E2', 'E3', 'E6', 'E7', 'E8'];
+    for (var i = 0; i < mainIds.length - 1; i++) {
+      var a = byId(mainIds[i]), b = byId(mainIds[i + 1]);
+      svg += '<line x1="' + x(a.day) + '" y1="' + laneY[0] + '" x2="' + x(b.day) + '" y2="' + laneY[0] + '" stroke="var(--accent)" stroke-opacity=".45" stroke-width="3"/>';
+    }
+    svg += '<line x1="' + x(20) + '" y1="' + laneY[0] + '" x2="' + x(40) + '" y2="' + laneY[1] + '" stroke="var(--wf-muted)" stroke-dasharray="5 4" stroke-width="1.5"/>';
+    svg += '<line x1="' + x(40) + '" y1="' + laneY[1] + '" x2="' + x(42) + '" y2="' + laneY[1] + '" stroke="var(--red)" stroke-dasharray="2 4" stroke-width="1.5"/></svg>';
+    main += svg;
+    EVENTS.forEach(function (e) {
+      var y = laneY[e.lane], sel = opt.sel === e.id;
+      main += '<div class="w-node' + (sel ? ' sel' : '') + '" style="left:' + x(e.day) + 'px;top:' + y + 'px" data-hl="ev-' + e.id + '"><span class="o' + (e.lane === 0 ? ' main' : '') + '" style="width:' + e.r * 2 + 'px;height:' + e.r * 2 + 'px"></span></div>';
+      main += '<div class="w-node" style="left:' + x(e.day) + 'px;top:' + (y + e.r + 18 + (e.lo || 0)) + 'px;pointer-events:none"><span class="lb">' + e.t + '<small>' + e.d + '</small></span></div>';
+      if (MARKS[e.id]) main += '<span class="w-mk" style="left:' + x(e.day) + 'px;top:' + (y - e.r - 8) + 'px"><span class="w-pill ' + MARKS[e.id][0] + '" data-hl="mk-' + e.id + '">' + MARKS[e.id][1] + '</span></span>';
+    });
+    main += '<div class="w-axis"></div>';
+    [['8월', 0], ['9월', 31], ['10월', 61]].forEach(function (m) { main += '<span class="w-mon" style="left:' + x(m[1]) + 'px">' + m[0] + '</span>'; });
+    main += '<div class="w-zoom"><span>−</span><span>＋</span><span>⤢</span></div></div>';
+    if (opt.panel) main += opt.panel;
+    var tabs = ['홈'].concat(opt.tabs || []).concat([ISSUE]);
+    return frame(tabs, opt.side === 'open' ? sideOpen({ cur: true }) : sideCollapsed(), main, opt.extra);
+  }
+  function byId(id) { for (var i = 0; i < EVENTS.length; i++) if (EVENTS[i].id === id) return EVENTS[i]; }
+
+  function eventPanel(which) {
+    if (which === 'E8') {
+      return '<div class="w-panel"><div class="w-ph">사건 · 이전 ‹ › 다음<span class="x">✕</span></div><div class="w-pt">현지 인력 수급 우려</div>' +
+        '<div class="w-ph">사건 발생 2026.10.09 · 기사 2</div>' +
+        '<div class="w-box"><div class="w-lbl">사건 요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">숙련 엔지니어 부족으로 일정이 지연될 수 있다는 현지 업계 분석이 보도됐다. 회사는 일정 변경 계획이 없다고 밝혔다.</div></div>' +
+        '<div class="w-chips"><span class="w-chip on">관련 기사 2</span></div>' +
+        '<div>' + artRowP('바른신문', '10.09') + artRowP('새벽타임즈', '10.09') + '</div>' +
+        '<span class="w-btn" style="align-self:flex-start">마인드맵으로 보기</span>' +
+        '<div class="w-lbl" style="margin-top:4px">이 사건의 변화 (1)</div>' +
+        '<div class="w-box" data-hl="evchg-C6"><span class="w-pill con">상충 후보</span> <b>부족한 엔지니어 규모</b><div class="w-src">약 900명 vs 1,500명 (같은 날 보도)</div></div></div>';
+    }
+    return '<div class="w-panel"><div class="w-ph">사건 · 이전 ‹ › 다음<span class="x">✕</span></div><div class="w-pt">공식 발표: 텍사스 공장 20조 원 투자</div>' +
+      '<div class="w-ph">사건 발생 2026.08.21 · 기사 5 · 언론사 5</div>' +
+      '<div class="w-box"><div class="w-lbl">사건 요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">한빛반도체가 텍사스 테일러시에 20조 원 규모 첨단 공정 공장 건설을 공식 발표했다. 2028년 양산이 목표다.</div></div>' +
+      '<div class="w-chips"><span class="w-chip on">관련 기사 5</span></div>' +
+      '<div>' + artRowP('가람일보', '08.21', true) + artRowP('누리경제', '08.21') + artRowP('다온뉴스', '08.21') + artRowP('바른신문', '08.21') + artRowP('새벽타임즈', '08.21') + '</div>' +
+      '<span class="w-btn" style="align-self:flex-start">마인드맵으로 보기</span></div>';
+  }
+  function artRowP(p, d, here) { return '<div class="w-row"' + (here ? ' style="background:var(--accent-bg);margin:0 -6px;padding:7px 6px;border-radius:6px"' : '') + '><span class="w-dot">' + p[0] + '</span><span class="pr">' + p + '</span><span class="dt">발행 ' + d + '</span>' + (here ? '<span class="w-pill new">지금 본 기사</span>' : '') + '<span class="go">›</span></div>'; }
+
+  function changesPanel(focus) {
+    var h = '<div class="w-panel"><div class="w-ph"><b style="color:var(--wf-text);font-size:13px">변화 목록</b><span class="x">✕</span></div>' +
+      '<div class="w-src" style="margin-top:-6px">새 기사의 주장을 이전 보도와 비교한 결과예요. 이전·이후 근거 문장을 나란히 보여줘요.</div>' +
+      '<div class="w-chips"><span class="w-chip on">전체 7</span><span class="w-chip">갱신 3</span><span class="w-chip">새 정보 2</span><span class="w-chip">반복 1</span><span class="w-chip">상충 후보 1</span></div>';
+    if (focus === 'C6') {
+      h += '<div class="w-box" style="border:1.5px solid var(--red-line)"><span class="w-pill con">상충 후보</span> <b>텍사스 공장 · 부족한 엔지니어 규모</b>' +
+        '<div style="font-weight:800;font-size:13px;margin:6px 0 8px">약 900명 vs 1,500명 <span style="font-weight:500;color:var(--wf-muted);font-size:11px">(같은 날 보도)</span></div>' +
+        '<div class="w-lbl">보도 A</div><div class="w-q">“보고서는 부족한 공정 엔지니어를 <mark>약 900명</mark>으로 집계했다.”</div><div class="w-src"><u data-hl="chg-a">바른신문</u> · 2026.10.09</div>' +
+        '<div class="w-lbl" style="margin-top:8px">보도 B</div><div class="w-q">“현지 업계는 부족한 공정 엔지니어 규모를 <mark>1,500명 수준</mark>으로 추산했다.”</div><div class="w-src"><u>새벽타임즈</u> · 2026.10.09</div>' +
+        '<div class="w-note" style="margin-top:8px">어느 쪽이 맞는지 판정한 결과가 아니에요. 두 보도의 근거를 직접 확인해 보세요.</div></div>';
+      h += mini('upd', '갱신', '총 투자 규모 · 20조 원 → 25조 원') + mini('new', '새 정보', '1단계 장비 반입 시점 · 2027년 하반기');
+    } else {
+      h += '<div class="w-box" style="border:1.5px solid var(--accent-line)"><span class="w-pill upd">갱신</span> <b>한빛반도체 미국 공장 · 총 투자 규모</b>' +
+        '<div style="font-weight:800;font-size:15px;margin:6px 0 8px"><span style="color:var(--wf-muted);text-decoration:line-through;font-weight:600">20조 원</span> → 25조 원</div>' +
+        '<div class="w-lbl">이전 근거</div><div class="w-q" style="color:var(--wf-muted)">“회사 측은 2030년까지 두 단계에 걸쳐 <mark>총 20조 원을 투입</mark>해 첨단 공정 생산 라인을 구축할 계획이라고 밝혔다.”</div><div class="w-src"><u>가람일보</u> · 2026.08.21</div>' +
+        '<div class="w-lbl" style="margin-top:8px">이후 근거</div><div class="w-q">“한빛반도체가 미국 텍사스 공장 총 투자 규모를 <mark>25조 원으로 늘린다</mark>고 24일 밝혔다.”</div><div class="w-src"><u data-hl="chg-b">누리경제</u> · 2026.09.24</div>' +
+        '<div class="w-src" style="margin-top:6px">이전 값은 지난 정보가 됐어요.</div></div>';
+      h += mini('upd', '갱신', '2단계 증설 시점 · 2030년 → 2029년') + mini('con', '상충 후보', '부족한 엔지니어 규모 · 약 900명 vs 1,500명');
+    }
+    return h + '<div class="w-src">같은 내용을 반복한 나머지 보도는 숨겼어요 · 판단 불가 1건 ›</div></div>';
+  }
+  function mini(k, l, t) { return '<div class="w-box" style="padding:8px 12px"><span class="w-pill ' + k + '">' + l + '</span> <span style="font-size:11.5px">' + t + '</span></div>'; }
+
+  function mindmap(mm, opt) {
+    opt = opt || {};
+    var inset = opt.panel ? 340 : 0;
+    var avail = 908 - inset, s = Math.min(1, avail / 908);
+    var cx = 454, cy = 230;
+    var gpos = [[cx - 250, cy - 120], [cx - 250, cy + 110], [cx + 250, cy - 120], [cx + 250, cy + 110], [cx, cy + 170]];
+    var svg = '<svg aria-hidden="true">', nodes = '<div class="w-mn core" style="left:' + cx + 'px;top:' + cy + 'px">' + mm.core + '</div>';
+    mm.groups.forEach(function (g, i) {
+      var gx = gpos[i][0], gy = gpos[i][1];
+      svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + gx + '" y2="' + gy + '"/>';
+      nodes += '<div class="w-mn grp" style="left:' + gx + 'px;top:' + gy + 'px">' + g[0] + '</div>';
+      g[1].forEach(function (leaf, j) {
+        var side = i === 4 ? (j === 0 ? -1 : 1) : (i < 2 ? -1 : 1);
+        var lx = i === 4 ? gx + side * 150 : gx + side * 30, ly = i === 4 ? gy + 8 : gy + 34 + j * 30;
+        if (i === 4) { lx = gx + (j - (g[1].length - 1) / 2) * 190; ly = gy + 40; }
+        svg += '<line x1="' + gx + '" y1="' + gy + '" x2="' + lx + '" y2="' + ly + '"/>';
+        var sel = opt.sel === leaf;
+        nodes += '<div class="w-mn' + (sel ? ' sel' : '') + '" style="left:' + lx + 'px;top:' + ly + 'px"' + (opt.hlLeaf === leaf ? ' data-hl="mm-node"' : '') + '>' + leaf + '</div>';
+      });
+    });
+    svg += '</svg>';
+    var head = '<div class="w-mhead"><div><div class="c">' + opt.meta + '</div><div class="t">' + mm.core + '</div></div><div class="r"><span class="w-btn">↗ 원문 보기</span><span class="w-btn" data-hl="to-issue">이 기사가 속한 이슈 보기</span></div></div>';
+    var main = head + '<div class="w-mm" style="transform:scale(' + s + ')">' + svg + nodes + '</div>' + (opt.panel || '');
+    return frame(['홈'].concat(opt.tabs || []).concat([opt.tab]), sideCollapsed(), main, opt.extra);
+  }
+  function nodePanel(kind) {
+    if (kind === 'garam') {
+      return '<div class="w-panel"><div class="w-ph">노드 · 무엇을<span class="x">✕</span></div><div class="w-pt">총 20조 원 투자</div>' +
+        '<div class="w-box"><div class="w-lbl">요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">2030년까지 두 단계에 걸쳐 총 20조 원을 투입한다. 1단계 12조 원, 2단계 8조 원.</div></div>' +
+        '<div class="w-box"><div class="w-lbl">근거 문장</div><div class="w-q">“회사 측은 2030년까지 두 단계에 걸쳐 <mark>총 20조 원을 투입</mark>해 첨단 공정 생산 라인을 구축할 계획이라고 밝혔다.”</div><div class="w-src">가람일보 · 2번째 문단</div></div>' +
+        '<span class="w-btn" style="align-self:flex-start">원문에서 위치 보기</span>' +
+        '<div class="w-lbl">같은 정보가 나온 기사</div><div>' + artRowP('누리경제', '08.21') + artRowP('다온뉴스', '08.21') + '</div></div>';
+    }
+    return '<div class="w-panel"><div class="w-ph">노드 · 무엇을<span class="x">✕</span></div><div class="w-pt">공정 엔지니어 약 900명 부족</div>' +
+      '<div class="w-box"><div class="w-lbl">요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">현지 보고서 집계로는 부족한 공정 엔지니어가 약 900명이다.</div></div>' +
+      '<div class="w-box"><div class="w-lbl">근거 문장</div><div class="w-q">“보고서는 부족한 공정 엔지니어를 <mark>약 900명</mark>으로 집계했다.”</div><div class="w-src">바른신문 · 2번째 문단</div></div>' +
+      '<span class="w-btn" style="align-self:flex-start" data-hl="reader-btn">원문에서 위치 보기</span>' +
+      '<div class="w-lbl">같은 정보가 나온 기사</div><div>' + artRowP('새벽타임즈', '10.09') + '</div></div>';
+  }
+  function readerModal() {
+    return '<div class="w-scrim"><div class="w-modal w-reader"><div class="w-ph">바른신문 · 2026.10.09<span class="x">✕</span></div><h4>텍사스 공장, 숙련 엔지니어 부족에 일정 지연 우려</h4>' +
+      '<p class="par">한빛반도체 텍사스 공장의 숙련 인력 확보가 일정의 변수로 떠올랐다. 현지 업계는 공정 엔지니어 수급이 가장 큰 과제라고 본다.</p>' +
+      '<p class="par">현지 반도체 협회가 낸 인력 보고서가 근거다. <mark>보고서는 부족한 공정 엔지니어를 약 900명으로 집계했다.</mark></p>' +
+      '<p class="par">회사는 일정 변경 계획이 없다고 밝혔다.</p>' +
+      '<span class="w-btn" style="align-self:flex-start">↗ 언론사 원문으로 이동</span></div></div>';
+  }
+  function genModal() {
+    return '<div class="w-scrim"><div class="w-modal"><div class="w-ph"><span class="x">✕</span></div><h4>마인드맵 생성하기</h4><div class="w-src" style="font-size:12px">기사 URL을 붙여넣으면 인물·사건·근거를 마인드맵으로 정리해 드려요.</div>' +
+      '<div class="w-input">demo<span class="cur"></span></div><span class="w-btn pri" style="height:38px" data-hl="mm-submit">마인드맵 만들기</span>' +
+      '<div class="w-lbl" style="margin-top:4px">지원 언론사</div><div class="w-chips"><span class="w-chip">가람일보</span><span class="w-chip">누리경제</span><span class="w-chip">다온뉴스</span></div>' +
+      '<div class="w-src">“demo”를 입력하면 바로 체험해 볼 수 있어요.</div></div></div>';
+  }
+  function analyzing() {
+    var main = '<div class="w-ana"><div class="w-anabox"><h4>기사를 분석하고 있어요</h4><div class="u">demo · 가람일보 · 2026.08.21</div>' +
+      '<div class="w-st ok"><span class="s">✓</span>기사 본문 확인 중</div><div class="w-st ok"><span class="s">✓</span>인물·기관·사건 추출 중</div>' +
+      '<div class="w-st run"><span class="s"></span>마인드맵 구조 생성 중</div><div class="w-st wait"><span class="s"></span>관련 기사·이슈 연결 중</div></div></div>';
+    return frame(['홈', '마인드맵 생성'], sideCollapsed(), main);
+  }
+
+  /* ── 여정 ── */
+  var JOURNEYS = {
+    seoyun: [
+      { screen: '랜딩', title: '서비스 둘러보기', hl: 'enter', render: landing,
+        doing: '랜딩 첫 화면의 <b>서비스 둘러보기</b>', then: '홈으로 들어간다.',
+        tip: '<span class="tg proto">프로토타입</span>프로토타입은 항상 랜딩에서 시작해요. 로그인하지 않아도 모든 탐색을 할 수 있어요.' },
+      { screen: '홈', title: '분야 펼치기', hl: 'side-grid', render: function () { return home(); },
+        doing: '왼쪽 사이드바의 ▦ <b>분야별 이슈 펼치기</b>', then: '사이드바가 펼쳐지고 <b>이슈 탐색</b> 아래에 7개 분야가 보인다. 경제는 처음부터 열려 있다.',
+        tip: '<kbd>Ctrl</kbd> + <kbd>\\</kbd> 로도 사이드바를 펼칠 수 있어요.' },
+      { screen: '홈 · 사이드바', title: '이슈 고르기', hl: 'issue-1', render: function () { return home({ side: 'open' }); },
+        doing: '경제 › 2026 아래 <b>한빛반도체 미국 공장 건설</b>', then: '이슈 에볼루션 맵 탭이 열린다.',
+        tip: '<span class="tg check">팀 확인 1</span>MVP Flow A의 "카테고리 선택 → 이슈 목록"이 프로토타입에서는 이 사이드바예요. 홈에 따로 둘지 정해야 해요.' },
+      { screen: '이슈 에볼루션 맵', title: '가장 최근 사건 열기', hl: 'ev-E8', render: function () { return issueMap({ side: 'open' }); },
+        doing: '타임라인 맨 오른쪽 <b>인력 수급 우려</b>(10.09) 사건 노드', then: '오른쪽에 사건 패널이 열린다. 넓은 화면에서는 사이드바가 자동으로 접힌다.',
+        tip: '<span class="tg later">MVP 이후</span>"지난 방문 이후 새 사건" 표시는 MVP 이후예요. 지금은 최신 사건을 오른쪽 끝에서 직접 찾아요.' },
+      { screen: '사건 패널', title: '이 사건의 변화 보기', hl: 'evchg-C6', render: function () { return issueMap({ sel: 'E8', panel: eventPanel('E8') }); },
+        doing: '사건 패널 아래 <b>이 사건의 변화</b>의 상충 후보 카드', then: '변화 목록이 열리고 그 카드로 바로 이동한다.' },
+      { screen: '변화 목록', title: '엇갈린 보도 확인', hl: 'chg-a', climax: true, render: function () { return issueMap({ sel: 'E8', panel: changesPanel('C6') }); },
+        doing: '카드를 읽은 뒤 보도 A의 기사 이름 <b>바른신문</b>', then: '그 기사의 마인드맵이 새 탭으로 열린다.',
+        tip: '같은 날 두 언론사가 다른 숫자를 냈어요. NEW:LEARN은 <b>어느 쪽이 맞는지 판정하지 않고</b> 두 근거를 나란히 보여 줘요.' },
+      { screen: '기사 마인드맵', title: '노드 누르기', hl: 'mm-node', render: function () { return mindmap(MM_BAREUN, { meta: '바른신문 · 2026.10.09', tab: '바른신문 기사', tabs: [ISSUE], hlLeaf: '공정 엔지니어 약 900명 부족' }); },
+        doing: '무엇을 › <b>공정 엔지니어 약 900명 부족</b> 노드', then: '오른쪽 노드 패널에 요약과 근거 문장이 나온다.',
+        tip: '<span class="tg check">팀 확인 9</span>프로토타입 노드 분류는 누가·언제·무엇을·왜·어떻게예요. MVP 개요는 인물·기관·사건·시점·배경·결과예요.' },
+      { screen: '노드 패널', title: '원문에서 위치 보기', hl: 'reader-btn', render: function () { return mindmap(MM_BAREUN, { meta: '바른신문 · 2026.10.09', tab: '바른신문 기사', tabs: [ISSUE], sel: '공정 엔지니어 약 900명 부족', panel: nodePanel('bareun') }); },
+        doing: '노드 패널의 <b>원문에서 위치 보기</b>', then: '원문 보기가 열리고 근거 문장이 강조된다.' },
+      { screen: '원문 보기', title: '노트에 옮기기', hl: null, render: function () { return mindmap(MM_BAREUN, { meta: '바른신문 · 2026.10.09', tab: '바른신문 기사', tabs: [ISSUE], panel: nodePanel('bareun'), extra: readerModal() }); },
+        doing: '', then: '강조된 문장을 동향 노트에 옮긴다. <b>언론사 원문으로 이동</b>은 프로토타입에서는 꺼져 있다.',
+        done: '<b>가치를 느끼는 순간</b>같은 사건 기사 여러 건을 하나로 보고, 새로 나온 내용과 엇갈린 숫자를 근거와 함께 5분 안에 확인했어요.' }
+    ],
+    hyunwoo: [
+      { screen: '홈', title: '마인드맵 만들기 열기', hl: 'gen', render: function () { return home(); },
+        doing: '상단 오른쪽 <b>＋ 생성</b>', then: '마인드맵 생성 모달이 뜬다.',
+        tip: '랜딩의 <b>기사로 마인드맵 만들기</b>를 눌러도 같은 모달이 열려요.' },
+      { screen: '마인드맵 생성 모달', title: 'URL 넣기', hl: 'mm-submit', render: function () { return home({ extra: genModal() }); },
+        doing: 'URL 칸에 기사 URL을 붙여넣고 <b>마인드맵 만들기</b>', then: '새 탭에서 분석이 시작된다.',
+        tip: '<span class="tg proto">프로토타입</span>"demo"를 넣으면 현우가 받은 8월 21일 가람일보 공식 발표 기사로 이어져요.' },
+      { screen: '분석 중', title: '분석 기다리기', hl: null, render: analyzing,
+        doing: '누를 것 없음. 잠시 기다린다', then: '네 단계가 끝나면 같은 탭이 기사 마인드맵으로 바뀐다.',
+        tip: '<span class="tg later">P1</span>단계별 진행 표시는 P1이에요. P0는 "분석 중" 상태만 있으면 돼요. 지원하지 않는 출처면 실패 안내와 <b>홈으로 돌아가기</b>가 나와요 <span class="tg check">팀 확인 3</span>' },
+      { screen: '기사 마인드맵', title: '숫자 노드 누르기', hl: 'mm-node', render: function () { return mindmap(MM_GARAM, { meta: '가람일보 · 2026.08.21', tab: '가람일보 기사', hlLeaf: '총 20조 원 투자' }); },
+        doing: '무엇을 › <b>총 20조 원 투자</b> 노드', then: '노드 패널에 요약과 근거 문장이 나온다.' },
+      { screen: '노드 패널', title: '소속 이슈로 이동', hl: 'to-issue', render: function () { return mindmap(MM_GARAM, { meta: '가람일보 · 2026.08.21', tab: '가람일보 기사', sel: '총 20조 원 투자', panel: nodePanel('garam') }); },
+        doing: '마인드맵 위쪽 <b>이 기사가 속한 이슈 보기</b>', then: '이슈 에볼루션 맵이 열리고, 공식 발표 사건이 선택된 채 사건 패널이 열려 있다.' },
+      { screen: '이슈 에볼루션 맵', title: '그 뒤에 바뀐 것 찾기', hl: 'mk-E6', render: function () { return issueMap({ sel: 'E2', panel: eventPanel('E2'), tabs: ['가람일보 기사'] }); },
+        doing: '9월 24일 <b>25조 원 상향</b> 위의 <b>갱신</b> 표시', then: '오른쪽이 변화 목록으로 바뀌고 갱신 카드가 강조된다.',
+        tip: '"지금 본 기사"(8월 21일) 뒤로 사건이 6개 더 있어요. 받은 기사가 끝이 아니었던 거예요.' },
+      { screen: '변화 목록', title: '바뀐 숫자 확인', hl: 'chg-b', climax: true, render: function () { return issueMap({ sel: 'E6', panel: changesPanel('C1'), tabs: ['가람일보 기사'] }); },
+        doing: '이후 근거의 기사 이름 <b>누리경제</b>', then: '누리경제 기사의 마인드맵이 열린다.',
+        tip: '팀장이 보낸 기사의 <b>20조 원</b>은 9월 24일에 <b>25조 원</b>으로 바뀌었어요. 2단계 증설 시점도 2030년에서 2029년으로 당겨졌어요.' },
+      { screen: '기사 마인드맵', title: '회의 자료에 넣기', hl: null, render: function () { return mindmap(MM_NURI, { meta: '누리경제 · 2026.09.24', tab: '누리경제 기사', tabs: ['가람일보 기사', ISSUE] }); },
+        doing: '', then: '최신 기사의 마인드맵과 근거 문장으로 회의 자료를 고친다.',
+        done: '<b>가치를 느끼는 순간</b>받은 기사의 숫자가 이미 바뀌었다는 걸 회의 전에, 근거와 함께 발견했어요.' }
+    ]
+  };
+
+  /* ── 상태와 그리기 ── */
+  var persona = 'seoyun', step = 0;
+  var app = document.getElementById('app'), vp = document.getElementById('vp');
+
+  function fit() {
+    var w = vp.clientWidth, s = w / 960;
+    app.style.transform = 'scale(' + s + ')';
+    vp.style.height = Math.round(600 * s) + 'px';
+    placePin();
+  }
+  function placePin() {
+    var old = app.querySelector('.w-pin'); if (old) old.remove();
+    var t = app.querySelector('.is-target'); if (!t) return;
+    var s = vp.clientWidth / 960, ar = app.getBoundingClientRect(), tr = t.getBoundingClientRect();
+    var x = (tr.left - ar.left + tr.width / 2) / s, top = (tr.top - ar.top) / s, bottom = (tr.bottom - ar.top) / s;
+    var pin = document.createElement('div'); pin.className = 'w-pin'; pin.textContent = '여기를 누르세요';
+    if (t.tagName === 'U') { pin.classList.add('right'); pin.style.top = ((top + bottom) / 2) + 'px'; pin.style.left = ((tr.right - ar.left) / s + 10) + 'px'; app.appendChild(pin); return; }
+    if (top < 60) { pin.classList.add('below'); pin.style.top = (bottom + 12) + 'px'; } else { pin.style.top = (top - 10) + 'px'; }
+    pin.style.left = Math.max(70, Math.min(890, x)) + 'px';
+    app.appendChild(pin);
+  }
+  function render() {
+    var list = JOURNEYS[persona], st = list[step];
+    app.innerHTML = st.render();
+    if (st.hl) {
+      var t = app.querySelector('[data-hl="' + st.hl + '"]');
+      if (t) {
+        t.classList.add('is-target'); t.setAttribute('role', 'button'); t.setAttribute('tabindex', '0'); t.setAttribute('aria-label', '다음 단계로: ' + st.title);
+        t.addEventListener('click', next);
+        t.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); } });
+      }
+    }
+    document.getElementById('g-count').textContent = (step + 1) + ' / ' + list.length;
+    document.getElementById('g-bar').style.width = ((step + 1) / list.length * 100) + '%';
+    document.getElementById('g-screen').textContent = st.screen;
+    document.getElementById('g-title').textContent = st.title;
+    document.getElementById('g-climax').hidden = !st.climax;
+    var doWrap = document.getElementById('g-do-wrap');
+    doWrap.hidden = !st.doing;
+    document.getElementById('g-do').innerHTML = st.doing || '';
+    document.getElementById('g-then').innerHTML = st.then;
+    var tip = document.getElementById('g-tip'); tip.hidden = !st.tip; tip.innerHTML = st.tip || '';
+    var done = document.getElementById('g-done'); done.hidden = !st.done; done.innerHTML = st.done || '';
+    document.getElementById('b-prev').disabled = step === 0;
+    var nb = document.getElementById('b-next');
+    nb.textContent = step === list.length - 1 ? (persona === 'seoyun' ? '현우 여정 보기 →' : '서윤 여정 보기 →') : '다음';
+    var trail = document.getElementById('trail'); trail.innerHTML = '';
+    list.forEach(function (s, i) {
+      var li = document.createElement('li'), b = document.createElement('button');
+      b.className = (i < step ? 'past' : '') + (i === step ? ' cur' : '') + (s.climax ? ' star' : '');
+      b.innerHTML = '<span class="no">' + (s.climax ? '★' : i + 1) + '</span>' + s.title;
+      if (i === step) b.setAttribute('aria-current', 'step');
+      b.addEventListener('click', function () { step = i; render(); });
+      li.appendChild(b); trail.appendChild(li);
+    });
+    try { history.replaceState(null, '', '#' + persona + '-' + (step + 1)); } catch (e) {}
+    fit();
+  }
+  function setPersona(p) {
+    persona = p; step = 0;
+    document.querySelectorAll('.pick button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.p === p)); });
+    render();
+  }
+  function next() {
+    var list = JOURNEYS[persona];
+    if (step < list.length - 1) { step++; render(); } else { setPersona(persona === 'seoyun' ? 'hyunwoo' : 'seoyun'); }
+  }
+  function prev() { if (step > 0) { step--; render(); } }
+
+  document.querySelectorAll('.pick button').forEach(function (b) { b.addEventListener('click', function () { setPersona(b.dataset.p); }); });
+  document.getElementById('b-next').addEventListener('click', next);
+  document.getElementById('b-prev').addEventListener('click', prev);
+  document.addEventListener('keydown', function (e) {
+    if (e.target.closest && e.target.closest('input, textarea')) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  });
+  window.addEventListener('resize', fit);
+
+  var m = /^#(seoyun|hyunwoo)-(\d+)$/.exec(location.hash);
+  if (m) { persona = m[1]; step = Math.max(0, Math.min(JOURNEYS[persona].length - 1, +m[2] - 1)); document.querySelectorAll('.pick button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.p === persona)); }); }
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+})();
+</script>
+</body>
+</html>
