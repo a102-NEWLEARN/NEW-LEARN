@@ -299,8 +299,8 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
 
 <main class="wrap">
   <div class="pick" role="tablist" aria-label="페르소나">
-    <button role="tab" id="tab-seoyun" data-p="seoyun" aria-selected="true"><span class="avatar" aria-hidden="true">서</span><span><span class="nm">서윤</span><br><span class="rl">매일 아침 동향을 챙기는 취준생</span></span><span class="fl">Flow A</span></button>
-    <button role="tab" id="tab-hyunwoo" data-p="hyunwoo" aria-selected="false"><span class="avatar b" aria-hidden="true">현</span><span><span class="nm">현우</span><br><span class="rl">기사 링크 하나로 일을 받은 직장인</span></span><span class="fl b">Flow B</span></button>
+    <button role="tab" id="tab-saku" data-p="saku" aria-selected="true"><span class="avatar" aria-hidden="true">사</span><span><span class="nm">사쿠</span><br><span class="rl">매일 추천 이슈로 동향을 챙기는 취준생</span></span><span class="fl">Flow A</span></button>
+    <button role="tab" id="tab-yoseop" data-p="yoseop" aria-selected="false"><span class="avatar b" aria-hidden="true">요</span><span><span class="nm">요섭</span><br><span class="rl">매일 점심에 업계 기사를 읽는 직장인</span></span><span class="fl b">Flow B</span></button>
   </div>
 
   <div class="stage">
@@ -348,28 +348,18 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
   ];
   var MARKS = { E3: ['new', '새 정보'], E4: ['upd', '갱신'], E6: ['upd', '갱신 20조→25조'], E8: ['con', '상충 후보'] };
   var ISSUE = '한빛반도체 미국 공장 건설';
-  var MM_GARAM = {
-    core: '한빛반도체, 텍사스 공장 20조 원 투자 공식 발표',
+  var MM_E7 = {
+    core: '한빛반도체 텍사스 공장 첫 삽… “2028년 양산 변함없다”',
     groups: [
-      ['누가', ['한빛반도체', '이도윤 대표', '텍사스 주정부']],
-      ['언제', ['2026년 8월 21일 발표', '2026년 4분기 착공 예정', '2028년 양산 목표']],
-      ['무엇을', ['텍사스 테일러시 공장 건설', '총 20조 원 투자']],
-      ['왜', ['북미 고객사 수요 대응', '관세·공급망 리스크 대응']],
-      ['어떻게', ['2단계로 나눠 투자', '현지 인력 2,000명 채용']]
-    ]
-  };
-  var MM_BAREUN = {
-    core: '텍사스 공장, 숙련 엔지니어 부족에 일정 지연 우려',
-    groups: [
-      ['누가', ['현지 업계', '한빛반도체']],
-      ['언제', ['2026년 10월 9일 보도']],
-      ['무엇을', ['숙련 엔지니어 부족', '공정 엔지니어 약 900명 부족']],
-      ['왜', ['일정 지연 가능성']],
-      ['어떻게', ['회사 "일정 변경 계획 없음"']]
+      ['누가', ['한빛반도체', '텍사스 주정부']],
+      ['언제', ['2026년 10월 6일 착공식', '2028년 양산 목표']],
+      ['무엇을', ['텍사스 테일러시 공장 착공']],
+      ['왜', ['북미 고객사 수요 대응']],
+      ['어떻게', ['1단계 장비 반입 2027년 하반기']]
     ]
   };
   var MM_NURI = {
-    core: '한빛반도체, 텍사스 공장 투자 25조 원으로 상향',
+    core: '한빛반도체, 美 투자 25조로 늘린다',
     groups: [
       ['누가', ['한빛반도체', '텍사스 주정부']],
       ['언제', ['2026년 9월 24일 발표', '2단계 증설 2029년']],
@@ -432,15 +422,16 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
     opt = opt || {};
     var main = '<div class="w-home"><div><div class="dt">10월 11일 일요일 · 좋은 아침이에요</div><h3>오늘의 이슈를 탐색해 보세요</h3></div>' +
       '<div class="w-search">⌕ 이슈, 사건, 기사 검색<span style="margin-left:auto"><kbd>⌘K</kbd></span></div>' +
-      '<div class="w-h">최근 업데이트</div><div class="w-cards">' +
-      card('경제', ISSUE, '최근 · 10.09 업데이트 · 사건 8 · 기사 23') + card('경제', '기준금리 동결 논란', '사건 5 · 기사 14') + card('경제', '온라인 플랫폼 수수료 규제', '사건 6 · 기사 17') + '</div>' +
+      '<div class="w-h">추천 이슈<span>여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요</span><span style="margin-left:auto;color:var(--accent);font-weight:700">관심사 편집</span></div>' +
+      '<div class="w-chips"><span class="w-chip on">경제</span><span class="w-chip">스포츠</span><span class="w-chip">문화/연예</span></div>' +
+      '<div class="w-cards">' + card('경제', ISSUE, '최근 사건 · 10.09 인력 수급 우려', 'rec-1') + card('경제', '기준금리 동결 논란', '사건 5 · 기사 14') + card('경제', '온라인 플랫폼 수수료 규제', '사건 6 · 기사 17') + '</div>' +
       '<div class="w-h">최신 기사<span>누르면 그 기사의 마인드맵이 열려요</span></div>' +
       '<div class="w-chips"><span class="w-chip on">전체</span><span class="w-chip">정치</span><span class="w-chip">사회</span><span class="w-chip">경제</span><span class="w-chip">국제</span><span class="w-chip">스포츠</span><span class="w-chip">문화/연예</span><span class="w-chip">IT/과학</span></div>' +
-      '<div class="w-arts">' + artRow('새벽타임즈', '10.09', '텍사스 공장, 숙련 엔지니어 부족 우려') + artRow('바른신문', '10.09', '현지 인력 수급 비상… 900명 부족') + artRow('누리경제', '10.06', '한빛반도체 텍사스 공장 착공') + '</div></div>';
+      '<div class="w-arts">' + artRow('새벽타임즈', '10.09', '인력 쟁탈전 속 한빛반도체, 국내 인력 순환 파견 검토') + artRow('바른신문', '10.09', '텍사스 엔지니어 부족… 한빛반도체 양산 일정 변수로') + artRow('가람일보', '10.06', '한빛반도체 텍사스 공장 첫 삽… “2028년 양산 변함없다”', 'art-e7') + '</div></div>';
     return frame(['홈'], opt.side === 'open' ? sideOpen() : sideCollapsed(), main, opt.extra);
   }
-  function card(c, t, m) { return '<div class="w-card"><span class="c">' + c + '</span><span class="t">' + t + '</span><span class="m">' + m + '</span><span class="l">이슈 흐름 보기 →</span></div>'; }
-  function artRow(p, d, t) { return '<div class="w-row"><span class="w-dot">' + p[0] + '</span><span class="pr">' + p + '</span><span class="dt">' + d + '</span><span>' + t + '</span><span class="go">마인드맵 보기</span></div>'; }
+  function card(c, t, m, hl) { return '<div class="w-card"><span class="c">' + c + '</span><span class="t">' + t + '</span><span class="m">' + m + '</span><span class="l"' + (hl ? ' data-hl="' + hl + '"' : '') + '>흐름 보기 →</span></div>'; }
+  function artRow(p, d, t, hl) { return '<div class="w-row"><span class="w-dot">' + p[0] + '</span><span class="pr">' + p + '</span><span class="dt">' + d + '</span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + t + '</span><span class="go"' + (hl ? ' data-hl="' + hl + '" style="color:var(--accent);font-weight:700"' : '') + '>마인드맵 보기</span></div>'; }
 
   function issueMap(opt) {
     opt = opt || {};
@@ -487,12 +478,14 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
         '<div class="w-lbl" style="margin-top:4px">이 사건의 변화 (1)</div>' +
         '<div class="w-box" data-hl="evchg-C6"><span class="w-pill con">상충 후보</span> <b>부족한 엔지니어 규모</b><div class="w-src">약 900명 vs 1,500명 (같은 날 보도)</div></div></div>';
     }
-    return '<div class="w-panel"><div class="w-ph">사건 · 이전 ‹ › 다음<span class="x">✕</span></div><div class="w-pt">공식 발표: 텍사스 공장 20조 원 투자</div>' +
-      '<div class="w-ph">사건 발생 2026.08.21 · 기사 5 · 언론사 5</div>' +
-      '<div class="w-box"><div class="w-lbl">사건 요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">한빛반도체가 텍사스 테일러시에 20조 원 규모 첨단 공정 공장 건설을 공식 발표했다. 2028년 양산이 목표다.</div></div>' +
-      '<div class="w-chips"><span class="w-chip on">관련 기사 5</span></div>' +
-      '<div>' + artRowP('가람일보', '08.21', true) + artRowP('누리경제', '08.21') + artRowP('다온뉴스', '08.21') + artRowP('바른신문', '08.21') + artRowP('새벽타임즈', '08.21') + '</div>' +
-      '<span class="w-btn" style="align-self:flex-start">마인드맵으로 보기</span></div>';
+    return '<div class="w-panel"><div class="w-ph">사건 · 이전 ‹ › 다음<span class="x">✕</span></div><div class="w-pt">착공식</div>' +
+      '<div class="w-ph">사건 발생 2026.10.06 · 기사 3 · 언론사 3</div>' +
+      '<div class="w-box"><div class="w-lbl">사건 요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">텍사스 테일러시에서 착공식이 열렸다. 회사는 2028년 양산 목표를 재확인했다.</div></div>' +
+      '<div class="w-chips"><span class="w-chip on">관련 기사 3</span></div>' +
+      '<div>' + artRowP('가람일보', '10.06', true) + artRowP('누리경제', '10.06') + artRowP('다온뉴스', '10.06') + '</div>' +
+      '<span class="w-btn" style="align-self:flex-start">마인드맵으로 보기</span>' +
+      '<div class="w-lbl" style="margin-top:4px">이 사건의 변화 (2)</div>' +
+      mini('new', '새 정보', '1단계 장비 반입 시점 · 2027년 하반기') + mini('rep', '반복', '2028년 양산 목표 다시 확인') + '</div>';
   }
   function artRowP(p, d, here) { return '<div class="w-row"' + (here ? ' style="background:var(--accent-bg);margin:0 -6px;padding:7px 6px;border-radius:6px"' : '') + '><span class="w-dot">' + p[0] + '</span><span class="pr">' + p + '</span><span class="dt">발행 ' + d + '</span>' + (here ? '<span class="w-pill new">지금 본 기사</span>' : '') + '<span class="go">›</span></div>'; }
 
@@ -544,97 +537,46 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
     var main = head + '<div class="w-mm" style="transform:scale(' + s + ')">' + svg + nodes + '</div>' + (opt.panel || '');
     return frame(['홈'].concat(opt.tabs || []).concat([opt.tab]), sideCollapsed(), main, opt.extra);
   }
-  function nodePanel(kind) {
-    if (kind === 'garam') {
-      return '<div class="w-panel"><div class="w-ph">노드 · 무엇을<span class="x">✕</span></div><div class="w-pt">총 20조 원 투자</div>' +
-        '<div class="w-box"><div class="w-lbl">요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">2030년까지 두 단계에 걸쳐 총 20조 원을 투입한다. 1단계 12조 원, 2단계 8조 원.</div></div>' +
-        '<div class="w-box"><div class="w-lbl">근거 문장</div><div class="w-q">“회사 측은 2030년까지 두 단계에 걸쳐 <mark>총 20조 원을 투입</mark>해 첨단 공정 생산 라인을 구축할 계획이라고 밝혔다.”</div><div class="w-src">가람일보 · 2번째 문단</div></div>' +
-        '<span class="w-btn" style="align-self:flex-start">원문에서 위치 보기</span>' +
-        '<div class="w-lbl">같은 정보가 나온 기사</div><div>' + artRowP('누리경제', '08.21') + artRowP('다온뉴스', '08.21') + '</div></div>';
-    }
-    return '<div class="w-panel"><div class="w-ph">노드 · 무엇을<span class="x">✕</span></div><div class="w-pt">공정 엔지니어 약 900명 부족</div>' +
-      '<div class="w-box"><div class="w-lbl">요약 <span class="w-pill ai">AI 생성</span></div><div class="w-q">현지 보고서 집계로는 부족한 공정 엔지니어가 약 900명이다.</div></div>' +
-      '<div class="w-box"><div class="w-lbl">근거 문장</div><div class="w-q">“보고서는 부족한 공정 엔지니어를 <mark>약 900명</mark>으로 집계했다.”</div><div class="w-src">바른신문 · 2번째 문단</div></div>' +
-      '<span class="w-btn" style="align-self:flex-start" data-hl="reader-btn">원문에서 위치 보기</span>' +
-      '<div class="w-lbl">같은 정보가 나온 기사</div><div>' + artRowP('새벽타임즈', '10.09') + '</div></div>';
-  }
-  function readerModal() {
-    return '<div class="w-scrim"><div class="w-modal w-reader"><div class="w-ph">바른신문 · 2026.10.09<span class="x">✕</span></div><h4>텍사스 공장, 숙련 엔지니어 부족에 일정 지연 우려</h4>' +
-      '<p class="par">한빛반도체 텍사스 공장의 숙련 인력 확보가 일정의 변수로 떠올랐다. 현지 업계는 공정 엔지니어 수급이 가장 큰 과제라고 본다.</p>' +
-      '<p class="par">현지 반도체 협회가 낸 인력 보고서가 근거다. <mark>보고서는 부족한 공정 엔지니어를 약 900명으로 집계했다.</mark></p>' +
-      '<p class="par">회사는 일정 변경 계획이 없다고 밝혔다.</p>' +
-      '<span class="w-btn" style="align-self:flex-start">↗ 언론사 원문으로 이동</span></div></div>';
-  }
-  function genModal() {
-    return '<div class="w-scrim"><div class="w-modal"><div class="w-ph"><span class="x">✕</span></div><h4>마인드맵 생성하기</h4><div class="w-src" style="font-size:12px">기사 URL을 붙여넣으면 인물·사건·근거를 마인드맵으로 정리해 드려요.</div>' +
-      '<div class="w-input">demo<span class="cur"></span></div><span class="w-btn pri" style="height:38px" data-hl="mm-submit">마인드맵 만들기</span>' +
-      '<div class="w-lbl" style="margin-top:4px">지원 언론사</div><div class="w-chips"><span class="w-chip">가람일보</span><span class="w-chip">누리경제</span><span class="w-chip">다온뉴스</span></div>' +
-      '<div class="w-src">“demo”를 입력하면 바로 체험해 볼 수 있어요.</div></div></div>';
-  }
-  function analyzing() {
-    var main = '<div class="w-ana"><div class="w-anabox"><h4>기사를 분석하고 있어요</h4><div class="u">demo · 가람일보 · 2026.08.21</div>' +
-      '<div class="w-st ok"><span class="s">✓</span>기사 본문 확인 중</div><div class="w-st ok"><span class="s">✓</span>인물·기관·사건 추출 중</div>' +
-      '<div class="w-st run"><span class="s"></span>마인드맵 구조 생성 중</div><div class="w-st wait"><span class="s"></span>관련 기사·이슈 연결 중</div></div></div>';
-    return frame(['홈', '마인드맵 생성'], sideCollapsed(), main);
-  }
-
   /* ── 여정 ── */
   var JOURNEYS = {
-    seoyun: [
+    saku: [
       { screen: '랜딩', title: '서비스 둘러보기', hl: 'enter', render: landing,
         doing: '랜딩 첫 화면의 <b>서비스 둘러보기</b>', then: '홈으로 들어간다.',
-        tip: '<span class="tg proto">프로토타입</span>프로토타입은 항상 랜딩에서 시작해요. 로그인하지 않아도 모든 탐색을 할 수 있어요.' },
-      { screen: '홈', title: '분야 펼치기', hl: 'side-grid', render: function () { return home(); },
-        doing: '왼쪽 사이드바의 ▦ <b>분야별 이슈 펼치기</b>', then: '사이드바가 펼쳐지고 <b>이슈 탐색</b> 아래에 7개 분야가 보인다. 경제는 처음부터 열려 있다.',
-        tip: '<kbd>Ctrl</kbd> + <kbd>\\</kbd> 로도 사이드바를 펼칠 수 있어요.' },
-      { screen: '홈 · 사이드바', title: '이슈 고르기', hl: 'issue-1', render: function () { return home({ side: 'open' }); },
-        doing: '경제 › 2026 아래 <b>한빛반도체 미국 공장 건설</b>', then: '이슈 에볼루션 맵 탭이 열린다.',
-        tip: '<span class="tg check">팀 확인 1</span>MVP Flow A의 "카테고리 선택 → 이슈 목록"이 프로토타입에서는 이 사이드바예요. 홈에 따로 둘지 정해야 해요.' },
-      { screen: '이슈 에볼루션 맵', title: '가장 최근 사건 열기', hl: 'ev-E8', render: function () { return issueMap({ side: 'open' }); },
-        doing: '타임라인 맨 오른쪽 <b>인력 수급 우려</b>(10.09) 사건 노드', then: '오른쪽에 사건 패널이 열린다. 넓은 화면에서는 사이드바가 자동으로 접힌다.',
-        tip: '<span class="tg later">MVP 이후</span>"지난 방문 이후 새 사건" 표시는 MVP 이후예요. 지금은 최신 사건을 오른쪽 끝에서 직접 찾아요.' },
+        tip: '<span class="tg proto">프로토타입</span>프로토타입은 항상 랜딩에서 시작해요. 실제 서비스라면 매일 오는 사쿠는 바로 홈에서 시작해요.' },
+      { screen: '홈 · 추천 이슈', title: '추천 이슈 고르기', hl: 'rec-1', render: function () { return home(); },
+        doing: '추천 이슈 경제 탭, "한빛반도체 미국 공장 건설" 카드의 <b>흐름 보기</b>', then: '이슈 에볼루션 맵 탭이 열린다.',
+        tip: '<span class="tg check">팀 확인 1</span>관심 분야 기반 추천 이슈는 PRD상 MVP 이후(FR-28)예요. 개인화 없이 7개 분야 탭 + 최근 업데이트 순으로 두면 MVP에 넣을 수 있어요.' },
+      { screen: '이슈 에볼루션 맵', title: '가장 최근 사건 열기', hl: 'ev-E8', render: function () { return issueMap(); },
+        doing: '타임라인 맨 오른쪽 <b>인력 수급 우려</b>(10.09) 사건 노드', then: '오른쪽에 사건 패널이 열린다.',
+        tip: '<span class="tg later">MVP 이후</span>"지난 방문 이후 새 사건" 표시(FR-19)는 MVP 이후예요. 지금은 최신 사건을 오른쪽 끝에서 직접 찾아요.' },
       { screen: '사건 패널', title: '이 사건의 변화 보기', hl: 'evchg-C6', render: function () { return issueMap({ sel: 'E8', panel: eventPanel('E8') }); },
         doing: '사건 패널 아래 <b>이 사건의 변화</b>의 상충 후보 카드', then: '변화 목록이 열리고 그 카드로 바로 이동한다.' },
-      { screen: '변화 목록', title: '엇갈린 보도 확인', hl: 'chg-a', climax: true, render: function () { return issueMap({ sel: 'E8', panel: changesPanel('C6') }); },
-        doing: '카드를 읽은 뒤 보도 A의 기사 이름 <b>바른신문</b>', then: '그 기사의 마인드맵이 새 탭으로 열린다.',
-        tip: '같은 날 두 언론사가 다른 숫자를 냈어요. NEW:LEARN은 <b>어느 쪽이 맞는지 판정하지 않고</b> 두 근거를 나란히 보여 줘요.' },
-      { screen: '기사 마인드맵', title: '노드 누르기', hl: 'mm-node', render: function () { return mindmap(MM_BAREUN, { meta: '바른신문 · 2026.10.09', tab: '바른신문 기사', tabs: [ISSUE], hlLeaf: '공정 엔지니어 약 900명 부족' }); },
-        doing: '무엇을 › <b>공정 엔지니어 약 900명 부족</b> 노드', then: '오른쪽 노드 패널에 요약과 근거 문장이 나온다.',
-        tip: '<span class="tg check">팀 확인 9</span>프로토타입 노드 분류는 누가·언제·무엇을·왜·어떻게예요. MVP 개요는 인물·기관·사건·시점·배경·결과예요.' },
-      { screen: '노드 패널', title: '원문에서 위치 보기', hl: 'reader-btn', render: function () { return mindmap(MM_BAREUN, { meta: '바른신문 · 2026.10.09', tab: '바른신문 기사', tabs: [ISSUE], sel: '공정 엔지니어 약 900명 부족', panel: nodePanel('bareun') }); },
-        doing: '노드 패널의 <b>원문에서 위치 보기</b>', then: '원문 보기가 열리고 근거 문장이 강조된다.' },
-      { screen: '원문 보기', title: '노트에 옮기기', hl: null, render: function () { return mindmap(MM_BAREUN, { meta: '바른신문 · 2026.10.09', tab: '바른신문 기사', tabs: [ISSUE], panel: nodePanel('bareun'), extra: readerModal() }); },
-        doing: '', then: '강조된 문장을 동향 노트에 옮긴다. <b>언론사 원문으로 이동</b>은 프로토타입에서는 꺼져 있다.',
-        done: '<b>가치를 느끼는 순간</b>같은 사건 기사 여러 건을 하나로 보고, 새로 나온 내용과 엇갈린 숫자를 근거와 함께 5분 안에 확인했어요.' }
+      { screen: '변화 목록', title: '엇갈린 숫자 확인', hl: null, climax: true, render: function () { return issueMap({ sel: 'E8', panel: changesPanel('C6') }); },
+        doing: '', then: '같은 날 두 언론사가 낸 숫자(약 900명 vs 1,500명)와 근거 문장을 나란히 본다. 두 근거를 동향 노트에 옮긴다.',
+        tip: 'NEW:LEARN은 <b>어느 쪽이 맞는지 판정하지 않고</b> 두 근거를 나란히 보여 줘요. 근거 옆 언론사 이름을 누르면 그 기사의 마인드맵이 열려요.',
+        done: '<b>가치를 느끼는 순간</b>매일 같은 기사를 다시 읽지 않고, 새로 나온 사건과 엇갈린 숫자만 근거와 함께 5분 안에 확인했어요.' }
     ],
-    hyunwoo: [
-      { screen: '홈', title: '마인드맵 만들기 열기', hl: 'gen', render: function () { return home(); },
-        doing: '상단 오른쪽 <b>＋ 생성</b>', then: '마인드맵 생성 모달이 뜬다.',
-        tip: '랜딩의 <b>기사로 마인드맵 만들기</b>를 눌러도 같은 모달이 열려요.' },
-      { screen: '마인드맵 생성 모달', title: 'URL 넣기', hl: 'mm-submit', render: function () { return home({ extra: genModal() }); },
-        doing: 'URL 칸에 기사 URL을 붙여넣고 <b>마인드맵 만들기</b>', then: '새 탭에서 분석이 시작된다.',
-        tip: '<span class="tg proto">프로토타입</span>"demo"를 넣으면 현우가 받은 8월 21일 가람일보 공식 발표 기사로 이어져요.' },
-      { screen: '분석 중', title: '분석 기다리기', hl: null, render: analyzing,
-        doing: '누를 것 없음. 잠시 기다린다', then: '네 단계가 끝나면 같은 탭이 기사 마인드맵으로 바뀐다.',
-        tip: '<span class="tg later">P1</span>단계별 진행 표시는 P1이에요. P0는 "분석 중" 상태만 있으면 돼요. 지원하지 않는 출처면 실패 안내와 <b>홈으로 돌아가기</b>가 나와요 <span class="tg check">팀 확인 3</span>' },
-      { screen: '기사 마인드맵', title: '숫자 노드 누르기', hl: 'mm-node', render: function () { return mindmap(MM_GARAM, { meta: '가람일보 · 2026.08.21', tab: '가람일보 기사', hlLeaf: '총 20조 원 투자' }); },
-        doing: '무엇을 › <b>총 20조 원 투자</b> 노드', then: '노드 패널에 요약과 근거 문장이 나온다.' },
-      { screen: '노드 패널', title: '소속 이슈로 이동', hl: 'to-issue', render: function () { return mindmap(MM_GARAM, { meta: '가람일보 · 2026.08.21', tab: '가람일보 기사', sel: '총 20조 원 투자', panel: nodePanel('garam') }); },
-        doing: '마인드맵 위쪽 <b>이 기사가 속한 이슈 보기</b>', then: '이슈 에볼루션 맵이 열리고, 공식 발표 사건이 선택된 채 사건 패널이 열려 있다.' },
-      { screen: '이슈 에볼루션 맵', title: '그 뒤에 바뀐 것 찾기', hl: 'mk-E6', render: function () { return issueMap({ sel: 'E2', panel: eventPanel('E2'), tabs: ['가람일보 기사'] }); },
-        doing: '9월 24일 <b>25조 원 상향</b> 위의 <b>갱신</b> 표시', then: '오른쪽이 변화 목록으로 바뀌고 갱신 카드가 강조된다.',
-        tip: '"지금 본 기사"(8월 21일) 뒤로 사건이 6개 더 있어요. 받은 기사가 끝이 아니었던 거예요.' },
-      { screen: '변화 목록', title: '바뀐 숫자 확인', hl: 'chg-b', climax: true, render: function () { return issueMap({ sel: 'E6', panel: changesPanel('C1'), tabs: ['가람일보 기사'] }); },
+    yoseop: [
+      { screen: '홈 · 최신 기사', title: '기사 고르기', hl: 'art-e7', render: function () { return home(); },
+        doing: '최신 기사의 가람일보 「한빛반도체 텍사스 공장 첫 삽…」 <b>마인드맵 보기</b>', then: '기사 마인드맵 탭이 열린다.',
+        tip: '다른 곳에서 본 지원 언론사 기사라면 상단 <b>＋ 생성</b>에 URL을 넣어도 같은 흐름으로 들어와요.' },
+      { screen: '기사 마인드맵', title: '소속 이슈로 이동', hl: 'to-issue', render: function () { return mindmap(MM_E7, { meta: '가람일보 · 2026.10.06', tab: '가람일보 기사' }); },
+        doing: '마인드맵 위쪽 <b>이 기사가 속한 이슈 보기</b>', then: '이슈 에볼루션 맵이 열리고, 착공식 사건이 선택된 채 사건 패널이 열려 있다.',
+        tip: '노드를 누르면 요약과 원문 근거 문장이 나와요. <span class="tg check">팀 확인 8</span>노드 분류(누가·언제·무엇을·왜·어떻게)가 MVP 개요와 달라요.' },
+      { screen: '이슈 에볼루션 맵', title: '앞에서 바뀐 것 찾기', hl: 'mk-E6', render: function () { return issueMap({ sel: 'E7', panel: eventPanel('E7'), tabs: ['가람일보 기사'] }); },
+        doing: '착공식 왼쪽, 9월 24일 <b>25조 원 상향</b> 위의 <b>갱신</b> 표시', then: '오른쪽이 변화 목록으로 바뀌고 갱신 카드가 강조된다.',
+        tip: '착공 기사 앞에 사건이 6개 더 있어요. 기사 한 편으로는 보이지 않던 흐름이에요.' },
+      { screen: '변화 목록', title: '바뀐 숫자 발견', hl: 'chg-b', climax: true, render: function () { return issueMap({ sel: 'E6', panel: changesPanel('C1'), tabs: ['가람일보 기사'] }); },
         doing: '이후 근거의 기사 이름 <b>누리경제</b>', then: '누리경제 기사의 마인드맵이 열린다.',
-        tip: '팀장이 보낸 기사의 <b>20조 원</b>은 9월 24일에 <b>25조 원</b>으로 바뀌었어요. 2단계 증설 시점도 2030년에서 2029년으로 당겨졌어요.' },
-      { screen: '기사 마인드맵', title: '회의 자료에 넣기', hl: null, render: function () { return mindmap(MM_NURI, { meta: '누리경제 · 2026.09.24', tab: '누리경제 기사', tabs: ['가람일보 기사', ISSUE] }); },
-        doing: '', then: '최신 기사의 마인드맵과 근거 문장으로 회의 자료를 고친다.',
-        done: '<b>가치를 느끼는 순간</b>받은 기사의 숫자가 이미 바뀌었다는 걸 회의 전에, 근거와 함께 발견했어요.' }
+        tip: '8월 발표 때 <b>20조 원</b>이던 투자 규모가 9월 24일 <b>25조 원</b>으로 바뀌었어요. 2단계 증설 시점도 2030년에서 2029년으로 당겨졌어요.' },
+      { screen: '기사 마인드맵', title: '업무 메모에 남기기', hl: null, render: function () { return mindmap(MM_NURI, { meta: '누리경제 · 2026.09.24', tab: '누리경제 기사', tabs: ['가람일보 기사', ISSUE] }); },
+        doing: '', then: '바뀐 숫자와 근거 문장을 업무 메모에 남긴다.',
+        done: '<b>가치를 느끼는 순간</b>기사 한 편에서 출발해 두 달 치 흐름과 바뀐 숫자를 점심시간 안에 파악했어요.' }
     ]
   };
 
   /* ── 상태와 그리기 ── */
-  var persona = 'seoyun', step = 0;
+  var persona = 'saku', step = 0;
   var app = document.getElementById('app'), vp = document.getElementById('vp');
 
   function fit() {
@@ -678,7 +620,7 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
     var done = document.getElementById('g-done'); done.hidden = !st.done; done.innerHTML = st.done || '';
     document.getElementById('b-prev').disabled = step === 0;
     var nb = document.getElementById('b-next');
-    nb.textContent = step === list.length - 1 ? (persona === 'seoyun' ? '현우 여정 보기 →' : '서윤 여정 보기 →') : '다음';
+    nb.textContent = step === list.length - 1 ? (persona === 'saku' ? '요섭 여정 보기 →' : '사쿠 여정 보기 →') : '다음';
     var trail = document.getElementById('trail'); trail.innerHTML = '';
     list.forEach(function (s, i) {
       var li = document.createElement('li'), b = document.createElement('button');
@@ -698,7 +640,7 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
   }
   function next() {
     var list = JOURNEYS[persona];
-    if (step < list.length - 1) { step++; render(); } else { setPersona(persona === 'seoyun' ? 'hyunwoo' : 'seoyun'); }
+    if (step < list.length - 1) { step++; render(); } else { setPersona(persona === 'saku' ? 'yoseop' : 'saku'); }
   }
   function prev() { if (step > 0) { step--; render(); } }
 
@@ -712,7 +654,7 @@ kbd { font-family: var(--f-mono); font-size: .9em; padding: 0 5px; border: 1px s
   });
   window.addEventListener('resize', fit);
 
-  var m = /^#(seoyun|hyunwoo)-(\d+)$/.exec(location.hash);
+  var m = /^#(saku|yoseop)-(\d+)$/.exec(location.hash);
   if (m) { persona = m[1]; step = Math.max(0, Math.min(JOURNEYS[persona].length - 1, +m[2] - 1)); document.querySelectorAll('.pick button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.p === persona)); }); }
   render();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
