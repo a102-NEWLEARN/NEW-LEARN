@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NEW:LEARN 유저 플로우</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style>
+/* PRD(prd.html)와 같은 톤: 흰 바탕 한 단 문서, 숲 초록 포인트, 둥근 카드와 알약 태그 */
+:root {
+  --bg: #FFFFFF; --card: #FFFFFF; --fg: #191C1A; --fg-2: #363B38; --fg-3: #59605C; --muted: #6F7672;
+  --line: rgba(25, 28, 26, .10); --line-2: rgba(25, 28, 26, .18); --tint: #F5F7F6; --tint-2: #EEF1EF;
+  --accent: #2F7D4F; --accent-bg: #EFF6F1; --accent-line: rgba(47, 125, 79, .32);
+  --red: #CC4545; --red-bg: #FDF1F1; --red-line: rgba(204, 69, 69, .28);
+  --blue: #3A62C2; --blue-bg: #EDF2FC; --orange: #B5651A; --orange-bg: #FDF3E8; --grey: #6F7672;
+  --star: #B5651A; --on-accent: #FFFFFF;
+  --f-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "SFMono-Regular", Menlo, Consolas, ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --card: #181D1A; --fg: #E6EBE8; --fg-2: #C9D0CC; --fg-3: #A9B2AD; --muted: #8E9792;
+  --line: rgba(230, 235, 232, .12); --line-2: rgba(230, 235, 232, .22); --tint: #1B211E; --tint-2: #232A26;
+  --accent: #62BE88; --accent-bg: #15261C; --accent-line: rgba(98, 190, 136, .38);
+  --red: #F08080; --red-bg: #2A1819; --red-line: rgba(240, 128, 128, .36);
+  --blue: #93B3F2; --blue-bg: #1A2337; --orange: #E6A464; --orange-bg: #2C2117; --grey: #8E9792;
+  --star: #E6A464; --on-accent: #0C1A11; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #121614; --card: #181D1A; --fg: #E6EBE8; --fg-2: #C9D0CC; --fg-3: #A9B2AD; --muted: #8E9792;
+  --line: rgba(230, 235, 232, .12); --line-2: rgba(230, 235, 232, .22); --tint: #1B211E; --tint-2: #232A26;
+  --accent: #62BE88; --accent-bg: #15261C; --accent-line: rgba(98, 190, 136, .38);
+  --red: #F08080; --red-bg: #2A1819; --red-line: rgba(240, 128, 128, .36);
+  --blue: #93B3F2; --blue-bg: #1A2337; --orange: #E6A464; --orange-bg: #2C2117; --grey: #8E9792;
+  --star: #E6A464; --on-accent: #0C1A11; color-scheme: dark;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-sans); font-weight: 450; line-height: 1.7; -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: break-word; }
+b, strong { font-weight: 700; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 24px; }
+
+/* 머리말 */
+header { padding-block: 64px 48px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 26px; font-weight: 800; font-size: 1.1rem; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+.eyebrow { font-family: var(--f-mono); font-size: .74rem; letter-spacing: .16em; color: var(--muted); margin-bottom: 26px; }
+h1 { font-size: clamp(2.2rem, 6.4vw, 4.4rem); line-height: 1.08; font-weight: 800; letter-spacing: -.038em; }
+h1 .g { color: var(--muted); } h1 .a { color: var(--accent); }
+.sub { max-width: 680px; margin-top: 28px; font-size: 1.1rem; color: var(--fg-2); }
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 36px; font-size: .92rem; }
+.toc a { color: var(--muted); text-decoration: none; padding: 6px 13px; border: 1px solid var(--line); border-radius: 999px; }
+.toc a:hover { color: var(--fg); border-color: var(--accent-line); background: var(--accent-bg); }
+.toc a b { color: var(--accent); font-weight: 800; margin-right: 6px; }
+.toc a.hot { border-color: var(--red-line); background: var(--red-bg); color: var(--red); font-weight: 700; }
+.toc a.hot b { color: var(--red); }
+
+/* 섹션 */
+section { padding-block: 56px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
+.sh { display: flex; align-items: baseline; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+.sh .no { font-size: .74rem; font-weight: 800; letter-spacing: .1em; padding: 4px 10px; border-radius: 999px; background: var(--accent); color: var(--on-accent); }
+.sh .no.red { background: var(--red); }
+.sh h2 { font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 800; letter-spacing: -.03em; line-height: 1.2; }
+.sh .note { font-size: .92rem; color: var(--muted); }
+.lead { font-size: 1.02rem; color: var(--fg-2); margin-bottom: 22px; max-width: 760px; }
+h3.sub-h { font-size: 1.15rem; font-weight: 800; margin: 40px 0 14px; }
+.dim { color: var(--muted); }
+.small { font-size: .9rem; }
+
+/* 흐름 칩 */
+.lanes { display: grid; gap: 12px; }
+.lane { border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 16px; align-items: center; }
+.lane .who { font-weight: 800; font-size: 1.05rem; }
+.lane .who span { display: block; font-size: .86rem; font-weight: 600; color: var(--muted); }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .95rem; color: var(--fg-3); }
+.flow .s { border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; background: var(--card); }
+.flow .s.a { border-color: var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.flow .arr { color: var(--muted); }
+.callout { border: 1px solid var(--accent-line); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--accent-bg); padding: 18px 22px; margin-top: 16px; color: var(--fg-2); }
+.callout b { color: var(--fg); }
+
+/* 페르소나 */
+.personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.pcard { border: 1px solid var(--line); border-radius: 18px; padding: 26px; display: grid; gap: 16px; align-content: start; background: var(--card); min-width: 0; }
+.pcard .top { display: flex; gap: 14px; align-items: center; }
+.avatar { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 1.4rem; font-weight: 800; flex: none; background: var(--accent-bg); color: var(--accent); border: 2px solid var(--accent-line); }
+.avatar.b { background: var(--blue-bg); color: var(--blue); border-color: var(--blue); }
+.pcard h3 { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
+.pcard .role { font-size: .92rem; color: var(--muted); }
+.pcard dl { display: grid; gap: 10px; }
+.pcard dl > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; }
+.pcard dt { font-size: .86rem; font-weight: 700; color: var(--muted); padding-top: 2px; }
+.pcard dd { color: var(--fg-2); }
+.pcard dd.want { color: var(--fg); font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 14px; border-top: 1px dashed var(--line-2); }
+.chip { font-size: .82rem; font-weight: 700; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--fg-3); }
+.chip.a { border-color: var(--accent-line); background: var(--accent-bg); color: var(--accent); }
+.chip.b { border-color: var(--blue); background: var(--blue-bg); color: var(--blue); }
+
+/* 여정 */
+.story { border-left: 3px solid var(--line-2); padding: 2px 0 2px 20px; color: var(--fg-2); margin-bottom: 24px; max-width: 800px; }
+.steps { list-style: none; display: grid; gap: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.steps li { display: grid; grid-template-columns: 64px minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+.steps li:last-child { border-bottom: 0; }
+.steps .n { display: grid; place-items: start center; padding-top: 22px; font-size: 1.2rem; font-weight: 800; color: var(--accent); }
+.steps .c { padding: 20px 24px 20px 0; min-width: 0; display: grid; gap: 6px; }
+.steps .scr { justify-self: start; font-size: .78rem; font-weight: 800; letter-spacing: .02em; padding: 2px 10px; border-radius: 999px; background: var(--tint-2); color: var(--fg-3); }
+.steps .act { font-size: 1.06rem; font-weight: 700; color: var(--fg); }
+.steps .res { color: var(--fg-2); }
+.steps .res::before { content: "→ "; color: var(--muted); }
+.steps li.hi { background: var(--accent-bg); }
+.steps li.hi .n { color: var(--star); }
+.steps li.hi .scr { background: var(--accent); color: var(--on-accent); }
+.climax { font-size: .74rem; font-weight: 800; letter-spacing: .08em; color: var(--star); }
+.outcome { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 14px; }
+.outcome > div { border-radius: 14px; padding: 18px 22px; border: 1px solid var(--line); }
+.outcome .cap { font-size: .78rem; font-weight: 800; letter-spacing: .06em; margin-bottom: 6px; }
+.outcome .good { border-color: var(--accent-line); background: var(--accent-bg); }
+.outcome .good .cap { color: var(--accent); }
+.outcome .warn { border-color: var(--red-line); background: var(--red-bg); }
+.outcome .warn .cap { color: var(--red); }
+.outcome .alt .cap { color: var(--muted); }
+.outcome p { color: var(--fg-2); }
+.note-box { margin-top: 12px; font-size: .92rem; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 12px; padding: 12px 16px; }
+
+/* 카드 그리드 */
+.cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.cells > div { border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; background: var(--card); min-width: 0; }
+.cells h4 { font-size: 1.08rem; font-weight: 800; margin-bottom: 10px; }
+.cells h4 .k { color: var(--accent); margin-right: 6px; }
+.cells ul { list-style: none; display: grid; gap: 8px; color: var(--fg-2); }
+.cells li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 6px; }
+.cells li::before { content: "—"; color: var(--accent); }
+.cells.later > div { border-style: dashed; background: var(--tint); }
+.cells.later h4 .fr { font-family: var(--f-mono); font-size: .75rem; font-weight: 600; color: var(--muted); margin-left: 6px; }
+.rels { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+.rel { font-size: .84rem; font-weight: 800; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+.rel.new { color: var(--blue); background: var(--blue-bg); }
+.rel.rep { color: var(--grey); background: var(--tint-2); }
+.rel.upd { color: var(--orange); background: var(--orange-bg); }
+.rel.con { color: var(--red); background: var(--red-bg); }
+.rel.unk { color: var(--grey); border: 1px dashed var(--line-2); }
+
+/* 표 */
+.tbl { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.tbl .th, .tbl .tr { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .6fr) minmax(0, 1.6fr) minmax(0, .8fr); gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); align-items: baseline; }
+.tbl .tr:last-child { border-bottom: 0; }
+.tbl .th { font-family: var(--f-mono); font-size: .68rem; letter-spacing: .14em; color: var(--muted); padding-block: 12px; background: var(--tint); }
+.tbl .tr > span:first-child { font-weight: 700; color: var(--fg); }
+.tbl .tr > span { color: var(--fg-2); }
+.tbl.st .th, .tbl.st .tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr); }
+.pr { display: inline-block; font-size: .74rem; font-weight: 800; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--fg-3); white-space: nowrap; }
+.pr.p0 { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.pr.p1 { border-color: var(--accent-line); color: var(--accent); background: var(--accent-bg); }
+.pr.q { border-style: dashed; }
+kbd { font-family: var(--f-mono); font-size: .82em; padding: 1px 6px; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; background: var(--tint); }
+
+/* 팀 확인 */
+.qlist { list-style: none; border: 1px solid var(--red-line); border-radius: 14px; overflow: hidden; background: var(--card); }
+.qlist li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.qlist li:last-child { border-bottom: 0; }
+.qlist .qn { font-weight: 800; color: var(--red); }
+.qlist .qt b { display: block; color: var(--fg); margin-bottom: 2px; }
+.qlist .qt span { color: var(--fg-2); }
+
+footer { padding-block: 56px 88px; border-top: 1px solid var(--line); color: var(--muted); font-size: .94rem; }
+footer p + p { margin-top: 6px; }
+
+@media (max-width: 760px) {
+  .wrap { padding-inline: 16px; }
+  header { padding-block: 44px 36px; }
+  section { padding-block: 44px; }
+  .lane { grid-template-columns: 1fr; gap: 10px; }
+  .pcard { padding: 20px; }
+  .steps li { grid-template-columns: 44px minmax(0, 1fr); }
+  .steps .c { padding-right: 16px; }
+  .tbl .th { display: none; }
+  .tbl .tr, .tbl.st .tr { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand"><svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" style="fill:var(--accent)"/><g fill="none" style="stroke:var(--on-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="13" y="6.5" width="8" height="7" rx="1.5"/><path d="M17 13.5v4M10.5 21v-3.5h13V21"/><rect x="6.5" y="21" width="8" height="7" rx="1.5"/><rect x="19.5" y="21" width="8" height="7" rx="1.5"/></g></svg>NEW:LEARN</div>
+  <div class="eyebrow">NEW:LEARN · 유저 플로우 · 프로토타입 v12 기준 · 2026-10-15</div>
+  <h1>입구<span class="g">는</span> 둘,<br><span class="a">흐름</span><span class="g">은</span> 하나.</h1>
+  <p class="sub">누가, 어떤 상황에서, 어떤 화면을 거쳐 원하는 걸 얻는지 정리했습니다. 페르소나는 PRD 7.1의 사용자 여정(UJ-1, UJ-2) 주인공을 그대로 씁니다.</p>
+  <nav class="toc" aria-label="목차">
+    <a href="#s1"><b>01</b>한눈에 보기</a>
+    <a href="#s2"><b>02</b>페르소나</a>
+    <a href="#s3"><b>03</b>지수의 여정</a>
+    <a href="#s4"><b>04</b>도윤의 여정</a>
+    <a href="#s5"><b>05</b>변화 · 근거 확인</a>
+    <a href="#s6"><b>06</b>화면 목록</a>
+    <a href="#s7"><b>07</b>공통 규칙</a>
+    <a href="#s8"><b>08</b>MVP 이후</a>
+    <a class="hot" href="#s9"><b>09</b>팀 확인 필요</a>
+  </nav>
+</header>
+
+<!-- 01 한눈에 보기 -->
+<section id="s1">
+  <div class="sh"><span class="no">01</span><h2>한눈에 보기</h2></div>
+  <p class="lead">NEW:LEARN에는 들어오는 길이 두 개 있고, 두 길은 가운데 두 화면에서 만납니다.</p>
+  <div class="lanes">
+    <div class="lane">
+      <div class="who">Flow A<span>분야에서 시작 · 지수</span></div>
+      <div class="flow"><span class="s">홈</span><span class="arr">→</span><span class="s">분야</span><span class="arr">→</span><span class="s">이슈</span><span class="arr">→</span><span class="s a">이슈 에볼루션 맵</span><span class="arr">→</span><span class="s">사건</span><span class="arr">→</span><span class="s">기사</span><span class="arr">→</span><span class="s a">기사 마인드맵</span></div>
+    </div>
+    <div class="lane">
+      <div class="who">Flow B<span>기사에서 시작 · 도윤</span></div>
+      <div class="flow"><span class="s">URL 입력</span><span class="arr">→</span><span class="s">AI 분석</span><span class="arr">→</span><span class="s a">기사 마인드맵</span><span class="arr">→</span><span class="s">소속 이슈</span><span class="arr">→</span><span class="s a">이슈 에볼루션 맵</span></div>
+    </div>
+  </div>
+  <div class="callout">어느 길로 들어와도 <b>이슈 에볼루션 맵 ↔ 기사 마인드맵</b>을 오갈 수 있습니다(F11). 그 사이에서 두 가지를 확인합니다. <b>무엇이 달라졌나</b>(변화 카드)와 <b>근거가 뭔가</b>(원문 근거)입니다.</div>
+</section>
+
+<!-- 02 페르소나 -->
+<section id="s2">
+  <div class="sh"><span class="no">02</span><h2>페르소나</h2><span class="note">PRD 3.1 대상 사용자 · 7.1 사용자 여정</span></div>
+  <div class="personas">
+    <article class="pcard">
+      <div class="top"><div class="avatar" aria-hidden="true">지</div><div><h3>지수</h3><div class="role">면접 전날의 취준생 · 1차 타깃</div></div></div>
+      <dl>
+        <div><dt>누구</dt><dd>반도체 기업 면접을 하루 앞둔 취업준비생</dd></div>
+        <div><dt>상황</dt><dd>"최근 해외 공장 투자 이슈를 설명해 보라"는 질문이 나올 것 같다</dd></div>
+        <div><dt>막힌 점</dt><dd>관련 기사가 너무 많아 어디서부터 봐야 할지 모른다</dd></div>
+        <div><dt>원하는 것</dt><dd class="want">10분 안에 두 달 치 흐름과 바뀐 숫자를 파악하고, 면접에서 인용할 근거 문장을 챙긴다</dd></div>
+      </dl>
+      <div class="chips"><span class="chip a">Flow A</span><span class="chip">로그인 안 함</span><span class="chip">짧은 시간 안에</span></div>
+    </article>
+    <article class="pcard">
+      <div class="top"><div class="avatar b" aria-hidden="true">도</div><div><h3>도윤</h3><div class="role">고객사 업계를 조사하는 주니어 리서처 · 2차 타깃</div></div></div>
+      <dl>
+        <div><dt>누구</dt><dd>가구·인테리어 업계 고객사를 맡은 컨설팅사 주니어 리서처</dd></div>
+        <div><dt>상황</dt><dd>팀장이 아침에 공유한 기사 「40대 여성 CEO 김유진, '실적 부진' 한샘의 구원투수될까」의 배경을 오늘 안에 정리해야 한다</dd></div>
+        <div><dt>막힌 점</dt><dd>기사 한 개로는 그 앞의 2년 치 맥락이 보이지 않는다</dd></div>
+        <div><dt>원하는 것</dt><dd class="want">이 기사가 어떤 흐름 속에 있는지 한 화면에서 파악한다</dd></div>
+      </dl>
+      <div class="chips"><span class="chip b">Flow B</span><span class="chip">기사 URL 있음</span><span class="chip">로그인 안 함</span></div>
+    </article>
+  </div>
+</section>
+
+<!-- 03 지수의 여정 -->
+<section id="s3">
+  <div class="sh"><span class="no">03</span><h2>지수 — 분야에서 시작해 근거까지</h2><span class="note">Flow A · UJ-1</span></div>
+  <p class="story">면접 전날 밤, 지수는 "한빛반도체 미국 공장" 이야기가 나올 것 같아 NEW:LEARN을 엽니다. 기사를 하나씩 읽을 시간은 없습니다.</p>
+  <ol class="steps">
+    <li><span class="n">1</span><div class="c"><span class="scr">홈 · 사이드바</span><span class="act">사이드바 <i>이슈 탐색</i>에서 경제를 펼친다</span><span class="res">경제 분야의 이슈 목록이 펼쳐진다</span></div></li>
+    <li><span class="n">2</span><div class="c"><span class="scr">이슈 목록</span><span class="act">"한빛반도체 미국 공장 건설"을 누른다</span><span class="res">이슈 에볼루션 맵 탭이 열린다. 불러오는 동안은 스켈레톤이 보인다</span></div></li>
+    <li><span class="n">3</span><div class="c"><span class="scr">이슈 에볼루션 맵</span><span class="act">8월 검토 보도부터 10월까지 사건 8개를 날짜순으로 훑는다</span><span class="res">위쪽에 사건·기사·언론사 수, 오른쪽 위에 <i>변화 N</i> 버튼이 있다</span></div></li>
+    <li class="hi"><span class="n">★</span><div class="c"><span class="climax">핵심 순간</span><span class="scr">변화 목록</span><span class="act">"20조 원 투자 → 25조 원으로 상향" 갱신 표시를 누른다</span><span class="res">오른쪽에 변화 목록이 열리고, <i>갱신</i> 카드에 이전·이후 근거 문장이 나란히 보인다</span></div></li>
+    <li><span class="n">5</span><div class="c"><span class="scr">사건 패널</span><span class="act">"공식 발표" 사건 노드를 누른다</span><span class="res">사건 요약, 이 사건을 다룬 기사 5건(언론사·발행일), <i>이 사건의 변화</i>가 보인다</span></div></li>
+    <li><span class="n">6</span><div class="c"><span class="scr">기사 마인드맵 · 원문 보기</span><span class="act">기사 하나를 열고 노드를 누른 뒤 <i>원문에서 위치 보기</i>를 누른다</span><span class="res">면접에서 인용할 문장을 원문 속 위치와 함께 확인한다</span></div></li>
+  </ol>
+  <div class="outcome">
+    <div class="good"><div class="cap">가치를 느끼는 순간</div><p>기사 23개를 다 읽지 않고도 두 달의 흐름과 바뀐 숫자를 10분 안에 파악한다.</p></div>
+    <div class="warn"><div class="cap">막힐 수 있는 순간</div><p>변화 카드에 <span class="rel con">상충 후보</span>가 뜨면, 두 언론사의 근거를 나란히 보여 주고 "어느 쪽이 맞는지 판정한 결과가 아니에요"라고 안내한다.</p></div>
+  </div>
+</section>
+
+<!-- 04 도윤의 여정 -->
+<section id="s4">
+  <div class="sh"><span class="no">04</span><h2>도윤 — 기사 한 개에서 이슈 전체로</h2><span class="note">Flow B · UJ-2</span></div>
+  <p class="story">아침 회의가 끝나고, 도윤은 팀장이 보낸 기사 링크 하나만 들고 있습니다. 오늘 안에 배경 정리를 넘겨야 합니다.</p>
+  <ol class="steps">
+    <li><span class="n">1</span><div class="c"><span class="scr">마인드맵 생성 모달</span><span class="act">상단 <i>생성</i> 버튼을 누른다</span><span class="res">URL 입력란과 지원 언론사 안내가 보인다</span></div></li>
+    <li><span class="n">2</span><div class="c"><span class="scr">분석 중</span><span class="act">기사 URL을 붙여넣고 <i>마인드맵 만들기</i>를 누른다</span><span class="res">기사 본문 확인 → 인물·기관·사건 추출 → 마인드맵 구조 생성 → 관련 기사·이슈 연결</span></div></li>
+    <li><span class="n">3</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act">완성된 마인드맵에서 배경 노드("2022년 영업손실 217억 원")를 누른다</span><span class="res">김유진, IMM PE, 한샘이 노드로 이어져 있고, 노드 패널에 요약과 원문 근거 문장이 나온다</span></div></li>
+    <li><span class="n">4</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act"><i>이 기사가 속한 이슈 보기</i>를 누른다</span><span class="res">이슈 에볼루션 맵이 열리고, 이 기사의 사건이 선택된 채 사건 패널이 열려 있다</span></div></li>
+    <li class="hi"><span class="n">★</span><div class="c"><span class="climax">핵심 순간</span><span class="scr">이슈 에볼루션 맵</span><span class="act">2021년 경영권 인수 → 2022년 첫 적자 → 2023년 대표 교체로 이어진 사건을 본다</span><span class="res">그 뒤의 후속 보도까지 따라간다</span></div></li>
+  </ol>
+  <div class="outcome">
+    <div class="good"><div class="cap">가치를 느끼는 순간</div><p>기사 한 개로는 알 수 없던 2년 치 맥락을 한 화면에서 파악한다.</p></div>
+    <div class="warn"><div class="cap">막힐 수 있는 순간</div><p>지원하지 않는 출처면 "지원하지 않는 출처의 기사입니다"와 지원 언론사 목록이 뜬다. 지금 프로토타입은 <i>홈으로 돌아가기</i>만 있다.</p></div>
+    <div class="alt"><div class="cap">다른 입구</div><p>이미 저장된 기사라면 홈 <i>최신 기사</i>에서 바로 골라도 된다. 분석 단계 없이 마인드맵이 열린다.</p></div>
+  </div>
+  <p class="note-box">프로토타입에는 한샘 기사가 없어서, 시연할 때는 URL 칸에 "demo"를 넣으면 한빛반도체 기사로 같은 흐름을 볼 수 있습니다.</p>
+</section>
+
+<!-- 05 변화 · 근거 확인 -->
+<section id="s5">
+  <div class="sh"><span class="no">05</span><h2>어디서든 쓰는 두 흐름</h2></div>
+  <p class="lead">지수와 도윤 모두 여정 중간에 이 두 흐름을 거칩니다. NEW:LEARN이 다른 뉴스 서비스와 다른 지점입니다.</p>
+  <div class="cells">
+    <div>
+      <h4><span class="k">①</span>무엇이 달라졌나 — 변화 카드</h4>
+      <div class="rels"><span class="rel new">새 정보</span><span class="rel rep">반복</span><span class="rel upd">갱신</span><span class="rel con">상충 후보</span><span class="rel unk">판단 불가</span></div>
+      <ul>
+        <li><span><b>여는 곳</b>: 이슈 헤더의 <i>변화 N</i>, 타임라인의 갱신 표시, 사건 패널의 <i>이 사건의 변화</i></span></li>
+        <li><span><b>보이는 것</b>: 오른쪽 변화 목록. 관계 유형으로 거를 수 있다</span></li>
+        <li><span><b>카드 한 장</b>: 바뀐 값(이전 → 이후), 이전·이후 근거 문장, 각 문장의 언론사·날짜</span></li>
+        <li><span><b>숨김 규칙</b>: 같은 내용을 반복한 보도는 숨기고 건수만 알린다. 판단 불가는 따로 펼친다</span></li>
+        <li><span><b>다음 이동</b>: 기사 → 기사 마인드맵, 사건 → 타임라인의 그 사건과 사건 패널</span></li>
+      </ul>
+    </div>
+    <div>
+      <h4><span class="k">②</span>근거가 뭔가 — 원문 근거</h4>
+      <div class="flow" style="margin-bottom:12px"><span class="s">기사 마인드맵</span><span class="arr">→</span><span class="s">노드 패널</span><span class="arr">→</span><span class="s a">원문 보기</span></div>
+      <ul>
+        <li><span><b>노드를 누르면</b>: 노드 패널에 요약, 근거 문장, 문단 위치</span></li>
+        <li><span><b><i>원문에서 위치 보기</i></b>: 기사 본문에서 근거 문장이 강조된다</span></li>
+        <li><span><b>옆으로 이동</b>: 같은 정보가 나온 다른 기사로 바로 넘어간다</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 06 화면 목록 -->
+<section id="s6">
+  <div class="sh"><span class="no">06</span><h2>화면 목록</h2></div>
+  <div class="tbl">
+    <div class="th"><span>화면</span><span>형태</span><span>어떻게 열리나</span><span>범위</span></div>
+    <div class="tr"><span>홈</span><span>탭</span><span>로고, 사이드바 <i>홈</i></span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>이슈 에볼루션 맵</span><span>탭</span><span>사이드바 이슈, 홈 이슈 카드, 검색, 마인드맵</span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>사건 패널</span><span>오른쪽 패널</span><span>사건 노드</span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>변화 목록</span><span>오른쪽 패널</span><span><i>변화 N</i>, 갱신 표시, 사건 패널</span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>기사 마인드맵</span><span>탭</span><span>관련 기사, 최신 기사, 분석 완료</span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>노드 패널</span><span>오른쪽 패널</span><span>마인드맵 노드</span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>원문 보기</span><span>모달</span><span>노드 패널 <i>원문에서 위치 보기</i></span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>마인드맵 생성</span><span>모달</span><span>상단 <i>생성</i>, 랜딩</span><span><span class="pr p0">P0</span></span></div>
+    <div class="tr"><span>분석 중</span><span>탭</span><span>URL 제출</span><span><span class="pr p0">P0</span> <span class="pr p1">단계 표시 P1</span></span></div>
+    <div class="tr"><span>관련 기사 마인드맵</span><span>모달</span><span>사건 패널 <i>마인드맵으로 보기</i></span><span><span class="pr q">QA 때 결정</span></span></div>
+    <div class="tr"><span>랜딩</span><span>전체 화면</span><span>첫 방문</span><span><span class="pr q">PRD에 없음</span></span></div>
+  </div>
+</section>
+
+<!-- 07 공통 규칙 -->
+<section id="s7">
+  <div class="sh"><span class="no">07</span><h2>공통 규칙</h2></div>
+  <div class="cells">
+    <div><h4>탭</h4><ul><li><span>이슈·기사·분석은 탭으로 열린다</span></li><li><span>이미 열린 건 그 탭으로 돌아간다</span></li><li><span>탭을 닫으면 왼쪽 탭으로 간다</span></li></ul></div>
+    <div><h4>오른쪽 패널</h4><ul><li><span>탭을 옮기면 닫힌다</span></li><li><span>패널이 열리면 넓은 화면에서는 사이드바가 접힌다</span></li><li><span>1024px 이하에서는 사이드바가 메뉴 버튼으로 여는 서랍이 된다</span></li></ul></div>
+    <div><h4>키보드</h4><ul><li><span><kbd>Ctrl</kbd> + <kbd>K</kbd> 검색. 결과는 이슈·사건·기사로 나뉜다</span></li><li><span><kbd>Ctrl</kbd> + <kbd>\</kbd> 사이드바 접기·펴기</span></li><li><span><kbd>Esc</kbd> 맨 위에 뜬 것부터 하나씩 닫는다 (모달 → 패널 → 서랍)</span></li></ul></div>
+  </div>
+
+  <h3 class="sub-h">상태와 예외</h3>
+  <div class="tbl st">
+    <div class="th"><span>상황</span><span>사용자에게 보이는 것</span></div>
+    <div class="tr"><span>이슈 불러오는 중</span><span>스켈레톤</span></div>
+    <div class="tr"><span>이슈 불러오기 실패</span><span>"타임라인을 불러오지 못했어요" + <i>다시 시도</i></span></div>
+    <div class="tr"><span>데이터가 아직 없는 이슈</span><span>"이 이슈의 상세 데이터는 준비 중이에요" + 사건·기사 수</span></div>
+    <div class="tr"><span>지원하지 않는 출처</span><span>실패 안내 + 지원 언론사 + <i>홈으로 돌아가기</i></span></div>
+    <div class="tr"><span>분야에 이슈·기사가 없음</span><span>"이 분야의 이슈가 아직 없어요"</span></div>
+    <div class="tr"><span>검색 결과 없음</span><span>"'…'에 맞는 이슈·사건·기사가 없어요"</span></div>
+    <div class="tr"><span>MVP 이후 기능 버튼</span><span>비활성 + "곧 제공" → 누르면 "MVP 이후 제공 예정인 기능이에요"</span></div>
+  </div>
+</section>
+
+<!-- 08 MVP 이후 -->
+<section id="s8">
+  <div class="sh"><span class="no">08</span><h2>MVP 이후</h2><span class="note">프로토타입에만 있음 · P2</span></div>
+  <p class="lead">프로토타입에서는 동작하지만 MVP 시연 흐름은 아래 기능에 기대면 안 됩니다.</p>
+  <div class="cells later">
+    <div><h4>로그인<span class="fr">FR-17</span></h4><ul><li><span>북마크·별표·나의 뉴스함·마이페이지를 쓸 때만 뜬다</span></li><li><span>로그인하면 하려던 동작을 이어서 한다</span></li></ul></div>
+    <div><h4>북마크 · 나의 뉴스함<span class="fr">FR-18</span></h4><ul><li><span>기사 옆 북마크 → 나의 뉴스함에 모인다</span></li></ul></div>
+    <div><h4>관심 이슈 재방문<span class="fr">FR-19 · UJ-3</span></h4><ul><li><span>일주일 뒤 지수가 별표한 이슈를 다시 열면 "지난 방문 이후 새 사건 N"이 강조된다</span></li></ul></div>
+    <div><h4>홈 추천 이슈 · 관심 분야<span class="fr">FR-28</span></h4><ul><li><span>관심 분야 탭별 추천 이슈 카드</span></li></ul></div>
+    <div><h4>논점 · 관점<span class="fr">FR-24~26</span></h4><ul><li><span>타임라인의 ◆, 사건 패널 <i>관점</i> 탭</span></li></ul></div>
+    <div><h4>여러 탭<span class="fr">FR-27</span></h4><ul><li><span>화면을 탭으로 여러 개 열어 두기</span></li></ul></div>
+  </div>
+</section>
+
+<!-- 09 팀 확인 필요 -->
+<section id="s9">
+  <div class="sh"><span class="no red">09</span><h2>팀 확인 필요</h2><span class="note">프로토타입과 MVP 개요·PRD가 다른 곳</span></div>
+  <ol class="qlist">
+    <li><span class="qn">1</span><span class="qt"><b>"분야 → 이슈 목록" 화면이 따로 없음</b><span>지수는 사이드바로 들어갑니다. 홈에서 7개 분야를 바로 고르는 입구가 필요한지 정해야 합니다. 지금 홈의 분야 탭은 관심 분야만 보여 주고, <i>최신 기사</i> 탭은 기사로 이어집니다.</span></span></li>
+    <li><span class="qn">2</span><span class="qt"><b>홈 구성</b><span>MVP 홈은 분야 선택과 최신 기사입니다. 프로토타입 홈에는 추천 이슈(MVP 이후)까지 있습니다.</span></span></li>
+    <li><span class="qn">3</span><span class="qt"><b>분석 실패 후 갈 곳</b><span>지금은 <i>홈으로</i>뿐입니다. PRD FR-32는 저장된 기사로 가는 길을 안내하도록 했습니다.</span></span></li>
+    <li><span class="qn">4</span><span class="qt"><b>사건 관계선 4종 (후속·원인·반응·반박)</b><span>MVP는 시간순 연결이 우선입니다(Q25, FR-22 P1).</span></span></li>
+    <li><span class="qn">5</span><span class="qt"><b>노드 패널의 옛 라벨</b><span>"새로 확인된 사실·입장 변화·수치 변경"을 #새 정보·#갱신·#상충 후보로 바꿔야 합니다.</span></span></li>
+    <li><span class="qn">6</span><span class="qt"><b>랜딩 페이지</b><span>시연에 쓸지 정해야 합니다.</span></span></li>
+    <li><span class="qn">7</span><span class="qt"><b>관련 기사 마인드맵</b><span>MVP에 넣을지 QA 때 정합니다.</span></span></li>
+  </ol>
+</section>
+
+<footer>
+  <p>기준: 프로토타입 v12 (docs/prototype), MVP 개요 (docs/mvp-overview.md), PRD v1.1</p>
+  <p>원본 문서: docs/user-flow.md · 내용이 다르면 마크다운이 기준입니다.</p>
+</footer>
+
+</div>
+</body>
+</html>
