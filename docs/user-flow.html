@@ -56,6 +56,11 @@ h1 .g { color: var(--muted); } h1 .a { color: var(--accent); }
 .toc a b { color: var(--accent); font-weight: 800; margin-right: 6px; }
 .toc a.hot { border-color: var(--red-line); background: var(--red-bg); color: var(--red); font-weight: 700; }
 .toc a.hot b { color: var(--red); }
+.toc a.go { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.walk { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; border: 1px solid var(--accent-line); background: var(--accent-bg); border-radius: 16px; padding: 22px 26px; margin-bottom: 56px; }
+.walk b { display: block; font-size: 1.1rem; }
+.walk span { color: var(--fg-2); }
+.walk a { flex: none; text-decoration: none; background: var(--accent); color: var(--on-accent); font-weight: 800; padding: 10px 18px; border-radius: 999px; }
 
 /* 섹션 */
 section { padding-block: 56px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
@@ -188,17 +193,18 @@ footer p + p { margin-top: 6px; }
   <div class="brand"><svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" style="fill:var(--accent)"/><g fill="none" style="stroke:var(--on-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="13" y="6.5" width="8" height="7" rx="1.5"/><path d="M17 13.5v4M10.5 21v-3.5h13V21"/><rect x="6.5" y="21" width="8" height="7" rx="1.5"/><rect x="19.5" y="21" width="8" height="7" rx="1.5"/></g></svg>NEW:LEARN</div>
   <div class="eyebrow">NEW:LEARN · 유저 플로우 · 프로토타입 v12 기준 · 2026-10-15</div>
   <h1>입구<span class="g">는</span> 둘,<br><span class="a">흐름</span><span class="g">은</span> 하나.</h1>
-  <p class="sub">누가, 어떤 상황에서, 어떤 화면을 거쳐 원하는 걸 얻는지 정리했습니다. 페르소나는 PRD 7.1의 사용자 여정(UJ-1, UJ-2) 주인공을 그대로 씁니다.</p>
+  <p class="sub">누가, 어떤 상황에서, 어떤 화면을 거쳐 원하는 걸 얻는지 정리했습니다. 페르소나는 매일 동향을 챙기는 취준생 <b>서윤</b>과 기사 링크로 일을 받은 직장인 <b>현우</b>입니다.</p>
   <nav class="toc" aria-label="목차">
     <a href="#s1"><b>01</b>한눈에 보기</a>
     <a href="#s2"><b>02</b>페르소나</a>
-    <a href="#s3"><b>03</b>지수의 여정</a>
-    <a href="#s4"><b>04</b>도윤의 여정</a>
+    <a href="#s3"><b>03</b>서윤의 여정</a>
+    <a href="#s4"><b>04</b>현우의 여정</a>
     <a href="#s5"><b>05</b>변화 · 근거 확인</a>
     <a href="#s6"><b>06</b>화면 목록</a>
     <a href="#s7"><b>07</b>공통 규칙</a>
     <a href="#s8"><b>08</b>MVP 이후</a>
     <a class="hot" href="#s9"><b>09</b>팀 확인 필요</a>
+    <a class="go" href="prototype-walkthrough.html">프로토타입 따라가기 →</a>
   </nav>
 </header>
 
@@ -208,11 +214,11 @@ footer p + p { margin-top: 6px; }
   <p class="lead">NEW:LEARN에는 들어오는 길이 두 개 있고, 두 길은 가운데 두 화면에서 만납니다.</p>
   <div class="lanes">
     <div class="lane">
-      <div class="who">Flow A<span>분야에서 시작 · 지수</span></div>
+      <div class="who">Flow A<span>분야에서 시작 · 서윤</span></div>
       <div class="flow"><span class="s">홈</span><span class="arr">→</span><span class="s">분야</span><span class="arr">→</span><span class="s">이슈</span><span class="arr">→</span><span class="s a">이슈 에볼루션 맵</span><span class="arr">→</span><span class="s">사건</span><span class="arr">→</span><span class="s">기사</span><span class="arr">→</span><span class="s a">기사 마인드맵</span></div>
     </div>
     <div class="lane">
-      <div class="who">Flow B<span>기사에서 시작 · 도윤</span></div>
+      <div class="who">Flow B<span>기사에서 시작 · 현우</span></div>
       <div class="flow"><span class="s">URL 입력</span><span class="arr">→</span><span class="s">AI 분석</span><span class="arr">→</span><span class="s a">기사 마인드맵</span><span class="arr">→</span><span class="s">소속 이슈</span><span class="arr">→</span><span class="s a">이슈 에볼루션 맵</span></div>
     </div>
   </div>
@@ -221,72 +227,75 @@ footer p + p { margin-top: 6px; }
 
 <!-- 02 페르소나 -->
 <section id="s2">
-  <div class="sh"><span class="no">02</span><h2>페르소나</h2><span class="note">PRD 3.1 대상 사용자 · 7.1 사용자 여정</span></div>
+  <div class="sh"><span class="no">02</span><h2>페르소나</h2><span class="note">2026-10-15 팀 요청으로 바꿈 · PRD 7.1 반영 전</span></div>
   <div class="personas">
     <article class="pcard">
-      <div class="top"><div class="avatar" aria-hidden="true">지</div><div><h3>지수</h3><div class="role">면접 전날의 취준생 · 1차 타깃</div></div></div>
+      <div class="top"><div class="avatar" aria-hidden="true">서</div><div><h3>서윤</h3><div class="role">매일 아침 동향을 챙기는 취준생 · 1차 타깃</div></div></div>
       <dl>
-        <div><dt>누구</dt><dd>반도체 기업 면접을 하루 앞둔 취업준비생</dd></div>
-        <div><dt>상황</dt><dd>"최근 해외 공장 투자 이슈를 설명해 보라"는 질문이 나올 것 같다</dd></div>
-        <div><dt>막힌 점</dt><dd>관련 기사가 너무 많아 어디서부터 봐야 할지 모른다</dd></div>
-        <div><dt>원하는 것</dt><dd class="want">10분 안에 두 달 치 흐름과 바뀐 숫자를 파악하고, 면접에서 인용할 근거 문장을 챙긴다</dd></div>
+        <div><dt>누구</dt><dd>경제·IT 기업을 준비하는 취업준비생</dd></div>
+        <div><dt>상황</dt><dd>매일 아침 공부를 시작하기 전 15분 동안, 관심 분야 이슈가 어떻게 진행됐는지 확인한다. 자소서 시사 문항과 면접에 쓸 산업 동향 노트를 쌓고 있다</dd></div>
+        <div><dt>막힌 점</dt><dd>포털에서는 같은 사건 기사가 언론사마다 반복돼 보이고, 어제와 무엇이 달라졌는지 알기 어렵다</dd></div>
+        <div><dt>원하는 것</dt><dd class="want">이슈마다 새로 생긴 사건과 바뀐 내용을 빠르게 확인하고, 노트에 옮길 근거 문장을 챙긴다</dd></div>
       </dl>
-      <div class="chips"><span class="chip a">Flow A</span><span class="chip">로그인 안 함</span><span class="chip">짧은 시간 안에</span></div>
+      <div class="chips"><span class="chip a">Flow A</span><span class="chip">매일 방문</span><span class="chip">로그인 안 함</span></div>
     </article>
     <article class="pcard">
-      <div class="top"><div class="avatar b" aria-hidden="true">도</div><div><h3>도윤</h3><div class="role">고객사 업계를 조사하는 주니어 리서처 · 2차 타깃</div></div></div>
+      <div class="top"><div class="avatar b" aria-hidden="true">현</div><div><h3>현우</h3><div class="role">기사 링크 하나로 일을 받은 직장인 · 2차 타깃</div></div></div>
       <dl>
-        <div><dt>누구</dt><dd>가구·인테리어 업계 고객사를 맡은 컨설팅사 주니어 리서처</dd></div>
-        <div><dt>상황</dt><dd>팀장이 아침에 공유한 기사 「40대 여성 CEO 김유진, '실적 부진' 한샘의 구원투수될까」의 배경을 오늘 안에 정리해야 한다</dd></div>
-        <div><dt>막힌 점</dt><dd>기사 한 개로는 그 앞의 2년 치 맥락이 보이지 않는다</dd></div>
-        <div><dt>원하는 것</dt><dd class="want">이 기사가 어떤 흐름 속에 있는지 한 화면에서 파악한다</dd></div>
+        <div><dt>누구</dt><dd>반도체 장비 협력사 해외영업팀 3년차 대리</dd></div>
+        <div><dt>상황</dt><dd>팀장이 메신저로 기사 링크 하나를 보내며 "한빛반도체 미국 공장 건, 오후 회의 전까지 정리해 줘"라고 했다. 링크는 8월 공식 발표 기사다</dd></div>
+        <div><dt>막힌 점</dt><dd>기사 한 개만 봐서는 그 뒤에 무엇이 바뀌었는지 알 수 없다. 지난 숫자를 회의에 올리면 곤란하다</dd></div>
+        <div><dt>원하는 것</dt><dd class="want">이 기사 이후 바뀐 내용을 근거와 함께 찾아 회의 자료에 넣는다</dd></div>
       </dl>
       <div class="chips"><span class="chip b">Flow B</span><span class="chip">기사 URL 있음</span><span class="chip">로그인 안 함</span></div>
     </article>
   </div>
 </section>
 
-<!-- 03 지수의 여정 -->
+<!-- 03 서윤의 여정 -->
 <section id="s3">
-  <div class="sh"><span class="no">03</span><h2>지수 — 분야에서 시작해 근거까지</h2><span class="note">Flow A · UJ-1</span></div>
-  <p class="story">면접 전날 밤, 지수는 "한빛반도체 미국 공장" 이야기가 나올 것 같아 NEW:LEARN을 엽니다. 기사를 하나씩 읽을 시간은 없습니다.</p>
+  <div class="sh"><span class="no">03</span><h2>서윤 — 매일 아침, 관심 이슈의 새 소식 확인</h2><span class="note">Flow A</span></div>
+  <p class="story">아침 9시, 도서관 자리에 앉은 서윤은 공부를 시작하기 전에 NEW:LEARN을 엽니다. 어제 이후 경제 분야에 무슨 일이 있었는지 15분 안에 훑고 싶습니다.</p>
   <ol class="steps">
-    <li><span class="n">1</span><div class="c"><span class="scr">홈 · 사이드바</span><span class="act">사이드바 <i>이슈 탐색</i>에서 경제를 펼친다</span><span class="res">경제 분야의 이슈 목록이 펼쳐진다</span></div></li>
-    <li><span class="n">2</span><div class="c"><span class="scr">이슈 목록</span><span class="act">"한빛반도체 미국 공장 건설"을 누른다</span><span class="res">이슈 에볼루션 맵 탭이 열린다. 불러오는 동안은 스켈레톤이 보인다</span></div></li>
-    <li><span class="n">3</span><div class="c"><span class="scr">이슈 에볼루션 맵</span><span class="act">8월 검토 보도부터 10월까지 사건 8개를 날짜순으로 훑는다</span><span class="res">위쪽에 사건·기사·언론사 수, 오른쪽 위에 <i>변화 N</i> 버튼이 있다</span></div></li>
-    <li class="hi"><span class="n">★</span><div class="c"><span class="climax">핵심 순간</span><span class="scr">변화 목록</span><span class="act">"20조 원 투자 → 25조 원으로 상향" 갱신 표시를 누른다</span><span class="res">오른쪽에 변화 목록이 열리고, <i>갱신</i> 카드에 이전·이후 근거 문장이 나란히 보인다</span></div></li>
-    <li><span class="n">5</span><div class="c"><span class="scr">사건 패널</span><span class="act">"공식 발표" 사건 노드를 누른다</span><span class="res">사건 요약, 이 사건을 다룬 기사 5건(언론사·발행일), <i>이 사건의 변화</i>가 보인다</span></div></li>
-    <li><span class="n">6</span><div class="c"><span class="scr">기사 마인드맵 · 원문 보기</span><span class="act">기사 하나를 열고 노드를 누른 뒤 <i>원문에서 위치 보기</i>를 누른다</span><span class="res">면접에서 인용할 문장을 원문 속 위치와 함께 확인한다</span></div></li>
+    <li><span class="n">1</span><div class="c"><span class="scr">홈 · 사이드바</span><span class="act">사이드바의 <i>분야별 이슈 펼치기</i>를 누르고 경제를 연다</span><span class="res">경제 분야의 이슈 5개가 보인다</span></div></li>
+    <li><span class="n">2</span><div class="c"><span class="scr">이슈 목록</span><span class="act">"한빛반도체 미국 공장 건설"을 누른다</span><span class="res">이슈 에볼루션 맵이 열린다. 8월부터 10월까지 사건 8개가 날짜순으로 놓여 있다</span></div></li>
+    <li><span class="n">3</span><div class="c"><span class="scr">이슈 에볼루션 맵</span><span class="act">타임라인 맨 오른쪽, 가장 최근 사건 "현지 인력 수급 우려"(10월 9일)를 누른다</span><span class="res">오른쪽 사건 패널에 사건 요약, 관련 기사, <i>이 사건의 변화</i>가 보인다</span></div></li>
+    <li class="hi"><span class="n">★</span><div class="c"><span class="climax">핵심 순간</span><span class="scr">변화 목록</span><span class="act"><i>이 사건의 변화</i>에 있는 <span class="rel con">상충 후보</span> 카드를 누른다</span><span class="res">"부족한 엔지니어 규모: 약 900명 vs 1,500명(같은 날 보도)". 바른신문과 새벽타임즈의 근거 문장이 나란히 있고, 판정 결과가 아니라는 안내가 붙는다</span></div></li>
+    <li><span class="n">5</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act">근거 옆 기사 이름을 눌러 마인드맵을 열고 노드를 누른다</span><span class="res">노드 패널에 요약과 근거 문장이 나온다</span></div></li>
+    <li><span class="n">6</span><div class="c"><span class="scr">원문 보기</span><span class="act"><i>원문에서 위치 보기</i>를 누른다</span><span class="res">원문에서 근거 문장이 강조된다. 동향 노트에 옮긴다</span></div></li>
   </ol>
   <div class="outcome">
-    <div class="good"><div class="cap">가치를 느끼는 순간</div><p>기사 23개를 다 읽지 않고도 두 달의 흐름과 바뀐 숫자를 10분 안에 파악한다.</p></div>
-    <div class="warn"><div class="cap">막힐 수 있는 순간</div><p>변화 카드에 <span class="rel con">상충 후보</span>가 뜨면, 두 언론사의 근거를 나란히 보여 주고 "어느 쪽이 맞는지 판정한 결과가 아니에요"라고 안내한다.</p></div>
+    <div class="good"><div class="cap">가치를 느끼는 순간</div><p>같은 사건을 다룬 기사 여러 건을 하나로 보고, 새로 나온 내용과 엇갈린 숫자를 근거와 함께 5분 안에 확인한다.</p></div>
+    <div class="warn"><div class="cap">막힐 수 있는 순간</div><p>매일 오는 서윤에게 "지난 방문 이후 새 사건" 표시는 MVP 이후 기능이다(FR-19). MVP에서는 타임라인 맨 오른쪽을 직접 확인해야 한다.</p></div>
   </div>
 </section>
 
-<!-- 04 도윤의 여정 -->
+<!-- 04 현우의 여정 -->
 <section id="s4">
-  <div class="sh"><span class="no">04</span><h2>도윤 — 기사 한 개에서 이슈 전체로</h2><span class="note">Flow B · UJ-2</span></div>
-  <p class="story">아침 회의가 끝나고, 도윤은 팀장이 보낸 기사 링크 하나만 들고 있습니다. 오늘 안에 배경 정리를 넘겨야 합니다.</p>
+  <div class="sh"><span class="no">04</span><h2>현우 — 받은 기사의 숫자가 아직 맞는지 확인</h2><span class="note">Flow B</span></div>
+  <p class="story">오전 11시, 현우는 팀장이 보낸 8월 기사 링크 하나만 들고 있습니다. 오후 2시 회의 전까지 미국 공장 건을 정리해야 합니다.</p>
   <ol class="steps">
     <li><span class="n">1</span><div class="c"><span class="scr">마인드맵 생성 모달</span><span class="act">상단 <i>생성</i> 버튼을 누른다</span><span class="res">URL 입력란과 지원 언론사 안내가 보인다</span></div></li>
     <li><span class="n">2</span><div class="c"><span class="scr">분석 중</span><span class="act">기사 URL을 붙여넣고 <i>마인드맵 만들기</i>를 누른다</span><span class="res">기사 본문 확인 → 인물·기관·사건 추출 → 마인드맵 구조 생성 → 관련 기사·이슈 연결</span></div></li>
-    <li><span class="n">3</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act">완성된 마인드맵에서 배경 노드("2022년 영업손실 217억 원")를 누른다</span><span class="res">김유진, IMM PE, 한샘이 노드로 이어져 있고, 노드 패널에 요약과 원문 근거 문장이 나온다</span></div></li>
-    <li><span class="n">4</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act"><i>이 기사가 속한 이슈 보기</i>를 누른다</span><span class="res">이슈 에볼루션 맵이 열리고, 이 기사의 사건이 선택된 채 사건 패널이 열려 있다</span></div></li>
-    <li class="hi"><span class="n">★</span><div class="c"><span class="climax">핵심 순간</span><span class="scr">이슈 에볼루션 맵</span><span class="act">2021년 경영권 인수 → 2022년 첫 적자 → 2023년 대표 교체로 이어진 사건을 본다</span><span class="res">그 뒤의 후속 보도까지 따라간다</span></div></li>
+    <li><span class="n">3</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act">"총 20조 원 투자" 노드를 누른다</span><span class="res">누가·언제·무엇을·왜·어떻게로 정리된 마인드맵. 노드 패널에 근거 문장이 나온다</span></div></li>
+    <li><span class="n">4</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act"><i>이 기사가 속한 이슈 보기</i>를 누른다</span><span class="res">이슈 에볼루션 맵이 열리고, "공식 발표" 사건이 선택된 채 사건 패널이 열려 있다</span></div></li>
+    <li class="hi"><span class="n">★</span><div class="c"><span class="climax">핵심 순간</span><span class="scr">변화 목록</span><span class="act">9월 24일 "투자 규모 25조 원으로 상향"의 <span class="rel upd">갱신</span> 표시를 누른다</span><span class="res">총 투자 규모 20조 원 → 25조 원. 가람일보(8/21)와 누리경제(9/24)의 근거 문장이 나란히 있다</span></div></li>
+    <li><span class="n">6</span><div class="c"><span class="scr">기사 마인드맵</span><span class="act">누리경제 기사를 열어 최신 수치의 근거를 확인한다</span><span class="res">회의 자료에 25조 원과 근거 문장을 넣는다</span></div></li>
   </ol>
   <div class="outcome">
-    <div class="good"><div class="cap">가치를 느끼는 순간</div><p>기사 한 개로는 알 수 없던 2년 치 맥락을 한 화면에서 파악한다.</p></div>
+    <div class="good"><div class="cap">가치를 느끼는 순간</div><p>받은 기사의 숫자가 이미 바뀌었다는 걸 회의 전에, 근거와 함께 발견한다.</p></div>
     <div class="warn"><div class="cap">막힐 수 있는 순간</div><p>지원하지 않는 출처면 "지원하지 않는 출처의 기사입니다"와 지원 언론사 목록이 뜬다. 지금 프로토타입은 <i>홈으로 돌아가기</i>만 있다.</p></div>
     <div class="alt"><div class="cap">다른 입구</div><p>이미 저장된 기사라면 홈 <i>최신 기사</i>에서 바로 골라도 된다. 분석 단계 없이 마인드맵이 열린다.</p></div>
   </div>
-  <p class="note-box">프로토타입에는 한샘 기사가 없어서, 시연할 때는 URL 칸에 "demo"를 넣으면 한빛반도체 기사로 같은 흐름을 볼 수 있습니다.</p>
+  <p class="note-box">프로토타입에서는 URL 칸에 "demo"를 넣으면 현우가 받은 8월 21일 가람일보 공식 발표 기사로 이 흐름을 그대로 볼 수 있습니다.</p>
 </section>
+
+<div class="walk"><div><b>버튼을 하나씩 눌러 보고 싶다면</b><span>서윤과 현우의 여정을 프로토타입 화면 위에서 단계별로 따라갑니다.</span></div><a href="prototype-walkthrough.html">프로토타입 따라가기 →</a></div>
 
 <!-- 05 변화 · 근거 확인 -->
 <section id="s5">
   <div class="sh"><span class="no">05</span><h2>어디서든 쓰는 두 흐름</h2></div>
-  <p class="lead">지수와 도윤 모두 여정 중간에 이 두 흐름을 거칩니다. NEW:LEARN이 다른 뉴스 서비스와 다른 지점입니다.</p>
+  <p class="lead">서윤과 현우 모두 여정 중간에 이 두 흐름을 거칩니다. NEW:LEARN이 다른 뉴스 서비스와 다른 지점입니다.</p>
   <div class="cells">
     <div>
       <h4><span class="k">①</span>무엇이 달라졌나 — 변화 카드</h4>
@@ -359,7 +368,7 @@ footer p + p { margin-top: 6px; }
   <div class="cells later">
     <div><h4>로그인<span class="fr">FR-17</span></h4><ul><li><span>북마크·별표·나의 뉴스함·마이페이지를 쓸 때만 뜬다</span></li><li><span>로그인하면 하려던 동작을 이어서 한다</span></li></ul></div>
     <div><h4>북마크 · 나의 뉴스함<span class="fr">FR-18</span></h4><ul><li><span>기사 옆 북마크 → 나의 뉴스함에 모인다</span></li></ul></div>
-    <div><h4>관심 이슈 재방문<span class="fr">FR-19 · UJ-3</span></h4><ul><li><span>일주일 뒤 지수가 별표한 이슈를 다시 열면 "지난 방문 이후 새 사건 N"이 강조된다</span></li></ul></div>
+    <div><h4>관심 이슈 재방문<span class="fr">FR-19</span></h4><ul><li><span>별표한 이슈를 다시 열면 "지난 방문 이후 새 사건 N"이 강조된다</span></li></ul></div>
     <div><h4>홈 추천 이슈 · 관심 분야<span class="fr">FR-28</span></h4><ul><li><span>관심 분야 탭별 추천 이슈 카드</span></li></ul></div>
     <div><h4>논점 · 관점<span class="fr">FR-24~26</span></h4><ul><li><span>타임라인의 ◆, 사건 패널 <i>관점</i> 탭</span></li></ul></div>
     <div><h4>여러 탭<span class="fr">FR-27</span></h4><ul><li><span>화면을 탭으로 여러 개 열어 두기</span></li></ul></div>
@@ -370,13 +379,15 @@ footer p + p { margin-top: 6px; }
 <section id="s9">
   <div class="sh"><span class="no red">09</span><h2>팀 확인 필요</h2><span class="note">프로토타입과 MVP 개요·PRD가 다른 곳</span></div>
   <ol class="qlist">
-    <li><span class="qn">1</span><span class="qt"><b>"분야 → 이슈 목록" 화면이 따로 없음</b><span>지수는 사이드바로 들어갑니다. 홈에서 7개 분야를 바로 고르는 입구가 필요한지 정해야 합니다. 지금 홈의 분야 탭은 관심 분야만 보여 주고, <i>최신 기사</i> 탭은 기사로 이어집니다.</span></span></li>
+    <li><span class="qn">1</span><span class="qt"><b>"분야 → 이슈 목록" 화면이 따로 없음</b><span>서윤은 사이드바로 들어갑니다. 홈에서 7개 분야를 바로 고르는 입구가 필요한지 정해야 합니다. 지금 홈의 분야 탭은 관심 분야만 보여 주고, <i>최신 기사</i> 탭은 기사로 이어집니다.</span></span></li>
     <li><span class="qn">2</span><span class="qt"><b>홈 구성</b><span>MVP 홈은 분야 선택과 최신 기사입니다. 프로토타입 홈에는 추천 이슈(MVP 이후)까지 있습니다.</span></span></li>
     <li><span class="qn">3</span><span class="qt"><b>분석 실패 후 갈 곳</b><span>지금은 <i>홈으로</i>뿐입니다. PRD FR-32는 저장된 기사로 가는 길을 안내하도록 했습니다.</span></span></li>
     <li><span class="qn">4</span><span class="qt"><b>사건 관계선 4종 (후속·원인·반응·반박)</b><span>MVP는 시간순 연결이 우선입니다(Q25, FR-22 P1).</span></span></li>
     <li><span class="qn">5</span><span class="qt"><b>노드 패널의 옛 라벨</b><span>"새로 확인된 사실·입장 변화·수치 변경"을 #새 정보·#갱신·#상충 후보로 바꿔야 합니다.</span></span></li>
     <li><span class="qn">6</span><span class="qt"><b>랜딩 페이지</b><span>시연에 쓸지 정해야 합니다.</span></span></li>
     <li><span class="qn">7</span><span class="qt"><b>관련 기사 마인드맵</b><span>MVP에 넣을지 QA 때 정합니다.</span></span></li>
+    <li><span class="qn">8</span><span class="qt"><b>매일 오는 사용자를 위한 기능이 MVP 이후</b><span>서윤처럼 매일 들어오는 사용자에게 필요한 "지난 방문 이후 새 사건"(FR-19)과 관심 분야 추천(FR-28)이 P2입니다. MVP에도 "최근 업데이트된 이슈"나 "새 사건" 표시 정도는 둘지 정해야 합니다.</span></span></li>
+    <li><span class="qn">9</span><span class="qt"><b>마인드맵 노드 분류</b><span>프로토타입은 누가·언제·무엇을·왜·어떻게, MVP 개요(F03)는 인물·기관·사건·시점·배경·결과입니다.</span></span></li>
   </ol>
 </section>
 
