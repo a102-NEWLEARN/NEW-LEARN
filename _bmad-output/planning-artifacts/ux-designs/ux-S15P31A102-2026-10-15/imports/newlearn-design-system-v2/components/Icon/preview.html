@@ -1,0 +1,38 @@
+<!-- @dsCard group="Iconography" height=232 subtitle="Line · Fill · 크기 · 색" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>Icon — preview</title>
+<style>
+  body { margin:0; background:var(--bg-layer-default); color:var(--fg-neutral); font-family:var(--font-sans); }
+  .wrap { padding:var(--dimension-x4); display:grid; grid-template-columns:72px 1fr; row-gap:var(--dimension-x4); column-gap:var(--dimension-x3); align-items:center; }
+  .lab { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+  .row { display:flex; align-items:flex-end; gap:var(--dimension-x5); flex-wrap:wrap; }
+  .cell { display:flex; flex-direction:column; align-items:center; gap:var(--dimension-x1); }
+  .cap { font-size:11px; line-height:15px; color:var(--fg-neutral-muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.SeedDesign, h = React.createElement;
+  var names = ['house', 'magnifyingglass', 'heart', 'bell', 'person', 'gear', 'camera', 'locationpin', 'star', 'plus'];
+  function row(label, kids) { return [h('div', { className: 'lab', key: label + 'l' }, label), h('div', { className: 'row', key: label + 'r' }, kids)]; }
+  var sizes = [[12, 'fill'], [16, 'line'], [20, 'line'], [24, 'line'], [32, 'line']];
+  var colors = ['fg.neutral', 'fg.neutral-muted', 'fg.brand', 'fg.brand-accent', 'fg.critical'];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'wrap' },
+    row('Line', names.map(function (n) { return h(D.Icon, { key: n, name: n }); })),
+    row('Fill', names.map(function (n) { return h(D.Icon, { key: n, name: n, variant: 'fill' }); })),
+    row('크기', sizes.map(function (s) {
+      return h('div', { className: 'cell', key: s[0] }, h(D.Icon, { name: 'heart', variant: s[1], size: s[0] }), h('span', { className: 'cap' }, s[0] + (s[1] === 'fill' ? ' fill' : '')));
+    })),
+    row('색', colors.map(function (c) {
+      return h('div', { className: 'cell', key: c }, h(D.Icon, { name: 'bell', variant: 'fill', color: c }), h('span', { className: 'cap' }, c));
+    }))
+  ));
+</script>
+</body>
+</html>

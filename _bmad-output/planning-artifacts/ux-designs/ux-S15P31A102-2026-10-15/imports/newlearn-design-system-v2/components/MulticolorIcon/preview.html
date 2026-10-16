@@ -1,0 +1,27 @@
+<!-- @dsCard group="Iconography" height=136 subtitle="고정 색 아이콘 100종" -->
+<!doctype html>
+<html lang="ko">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>MulticolorIcon — preview</title>
+<style>
+  body { margin:0; background:var(--bg-layer-default); color:var(--fg-neutral); font-family:var(--font-sans); }
+  .wrap { padding:var(--dimension-x4); display:flex; flex-direction:column; gap:var(--dimension-x4); }
+  .row { display:flex; align-items:flex-end; gap:var(--dimension-x5); flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.SeedDesign, h = React.createElement;
+  var big = ['bell', 'gift', 'cart', 'trophy', 'rocket', 'flower', 'camera', 'envelope', 'card', 'sparkle2', 'truck', 'tree'];
+  var small = ['bell', 'gift', 'cart', 'trophy', 'rocket', 'flower', 'camera', 'envelope', 'card', 'sparkle2', 'truck', 'tree'];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'wrap' },
+    h('div', { className: 'row' }, big.map(function (n) { return h(D.MulticolorIcon, { key: n, name: n, size: 40 }); })),
+    h('div', { className: 'row' }, small.map(function (n) { return h(D.MulticolorIcon, { key: n, name: n, size: 24 }); }))
+  ));
+</script>
+</body>
+</html>

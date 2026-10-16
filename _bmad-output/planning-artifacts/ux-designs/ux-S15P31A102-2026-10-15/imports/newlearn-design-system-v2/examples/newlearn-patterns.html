@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEW:LEARN 패턴 예시</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>
+  body { margin:0; }
+  .ex-header { display:flex; align-items:center; gap:16px; padding:20px 32px; border-bottom:1px solid var(--stroke-neutral-weak); }
+  .ex-header img { height:28px; display:block; }
+  .ex-header p { font-size:.875rem; color:var(--fg-neutral-muted); }
+  main { max-width:1040px; margin:0 auto; padding:32px; display:flex; flex-direction:column; gap:48px; }
+  .ex { display:grid; grid-template-columns:1fr auto; row-gap:16px; }
+  .ex-title { font-size:1.25rem; line-height:1.6875rem; font-weight:700; }
+  .ex-guide { align-self:center; font-size:.875rem; }
+  .ex-body { grid-column:1 / -1; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+  .nl-issue-card__meta b { font-weight:500; color:var(--fg-neutral); }
+</style>
+<script src="../components/lib/react.production.min.js"></script>
+<script src="../components/lib/react-dom.production.min.js"></script>
+<script src="../components/bundle.js"></script>
+</head>
+<body class="nl-root">
+<header class="ex-header"><img src="../assets/Logos/newlearn-logo-horizontal.svg" alt="NEW:LEARN"><p>프로토타입 패턴 예시 · Light 테마 · 예시 데이터</p></header>
+<main>
+<section class="ex"><h2 class="ex-title">A. 추천 이슈 카드</h2><a class="nl-link ex-guide" href="../components/IssueCard/README.md">가이드</a>
+<div class="ex-body">
+<div class="nl-issue-grid">
+  <a class="nl-issue-card" href="#">
+    <span class="nl-issue-card__category">경제</span>
+    <h3 class="nl-issue-card__title">가계부채 관리 대책과 금리 인하 논의</h3>
+    <div class="nl-issue-card__latest"><span class="nl-issue-card__latest-label">최근 사건</span><p class="nl-issue-card__latest-text">금융당국, 주택담보대출 한도 조정안 발표</p></div>
+    <div class="nl-issue-card__meta"><span><i data-icon="square2-stacked"></i>사건 <b class="nl-num">12</b></span><span><i data-icon="article"></i>기사 <b class="nl-num">148</b></span></div>
+  </a>
+  <a class="nl-issue-card is-selected" href="#" aria-current="true">
+    <span class="nl-issue-card__category">산업</span>
+    <h3 class="nl-issue-card__title">국내 반도체 산업 지원 법안</h3>
+    <div class="nl-issue-card__latest"><span class="nl-issue-card__latest-label">최근 사건</span><p class="nl-issue-card__latest-text">국회 상임위, 보조금 조항 수정안 의결</p></div>
+    <div class="nl-issue-card__meta"><span><i data-icon="square2-stacked"></i>사건 <b class="nl-num">8</b></span><span><i data-icon="article"></i>기사 <b class="nl-num">96</b></span></div>
+  </a>
+  <a class="nl-issue-card" href="#">
+    <span class="nl-issue-card__category">사회</span>
+    <h3 class="nl-issue-card__title">수도권 광역 교통망 확충 계획</h3>
+    <div class="nl-issue-card__latest"><span class="nl-issue-card__latest-label">최근 사건</span><p class="nl-issue-card__latest-text">광역 철도 신규 노선의 착공 일정 조정 검토</p></div>
+    <div class="nl-issue-card__meta"><span><i data-icon="square2-stacked"></i>사건 <b class="nl-num">5</b></span><span><i data-icon="article"></i>기사 <b class="nl-num">41</b></span></div>
+  </a>
+</div>
+<p class="note">기본 · 선택(가운데, aria-current) · Hover는 테두리 #D1D3D8 · 예시 데이터</p>
+</div></section>
+<section class="ex"><h2 class="ex-title">B. 최신 기사 리스트</h2><a class="nl-link ex-guide" href="../components/ArticleList/README.md">가이드</a>
+<div class="ex-body">
+<ul class="nl-article-list" style="border:1px solid var(--stroke-neutral-weak); border-radius:var(--radius-r4); overflow:hidden; max-width:640px">
+  <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">반도체 지원 법안, 상임위 통과…보조금 비율은 낮아져</p><p class="nl-article__meta">한빛일보<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+  <li><a class="nl-article is-selected" href="#" aria-current="true"><div class="nl-article__body"><p class="nl-article__title">“세액공제 확대가 실효성 더 커”…업계 반응 엇갈려</p><p class="nl-article__meta">새날경제<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+  <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">지역 공장 부지 선정 기준 발표, 비수도권 가점 신설</p><p class="nl-article__meta">온누리뉴스<span class="nl-dot-sep"></span>10월 13일</p></div></a></li>
+  <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">법 시행 시점 두고 정부·업계 설명 달라</p><p class="nl-article__meta">바른신문<span class="nl-dot-sep"></span>10월 12일</p></div></a></li>
+</ul>
+<p class="note">두 번째 행 = 지금 읽는 기사(선택) · Hover #F7F8F9 · 눌림 #F3F4F5 · 구분선은 좌우 20px 안쪽</p>
+</div></section>
+<section class="ex"><h2 class="ex-title">C. 카테고리 탭과 필터</h2><a class="nl-link ex-guide" href="../components/CategoryTabs/README.md">가이드</a>
+<div class="ex-body">
+<div style="max-width:720px; border:1px solid var(--stroke-neutral-weak); border-radius:var(--radius-r4); overflow:hidden">
+<div class="nl-tabs" role="tablist"><button class="nl-tab" role="tab" aria-selected="false">전체</button><button class="nl-tab" role="tab" aria-selected="false">정치</button><button class="nl-tab" role="tab" aria-selected="false">경제</button><button class="nl-tab" role="tab" aria-selected="true">산업</button><button class="nl-tab" role="tab" aria-selected="false">사회</button><button class="nl-tab" role="tab" aria-selected="false">국제</button><button class="nl-tab" role="tab" aria-selected="false">IT·과학</button></div>
+<div class="nl-filter-row" style="padding:16px 20px"><button class="nl-filter-chip" aria-pressed="false">이번 주<i data-icon="chevron-down-small"></i></button><button class="nl-filter-chip" aria-pressed="false">언론사<i data-icon="chevron-down-small"></i></button><button class="nl-filter-chip" aria-pressed="true"><i data-icon="checkmark"></i>변화 있는 이슈</button><button class="nl-filter-chip" aria-pressed="true"><i data-icon="checkmark"></i>상충 후보 포함</button><button class="nl-filter-reset">초기화</button></div>
+</div>
+<p class="note">탭 = 보고 있는 범주 전체를 바꿈(하나만 선택) · 필터 칩 = 지금 목록을 좁힘(여러 개 선택, 8px 모서리)</p>
+</div></section>
+<section class="ex"><h2 class="ex-title">D. 사건 상세 패널</h2><a class="nl-link ex-guide" href="../components/EventDetailPanel/README.md">가이드</a>
+<div class="ex-body">
+<section class="nl-panel" aria-label="사건 상세">
+  <header class="nl-panel__header">
+    <span class="nl-panel__eyebrow">국내 반도체 산업 지원 법안 · 사건 5/8</span>
+    <h2 class="nl-panel__title">국회 상임위, 보조금 조항 수정안 의결</h2>
+    <span class="nl-panel__date"><i data-icon="calendar"></i><span class="nl-num">2026년 10월 14일 (수)</span></span>
+    <button class="nl-icon-button nl-panel__close" aria-label="닫기"><i data-icon="xmark"></i></button>
+  </header>
+  <div class="nl-panel__section">
+    <h3 class="nl-section-label">요약</h3>
+    <p class="nl-panel__summary">상임위원회가 반도체 지원 법안의 보조금 조항을 고친 수정안을 의결했어요. 직접 보조금 비율은 최대 30%에서 20%로 낮아지고, 대신 설비 투자 세액공제 범위가 넓어졌어요.</p>
+  </div>
+  <div class="nl-panel__section">
+    <h3 class="nl-section-label">원문 근거 2</h3>
+    <figure class="nl-evidence" style="margin:0">
+      <blockquote class="nl-evidence__quote" style="margin:0">“수정안은 보조금 지원 비율을 최대 20%로 낮추고, 국가전략기술 설비 투자에 대한 세액공제를 확대하는 내용을 담았다.”</blockquote>
+      <figcaption class="nl-evidence__source">새날경제<span class="nl-dot-sep"></span>10월 14일 09:12<a class="nl-link" href="#">원문 보기</a></figcaption>
+    </figure>
+    <figure class="nl-evidence" style="margin:0">
+      <blockquote class="nl-evidence__quote" style="margin:0">“위원회는 이날 전체회의를 열어 해당 수정안을 의결하고 본회의에 넘겼다.”</blockquote>
+      <figcaption class="nl-evidence__source">한빛일보<span class="nl-dot-sep"></span>10월 14일 11:40<a class="nl-link" href="#">원문 보기</a></figcaption>
+    </figure>
+  </div>
+  <div class="nl-panel__tabs nl-tabs nl-tabs--small" role="tablist" style="padding:0 24px; border-top:1px solid var(--stroke-neutral-subtle)">
+    <button class="nl-tab" role="tab" aria-selected="true">관련 기사<span class="nl-tab__count nl-num">12</span></button>
+    <button class="nl-tab" role="tab" aria-selected="false">관점<span class="nl-tab__count nl-num">3</span></button>
+  </div>
+  <ul class="nl-article-list nl-article-list--compact nl-panel__tabpanel">
+    <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">보조금 대신 세액공제…업계 “방향은 맞지만 규모 아쉬워”</p><p class="nl-article__meta">새날경제<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+    <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">[해설] 수정안에서 달라진 세 가지</p><p class="nl-article__meta">한빛일보<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+    <li><a class="nl-article" href="#"><div class="nl-article__body"><p class="nl-article__title">야당 “지원 대상 기준 모호” 지적</p><p class="nl-article__meta">온누리뉴스<span class="nl-dot-sep"></span>10월 14일</p></div></a></li>
+  </ul>
+</section>
+</div></section>
+<section class="ex"><h2 class="ex-title">E-1. 타임라인 노드</h2><a class="nl-link ex-guide" href="../components/Timeline/README.md">가이드</a>
+<div class="ex-body">
+<ol class="nl-timeline" style="max-width:560px">
+  <li class="nl-tl-item">
+    <span class="nl-tl-date">2026<br>09.02</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--new"><i data-icon="plus-small"></i>NEW</span></div><p class="nl-tl-title">정부, 반도체 지원 법안 초안 공개</p><p class="nl-tl-desc">설비 투자액의 최대 30%를 보조금으로 지원하는 안</p></div>
+  </li>
+  <li class="nl-tl-item">
+    <span class="nl-tl-date">09.20</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--repeat"><i data-icon="arrow-clockwise-circular"></i>REPEAT</span></div><p class="nl-tl-title">업계 간담회에서 지원 필요성 재확인</p><p class="nl-tl-desc">9월 2일 사건과 같은 내용의 반복 보도</p><span class="nl-tl-relation"><i data-icon="arrow-clockwise-circular"></i>09.02 사건 반복</span></div>
+  </li>
+  <li class="nl-tl-item is-branch">
+    <span class="nl-tl-date">09.24</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--update"><i data-icon="pencil"></i>UPDATE</span></div><p class="nl-tl-title">지역 공장 부지 선정 기준 발표</p><p class="nl-tl-desc">본 흐름에서 갈라진 관련 사건</p><span class="nl-tl-relation"><i data-icon="arrow-right-angled"></i>곁가지 · 관련 사건</span></div>
+  </li>
+  <li class="nl-tl-item is-selected">
+    <span class="nl-tl-date">10.08</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--update"><i data-icon="pencil"></i>UPDATE</span></div><p class="nl-tl-title">보조금 비율 30% → 20%로 조정</p><p class="nl-tl-desc">09.02 사건의 수치가 바뀜</p><span class="nl-tl-relation"><i data-icon="pencil"></i>09.02 사건 내용 변경</span></div>
+  </li>
+  <li class="nl-tl-item is-conflict">
+    <span class="nl-tl-date">10.14</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--conflict"><i data-icon="arrow-right-arrow-left"></i>CONFLICT</span></div><p class="nl-tl-title">법 시행 시점 보도 엇갈림</p><p class="nl-tl-desc">2027년 1월 / 2028년 상반기 — 확인 필요</p><span class="nl-tl-relation"><i data-icon="arrow-right-arrow-left"></i>상충 후보 2건</span></div>
+  </li>
+</ol>
+<p class="note">메인 흐름 = 민트 선 + 채운 노드 · 곁가지 = 회색 점선 + 빈 노드(들여씀) · 선택 = 진한 청록 노드 + 연한 민트 배경 · CONFLICT 노드 = 주황 테두리</p>
+</div></section>
+<section class="ex"><h2 class="ex-title">E-2. 변화 카드</h2><a class="nl-link ex-guide" href="../components/ChangeCard/README.md">가이드</a>
+<div class="ex-body">
+<article class="nl-change-card" style="max-width:720px">
+  <div class="nl-change-card__head"><span class="nl-status nl-status--update"><i data-icon="pencil"></i>UPDATE</span><span class="nl-change-card__field">보조금 비율</span><span class="nl-change-card__date">09.02 → 10.08</span></div>
+  <div class="nl-change-card__body">
+    <div class="nl-change-side nl-change-side--before"><span class="nl-change-side__label">이전 근거</span>
+      <p class="nl-change-side__quote">“정부는 설비 투자액의 <mark class="nl-mark-before">최대 30%</mark>를 보조금으로 지원하는 방안을 검토 중이다.”</p>
+      <span class="nl-change-side__source">한빛일보 · 09.02</span></div>
+    <div class="nl-change-card__arrow"><i data-icon="arrow-right"></i></div>
+    <div class="nl-change-side"><span class="nl-change-side__label">이후 근거</span>
+      <p class="nl-change-side__quote">“수정안은 보조금 지원 비율을 <mark class="nl-mark-after">최대 20%</mark>로 낮추고 세액공제를 확대했다.”</p>
+      <span class="nl-change-side__source">새날경제 · 10.08</span></div>
+  </div>
+</article>
+<article class="nl-change-card nl-change-card--conflict" style="max-width:720px">
+  <div class="nl-change-card__head"><span class="nl-status nl-status--conflict"><i data-icon="arrow-right-arrow-left"></i>CONFLICT · 상충 후보</span><span class="nl-change-card__field">법 시행 시점</span><span class="nl-change-card__date">10.14</span></div>
+  <p class="nl-conflict-note"><i data-icon="i-lowercase-serif-circle"></i>두 보도의 내용이 서로 달라요. 어느 쪽이 맞는지 판정한 것이 아니라, 원문 확인이 필요한 상충 후보예요.</p>
+  <div class="nl-change-card__body">
+    <div class="nl-change-side"><span class="nl-change-side__label">보도 A</span>
+      <p class="nl-change-side__quote">“개정안은 <mark class="nl-mark-claim">2027년 1월</mark>부터 시행될 예정이다.”</p>
+      <span class="nl-change-side__source">온누리뉴스 · 10.14</span></div>
+    <div class="nl-change-side"><span class="nl-change-side__label">보도 B</span>
+      <p class="nl-change-side__quote">“업계에 따르면 실제 시행은 <mark class="nl-mark-claim">2028년 상반기</mark>로 늦춰질 가능성이 크다.”</p>
+      <span class="nl-change-side__source">바른신문 · 10.14</span></div>
+  </div>
+</article>
+</div></section>
+</main>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>

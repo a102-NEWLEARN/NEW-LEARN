@@ -1,0 +1,64 @@
+<!-- @dsCard height=320 -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>NEW:LEARN</title>
+<style>
+  html, body { margin:0; height:100%; }
+  body { background:var(--bg-layer-default); color:var(--fg-neutral); font-family:var(--font-sans); overflow:hidden; }
+  .cover { position:relative; height:320px; overflow:hidden; }
+  .art { position:absolute; top:0; left:480px; width:480px; height:320px; overflow:hidden; }
+  .art svg { display:block; width:480px; height:320px; }
+  .brand { fill:var(--bg-brand-accent); }
+  .deep { fill:var(--bg-brand-solid); }
+  .cut { fill:var(--bg-layer-default); }
+  .lime { fill:var(--bg-accent-lime); }
+  .slab { rx:var(--radius-r6); }
+  .node { rx:var(--radius-r1_5); }
+  .link-cut { stroke:var(--bg-layer-default); stroke-width:3; stroke-linecap:round; }
+  .link-brand { stroke:var(--bg-brand-accent); stroke-width:3; stroke-linecap:round; }
+  .link-deep { stroke:var(--bg-brand-solid); stroke-width:3; stroke-linecap:round; }
+  .words { position:absolute; left:var(--dimension-x8); bottom:var(--dimension-x8); max-width:440px; }
+  .name { margin:0; font-size:68px; line-height:.92; font-weight:800; letter-spacing:-.02em; color:var(--fg-neutral); white-space:nowrap; }
+  .tag { margin:var(--dimension-x3) 0 0 4px; font-size:14px; line-height:20px; color:var(--fg-neutral-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 320" width="480" height="320">
+<!--
+  blocks      bg-brand-accent (Brand Main #28CDAA) 232x248 bled off the top, the largest · bg-brand-solid (Brand Dark #087F72) 224x160 bled off the right, low on the right — about 25% of 960x320
+  arrangement one tall mint slab and a lower navy slab beside it, dimension-x4 gutter, navy bottom on the name's baseline (dimension-x8 above the edge)
+  pattern     node-and-link graph, from the brand keyword "연결하다" (흩어진 기사를 연결): dimension-x6 nodes, 3px links; cut out of the mint slab in the ground, mint on the teal slab, teal on the ground with one bg-accent-lime node as the only lime — 9 nodes
+  scales      sides in dimension-x2 multiples; gutter dimension-x4; nodes dimension-x6; slab corners radius-r6, node corners radius-r1_5
+-->
+<rect class="brand slab" x="32" y="-24" width="232" height="248" rx="24"/>
+<rect class="deep slab" x="280" y="128" width="224" height="160" rx="24"/>
+<line class="link-cut" x1="76" y1="52" x2="148" y2="100"/>
+<line class="link-cut" x1="148" y1="100" x2="212" y2="164"/>
+<rect class="cut node" x="64" y="40" width="24" height="24" rx="6"/>
+<rect class="cut node" x="136" y="88" width="24" height="24" rx="6"/>
+<rect class="cut node" x="200" y="152" width="24" height="24" rx="6"/>
+<line class="link-brand" x1="324" y1="180" x2="396" y2="236"/>
+<line class="link-brand" x1="396" y1="236" x2="460" y2="188"/>
+<rect class="brand node" x="312" y="168" width="24" height="24" rx="6"/>
+<rect class="brand node" x="384" y="224" width="24" height="24" rx="6"/>
+<rect class="brand node" x="448" y="176" width="24" height="24" rx="6"/>
+<line class="link-deep" x1="308" y1="52" x2="380" y2="84"/>
+<line class="link-deep" x1="380" y1="84" x2="452" y2="44"/>
+<rect class="deep node" x="296" y="40" width="24" height="24" rx="6"/>
+<rect class="deep node" x="368" y="72" width="24" height="24" rx="6"/>
+<rect class="lime node" x="440" y="32" width="24" height="24" rx="6"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">NEW:LEARN</h1>
+<p class="tag">뉴스를 넘어, 흐름을 읽다.</p>
+</div>
+</div>
+</body>
+</html>

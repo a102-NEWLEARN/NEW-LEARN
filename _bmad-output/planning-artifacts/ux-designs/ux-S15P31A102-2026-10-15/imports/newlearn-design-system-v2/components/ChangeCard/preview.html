@@ -1,0 +1,58 @@
+<!-- @dsCard group="NEW:LEARN Patterns" height=460 width=780 subtitle="변화 카드 · UPDATE / CONFLICT" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>변화 카드 — NEW:LEARN</title>
+<style>
+  html, body { margin:0; background:var(--bg-layer-default); }
+  .stage { padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+
+</style>
+</head>
+<body class="nl-root">
+<div class="stage">
+<article class="nl-change-card" style="max-width:720px">
+  <div class="nl-change-card__head"><span class="nl-status nl-status--update"><i data-icon="pencil"></i>UPDATE</span><span class="nl-change-card__field">보조금 비율</span><span class="nl-change-card__date">09.02 → 10.08</span></div>
+  <div class="nl-change-card__body">
+    <div class="nl-change-side nl-change-side--before"><span class="nl-change-side__label">이전 근거</span>
+      <p class="nl-change-side__quote">“정부는 설비 투자액의 <mark class="nl-mark-before">최대 30%</mark>를 보조금으로 지원하는 방안을 검토 중이다.”</p>
+      <span class="nl-change-side__source">한빛일보 · 09.02</span></div>
+    <div class="nl-change-card__arrow"><i data-icon="arrow-right"></i></div>
+    <div class="nl-change-side"><span class="nl-change-side__label">이후 근거</span>
+      <p class="nl-change-side__quote">“수정안은 보조금 지원 비율을 <mark class="nl-mark-after">최대 20%</mark>로 낮추고 세액공제를 확대했다.”</p>
+      <span class="nl-change-side__source">새날경제 · 10.08</span></div>
+  </div>
+</article>
+<article class="nl-change-card nl-change-card--conflict" style="max-width:720px">
+  <div class="nl-change-card__head"><span class="nl-status nl-status--conflict"><i data-icon="arrow-right-arrow-left"></i>CONFLICT · 상충 후보</span><span class="nl-change-card__field">법 시행 시점</span><span class="nl-change-card__date">10.14</span></div>
+  <p class="nl-conflict-note"><i data-icon="i-lowercase-serif-circle"></i>두 보도의 내용이 서로 달라요. 어느 쪽이 맞는지 판정한 것이 아니라, 원문 확인이 필요한 상충 후보예요.</p>
+  <div class="nl-change-card__body">
+    <div class="nl-change-side"><span class="nl-change-side__label">보도 A</span>
+      <p class="nl-change-side__quote">“개정안은 <mark class="nl-mark-claim">2027년 1월</mark>부터 시행될 예정이다.”</p>
+      <span class="nl-change-side__source">온누리뉴스 · 10.14</span></div>
+    <div class="nl-change-side"><span class="nl-change-side__label">보도 B</span>
+      <p class="nl-change-side__quote">“업계에 따르면 실제 시행은 <mark class="nl-mark-claim">2028년 상반기</mark>로 늦춰질 가능성이 크다.”</p>
+      <span class="nl-change-side__source">바른신문 · 10.14</span></div>
+  </div>
+</article>
+</div>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>
