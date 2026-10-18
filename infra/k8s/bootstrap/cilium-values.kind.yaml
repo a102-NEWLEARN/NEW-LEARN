@@ -1,0 +1,5 @@
+# kind 리허설에서만 덮는 값
+# kube-proxy 가 없어 Cilium 이 API 서버 주소를 직접 알아야 한다 — kind 컨트롤 플레인 컨테이너 이름
+k8sServiceHost: newlearn-control-plane
+image:
+  pullPolicy: IfNotPresent

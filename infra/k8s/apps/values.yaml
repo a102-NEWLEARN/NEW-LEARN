@@ -1,0 +1,3 @@
+# 루트 Application(infra/k8s/bootstrap/root-app.yaml)이 넣는다. 여기 기본값은 비워 둔다
+repoURL: ""
+targetRevision: ""

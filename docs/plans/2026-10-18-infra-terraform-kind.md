@@ -34,14 +34,14 @@ Lightsail 을 받는 날 바로 붙일 수 있게 하고, 실제 서버에서만
 
 ### ② kind 리허설 — Jira 새 티켓 「[INFRA] kind 로 쿠버네티스 배포 리허설」 (SP 5)
 
-- [ ] Jira 티켓 · 브랜치 `chore/infra/S15P31A102-<번호>-kind-rehearsal`, winget 으로 kind · Helm 설치
-- [ ] `infra/kind/` — 노드 2개(컨트롤 플레인 1 · 워커 1, 실제 구성과 같은 모양), 기본 CNI 끔, kubeconfig 를 `infra/kind/.kubeconfig` 에 따로 둔다
-- [ ] 부트스트랩 스크립트: Cilium → Argo CD 를 Helm 으로 깔고, 루트 Application(app-of-apps)을 건다 — 노드 Ready · Cilium 정상으로 확인
-- [ ] `infra/k8s/apps/` — Envoy Gateway(Helm 차트) · GatewayClass · Gateway · hello 앱(2개 복제 · 준비 확인 · HTTPRoute)을 Argo CD 가 Git 에서 가져가 깐다 — 모두 Synced · Healthy, `curl` 로 hello v1
-- [ ] 외부 입구 실험: 워커 노드의 80 · 443 에 Envoy 를 직접 연다(hostPort). kind 는 포트 매핑으로 흉내 낸다. 안 되면 NodePort 로 바꾸고 결과를 SSOT 8절에 적는다
-- [ ] 배포 · 되돌리기: 버릴 브랜치 `rehearsal/kind-gitops` 에 v2 를 push → Argo CD 반영 중 요청 N번을 보내 실패 0 인지 → `git revert` 로 v1 복귀까지 잰다. 끝나면 브랜치를 지운다
-- [ ] Argo CD 가 저장소를 읽을 배포 토큰(읽기 전용)은 사용자가 GitLab 에서 만들어 스크립트 실행 때만 넣는다. 끝나면 토큰을 폐기한다
-- [ ] SSOT 6 · 8 · 10절, stack.md §3 · §6 갱신 → 커밋 · push · `infra` 대상 MR · 머지 · Jira 완료 · `kind delete cluster`
+- [x] Jira 티켓 · 브랜치 `chore/infra/S15P31A102-77-kind-rehearsal`, winget 으로 kind · Helm 설치
+- [x] `infra/kind/` — 노드 2개(컨트롤 플레인 1 · 워커 1, 실제 구성과 같은 모양), 기본 CNI 끔, kubeconfig 를 `infra/kind/.kubeconfig` 에 따로 둔다
+- [x] 부트스트랩 스크립트: Cilium → Argo CD 를 Helm 으로 깔고, 루트 Application(app-of-apps)을 건다 — 노드 Ready · Cilium 정상으로 확인
+- [x] `infra/k8s/apps/` — Envoy Gateway(Helm 차트) · GatewayClass · Gateway · hello 앱(2개 복제 · 준비 확인 · HTTPRoute)을 Argo CD 가 Git 에서 가져가 깐다 — 모두 Synced · Healthy, `curl` 로 hello v1
+- [x] 외부 입구 실험: 워커 노드의 80 에 Envoy 를 직접 연다(hostPort) — 됐다. 다만 워커 1대라 Envoy 교체가 멈춰서 교체 전략을 「옛 Pod 먼저 내리기」로 바꿨다(끊김 약 1.6초). 443 은 인증서를 정한 뒤 (SSOT 6절)
+- [x] 배포 · 되돌리기: v2 커밋 → Argo CD 반영 중 요청 140번 안팎에 실패 0 → `git revert` 로 v1 복귀까지 잼 (2회). preStop 을 뺀 대조 실험도 함 (SSOT 10절)
+- [x] ~~Argo CD 가 저장소를 읽을 배포 토큰~~ — **바꿈 (2026-10-18):** 팀 GitLab 대신 로컬 Git 미러(`infra/kind/.git-mirror`, 컨테이너 `newlearn-git`)를 읽게 했다. 토큰을 만들고 폐기할 사람 몫과 팀 원격의 버릴 브랜치가 없어진다. GitLab 인증은 실제 서버에 Argo CD 를 깔 때 확인한다 (SSOT 8절)
+- [ ] SSOT 6 · 8 · 10절, stack.md §3 · §6 · §8 갱신(했다) → 커밋 · push · `infra` 대상 MR · 머지 · Jira 완료 · `kind delete cluster`
 
 ## 바꿀 파일
 
@@ -59,8 +59,9 @@ Lightsail 을 받는 날 바로 붙일 수 있게 하고, 실제 서버에서만
 
 **②**
 - `infra/kind/cluster.yaml` · `up.sh` · `down.sh` — 클러스터 생성 · 부트스트랩 · 삭제. 스크립트는 kubeconfig 를 `infra/kind/.kubeconfig` 로만 쓰고 컨텍스트가 `kind-newlearn` 이 아니면 멈춘다
-- `infra/k8s/bootstrap/` — Cilium · Argo CD Helm 값 (실제 서버에서도 같은 값을 쓰고 다른 것만 덮는다)
-- `infra/k8s/apps/` — 루트 Application, Envoy Gateway · Gateway · hello 앱 매니페스트
+  - 하면서 더한 것: `lib.sh`(공통 값 · 검사 · 미러 반영), `sync.sh`(고친 매니페스트 반영), `rehearse-rollout.sh`(무중단 교체 · 되돌리기 측정)
+- `infra/k8s/bootstrap/` — Cilium · Argo CD Helm 값 (공통 `*-values.yaml` 과 kind 전용 `*-values.kind.yaml`), 루트 Application(`root-app.yaml` — 계획과 달리 `apps/` 가 아니라 여기)
+- `infra/k8s/apps/` — 앱 목록(app-of-apps Helm 차트). 매니페스트는 `infra/k8s/gateway/` · `infra/k8s/hello/` 로 나눔
 - `SSOT.md` 6 · 8 · 10절, `.claude/stack.md` §3(`infra_RUN`) · §6(배포 설정 경로 `infra/k8s/apps/`), `infra/README.md` 리허설 절
 
 ## 안 바꿀 것
@@ -100,5 +101,5 @@ Lightsail 을 받는 날 바로 붙일 수 있게 하고, 실제 서버에서만
 
 - 저장소: 각 MR 의 머지 커밋을 revert 한다. 대부분 새 파일이다
 - AWS: ①은 아무것도 만들지 않아 되돌릴 것이 없다. 읽기 전용 IAM 사용자와 키는 IAM 콘솔에서 지운다
-- kind: `kind delete cluster --name newlearn` 이 클러스터를 통째로 지운다. 배포 토큰은 GitLab 에서 폐기, `rehearsal/kind-gitops` 브랜치는 원격에서 지운다
+- kind: `bash infra/kind/down.sh` 가 클러스터와 Git 미러 컨테이너를 지운다. 미러 폴더 `infra/kind/.git-mirror`(gitignore)는 손으로 지운다. 배포 토큰 · 원격 브랜치는 로컬 미러로 바꿔서 만들지 않았다
 - 도구: `winget uninstall` 로 지운다
