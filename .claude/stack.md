@@ -45,7 +45,7 @@
 | `frontend` | TypeScript 6 · React 19 · Vite 8 · Tailwind CSS 4 · SEED Design · TanStack Query · Zustand · React Router · D3. Node 26 |
 | `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · QueryDSL · Flyway) · Gradle 9 (Groovy DSL) |
 | `ai` | Python 3.14 · FastAPI · LangChain · sentence-transformers (torch CPU 판) · uv |
-| `infra` | Terraform 1.16 (AWS provider 6) — 관리 서버 EC2. 쿠버네티스 매니페스트는 kind 리허설(Jira S15P31A102-77)에서 더한다 |
+| `infra` | Terraform 1.16 (AWS provider 6) — 관리 서버 EC2. 쿠버네티스 Helm 값 · Argo CD 앱 목록 · 매니페스트(`infra/k8s/`)와 kind 리허설 스크립트(`infra/kind/`) |
 
 정확한 버전은 각 영역의 매니페스트(`package.json` · `build.gradle` · `pyproject.toml` · `infra/terraform/versions.tf`)와 `compose.yaml` 의 이미지 태그가 진실이다.
 왜 이 버전인지는 `SSOT.md` 1절 · 6절.
@@ -93,12 +93,12 @@ ai_TEST="uv run --locked pytest"
 ai_BUILD=""   # 빌드 산출물이 없다 — 운영 이미지는 CI 에서 굽는다 (SSOT.md 7절)
 ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jira S15P31A102-33 에서 채운다
 
-infra_PATH="infra"   # 인프라 코드 (Terraform). 검사는 AWS 자격 증명 없이 돈다
+infra_PATH="infra"   # 인프라 코드 (Terraform · 쿠버네티스 매니페스트 · kind 리허설). 검사는 AWS 자격 증명 없이 돈다
 infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # provider 를 받는다. 상태 파일은 만들지 않는다
-infra_RUN=""   # 띄울 것이 없다 — plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
+infra_RUN="bash kind/up.sh"   # 내 PC 의 kind 리허설 클러스터 (Docker Desktop · kind · Helm 필요). Terraform plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
-infra_LINT="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate"
+infra_LINT="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh; do bash -n $f || exit 1; done"   # 셸 스크립트는 문법만 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
 infra_TEST="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test"   # 가짜 provider 로 보안 그룹 규칙을 검사한다
 infra_BUILD=""   # 산출물이 없다 — 실제 생성(apply)은 사람이 plan 을 읽고 한다 (.claude/docs/deploy.md 3절)
 
@@ -224,7 +224,7 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | 배포가 있나 | 서버 — 쿠버네티스(kubeadm 직접 구축) |
 | 어디로 | 노드 2대 — 관리 서버(컨트롤 플레인) AWS EC2 t3.large · 서비스 서버(워커) SSAFY Lightsail xlarge. 둘 다 아직 없다 (EC2 미생성 · Lightsail 미수령, `SSOT.md` 6절) |
 | 무엇으로 트리거되나 | push → GitLab Runner 가 테스트 · 이미지 빌드 → 배포 설정의 이미지 버전 갱신 → Argo CD 가 반영. 어느 브랜치에서 배포할지 `<채워넣기>` |
-| 배포 명령 | 사람이 치는 명령은 없다 — Argo CD 가 Git 의 배포 설정을 클러스터에 맞춘다(GitOps). 배포 설정을 둘 경로 `<채워넣기>` |
+| 배포 명령 | 사람이 치는 명령은 없다 — Argo CD 가 Git 의 배포 설정을 클러스터에 맞춘다(GitOps). 배포 설정은 `infra/k8s/apps/`(앱 목록) 와 그것이 가리키는 `infra/k8s/` 폴더. kind 리허설에서 확인 (`SSOT.md` 6절) |
 | **산출물(이미지 · 패키지 · 앱 번들)을 어디에 두나** | `<채워넣기>` (GitLab Container Registry 를 쓸 수 있는지 미정 — `SSOT.md` 8절) |
 | 태그 규칙 | `<채워넣기>` (커밋 SHA 처럼 빌드마다 다른 이름. `latest` 만 쓰지 않는다) |
 | 🔴 되돌리는 법 | Git 에서 배포 설정을 이전 커밋으로 되돌리면 Argo CD 가 이전 버전으로 맞춘다 (`SSOT.md` 6절) |
@@ -302,6 +302,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | `.claude/settings.local.json` | 개인 Claude Code 설정 | 각자 만든다 |
 | Lightsail 접속 키(`*.pem`) | 서비스 서버 접속 | 받으면 저장소 밖에 둔다 |
 | `infra/terraform/terraform.tfvars` | Terraform 변수 (관리자 IP · SSH 공개키 · 예산 알림 메일) | `terraform.tfvars.example` 을 복사해 채운다 |
+| `infra/kind/.kubeconfig` · `infra/kind/.git-mirror/` | kind 리허설 클러스터 접속 정보 · Argo CD 가 읽는 로컬 Git 미러 | `bash infra/kind/up.sh` 가 만든다. 내 `~/.kube/config` 와 섞지 않으려고 따로 둔다 |
 | AWS 액세스 키 (`~/.aws/credentials`, 저장소 밖) | `terraform plan` 자격 증명 (읽기 전용 IAM 사용자) | IAM 콘솔에서 만들어 `aws configure --profile newlearn` 에 넣는다 — 하는 법은 `infra/README.md`. plan 뒤 비활성화 |
 
 ⚠️ 새로 생기면 **그 즉시** 여기와 `.gitignore` 에 추가한다. **값 자체는 절대 적지 않는다.**
