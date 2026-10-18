@@ -2,3 +2,5 @@
 *.tfplan
 *.tfstate
 *.tfstate.*
+kind/.kubeconfig
+kind/.git-mirror/
