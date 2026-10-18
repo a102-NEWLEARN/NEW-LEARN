@@ -1,0 +1,193 @@
+# CI 게이트 — GitLab CI. 저장소 루트에 .gitlab-ci.yml 로 둔다.
+#
+# 검사 명령은 여기 적지 않는다. 아래 두 줄이 .claude/stack.md §3 의 명령을 읽어 돌린다.
+# 로컬 훅과 CI 가 같은 명령을 써야 「로컬은 되는데 CI 는 안 되는」 일이 없다.
+# 명령을 바꾸려면 stack.md 를 고친다. 두 층(fast · slow)에서 무엇이 도는지는 stack.md §4.
+#
+# 🔴 머지를 막으려면 Settings > Merge requests > Merge checks 에서 Pipelines must succeed 를 켠다.
+# 안 켜면 파이프라인이 빨개도 머지 버튼이 열린다. 같은 화면의 「Skipped pipelines are considered
+# successful」은 꺼 둔다. 켜 두면 검사를 하나도 안 돈 파이프라인이 통과로 친다. 둘 다 Free 다.
+#
+# 기본 브랜치가 자주 움직여서 MR 마다 리베이스하고 다시 돌리게 되면 머지 트레인을 켠다
+# (Settings > Merge requests > Merge trains · Premium 이상). 트레인은 앞 MR 과 합친 결과로 검사하고
+# 순서대로 머지한다. 트레인 파이프라인도 merge_request_event 라서 아래 rules 를 그대로 탄다.
+#
+# 이미지는 태그 대신 digest(@sha256:…)로 고정한다. 태그는 옮겨질 수 있다 — 2026-03 Trivy 공격 때
+# Docker Hub 의 같은 태그 이미지가 악성으로 바뀌었다. 낡은 digest 는 Renovate 가 올린다
+# (GitLab 에서는 Renovate 를 직접 돌려야 한다 — 봇 토큰이 필요하다).
+#
+# 잡을 영역별로 쪼개기 전에 stack.md §4 「러너가 동시에 몇 개」를 먼저 채운다.
+# 동시 실행 수보다 잡이 많으면 병렬이 아니라 대기열이 된다.
+
+# ---------------------------------------------------------------------------
+# 언제 도나 · 새 커밋이 오면 옛 파이프라인을 취소한다
+# ---------------------------------------------------------------------------
+# 기본 브랜치는 취소하지 않는다. MR 에서 놓친 것을 잡는 마지막 자리다.
+# 프로젝트 설정 「Auto-cancel redundant pipelines」는 켜 둔다 (기본값 켜짐).
+# 끄면 아래 auto_cancel 도 interruptible 도 아무 일도 안 한다.
+# 기본 브랜치를 취소 안 하는 것은 아래 rules 가 맡는다.
+#
+# 🔴 auto_cancel 은 GitLab 16.10 이상에서만 된다. 낮으면 파이프라인이 yaml invalid 로 서고 아무 잡도 안 돈다.
+# 처음 넣을 때 Build > Pipeline editor > Validate 로 확인하고
+# 거절되면 auto_cancel 두 블록만 지운다.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      auto_cancel:
+        on_new_commit: interruptible
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+    - when: never
+
+default:
+  # 기본값이 false 라서 이게 없으면 위 auto_cancel 이 아무것도 못 취소한다.
+  interruptible: true
+  # 러너가 죽거나 멈췄을 때만 한 번 더 돈다. 테스트 실패를 재시도하면 흔들리는 테스트가 가려진다.
+  retry:
+    max: 1
+    when: [runner_system_failure, stuck_or_timeout_failure]
+
+stages:
+  - fast
+  - slow
+
+# 🔴 프로젝트의 런타임 이미지로 바꾼다. fast · slow 가 같이 쓴다. digest 로 고정한다.
+# 예) node:22 · python:3.12 · gradle:8-jdk21 · ghcr.io/cirruslabs/flutter:stable
+# 안 바꾸면 이미지를 못 받아 실패한다. 조용히 통과하지 않게 일부러 틀린 값을 넣어 뒀다.
+.runtime: &runtime
+  image: "REPLACE-ME-프로젝트-런타임-이미지"
+  # 게이트는 bash 로 돌고 git 으로 파일 목록을 읽는다. 이미지에 없으면 여기서 깐다.
+  # git 이 없으면 게이트는 검사를 하나도 못 하고 멈춘다. slim · alpine 이미지는 꼭 깐다.
+  # alpine 은 grep 도 깐다. 기본으로 들어 있는 busybox grep 은 시크릿 스캔이 쓰는 옵션 일부를 무시한다.
+  #   alpine 계열:  - apk add --no-cache bash git grep
+  #   debian 계열:  - apt-get update && apt-get install -y bash git
+  # before_script:
+  #   - apk add --no-cache bash git grep
+
+# 하네스 자체 검사(run.sh)는 stack.md 와 상관없이 하네스 자신을 본다. 무엇을 보는지는
+# .claude/README.md 의 hooks/ 표. slow 는 fast 가 초록일 때만 떠서 거기서 다시 돌리지 않는다.
+fast:
+  <<: *runtime
+  stage: fast
+  variables:
+    GIT_DEPTH: 0   # 시크릿 스캔이 MR 의 커밋 이력을 기준 커밋까지 본다
+  script:
+    - bash .claude/hooks/tests/run.sh
+    # MR 이면 그 사이 커밋에서도 시크릿을 찾는다. 기본 브랜치 파이프라인은 비어서 건너뛴다.
+    # diff base 는 대상 브랜치를 머지해 둔 MR 에서 그 전 커밋까지 넓게 잡을 수 있다. 더 보는 쪽으로만 틀린다.
+    - SCAN_BASE="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" bash .claude/hooks/pre-commit --ci-fast
+
+slow:
+  <<: *runtime
+  stage: slow
+  script:
+    - bash .claude/hooks/pre-commit --ci
+
+# ---------------------------------------------------------------------------
+# 커밋 · 브랜치 · MR 제목 규칙 — stack.md §3 에 적었을 때만
+# ---------------------------------------------------------------------------
+# 규칙을 적었으면 주석을 푼다. 안 적었으면 이 잡은 볼 것이 없다.
+# 로컬 커밋 훅은 훅을 안 깐 사람 · --no-verify · cherry-pick · rebase 를 못 막는다. MR 에서 한 번 더 본다.
+# fast 층에 둬서 규칙이 틀린 MR 은 테스트 · 빌드까지 가지 않는다. 검사기 회귀 테스트는 fast 가 같이 돌린다.
+#
+# convention:
+#   stage: fast
+#   image: alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+#   before_script: [apk add --no-cache bash git]
+#   variables:
+#     GIT_DEPTH: 0   # MR 의 커밋을 전부 받는다
+#   script:
+#     - bash .claude/hooks/mr-check.sh
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# ---------------------------------------------------------------------------
+# 영역이 여럿일 때 (런타임 이미지가 서로 다르면)
+# ---------------------------------------------------------------------------
+# 이미지가 달라 한 잡으로 못 돌 때만 쓴다. 위 두 잡을 지우고 영역마다 한 쌍씩 만든다.
+# 영역 이름은 stack.md §3 의 AREAS 와 같아야 한다. 틀리면 스크립트가 바로 실패한다.
+#
+# 🔴 영역 잡의 changes: 에는 .claude/ 와 .gitlab-ci.yml 도 넣는다. 영역 밖 공용 파일(루트 잠금 파일 ·
+# Dockerfile · 도구 버전 파일)도 넣는다. 빼면 그 파일만 바꾼 MR 이 검사를 하나도 안 돌리고 머지된다.
+# 폴더 전체는 dir/**/* 로 적는다. dir/** 는 바로 아래 파일만 잡는다 (GitLab 은 Ruby fnmatch 규칙).
+# 기본 브랜치는 changes: 없이 전 영역을 돈다. MR 에서 놓친 것을 거기서 잡는다.
+#
+# 🔴 영역을 좁혀 부르면 시크릿 스캔을 건너뛴다. 영역 잡마다 같은 스캔을 되풀이하지 않게 해 뒀다.
+# 대신 저장소 전체와 MR 이력을 보는 secrets 잡을 꼭 따로 둔다. 하네스 자체 검사도 여기로 옮긴다.
+#
+# secrets:
+#   stage: fast
+#   image: alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+#   before_script: [apk add --no-cache bash git grep]
+#   variables:
+#     GIT_DEPTH: 0
+#   script:
+#     - bash .claude/hooks/tests/run.sh
+#     - bash .claude/hooks/secret-scan.sh --all
+#     - if [ -n "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" ]; then bash .claude/hooks/secret-scan.sh --range "$CI_MERGE_REQUEST_DIFF_BASE_SHA"; fi
+#
+# fast:frontend:
+#   image: node:22
+#   stage: fast
+#   script: [bash .claude/hooks/pre-commit --ci-fast frontend]
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#     - changes: ["frontend/**/*", ".claude/**/*", .gitlab-ci.yml, package-lock.json, Dockerfile]
+#
+# slow:frontend:
+#   image: node:22
+#   stage: slow
+#   needs: [fast:frontend]
+#   script: [bash .claude/hooks/pre-commit --ci frontend]
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#     - changes: ["frontend/**/*", ".claude/**/*", .gitlab-ci.yml, package-lock.json, Dockerfile]
+#   # 테스트를 나눠 돌릴 때만 — 러너가 남고 테스트가 잡 시간의 대부분일 때. 포맷 · 린트 · 빌드는 샤드마다 다시 돈다.
+#   # stack.md 의 <영역>_TEST 가 CI_SHARD 를 받아야 한다.
+#   #   예) frontend_TEST='npm test -- --run ${CI_SHARD:+--shard=$CI_SHARD}'
+#   # parallel: 3
+#   # variables:
+#   #   CI_SHARD: "$CI_NODE_INDEX/$CI_NODE_TOTAL"
+#
+# GitLab 이 주는 보안 템플릿(Secret-Detection · Container-Scanning)을 include 할 때의 함정 셋:
+#   ① 템플릿 잡이 stage: test 를 쓴다. 위 stages 에 test 가 없어서 파이프라인이 무효가 된다
+#   ② rules 가 CI_COMMIT_BRANCH 로 걸러서 MR 파이프라인에서는 안 돈다 (18.x 의 AST_ENABLE_MR_PIPELINES)
+#   ③ allow_failure: true 라서 찾아도 잡이 초록이다. 머지를 막지 않는다
+
+# ---------------------------------------------------------------------------
+# 캐시 — 재 보고 이득이 압축 · 복원 비용보다 큰 영역에만
+# ---------------------------------------------------------------------------
+# 어떤 프로젝트에서는 gradle 은 빨라지고 npm 은 오히려 느려졌다. 재 본 숫자는 stack.md §4 에 적는다.
+# 키는 잠금 파일 내용으로 둔다. 의존이 바뀌면 키가 바뀌어 낡은 캐시로 초록이 뜨지 않는다.
+# 🔴 캐시 폴더는 $CI_PROJECT_DIR 안이어야 한다. 러너는 작업 폴더 밖을 못 담는다.
+#    Gradle 은 기본이 ~/.gradle 이라 GRADLE_USER_HOME 을 옮기지 않으면 캐시가 빈 채로 돈다.
+# 러너 캐시는 그 호스트에 남는다. 러너가 여럿이면 S3 같은 공유 캐시를 붙여야 다른 러너도 쓴다.
+#
+# slow:backend:
+#   variables:
+#     GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle-home
+#   cache:
+#     key:
+#       files: [backend/gradle/wrapper/gradle-wrapper.properties, backend/build.gradle.kts]
+#     paths: [.gradle-home/wrapper, .gradle-home/caches]
+
+# ---------------------------------------------------------------------------
+# 이미지로 배포한다면 — 레지스트리에 올린 커밋 SHA 태그를 배포 전에 검사한다 (stack.md §6)
+# ---------------------------------------------------------------------------
+# 검사 도구 이미지도 digest 로 고정한다. 스캐너 자체가 공격 대상이었다.
+# 클라우드에 붙는 배포 잡은 장기 키 대신 id_tokens(OIDC, Free)로 짧게 사는 토큰을 받는다.
+# environment: 를 달면 배포 이력이 남고 화면에서 되돌릴 수 있다 (Free).
+#
+# image:scan:
+#   stage: slow
+#   image:
+#     name: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+#     entrypoint: [""]
+#   variables:
+#     TRIVY_USERNAME: $CI_REGISTRY_USER
+#     TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+#   script:
+#     - trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

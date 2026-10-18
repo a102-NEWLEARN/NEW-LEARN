@@ -1,0 +1,322 @@
+# CI 게이트 — GitHub Actions. 저장소 루트 기준 .github/workflows/gate.yml 로 둔다.
+#
+# 검사 명령은 여기 적지 않는다. 아래 두 줄이 .claude/stack.md §3 의 명령을 읽어 돌린다.
+# 로컬 훅과 CI 가 같은 명령을 써야 「로컬은 되는데 CI 는 안 되는」 일이 없다.
+# 명령을 바꾸려면 stack.md 를 고친다. 두 층(fast · slow)에서 무엇이 도는지는 stack.md §4.
+#
+# 🔴 머지를 막으려면 브랜치 보호(또는 룰셋)의 필수 검사에 fast 와 slow 를 둘 다 건다.
+# convention 을 켰으면 그것도 건다. slow 만 걸면 fast 가 실패해 slow 가 건너뛰어질 때
+# GitHub 은 건너뜀을 통과로 친다.
+# 사설 저장소는 Free 요금제에 브랜치 보호 · 룰셋이 없다 (Pro · Team 이상). 그때 CI 는 알리기만 한다.
+#
+# 액션은 전부 40자 커밋 SHA 로 고정하고 버전을 주석으로 단다. 태그는 옮겨질 수 있다 —
+# 2026-03 trivy-action 은 태그 대부분이 악성 커밋으로 옮겨졌고 SHA 로 고정한 저장소만 무사했다.
+# 낡은 SHA 는 Dependabot 이 올린다 (.claude/ci/dependabot.yml). 저장소 설정의
+# 「Require actions to be pinned to a full-length commit SHA」를 켜면 고정을 강제한다.
+#
+# pull_request_target 트리거는 쓰지 않는다. 포크 PR 의 코드를 쓰기 토큰 · 비밀값과 같이 돌린다.
+#
+# 잡을 더 쪼개기 전에 stack.md §4 「러너가 동시에 몇 개」를 먼저 채운다.
+# 잡을 쪼개도 러너가 남을 때만 빨라진다.
+
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]   # 🔴 기본 브랜치 이름이 다르면 바꾼다 (stack.md §3 DEFAULT_BRANCH)
+  # 머지 큐를 켜면 주석을 푼다. 기본 브랜치가 자주 움직여서 PR 마다 브랜치를 갱신하고 검사를
+  # 다시 돌리게 될 때 쓴다. 큐가 앞 PR 과 합친 결과로 검사하고 순서대로 머지한다.
+  # 조직 소유 공개 저장소나 GHEC 사설 저장소에서만 된다. 안 풀면 큐에 든 PR 의 검사가 안 돌아 머지가 멈춘다.
+  # merge_group:
+
+# 워크플로 기본 권한은 0 이다. 잡마다 필요한 것만 연다 — 잡을 더할 때 넓은 권한이 따라가지 않게.
+# 배포 · 레지스트리 푸시 잡은 그 잡에만 packages: write · id-token: write 같은 권한을 준다.
+permissions: {}
+
+# 새 커밋이 오면 그 PR 의 옛 실행을 취소한다. 쓸모없어진 잡이 러너를 붙들지 않게.
+# 기본 브랜치는 취소하지 않는다. PR 에서 놓친 것을 잡는 마지막 자리다.
+# 그래서 push 는 실행마다 그룹을 따로 둔다. 한 그룹에 묶으면 대기 중인 실행이 다음 실행에 밀려 취소된다.
+concurrency:
+  group: gate-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    # 기본 360분이면 멈춘 잡이 러너를 6시간 붙든다. stack.md §4 「잡 하나가 걸리는 시간」을 재면 그 2~3배로 줄인다.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0              # 시크릿 스캔이 PR 의 커밋 이력을 기준 커밋까지 본다
+          persist-credentials: false  # 원격에 다시 붙지 않는다. 설치 스크립트가 토큰을 못 읽게
+
+      # 🔴 프로젝트의 런타임을 여기 깐다. 언어마다 달라 하네스가 대신 정할 수 없는 자리다.
+      # 아래 slow 와 같게 둔다. 의존성 설치는 stack.md 의 <영역>_INSTALL 이 하니 적지 않는다.
+      #
+      #    예) SHA 는 2026-10-10 기준. Dependabot 이 올린다
+      #      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      #        with:
+      #          node-version: '22'
+      #
+      #      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      #        with:
+      #          python-version: '3.12'
+      #
+      #      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      #        with:
+      #          go-version-file: go.mod
+      #
+      # 캐시는 재 보고 이득이 큰 영역에만 켠다. 매번 압축 · 복원하는 시간도 든다.
+      # 어떤 프로젝트에서는 gradle 은 빨라지고 npm 은 오히려 느려졌다. 재 본 숫자는 stack.md §4 에 적는다.
+      # setup-* 액션의 cache 는 잠금 파일 해시가 키라서 의존이 바뀌면 새로 받는다.
+      #
+      #      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      #        with:
+      #          distribution: temurin
+      #          java-version: '21'
+      #          cache: gradle
+      #
+      # 자체 호스팅 러너면 러너 v2.327.1 이상이어야 한다 (위 액션들이 node24 로 돈다).
+      #
+      # 아래 줄은 채우기 전까지 일부러 실패한다. 빠뜨리면 러너에 깔린 기본 버전으로 돌아 로컬과 다른 초록이 뜬다.
+      - name: 런타임 설치 (채우기 전에는 실패)
+        run: echo '🔴 .claude/ci 의 런타임 설치 단계를 채우고 이 줄을 지운다' && exit 1
+
+      # stack.md 와 상관없이 하네스 자신을 검사한다. 무엇을 보는지는 .claude/README.md 의 hooks/ 표.
+      # slow 는 fast 가 초록일 때만 떠서 거기서 다시 돌리지 않는다.
+      - name: 하네스 자체 검사
+        run: bash .claude/hooks/tests/run.sh
+
+      # 이 워크플로 파일이 깨지면 게이트가 통째로 안 돈다. actionlint 는 문법 · 표현식을,
+      # zizmor 는 권한 · 주입 · 고정 안 한 액션 같은 보안 실수를 본다. 둘 다 무료다.
+      # 도구 이미지도 digest 로 고정한다. 스캐너 이미지가 악성으로 바뀐 적이 있다.
+      - name: 워크플로 검사 (actionlint · zizmor)
+        env:
+          GH_TOKEN: ${{ github.token }}   # zizmor 의 온라인 검사(가짜 SHA 등). 읽기 권한이면 된다
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+          docker run --rm -e GH_TOKEN -v "$PWD:/repo:ro" -w /repo \
+            ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101 \
+            --min-severity=medium .github/workflows
+
+      - name: 빠른 층 (시크릿 → 설치 → 포맷 → 린트)
+        env:
+          # PR 이면 대상 브랜치 끝 뒤로 쌓인 커밋에서도 시크릿을 찾는다. push 는 비어서 건너뛴다
+          SCAN_BASE: ${{ github.event.pull_request.base.sha }}
+        run: bash .claude/hooks/pre-commit --ci-fast
+
+  slow:
+    needs: fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # 위 fast 와 같은 런타임을 깐다.
+      - name: 런타임 설치 (채우기 전에는 실패)
+        run: echo '🔴 .claude/ci 의 런타임 설치 단계를 채우고 이 줄을 지운다' && exit 1
+
+      - name: 전체 (시크릿 → 설치 → 포맷 → 린트 → 테스트 → 빌드)
+        run: bash .claude/hooks/pre-commit --ci
+
+  # ---------------------------------------------------------------------------
+  # 커밋 · 브랜치 · PR 제목 규칙 — stack.md §3 에 적었을 때만
+  # ---------------------------------------------------------------------------
+  # 규칙을 적었으면 주석을 푼다. 안 적었으면 이 잡은 볼 것이 없다.
+  # 로컬 커밋 훅은 훅을 안 깐 사람 · --no-verify · cherry-pick · rebase 를 못 막는다. PR 에서 한 번 더 본다.
+  # 검사기 회귀 테스트는 fast 의 하네스 자체 검사가 같이 돌린다.
+  #
+  # PR 제목만 고쳐도 다시 돌게 하려면 이 잡을 별도 파일 .github/workflows/convention.yml 로 옮기고
+  # on: pull_request: types: [opened, synchronize, reopened, edited] 로 받는다. 위 permissions 도 같이 옮긴다.
+  # 이 파일에 edited 를 넣으면 제목만 고쳐도 fast · slow 가 취소되고 다시 돈다.
+  #
+  # convention:
+  #   if: github.event_name == 'pull_request'
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         fetch-depth: 0              # PR 의 커밋과 대상 브랜치를 다 받는다. mr-check 가 다시 받지 않는다
+  #         persist-credentials: false
+  #
+  #     - name: 규칙 검사 (브랜치 · 커밋 · PR 제목)
+  #       run: bash .claude/hooks/mr-check.sh
+  #       env:
+  #         # mr-check 는 제목을 이 이름으로 받는다. run 줄에 직접 넣으면 제목 속 셸 문법이 실행된다
+  #         CI_MERGE_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+
+  # ---------------------------------------------------------------------------
+  # 영역이 여럿일 때 — 영역마다 병렬로, PR 에서는 바뀐 영역만
+  # ---------------------------------------------------------------------------
+  # 위 fast · slow 를 지우고 아래 다섯 잡을 쓴다. 러너가 남을 때만 빨라진다 (stack.md §4).
+  # 영역 경로는 다시 적지 않는다. pre-commit --changed-areas 가 stack.md 를 읽어 바뀐 영역을 고른다.
+  # 기준 커밋을 못 찾거나, .claude/ · 워크플로 · 영역 밖의 문서 아닌 파일(루트 잠금 파일 · Dockerfile)이
+  # 바뀌면 전 영역을 고른다. 기본 브랜치 push 도 전 영역이다.
+  #
+  # 🔴 브랜치 보호의 필수 검사에는 맨 아래 gate 하나만 건다. 영역 잡은 PR 마다 건너뛸 수 있어서
+  #    필수로 걸면 건너뛴 날 「대기 중」에서 멈춘다. on: 의 paths 로 워크플로를 통째로 건너뛰어도 같다.
+  # 🔴 영역 잡은 시크릿 스캔을 건너뛴다(같은 스캔을 영역 수만큼 되풀이하지 않게). 그래서 저장소 전체를
+  #    보는 harness 잡을 조건 없이 늘 띄운다. 이 잡을 지우면 아무도 시크릿을 안 본다.
+  #
+  # harness:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         fetch-depth: 0
+  #         persist-credentials: false
+  #     - name: 하네스 자체 검사 · 저장소 전체와 PR 이력의 시크릿
+  #       env:
+  #         SCAN_BASE: ${{ github.event.pull_request.base.sha }}
+  #       run: |
+  #         bash .claude/hooks/tests/run.sh
+  #         bash .claude/hooks/secret-scan.sh --all
+  #         if [ -n "$SCAN_BASE" ]; then bash .claude/hooks/secret-scan.sh --range "$SCAN_BASE"; fi
+  #     # 워크플로 검사(actionlint · zizmor) 단계도 위 fast 에서 여기로 옮긴다
+  #
+  # changes:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   permissions:
+  #     contents: read
+  #   outputs:
+  #     areas: ${{ steps.pick.outputs.areas }}
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         fetch-depth: 0   # 기준 커밋과 비교하려면 이력이 있어야 한다. 없으면 전 영역을 고른다
+  #         persist-credentials: false
+  #     - id: pick
+  #       env:
+  #         # PR 은 대상 브랜치 끝, 머지 큐는 큐의 기준과 비교한다. push 는 비어서 전 영역을 고른다
+  #         BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+  #       run: |
+  #         bash .claude/hooks/pre-commit --changed-areas "$BASE" > areas.txt
+  #         echo "areas=$(jq -R -s -c 'split("\n") | map(select(length > 0))' areas.txt)" >> "$GITHUB_OUTPUT"
+  #
+  # fast-area:
+  #   needs: changes
+  #   if: needs.changes.outputs.areas != '[]'   # 문서만 바뀐 PR 은 영역 잡 없이 gate 로 간다
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       area: ${{ fromJSON(needs.changes.outputs.areas) }}
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         persist-credentials: false
+  #     # 🔴 영역마다 런타임이 다르면 if: matrix.area == '<영역>' 를 붙여 골라 깐다. 채우기 전에는 실패한다
+  #     - run: echo '🔴 영역별 런타임 설치 단계를 채우고 이 줄을 지운다' && exit 1
+  #     # 표현식(${{ }})을 run 에 바로 넣지 않고 env 로 넘긴다. 값 속 셸 문법이 실행되지 않게
+  #     - env:
+  #         AREA: ${{ matrix.area }}
+  #       run: bash .claude/hooks/pre-commit --ci-fast "$AREA"
+  #
+  # slow-area:
+  #   needs: [changes, fast-area]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       area: ${{ fromJSON(needs.changes.outputs.areas) }}
+  #       # 테스트를 나눠 돌릴 때만 — 러너가 남고 테스트가 잡 시간의 대부분일 때.
+  #       # stack.md 의 <영역>_TEST 가 CI_SHARD 를 받아야 한다. 포맷 · 린트 · 빌드는 샤드마다 다시 돈다.
+  #       #   예) frontend_TEST='npm test -- --run ${CI_SHARD:+--shard=$CI_SHARD}'
+  #       # shard: [1, 2, 3]
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   permissions:
+  #     contents: read
+  #   # env:
+  #   #   CI_SHARD: ${{ matrix.shard }}/3
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         persist-credentials: false
+  #     - run: echo '🔴 영역별 런타임 설치 단계를 채우고 이 줄을 지운다' && exit 1
+  #     - env:
+  #         AREA: ${{ matrix.area }}
+  #       run: bash .claude/hooks/pre-commit --ci "$AREA"
+  #
+  # gate:
+  #   if: always()
+  #   needs: [harness, changes, fast-area, slow-area]
+  #   runs-on: ubuntu-latest
+  #   permissions: {}
+  #   steps:
+  #     - name: 앞 잡이 하나라도 실패 · 취소면 실패 (건너뜀은 바뀐 영역이 없어서다)
+  #       env:
+  #         RESULTS: ${{ join(needs.*.result, ' ') }}
+  #       run: |
+  #         case " $RESULTS " in
+  #           *" failure "*|*" cancelled "*) echo "실패한 잡이 있다: $RESULTS"; exit 1 ;;
+  #         esac
+  #         echo "통과: $RESULTS"
+
+  # ---------------------------------------------------------------------------
+  # 이미지로 배포한다면 — 굽고 → 검사하고 → 커밋 SHA 태그로 올린다 (stack.md §6)
+  # ---------------------------------------------------------------------------
+  # 검사를 통과한 이미지만 레지스트리에 오른다. 태그가 커밋 SHA 라서 되돌리기는 옛 태그를 다시 받는 일이다.
+  # SBOM(이미지 안 부품 목록)과 provenance(어느 커밋 · 워크플로가 구웠나)를 같이 붙인다. 요금제와 상관없다.
+  # provenance 의 mode=max 는 build-arg 값을 그대로 싣는다. 비밀값은 build-arg 가 아니라 secrets 로 넘긴다.
+  #
+  # image:
+  #   needs: slow
+  #   if: github.event_name == 'push'
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   permissions:
+  #     contents: read
+  #     packages: write                 # GHCR 에 올리는 권한 — 이 잡에만
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         persist-credentials: false
+  #     - run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"   # GHCR 은 소문자 이름만 받는다
+  #     - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+  #     - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+  #       with:
+  #         registry: ghcr.io
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
+  #     - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+  #       with:
+  #         load: true                    # 검사 전에는 올리지 않는다
+  #         tags: ${{ env.IMAGE }}:${{ github.sha }}
+  #     - uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+  #       with:
+  #         image: ${{ env.IMAGE }}:${{ github.sha }}
+  #         severity-cutoff: high
+  #         only-fixed: true              # 고칠 버전이 있는 취약점만 막는다
+  #     - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+  #       with:
+  #         push: true
+  #         tags: ${{ env.IMAGE }}:${{ github.sha }}
+  #         sbom: true
+  #         provenance: mode=max
+  #
+  # 클라우드에 배포하는 잡은 장기 키를 저장소 비밀값에 두지 않고 OIDC(짧게 사는 토큰)로 붙는다.
+  # 그 잡에만 id-token: write 를 주고, 클라우드 쪽 신뢰 정책이 이 저장소 · 브랜치(또는 environment)의
+  # 토큰만 받게 한다. 2026-07-15 이후 만든 저장소는 토큰의 sub 에 저장소 ID 가 붙는다 —
+  # 예제 신뢰 정책을 베끼지 말고 실제 sub 를 보고 쓴다.
+  # environment: production 을 달면 배포 이력이 남고 승인자를 둘 수 있다 (사설 저장소는 Pro · Team 이상).
+  #   예) AWS — aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+  #       with: role-to-assume · aws-region
