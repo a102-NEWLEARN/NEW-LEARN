@@ -53,7 +53,7 @@ plan 은 아무것도 만들지 않는다. 결과가 추가(to add)만 있고 �
 
 - 사람이 plan 을 읽고 apply 한다 (`.claude/docs/deploy.md` 3절). Claude 는 apply · destroy 를 치기 전에 묻게 되어 있다 (`.claude/settings.json`)
 - apply 전에 할 것 (`SSOT.md` 6 · 8절)
-  - 무료 플랜에서는 t3.large 를 못 띄울 수 있다 → 콘솔의 Upgrade plan 으로 유료 플랜으로 올린다 (크레딧은 남는다)
+  - 유료 플랜 업그레이드 — 2026-10-18 에 했다 (무료 플랜에서는 t3.large 를 못 띄울 수 있다. 크레딧은 남는다)
   - apply 용 키는 범위를 좁힌 권한(EC2 · 탄력적 IP · 보안 그룹 · 키 페어 · 예산)으로 따로 만든다
   - 상태 파일(`*.tfstate`)을 둘 곳을 정한다. 상태 파일에는 만든 자원의 비밀값이 평문으로 들어가고, 내 PC 에만 두면 PC 를 반납 · 분실했을 때 destroy 가 어렵다. 커밋하지 않는다
 - 새 Ubuntu 이미지가 나와도 서버를 바꿔 끼우지 않는다 (`compute.tf` 의 `ignore_changes`). OS 갱신은 서버 안에서 한다
