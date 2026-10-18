@@ -1,0 +1,39 @@
+[project]
+name = "newlearn-ai"
+version = "0.0.0"
+description = "NEW:LEARN AI 분석 워커 — 작업 큐 소비, 임베딩, LLM 호출"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.143.3",
+    "uvicorn==0.54.0",
+    "langchain==1.4.6",
+    "langchain-openai==1.7.2",
+    "sentence-transformers==6.1.0",
+    "torch==2.14.1",
+    "redis==8.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "httpx==0.28.1",
+]
+
+# GPU 서버가 없어 CPU 판 torch 만 받는다 (SSOT.md 3절). 기본 PyPI 판은 CUDA 까지 받아 수 GB 가 된다
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[tool.ruff.lint]
+extend-select = ["I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
