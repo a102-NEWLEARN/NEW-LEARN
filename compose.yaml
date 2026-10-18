@@ -1,0 +1,174 @@
+# 로컬 개발 환경 (SSOT.md 7절). 쓰는 법은 docs/dev-environment.md
+#   docker compose up -d                 DB · Redis 만 띄운다. 내 영역은 IDE · 터미널에서 띄운다
+#   docker compose --profile full up     화면 · API · 워커까지 전부 컨테이너로 띄운다
+# 값은 .env 에서 읽는다 (.env.example 을 복사해 만든다).
+# 앱 컨테이너는 코드를 굽지 않고 폴더를 연결한다. 의존성 · 빌드 산출물은 볼륨에 둬서 내 폴더와 섞이지 않는다.
+
+name: newlearn
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg18 # PostgreSQL 18 + pgvector
+    environment:
+      # .env 가 없으면 여기서 멈춘다 — 빈 비밀번호로 DB 볼륨이 만들어지면 지우고 다시 만들어야 한다
+      POSTGRES_DB: ${POSTGRES_DB:?.env 가 없다 - cp .env.example .env}
+      POSTGRES_USER: ${POSTGRES_USER:?.env 가 없다 - cp .env.example .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?.env 가 없다 - cp .env.example .env}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 이미지는 데이터를 /var/lib/postgresql/18/docker 에 둔다 — 그 위 폴더를 연결한다
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8.10.2
+    # 작업 큐(Streams)를 다시 띄워도 잃지 않게 AOF 로 저장한다 (SSOT.md 1절)
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    profiles: [full]
+    image: eclipse-temurin:25-jdk
+    working_dir: /app
+    # 고친 코드를 계속 컴파일하는 빌드(-t)와 앱(bootRun)을 같이 띄운다. devtools 가 바뀐 클래스를 보고 앱을 다시 띄운다
+    command:
+      - bash
+      - -c
+      - >-
+        ./gradlew --no-daemon -q --project-cache-dir /cache/project classes &&
+        { ./gradlew --no-daemon -q --project-cache-dir /cache/project -t classes & } &&
+        exec ./gradlew --no-daemon --project-cache-dir /cache/project bootRun
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      GRADLE_USER_HOME: /cache/gradle
+      GRADLE_BUILD_DIR: /cache/build # build.gradle 이 읽는다
+    volumes:
+      - ./backend:/app
+      - backend-cache:/cache
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # 이미지에 curl 이 없어 bash 로 HTTP 요청을 보낸다
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /actuator/health HTTP/1.0\r\n\r\n' >&3 &&
+          grep -q '"status":"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10m # 첫 실행은 Gradle 과 의존성을 받느라 몇 분 걸린다
+      start_interval: 5s
+
+  ai:
+    profiles: [full]
+    image: ghcr.io/astral-sh/uv:0.13.1-python3.14-trixie-slim
+    working_dir: /app
+    command:
+      ["uv", "run", "--locked", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      # 가상환경과 내려받기 캐시를 연결한 폴더 밖, 한 볼륨에 둔다 (같은 볼륨이라 복사 대신 하드링크)
+      UV_PROJECT_ENVIRONMENT: /uv/venv
+      UV_CACHE_DIR: /uv/cache
+      UV_PYTHON_DOWNLOADS: never # 이미지의 Python 을 쓴다
+      PYTHONDONTWRITEBYTECODE: "1" # __pycache__ 를 내 폴더에 만들지 않는다
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      LLM_MODE: ${LLM_MODE:-}
+      GMS_MODEL: ${GMS_MODEL:-}
+      GMS_API_KEY: ${GMS_API_KEY:-}
+      GMS_BASE_URL: ${GMS_BASE_URL:-}
+    volumes:
+      - ./ai:/app
+      - ai-uv:/uv
+    ports:
+      - "127.0.0.1:${AI_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10m # 첫 실행은 torch 등 의존성(약 1 GB)을 받는다
+      start_interval: 5s
+
+  # frontend 의 node_modules 볼륨을 걸 폴더를 내 계정 소유로 미리 만든다.
+  # 없으면 Docker 가 root 소유로 만들어 WSL2 · 리눅스에서 호스트의 npm ci 가 권한 오류로 막힌다
+  frontend-init:
+    profiles: [full]
+    image: node:26-alpine
+    command: ["sh", "-c", 'mkdir -p /app/node_modules && (chown "$$(stat -c %u:%g /app)" /app/node_modules || true)']
+    volumes:
+      - ./frontend:/app
+
+  frontend:
+    profiles: [full]
+    image: node:26-alpine
+    working_dir: /app
+    # node_modules 는 볼륨이라 남아 있다. 잠금 파일이 바뀌었을 때만 다시 깐다
+    command:
+      - sh
+      - -c
+      - >-
+        lock="$$(sha256sum package-lock.json)";
+        if [ "$$(cat node_modules/.lock-sha256 2>/dev/null)" != "$$lock" ]; then
+        npm ci --no-audit --no-fund && echo "$$lock" > node_modules/.lock-sha256 || exit 1;
+        fi;
+        exec npm run dev -- --host 0.0.0.0
+    environment:
+      API_PROXY_TARGET: http://backend:8080 # vite.config.ts 가 읽는다
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+      - frontend-npm-cache:/root/.npm
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      frontend-init:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5m
+      start_interval: 5s
+
+volumes:
+  db-data:
+  redis-data:
+  backend-cache:
+  ai-uv:
+  frontend-node-modules:
+  frontend-npm-cache:
