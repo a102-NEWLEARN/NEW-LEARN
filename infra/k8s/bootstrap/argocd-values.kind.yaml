@@ -1,0 +1,11 @@
+# kind 리허설에서만 덮는 값 — 실제 서버에 쓰지 않는다
+# 클러스터는 이 PC 안에만 있고 화면은 kubectl port-forward 로 127.0.0.1 에만 연다
+configs:
+  params:
+    # 자체 서명 인증서 없이 http 로 화면을 연다
+    server.insecure: true
+  cm:
+    # 로그인 없이 읽기만 할 수 있게 한다 — 관리자 비밀번호를 꺼내지 않고 화면을 본다
+    users.anonymous.enabled: "true"
+  rbac:
+    policy.default: role:readonly
