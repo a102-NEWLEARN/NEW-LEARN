@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: backend
+  config:
+    # IDE 에서 띄우면 저장소 루트의 .env 를 읽는다 — compose 가 DB 컨테이너에 넣는 값과 같은 파일이다.
+    # compose 의 backend 컨테이너는 이 파일 대신 환경변수로 받는다 (환경변수가 이긴다).
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:.env[.properties]
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # 스키마는 Flyway 마이그레이션(db/migration)만 바꾼다
+      ddl-auto: validate
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  devtools:
+    livereload:
+      enabled: false
