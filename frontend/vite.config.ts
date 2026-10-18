@@ -1,0 +1,58 @@
+/// <reference types="vitest/config" />
+import { seedDesignPlugin } from "@seed-design/vite-plugin";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import {
+  defaultClientConditions,
+  defineConfig,
+  loadEnv,
+  type Plugin,
+} from "vite";
+
+// SEED 컴포넌트 CSS 가 Tailwind 보다 먼저 읽혀도 층 순서가 맞게 순서 선언을 head 맨 앞에 넣는다
+// (SEED Design 의 Tailwind CSS 4 설정 안내)
+function injectLayerOrder(): Plugin {
+  return {
+    name: "inject-layer-order",
+    transformIndexHtml() {
+      return [
+        {
+          tag: "style",
+          children:
+            "@layer theme, base, seed-base, components, seed-components, utilities;",
+          injectTo: "head-prepend",
+        },
+      ];
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  // 호스트에서 띄우면 저장소 루트 .env 의 BACKEND_PORT 로 API 를 찾는다.
+  // compose 의 frontend 컨테이너는 API_PROXY_TARGET 으로 backend 컨테이너를 받는다.
+  const env = loadEnv(mode, "..", "");
+  const apiTarget =
+    env.API_PROXY_TARGET ?? `http://localhost:${env.BACKEND_PORT ?? "8080"}`;
+
+  return {
+    plugins: [injectLayerOrder(), react(), tailwindcss(), seedDesignPlugin()],
+    resolve: {
+      conditions: ["seed-layered", ...defaultClientConditions],
+      tsconfigPaths: true,
+    },
+    server: {
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        "/api": { target: apiTarget, changeOrigin: true },
+        "/actuator": { target: apiTarget, changeOrigin: true },
+      },
+    },
+    test: {
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
+      // @seed-design/react 가 CSS 를 import 해서 Node 가 그대로 못 읽는다 — Vite 가 처리하게 한다
+      server: { deps: { inline: [/@seed-design\//] } },
+    },
+  };
+});

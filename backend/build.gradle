@@ -1,0 +1,63 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.diffplug.spotless' version '8.10.4'
+}
+
+group = 'kr.io.newlearn'
+version = '0.0.1-SNAPSHOT'
+description = 'NEW:LEARN API'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	implementation 'io.github.openfeign.querydsl:querydsl-jpa:7.7'
+	annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:7.7:jpa'
+	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	runtimeOnly 'org.postgresql:postgresql'
+	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// compose 의 backend 컨테이너는 산출물을 연결한 폴더 밖(볼륨)에 쓴다.
+// 컨테이너(root)가 호스트 build/ 에 파일을 만들면 IDE 빌드가 권한 오류로 깨진다 (WSL2 · 리눅스).
+if (System.getenv('GRADLE_BUILD_DIR')) {
+	layout.buildDirectory = file(System.getenv('GRADLE_BUILD_DIR'))
+}
+
+spotless {
+	java {
+		palantirJavaFormat('2.102.0')
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

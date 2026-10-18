@@ -39,7 +39,7 @@
 - `.env` · GMS 키 · Lightsail 접속 키(`*.pem`) — 비밀값. 문서에는 이름만 적는다
 - `_bmad/` · `.claude/skills/bmad-*` — BMAD 가 설치하고 관리한다. 바꿀 때는 `bmad-customize` 로
 - `docs/prototype/*.html` · `docs/presentation/screens/` — 내보낸 결과물. 원본에서 다시 만든다
-- 이미 적용된 DB 마이그레이션 — 새 파일로만 바꾼다 (마이그레이션 폴더가 생기면 경로를 여기 적는다)
+- 이미 적용된 DB 마이그레이션(`backend/src/main/resources/db/migration/`) — 새 파일로만 바꾼다
 - 인증 · 권한 코드 — 고쳤으면 사람이 최종 확인한다
 
 ## 완료 정의

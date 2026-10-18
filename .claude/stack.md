@@ -22,6 +22,7 @@
 `""` 로 덮으면 그 단계는 검사 없이 통과한다.
 
 > `/harness-init` 이 기획 문서를 읽고 채웠다 (2026-10-18). 모르는 것은 추측하지 않고 빈칸으로 남겼다.
+> §2 · §3 · §5 L1 은 개발 환경 단계(Jira S15P31A102-74)에서 채웠다.
 
 ---
 
@@ -41,9 +42,12 @@
 
 | 영역 | 언어 · 프레임워크 |
 |---|---|
-| `frontend` | React — 언어(JS/TS) · 버전 `<채워넣기>` (개발 환경 단계에서 정한다) |
-| `backend` | Spring Boot — 언어(Java/Kotlin) · 버전 `<채워넣기>` (개발 환경 단계에서 정한다) |
-| `ai` | Python · FastAPI · LangChain, 임베딩은 sentence-transformers(CPU). 버전 `<채워넣기>` |
+| `frontend` | TypeScript 6 · React 19 · Vite 8 · Tailwind CSS 4 · SEED Design · TanStack Query · Zustand · React Router · D3. Node 26 |
+| `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · QueryDSL · Flyway) · Gradle 9 (Groovy DSL) |
+| `ai` | Python 3.14 · FastAPI · LangChain · sentence-transformers (torch CPU 판) · uv |
+
+정확한 버전은 각 영역의 매니페스트(`package.json` · `build.gradle` · `pyproject.toml`)와 `compose.yaml` 의 이미지 태그가 진실이다.
+왜 이 버전인지는 `SSOT.md` 1절.
 
 뉴스 수집 배치는 구현 언어가 정해지면(`SSOT.md` 8절) 영역으로 넣을지 같이 정한다.
 `infra`(쿠버네티스 · Argo CD · Terraform)는 첫 인프라 코드가 들어오는 커밋에서 영역으로 더한다.
@@ -60,33 +64,33 @@
 # 검사 명령이 하나도 없는 영역은 넣지 않는다. CI 가 그 영역을 실패로 본다.
 AREAS="frontend backend ai"
 
-# 영역별 명령은 개발 환경 단계(Jira S15P31A102-74)에서 언어 · 버전을 정한 뒤 채운다.
+# 명령은 호스트에서 돈다. 영역의 런타임이 호스트에 있어야 한다 (docs/dev-environment.md 「내 영역을 호스트에서 띄울 때」).
 frontend_PATH="frontend"   # 화면 (React)
-frontend_INSTALL="<채워넣기>"   # 의존성 설치
-frontend_RUN="<채워넣기>"   # 개발 중 실행 — compose full 프로필로 띄울지 개발 환경 단계에서 정한다
-frontend_FORMAT_FIX="<채워넣기>"   # 포맷을 실제로 고친다
-frontend_FORMAT_CHECK="<채워넣기>"   # 안 맞으면 실패
-frontend_LINT="<채워넣기>"   # 린트
-frontend_TEST="<채워넣기>"   # 테스트
-frontend_BUILD="<채워넣기>"   # 빌드
+frontend_INSTALL="npm ci"   # 의존성 설치
+frontend_RUN="npm run dev"   # 개발 서버. compose full 프로필이면 frontend 컨테이너가 띄운다
+frontend_FORMAT_FIX="npm run format"   # 포맷을 실제로 고친다
+frontend_FORMAT_CHECK="npm run format:check"   # 안 맞으면 실패
+frontend_LINT="npm run lint"   # 린트
+frontend_TEST="npm test"   # 테스트
+frontend_BUILD="npm run build"   # 빌드
 
 backend_PATH="backend"   # API 서버 (Spring Boot)
-backend_INSTALL="<채워넣기>"
-backend_RUN="<채워넣기>"
-backend_FORMAT_FIX="<채워넣기>"
-backend_FORMAT_CHECK="<채워넣기>"
-backend_LINT="<채워넣기>"
-backend_TEST="<채워넣기>"
-backend_BUILD="<채워넣기>"
+backend_INSTALL=""   # 따로 설치하는 단계가 없다 — Gradle 이 다른 명령을 돌릴 때 의존성을 받는다
+backend_RUN="./gradlew bootRun"   # IDE 에서 BackendApplication 을 실행해도 같다. 둘 다 루트 .env 를 읽는다
+backend_FORMAT_FIX="./gradlew spotlessApply"
+backend_FORMAT_CHECK="./gradlew spotlessCheck"
+backend_LINT=""   # 린트 도구를 아직 안 골랐다 — 포맷 검사와 컴파일만 본다 (SSOT.md 8절)
+backend_TEST="./gradlew test"   # Testcontainers 로 DB · Redis 를 띄운다. Docker Desktop 이 켜져 있어야 한다
+backend_BUILD="./gradlew bootJar"
 
 ai_PATH="ai"   # AI 분석 워커 (FastAPI)
-ai_INSTALL="<채워넣기>"
-ai_RUN="<채워넣기>"
-ai_FORMAT_FIX="<채워넣기>"
-ai_FORMAT_CHECK="<채워넣기>"
-ai_LINT="<채워넣기>"
-ai_TEST="<채워넣기>"
-ai_BUILD="<채워넣기>"
+ai_INSTALL="uv sync --locked"
+ai_RUN="uv run --env-file ../.env uvicorn app.main:app --reload --port 8000"
+ai_FORMAT_FIX="uv run --locked ruff check --select I --fix . && uv run --locked ruff format ."   # import 정렬 + 포맷
+ai_FORMAT_CHECK="uv run --locked ruff format --check ."
+ai_LINT="uv run --locked ruff check ."
+ai_TEST="uv run --locked pytest"
+ai_BUILD=""   # 빌드 산출물이 없다 — 운영 이미지는 CI 에서 굽는다 (SSOT.md 7절)
 ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jira S15P31A102-33 에서 채운다
 
 # 진실 문서는 쪼갤 곳이 없어 크기 상한에서 뺀다 (HARNESS.md 5절). 저장소 루트 기준 경로를 글자 그대로 맞춘다 (* 는 안 펼친다).
@@ -134,7 +138,7 @@ PR · MR 이면 그 사이 커밋 이력까지 시크릿을 찾는다(`SCAN_BASE
 
 | | |
 |---|---|
-| 테스트가 너무 느릴 때 | 해당 없음 — 아직 테스트가 없다. 느려지면 그때 나눈다 (예: 커밋 전엔 단위만, 통합은 CI 에서 — `<영역>_TEST="단위${CI:+ && 통합}"`) |
+| 테스트가 너무 느릴 때 | 해당 없음 — 아직 느리지 않다 (잰 값은 `SSOT.md` 10절). 느려지면 그때 나눈다 (예: 커밋 전엔 단위만, 통합은 CI 에서 — `<영역>_TEST="단위${CI:+ && 통합}"`) |
 | 게이트를 건너뛰는 법 | `git commit --no-verify` — **급할 때만, 사람이 친다. 쓴 사실을 PR 에 적는다** (Claude 는 `settings.json` deny 로 막혀 있다) |
 
 **잡을 쪼개서 빨라지는 건 러너가 남을 때뿐이다.** 동시 실행이 2인데 잡을 8개로 나누면
@@ -158,13 +162,13 @@ PR · MR 이면 그 사이 커밋 이력까지 시크릿을 찾는다(`SCAN_BASE
 
 | 항목 | 확인 방법 |
 |---|---|
-| 필요한 도구·버전 | Docker Desktop(Windows 는 WSL2 백엔드) · Git · Git Bash(Windows). 최소 버전 `<채워넣기>` |
-| 필요한 환경변수 | `<채워넣기>` (`.env.example` 을 만드는 개발 환경 단계에서 이름을 적는다. **이름만. 값은 절대 적지 않는다**) |
+| 필요한 도구·버전 | Docker Desktop(Windows 는 WSL2 백엔드) · Git · Git Bash(Windows). Docker Engine 25 이상 — healthcheck 의 `start_interval` 을 쓴다 (Engine 29.6.2 · Compose v5.3.1 에서 확인). 커밋 전 검사에 쓰는 호스트 런타임은 `docs/dev-environment.md` |
+| 필요한 환경변수 | `.env.example` 에 설명이 있다 — `POSTGRES_DB` · `POSTGRES_USER` · `POSTGRES_PASSWORD` · `DB_PORT` · `REDIS_PORT` · `BACKEND_PORT` · `AI_PORT` · `FRONTEND_PORT` · `LLM_MODE` · `GMS_MODEL` · `GMS_API_KEY` · `GMS_BASE_URL` |
 | 로컬 의존 서비스 | PostgreSQL(pgvector) · Redis — compose 기본 실행으로 띄운다 |
-| 다 됐는지 한 번에 보는 명령 | `<채워넣기>` (개발 환경 단계에서 만든다) |
-| 🔴 **클론 후 첫 실행까지** | 30분 · `.env.example` 을 `.env` 로 복사한 뒤 `docker compose --profile full up`. 첫 실행 = 화면 접속 + API · 워커 헬스 체크 정상 |
-| 개발 환경을 어떻게 주나 | compose 개발 프로파일 — 기본 실행은 DB · Redis 만(백엔드 개발자는 IDE 에서 앱 실행), `full` 프로필은 화면 · API · 워커까지. Windows 는 저장소를 WSL2 리눅스 파일 시스템 안에 클론한다 (`SSOT.md` 7절) |
-| 짝을 맞춰야 하는 환경변수 | DB 접속 정보(PostgreSQL 컨테이너 ↔ API · 워커). 이름과 한 번에 만드는 스크립트는 `<채워넣기>` (개발 환경 단계) |
+| 다 됐는지 한 번에 보는 명령 | `docker compose --profile full up -d --wait` — 모든 컨테이너가 healthy 가 되면 0 으로 끝난다. 띄워 둔 뒤에는 `docker compose --profile full ps` |
+| 🔴 **클론 후 첫 실행까지** | 30분 · `.env.example` 을 `.env` 로 복사한 뒤 `docker compose --profile full up`. 첫 실행 = 화면 접속 + API · 워커 헬스 체크 정상. 잰 값은 `SSOT.md` 10절 |
+| 개발 환경을 어떻게 주나 | compose 개발 프로파일 — 기본 실행은 DB · Redis 만(백엔드 개발자는 IDE 에서 앱 실행), `full` 프로필은 화면 · API · 워커까지. Windows 는 저장소를 WSL2 리눅스 파일 시스템 안에 클론한다 (`SSOT.md` 7절 · 쓰는 법은 `docs/dev-environment.md`) |
+| 짝을 맞춰야 하는 환경변수 | DB 접속 정보(`POSTGRES_DB` · `POSTGRES_USER` · `POSTGRES_PASSWORD`). compose 가 같은 값을 DB 컨테이너와 API 컨테이너에 넣고, IDE 에서 띄운 API 도 같은 `.env` 를 읽는다. 맞출 자리가 없어 만드는 스크립트는 두지 않았다 (`SSOT.md` 7절). 워커는 아직 DB 를 안 쓴다 |
 
 컨테이너를 쓸 수 있는 스택이면 **기본값은 compose 파일 하나다.** 앱 컨테이너(런타임 · 라이브러리)와
 DB 컨테이너를 따로 두고 한 명령으로 띄운다. 비밀값은 스크립트가 난수로 채운다.
@@ -185,7 +189,7 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 
 | 항목 | 값 |
 |---|---|
-| 헬스 엔드포인트 | `<채워넣기>` (API · 워커 각각. 개발 환경 단계에서 만든다) |
+| 헬스 엔드포인트 | API `GET /actuator/health` (DB · Redis 연결 포함) · 워커 `GET /health` (Redis 연결 포함). 정상이면 200, 아니면 503 |
 | 🔴 **배포 판정용** 엔드포인트 | `<채워넣기>` |
 | 배포 판정에 **포함**할 것 | `<채워넣기>` (없으면 앱이 아무 일도 못 하는 것만 — 후보: PostgreSQL · Redis 연결) |
 | 배포 판정에서 **뺄 것** | `<채워넣기>` (후보: SSAFY GMS · NewsData.io 같은 외부 API) |
@@ -248,6 +252,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | 디자인 | `_bmad-output/planning-artifacts/ux-designs/` |
 | API 명세 | `<채워넣기>` (Jira S15P31A102-28 에서 정한다) |
 | 시스템 구성도 | `SSOT.md` 1 · 2절 (그림은 아직 없다) |
+| 로컬 개발 환경 쓰는 법 | `docs/dev-environment.md` (정한 것은 `SSOT.md` 7절) |
 | 협업 규칙 (브랜치·커밋·PR) | `docs/git-convention.md` · MR 양식은 `.gitlab/merge_request_templates/Default.md` |
 | 기능 스펙 | `docs/specs/` — 기능마다 한 파일, 이름은 기능 번호로 시작한다 (예: `docs/specs/F07-issue-evolution-map.md`) |
 | 승인한 계획 | `docs/plans/` (`settings.json` 의 `plansDirectory` 로 plan mode 가 바로 쓴다) |
@@ -284,7 +289,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 
 | 파일 | 용도 | 어떻게 구하나 |
 |---|---|---|
-| `.env` | 로컬 개발 환경변수 (DB 접속 정보 · GMS 키 등) | `.env.example` 을 복사해 만든다. GMS 키는 각자 SSAFY GMS 에서 받는다 (없으면 모의 응답 모드) |
+| `.env` | 로컬 개발 환경변수 (DB 접속 정보 · 포트 · GMS 키 등) | `.env.example` 을 복사해 만든다. GMS 키는 각자 SSAFY GMS 에서 받는다 (없으면 모의 응답 모드) |
 | `.claude/settings.local.json` | 개인 Claude Code 설정 | 각자 만든다 |
 | Lightsail 접속 키(`*.pem`) | 서비스 서버 접속 | 받으면 저장소 밖에 둔다 |
 
