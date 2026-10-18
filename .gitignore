@@ -1,0 +1,6 @@
+# 로컬 전용 파일 — 목록과 구하는 법은 .claude/stack.md §8. 새로 생기면 두 곳에 같이 적는다.
+.env
+.env.*
+!.env.example
+*.pem
+.claude/settings.local.json
