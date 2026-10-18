@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "aws_profile" {
-  description = "aws configure sso 로 만든 프로필 이름"
+  description = "aws configure --profile 로 만든 프로필 이름 (읽기 전용 IAM 사용자 키)"
   type        = string
   default     = "newlearn"
 }

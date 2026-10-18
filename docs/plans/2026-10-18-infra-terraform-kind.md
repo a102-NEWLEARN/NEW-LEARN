@@ -24,13 +24,13 @@ Lightsail 을 받는 날 바로 붙일 수 있게 하고, 실제 서버에서만
 
 ### ① EC2 Terraform — Jira 새 티켓 「[INFRA] 관리 서버(EC2) Terraform 코드 — plan 까지」 (SP 2)
 
-- [ ] Jira 티켓을 만든다(에픽 27 · 라벨 infra · newlearn-mvp · 스프린트 2) — 브랜치 `chore/infra/S15P31A102-<번호>-terraform-ec2`
-- [ ] 도구 설치: winget 으로 Terraform · AWS CLI v2 (설치 전에 패키지 이름 · 버전 · 출처를 보여 주고 확인받는다)
-- [ ] 사용자 몫 — IAM 콘솔에서 ReadOnlyAccess 만 붙인 사용자 · 액세스 키를 만들고 `aws configure --profile newlearn` 에 넣는다 (키는 내가 보지 않는다). plan 뒤 키 비활성화
-- [ ] `infra/terraform/` 작성 — 아래 「바꿀 파일」 — `terraform fmt -check` · `validate` · `test` 통과로 확인 (자격 증명 없이 돈다)
-- [ ] 하네스에 `infra` 영역 추가, apply · destroy 는 물어보게 — `pre-commit --ci-fast` · `--ci` 통과로 확인
-- [ ] `terraform plan` — 「N to add, 0 to change, 0 to destroy」 와 만들 자원 목록을 MR 에 남긴다 (관리자 IP 는 가린다)
-- [ ] SSOT · stack.md · infra/README.md 갱신 → 커밋 · push · `infra` 대상 MR · 머지 · Jira 완료
+- [x] Jira 티켓을 만든다(에픽 27 · 라벨 infra · newlearn-mvp · 스프린트 2) — 브랜치 `chore/infra/S15P31A102-<번호>-terraform-ec2`
+- [x] 도구 설치: winget 으로 Terraform · AWS CLI v2 (설치 전에 패키지 이름 · 버전 · 출처를 보여 주고 확인받는다)
+- [x] 사용자 몫 — IAM 콘솔에서 ReadOnlyAccess 만 붙인 사용자 · 액세스 키를 만들고 `aws configure --profile newlearn` 에 넣는다 (키는 내가 보지 않는다). plan 뒤 키 비활성화
+- [x] `infra/terraform/` 작성 — 아래 「바꿀 파일」 — `terraform fmt -check` · `validate` · `test` 통과로 확인 (자격 증명 없이 돈다)
+- [x] 하네스에 `infra` 영역 추가, apply · destroy 는 물어보게 — `pre-commit --ci-fast` · `--ci` 통과로 확인
+- [x] `terraform plan` — 「N to add, 0 to change, 0 to destroy」 와 만들 자원 목록을 MR 에 남긴다 (관리자 IP 는 가린다)
+- [x] SSOT · stack.md · infra/README.md 갱신 → 커밋 · push · `infra` 대상 MR · 머지 · Jira 완료
 
 ### ② kind 리허설 — Jira 새 티켓 「[INFRA] kind 로 쿠버네티스 배포 리허설」 (SP 5)
 
