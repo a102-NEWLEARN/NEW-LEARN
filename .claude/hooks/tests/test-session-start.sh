@@ -88,9 +88,14 @@ expect "CRLF stack.md 도 센다"           "남은 빈칸: §4 1" -
 
 # --- 템플릿의 stack.md 그대로 -------------------------------------------------
 # 원본은 빈칸 상태라 심으라는 말이 떠야 한다. 절 머리 모양이 바뀌어 하나도 못 세면 여기서 깨진다
-cp "$HOOKS/../stack.md" "$R/.claude/stack.md" || { echo "!! stack.md 복사 실패"; exit 1; }
-run "$R"
-expect "템플릿 stack.md · /harness-init" "/harness-init" -
+# /harness-init 으로 심은 저장소의 stack.md 는 프로젝트 값으로 채워져 있어 이 검사가 뜻이 없다 — 빈칸 상태일 때만 본다
+if grep -q '^AREAS="<채워넣기>"' "$HOOKS/../stack.md"; then
+  cp "$HOOKS/../stack.md" "$R/.claude/stack.md" || { echo "!! stack.md 복사 실패"; exit 1; }
+  run "$R"
+  expect "템플릿 stack.md · /harness-init" "/harness-init" -
+else
+  echo "  - 템플릿 stack.md: 심은 저장소라 건너뜀 (템플릿 저장소에서는 돈다)"
+fi
 
 echo "-- 통과 $PASS · 실패 $FAIL ----------------------"
 [ "$FAIL" -eq 0 ] || exit 1
