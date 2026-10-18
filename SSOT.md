@@ -91,18 +91,63 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 - 쿠버네티스(kubeadm으로 직접 구축) 노드 2대
   - 관리 서버(컨트롤 플레인): AWS EC2 t3.large. 팀 AWS 계정. Terraform으로 생성·삭제
-  - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB)
+    - Ubuntu 24.04 LTS · gp3 30 GiB(암호화) · IMDSv2 · 탄력적 IP(컨트롤 플레인 주소가 클러스터 인증서에 들어가서) · CPU 크레딧 standard 고정(T3 기본 unlimited는 초과 요금) · 서울 리전. 코드는 `infra/terraform/`
+    - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. 6443·10250·4240·8472/udp는 Lightsail IP에서만. kubectl은 SSH 터널로 6443에 붙고 6443을 밖에 열지 않는다
+    - Lightsail 방화벽도 짝을 맞춰 EC2 IP에서 10250·8472/udp·4240, 인터넷에서 80/443을 연다. SSAFY 지급 서버라 우리가 바꿀 수 있는지는 받은 뒤 확인(8절)
+  - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
 - 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버에 설치)
-- 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 배포 설정의 이미지 버전 갱신 → Argo CD가 반영 → 쿠버네티스 순차 배포(무중단)
+  - SSAFY GitLab은 18.11.5다(2026-10-18 API로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서 CI는 러너를 직접 둬야 돈다
+- 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유). 상태 파일은 커밋하지 않는다
+  - 자격 증명: plan은 읽기 전용 IAM 사용자 키, apply는 범위를 좁힌 권한(EC2·탄력적 IP·보안 그룹·키 페어·예산)을 따로 둔다. 키는 `~/.aws/credentials`에만 두고 plan이 끝나면 읽기 전용 키를 비활성화한다(`infra/README.md`)
+  - IAM Identity Center는 쓰지 않는다. 켜면 AWS Organization이 만들어지면서 무료 플랜 크레딧이 사라진다(2026-10-18 콘솔 안내로 확인)
+  - 루트 계정은 결제·비상시에만 쓰고 MFA를 건다. 이 AWS 계정은 개인 계정과 분리한 프로젝트 전용 팀 계정이다
+- 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
+  - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
 - 되돌리기: Git에서 이전 커밋으로 되돌리면 Argo CD가 이전 버전으로 맞춤
-- 클러스터 네트워크 Cilium
+- 클러스터 네트워크 Cilium. 외부 입구는 Envoy Gateway(80/443) — 클라우드 로드밸런서가 없어 LoadBalancer Service가 외부 주소를 못 받으므로 워커 노드의 80/443으로 노출한다(방식은 8절)
 - 도메인: `newlearn.io.kr` (가비아). 공개 범위는 Q17
 - 운영 기간: 최종 발표(2026-11-18) 후 서버 종료
-- 비용: EC2는 후불 결제(결제 내역·영수증 제출 필요), 빌링 알람 필수
+- 비용 (SSAFY 공지 · 교보재 승인)
+  - 승인 금액: EC2 t3.large 1대 $92.27(129,178원), 후불. 10/19~11/18 31일 기준, EBS·공인 IPv4 포함. 넘는 금액은 교육생 부담
+  - 10월 사용분은 11월 초 결제. 결제 내역·영수증·인보이스 제출 필수. 빌링 알람 필수
+  - 예산 알림은 10/1부터 쌓인 비용 합계를 승인 금액에 대 본다. 크레딧을 빼기 전 금액으로 잰다(`infra/terraform/budget.tf`)
+  - 무료 플랜 크레딧 $100은 초과 대비 여유분으로 남긴다. 무료 플랜에서는 t3.large를 못 띄울 수 있어 apply 전에 콘솔 Upgrade plan으로 유료 플랜으로 올린다(크레딧은 남는다)
+  - 11/18 뒤 `terraform destroy`로 지운다. 서버를 멈추기만 하면 EBS·탄력적 IP 요금이 계속 나간다
+
+### 클러스터 구성
+
+- 서비스 Pod는 전부 워커에서 돈다. 네임스페이스: ai, ingress·web, app, data·batch, monitoring(Prometheus·Grafana), argocd (+kube-system)
+- 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
+- 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
+
+### kubeadm을 고른 이유
+
+| 후보 | 안 쓴 이유 |
+|---|---|
+| EKS(관리형) | SSAFY 서버(Lightsail)가 우리 AWS 계정 밖이라 노드로 붙일 수 없고, 클러스터 요금이 따로 붙는다 |
+| Docker Compose | 자원 상한·재시작은 되지만 CronJob(수집 배치), liveness probe 재시작, 순차 배포(무중단), 메모리 부족 시 우선순위 축출이 없고 Argo CD를 못 쓴다 |
+| k3s | ServiceLB·local-path가 기본으로 들어 있어 편하지만, Cilium·Envoy Gateway로 바꾸면 기본 포함분을 대부분 꺼야 한다. 그래서 표준 구성인 kubeadm |
+
+### 저장소·백업
+
+- kubeadm에는 기본 StorageClass가 없다 → local-path-provisioner를 설치한다
+- PostgreSQL 백업은 pg_dump CronJob. 같은 서버 안에만 두면 서버를 잃을 때 같이 사라진다 — 서버 밖 보관은 8절
+
+### 무중단 배포 조건
+
+- Deployment 기본값 RollingUpdate. Pod가 1개여도 maxSurge 올림·maxUnavailable 내림이라 새 Pod가 먼저 뜬다
+- readiness probe 필수
+- Spring graceful shutdown(기본 켜짐)
+- 배포 중에는 구버전·신버전이 같이 돈다 → DB 변경은 하위 호환으로
+- 배포 순간 Pod 1개 분량의 메모리 여유를 남긴다
+
+### 관리 서버 주의 — containerd
+
+- 관리 서버에 Runner용 Docker를 깔면 kubelet과 containerd를 같이 쓴다. 패키지로 깐 containerd는 CRI 플러그인이 꺼져 있을 수 있다 → `/etc/containerd/config.toml`의 `disabled_plugins`에서 `cri`를 빼고, cgroup 드라이버를 systemd로 맞춘다
 
 ### 현재 상태
 
-- EC2: 카드 등록 완료, 서버 미생성
+- EC2: 카드 등록 완료, 서버 미생성. 서버 시작 예정 10/19(승인 금액 산정 기준). Terraform 코드는 plan까지 확인(Jira S15P31A102-76)
 - Lightsail: 미수령 (pem 키로 받을 예정)
 - 도메인: 구매 완료, DNS 레코드 미설정 (서비스 서버 IP를 받은 뒤 연결)
 
@@ -125,17 +170,21 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 항목 | 누가 | 관련 |
 |---|---|---|
 | 뉴스 수집 배치 구현 언어 | BE · Infra | — |
-| 이미지 저장소 (GitLab Container Registry 사용 가능 여부) | Infra | — |
+| 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절 |
 | HTTPS 인증서 발급 방식 | Infra | — |
-| SSAFY GitLab 버전 (CI의 auto_cancel은 16.10 이상) | Infra | — |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 모델 | AI | 3절 |
 | 마인드맵 렌더링 라이브러리 | FE | — |
-| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 규칙 | Infra | 6절 |
+| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절 |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다) | BE | — |
+| Terraform 상태 파일을 둘 곳 (apply 전에 정한다. 후보: GitLab 관리형 상태 · S3) | Infra | 6절 |
+| Lightsail(SSAFY 지급) 방화벽을 우리가 바꿀 수 있는지 — 못 바꾸면 EC2와 노드 사이 포트(10250·8472/udp·4240)가 막힌다. Lightsail 받는 날 첫 확인 | Infra | 6절 |
+| Envoy Gateway를 워커 노드의 80/443으로 노출하는 방식 (클라우드 로드밸런서가 없다) | Infra | 6절 |
+| 쿠버네티스 Secret을 만들고 관리하는 방식 | Infra | 6절 |
+| PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 
 정해지면 그 사실이 들어갈 절에 적고 이 표에서 지운다.
 
