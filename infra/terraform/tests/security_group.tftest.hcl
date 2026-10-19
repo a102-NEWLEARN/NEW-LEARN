@@ -19,12 +19,12 @@ variables {
   budget_alert_email = "alerts@example.com"
 }
 
-run "워커_IP_가_없으면_노드_포트를_열지_않는다" {
+run "워커_IP_가_없으면_WireGuard_포트를_열지_않는다" {
   command = plan
 
   assert {
-    condition     = length(aws_vpc_security_group_ingress_rule.worker) == 0
-    error_message = "워커 IP 를 넣기 전에는 노드 사이 포트를 열면 안 된다"
+    condition     = length(aws_vpc_security_group_ingress_rule.worker_wireguard) == 0
+    error_message = "워커 IP 를 넣기 전에는 WireGuard 포트를 열면 안 된다"
   }
 
   assert {
@@ -38,7 +38,7 @@ run "워커_IP_가_없으면_노드_포트를_열지_않는다" {
   }
 }
 
-run "노드_포트는_워커_IP_에만_연다" {
+run "워커_IP_에는_WireGuard_UDP_하나만_연다" {
   command = plan
 
   variables {
@@ -46,13 +46,19 @@ run "노드_포트는_워커_IP_에만_연다" {
   }
 
   assert {
-    condition     = length(aws_vpc_security_group_ingress_rule.worker) == 4
-    error_message = "워커 IP 하나에 노드 포트 네 개(6443 · 10250 · 4240 · 8472/udp)여야 한다"
+    condition     = length(aws_vpc_security_group_ingress_rule.worker_wireguard) == 1
+    error_message = "워커 IP 하나에 규칙 하나(WireGuard)여야 한다 — 쿠버네티스 포트는 터널 안으로만 다닌다"
   }
 
   assert {
-    condition     = alltrue([for r in aws_vpc_security_group_ingress_rule.worker : r.cidr_ipv4 == "198.51.100.20/32"])
-    error_message = "노드 포트는 워커 IP 에만 열어야 한다"
+    condition = alltrue([for r in aws_vpc_security_group_ingress_rule.worker_wireguard :
+    r.cidr_ipv4 == "198.51.100.20/32" && r.ip_protocol == "udp" && r.from_port == 51820 && r.to_port == 51820])
+    error_message = "워커 IP 에서 오는 51820/udp 만 열어야 한다"
+  }
+
+  assert {
+    condition     = length(aws_vpc_security_group_ingress_rule.admin_ssh) == 1
+    error_message = "워커 IP 를 넣어도 들어오는 규칙은 SSH 하나와 WireGuard 하나뿐이어야 한다"
   }
 }
 
