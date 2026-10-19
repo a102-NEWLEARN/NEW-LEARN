@@ -182,23 +182,29 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 항목 | 누가 | 관련 |
 |---|---|---|
-| 뉴스 수집 배치 구현 언어 | BE · Infra | — |
+| 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api.md` 4절 B1 |
 | 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절 |
 | HTTPS 인증서 발급 방식 | Infra | — |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
-| 임베딩 모델 | AI | 3절 |
+| 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다 | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절 |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
-| API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다) | BE | — |
+| API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지, 로그인 없는 URL 분석 요청이 GMS 예산을 쓰지 않게 요청 수를 얼마로 막을지도 여기서 정한다 | BE | `docs/api.md` 1절 |
 | Terraform 상태 파일을 둘 곳 (apply 전에 정한다. 후보: GitLab 관리형 상태 · S3) | Infra | 6절 |
 | Lightsail(SSAFY 지급) 방화벽을 우리가 바꿀 수 있는지 — 못 바꾸면 EC2와 노드 사이 포트(10250·8472/udp·4240)가 막힌다. Lightsail 받는 날 첫 확인 | Infra | 6절 |
 | 쿠버네티스 Secret을 만들고 관리하는 방식 — Argo CD가 GitLab을 읽을 자격 증명(배포 토큰)도 여기에 걸린다. kind 리허설은 로컬 Git 미러를 써서 확인하지 못했다 | Infra | 6절 |
 | 실제 서버에서 hostPort 80이 Lightsail 공인 IP로 열리는지 (kind에서는 확인, Lightsail 방화벽 권한과 같이 본다) | Infra | 6절 |
 | 노드 사이 Pod 트래픽 암호화 — EC2와 Lightsail이 인터넷을 거쳐 붙어서 VXLAN(8472/udp)이 암호화 없이 인터넷을 지난다. Cilium WireGuard(51871/udp)를 쓸지, 쓰면 보안 그룹 · Lightsail 방화벽에 포트를 더한다 | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
+| API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
+| 워커 → API 결과 전달 방식(HTTP 내부 API · 결과용 스트림)과 작업 큐의 스트림 · consumer group 구성 | AI · BE | 2절 6번 · 4절, `docs/api.md` 4절 |
+| 이슈를 만들고 사건을 이슈에 붙이는 길 — 사람이 고르는지 AI 가 만드는지, 이름은 누가 붙이는지(Q5), 사건 하나가 여러 이슈에 속할 수 있는지 | 팀 | `docs/data-model.md` 5절 |
+| 한 기사가 여러 사건에 속할 수 있는지 (PRD FR-9) | AI · BE | `docs/data-model.md` 5절 |
+| 회원 · 북마크 · 관심 이슈를 MVP 에 넣을지 — Jira 28 · 62~64 는 만들게 돼 있고 MVP 개요 9절 · PRD 4.7 은 MVP 이후로 둔다 | PM · 팀 | `docs/data-model.md` 5절 |
+| 지원 URL 기사 본문을 누가 가져오는지 (API · 워커 · 수집 배치) | BE · AI | `docs/data-model.md` 5절 |
 
 정해지면 그 사실이 들어갈 절에 적고 이 표에서 지운다.
 
