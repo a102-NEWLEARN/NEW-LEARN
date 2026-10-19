@@ -97,8 +97,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
 - 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버에 설치)
   - SSAFY GitLab은 18.11.5다(2026-10-18 API로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서 CI는 러너를 직접 둬야 돈다
-- 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유). 상태 파일은 커밋하지 않는다
-  - 자격 증명: plan은 읽기 전용 IAM 사용자 키, apply는 범위를 좁힌 권한(EC2·탄력적 IP·보안 그룹·키 페어·예산)을 따로 둔다. 키는 `~/.aws/credentials`에만 두고 plan이 끝나면 읽기 전용 키를 비활성화한다(`infra/README.md`)
+- 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유)
+  - 상태 파일: 팀 계정 S3 버킷(버전 관리 · 퍼블릭 차단)에 두고 S3 잠금 파일로 동시 실행을 막는다(`use_lockfile`, DynamoDB 없이). 버킷 이름은 저장소에 적지 않는다(`infra/terraform/backend.hcl.example`). PC를 반납 · 분실해도 11/18 destroy를 할 수 있게 하려는 것이다(2026-10-20 결정)
+  - 자격 증명: plan · apply 모두 범위를 좁힌 apply 전용 IAM 사용자 키로 한다 — EC2는 서울 리전만, 예산, 상태 버킷만(`infra/terraform/iam/apply-policy.json`). S3 잠금 때문에 plan도 쓰기가 필요해서, 10/18의 읽기 전용 키는 비활성화한다. 키는 `~/.aws/credentials`에만 둔다(`infra/README.md`)
   - IAM Identity Center는 쓰지 않는다. 켜면 AWS Organization이 만들어지면서 무료 플랜 크레딧이 사라진다(2026-10-18 콘솔 안내로 확인)
   - 루트 계정은 결제·비상시에만 쓰고 MFA를 건다. 이 AWS 계정은 개인 계정과 분리한 프로젝트 전용 팀 계정이다
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
@@ -204,7 +205,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지, 로그인 없는 URL 분석 요청이 GMS 예산을 쓰지 않게 요청 수를 얼마로 막을지도 여기서 정한다 | BE | `docs/api.md` 1절 |
-| Terraform 상태 파일을 둘 곳 (apply 전에 정한다. 후보: GitLab 관리형 상태 · S3) | Infra | 6절 |
 | Lightsail(SSAFY 지급) 받는 날 첫 확인 — ① Lightsail이 먼저 보낸 WireGuard UDP의 응답이 Lightsail 방화벽을 지나 돌아오는지(문서에 없다, `wg show`의 최근 handshake로 본다) ② 443이 열려 있는지(Ubuntu 기본 규칙은 22·80뿐, 못 바꾸면 SSAFY에 요청) ③ 고정 IP를 붙일 수 있는지(없으면 껐다 켤 때 공인 IP가 바뀌어 보안 그룹 · DNS를 다시 맞춘다) | Infra | 6절 |
 | 실제 서버에서 hostPort 80이 Lightsail 공인 IP로 열리는지 (kind에서는 확인, Lightsail 방화벽 권한과 같이 본다) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
