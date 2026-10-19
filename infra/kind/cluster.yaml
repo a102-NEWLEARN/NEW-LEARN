@@ -1,0 +1,25 @@
+# kind 리허설 클러스터 — 실제 구성(컨트롤 플레인 EC2 1 · 워커 Lightsail 1)과 같은 모양
+# 만들기 · 지우기는 up.sh · down.sh 로 한다 (kubeconfig 를 infra/kind/.kubeconfig 에만 쓴다)
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: newlearn
+networking:
+  # CNI 는 Cilium 이 맡는다 (kind 기본 CNI 끔)
+  disableDefaultCNI: true
+  # kube-proxy 대신 Cilium 의 kube-proxy 대체를 쓴다. 이때 hostPort 도 Cilium 이 처리한다
+  kubeProxyMode: none
+nodes:
+  # 노드 이미지는 kind 0.33.0 릴리스가 만든 판을 digest 로 고정한다 (릴리스 노트 권고)
+  - role: control-plane
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+  - role: worker
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+    # 워커 노드의 80 · 443 을 이 PC 의 127.0.0.1:18080 · 18443 으로 꺼낸다
+    # 실제 서버에서는 Lightsail 공인 IP 의 80 · 443 이 이 자리다. 이 PC 의 8080 은 다른 프로그램이 써서 피한다
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 18080
+        listenAddress: 127.0.0.1
+      - containerPort: 443
+        hostPort: 18443
+        listenAddress: 127.0.0.1

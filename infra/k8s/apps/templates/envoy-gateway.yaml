@@ -1,0 +1,33 @@
+# Envoy Gateway 컨트롤러 — 공식 Helm 차트(OCI). Gateway API CRD 도 같이 깐다
+# ServerSideApply: CRD 가 커서 일반 apply 의 주석 크기 제한(262,144바이트)에 걸린다 (Envoy Gateway 문서 「Install with Argo CD」)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: envoy-gateway
+  namespace: argocd
+  # 앱 목록에서 빼면 이 앱이 만든 자원도 지운다
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: docker.io/envoyproxy
+    chart: gateway-helm
+    targetRevision: v1.9.2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    # 버전이 고정이라 첫 동기화가 실패하면 자동 동기화가 다시 시도하지 않는다 — 재시도를 둔다
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
