@@ -1,0 +1,30 @@
+# 외부 입구 — EnvoyProxy · GatewayClass · Gateway (infra/k8s/gateway)
+# envoy-gateway 앱이 CRD 를 깔기 전에는 실패한다. 그래서 dry-run 을 건너뛰고 다시 시도한다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/gateway
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

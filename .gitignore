@@ -4,3 +4,5 @@
 !.env.example
 *.pem
 .claude/settings.local.json
+infra/terraform/terraform.tfvars
+infra/terraform/*.auto.tfvars
