@@ -275,10 +275,11 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 |---|---|
 | 기획 · 범위 | `docs/mvp-overview.md` (기능 ID F01~F11 · 우선순위). 요구사항 상세는 PRD `_bmad-output/planning-artifacts/prds/prd-S15P31A102-2026-10-14/prd.md` |
 | 진행 상태 (계획표 · 이슈 트래커) | Jira — `ssafy.atlassian.net` 프로젝트 S15P31A102 (스프린트 보드) |
-| 데이터 구조 | 데이터셋 필드는 PRD 폴더의 `addendum.md`. 서비스 데이터 모델은 `<채워넣기>` (Jira S15P31A102-28 에서 정한다) |
+| 데이터 구조 | 데이터셋 필드는 PRD 폴더의 `addendum.md`. 서비스 데이터 모델은 `docs/data-model.md` (설계. 만들어진 테이블은 `backend/src/main/resources/db/migration/` 이 이긴다) |
 | 화면 · 이동 | `docs/user-flow.md` · `docs/prototype/` (가장 높은 버전이 최신) |
 | 디자인 | `_bmad-output/planning-artifacts/ux-designs/` |
-| API 명세 | `<채워넣기>` (Jira S15P31A102-28 에서 정한다) |
+| API 명세 | `docs/api.md` (공통 규칙 · 오류 코드 · 엔드포인트 목록). 필드 상세는 화면용 `docs/api-screen.md` · 배치 · 워커용 `docs/api-internal.md` |
+| 용어 | 제품 용어의 정의는 PRD 부록 A 「용어집」. 테이블 · API 이름과의 대응 · 개발 용어는 `docs/glossary.md` |
 | 시스템 구성도 | `SSOT.md` 1 · 2절 (그림은 아직 없다) |
 | 로컬 개발 환경 쓰는 법 | `docs/dev-environment.md` (정한 것은 `SSOT.md` 7절) |
 | 협업 규칙 (브랜치·커밋·PR) | `docs/git-convention.md` · MR 양식은 `.gitlab/merge_request_templates/Default.md` |
