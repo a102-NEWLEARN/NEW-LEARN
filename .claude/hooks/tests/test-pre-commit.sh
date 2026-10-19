@@ -635,30 +635,209 @@ for head in '```bash' '```sh '; do
   check "머리 줄 '$head' · --ci 도 멈춘다" 1 "머리 줄이 정확히" - --ci
 done
 
-# --- 커밋 게이트 · stack.md 나 영역 밖의 문서 아닌 파일이 바뀌면 전 영역을 돈다 -----
-# 고치기 전 훅은 루트 package.json 만 바꾼 커밋에서 아무 영역도 안 골라 검사 0개로 통과했다.
-# stack.md 의 명령을 고친 커밋도 고친 명령을 한 번도 안 돌린 채 통과했다.
+# --- 커밋 게이트 · 영역 밖 파일 · stack.md 는 닿는 영역만 돈다 -------------------
+# 고치기 전 훅은 .gitignore · compose.yaml 같은 영역 밖 파일이나 stack.md 를 바꾼 커밋에서 전 영역을 돌았다.
+# 그 PC 에 없는 영역 도구(Terraform 등)에서 커밋이 막혔고, 한 줄 커밋에도 몇 분이 걸렸다.
+# 영역 검사가 읽는 영역 밖 파일은 <영역>_ALSO_PATHS 에 적는다. 그 파일이 바뀌면 그 영역만 돈다.
 repo
-decl 'AREAS="web api"' 'web_PATH="web"' 'api_PATH="api"' 'web_TEST="false"' 'api_TEST="true"'
+decl 'AREAS="web api"' 'web_PATH="web"' 'api_PATH="api"' 'web_TEST="false"' 'api_TEST="false"' \
+  'web_ALSO_PATHS=".editorconfig ./.prettierrc* shared/"'
 put web/a.js 'x'
 put api/b.js 'y'
+# 아래 「지운 파일」 사례가 쓴다. 훅은 저장소 루트에서 돈다
+put .prettierrc.yaml 'y'
+put .prettierrc.toml 'y'
 cmt base
-put package.json '{}'
-check  "커밋 게이트 · 루트 package.json · 전 영역을 돈다"  1 "[web]" -
-expect "커밋 게이트 · 루트 package.json · 까닭을 찍는다" 1 "영역 밖 파일이 바뀌었다 (package.json)" -
+for f in package.json .gitignore compose.yaml; do
+  git -C "$R" reset -q || exit 1
+  put "$f" 'z'
+  check  "커밋 게이트 · 루트 $f 만 · web 을 안 돈다" 0 "영역 검사 없음 — 바뀐 파일이 어느 영역에도 안 든다 ($f)" "[web]"
+  expect "커밋 게이트 · 루트 $f 만 · api 를 안 돈다" 0 - "[api]"
+done
 git -C "$R" reset -q || exit 1
 put README.md 'docs'
 check "커밋 게이트 · 루트 문서만 · 영역을 안 돈다" 0 "통과" "[web]"
+for f in .editorconfig .prettierrc.json shared/fmt.json; do
+  git -C "$R" reset -q || exit 1
+  put "$f" 'z'
+  check  "ALSO_PATHS · $f · 그 영역을 돈다"      1 "[web]" -
+  expect "ALSO_PATHS · $f · 다른 영역은 안 돈다" 1 - "[api]"
+done
+# 지운 설정 파일도 그 영역이다. 패턴을 루트의 파일 이름으로 펼치면 남은 .prettierrc.yaml 로 바뀌어
+# 지운 .prettierrc.toml 을 못 맞춘다
 git -C "$R" reset -q || exit 1
+git -C "$R" rm -q .prettierrc.toml || exit 1
+check "ALSO_PATHS · 지운 파일 · 그 영역을 돈다" 1 "[web]" -
+# 저장소 루트 기준으로 맞춘다. 다른 폴더의 같은 이름은 그 영역이 아니다
+git -C "$R" reset -q || exit 1
+put tools/.editorconfig 'z'
+check "ALSO_PATHS · 다른 폴더의 같은 이름은 아니다" 0 "영역 검사 없음" "[web]"
+# CI 영역 고르기도 ALSO_PATHS 파일은 그 영역으로 친다. 그 밖의 영역 밖 파일은 지금처럼 전부다 (위 --changed-areas 사례)
+git -C "$R" reset -q || exit 1
+BASE="$(git -C "$R" rev-parse HEAD)" || exit 1
+put .editorconfig 'w'
+cmt editorconfig
+hook --changed-areas "$BASE"
+expect "--changed-areas · ALSO_PATHS 파일 · 그 영역만" 0 "web" "api"
+# HEAD 에 없던 stack.md 는 모든 선언이 새것이라 모든 영역을 돈다
 git -C "$R" add .claude/stack.md || exit 1
-check "커밋 게이트 · stack.md · 전 영역을 돈다" 1 "stack.md 가 바뀌었다" -
-# 전 영역을 돌 때도 폴더가 없는 영역은 건너뛴다. 돌리면 cd 에서 실패해 커밋이 막힌다
+check  "커밋 게이트 · 새 stack.md · 모든 영역을 돈다" 1 "stack.md 에서 커밋 검사 선언이 바뀐 영역도 돈다 — web api" -
+expect "커밋 게이트 · 새 stack.md · api 도 돈다"     1 "[api]" -
+# stack.md 로 고른 영역도 폴더가 없으면 건너뛴다. 돌리면 cd 에서 실패해 커밋이 막힌다 (5단계가 이미 알린다)
 repo
 decl 'AREAS="web api"' 'web_PATH="web"' 'api_PATH="server"' 'web_TEST="true"' 'api_TEST="true"'
 put web/a.js 'x'
 cmt base
-put package.json '{}'
-check "전 영역 · 폴더 없는 영역은 건너뛴다" 0 "[web]" "[api]"
+git -C "$R" add .claude/stack.md || exit 1
+check "stack.md 로 고른 영역 · 폴더가 없으면 건너뛴다" 0 "[web]" "[api]"
+
+# ALSO_PATHS 로 고른 영역도 폴더가 없으면 건너뛴다
+repo
+decl 'AREAS="web api"' 'web_PATH="web"' 'web_TEST="true"' 'api_PATH="server"' 'api_ALSO_PATHS="pyproject.toml"' 'api_TEST="true"'
+put web/a.js 'x'
+cmt base
+put pyproject.toml 'x'
+check "ALSO_PATHS 로 고른 영역 · 폴더가 없으면 건너뛴다" 0 "폴더가 없다" "[api]"
+# ALSO_PATHS 를 본 뒤에도 명령 속 * 는 펼쳐진다. set -f 가 새면 '! grep -q FAIL *.js' 가 파일을 못 찾고
+# ! 가 그 실패를 뒤집어, FAIL 이 든 커밋이 통과한다
+repo
+decl 'AREAS="api web"' 'api_PATH="api"' 'api_ALSO_PATHS="x.cfg"' 'api_TEST="true"' 'web_PATH="web"' "web_TEST=\"$T_FAIL\""
+put api/b.js 'y'
+put web/a.js 'ok'
+cmt base
+put web/a.js 'FAIL'
+check "ALSO_PATHS 를 본 뒤 · 명령 속 * 는 펼쳐진다" 1 "테스트 실패" -
+# 포맷 전용 모드는 ALSO_PATHS 를 안 본다. 그 모드는 작업 폴더에 떠 있는 파일을 다 보므로,
+# 안 올린 영역 밖 파일 하나 때문에 편집할 때마다 다른 영역의 포맷터가 돌면 안 된다
+repo
+decl 'AREAS="web api"' 'web_PATH="web"' 'web_ALSO_PATHS=".editorconfig"' 'web_FORMAT_FIX="echo ok > ../fixed.txt"' \
+  'api_PATH="api"'
+put web/a.js 'x'
+put api/b.js 'y'
+cmt base
+printf 'root = true\n' > "$R/.editorconfig" || exit 1
+printf 'z\n' >> "$R/api/b.js" || exit 1
+rm -f "$R/fixed.txt"
+hook --format-only
+if [ "$RC" -eq 0 ] && [ ! -f "$R/fixed.txt" ]; then
+  PASS=$((PASS + 1))
+else
+  bad "포맷 전용 · 안 올린 ALSO_PATHS 파일 · 다른 영역의 포맷터를 안 돌린다 — rc=$RC"
+fi
+
+# stack.md 는 §3 블록에서 바뀐 선언이 닿는 영역만 돈다. 고친 명령을 한 번도 안 돌린 채 커밋하지 않게.
+# HEAD 와 스테이지된 stack.md 를 비교한다. 블록 밖 글 · 주석 · CR · 선언 뒤 설명만 바뀌면 영역을 안 돈다.
+# 누가 읽는지 확실할 때만 좁힌다 — 값에 나오는 이름 · 공용 변수 · 순서 · 같은 이름 두 번은 모든 영역이다.
+# 커밋 검사가 안 돌리는 영역 선언(_BUILD · _RUN · _ALSO_PATHS …)과 훅 설정(COMMIT_TYPES …)만 바뀌면 영역을 안 돈다.
+STK=('AREAS="web api"' 'web_PATH="web"' 'api_PATH="api"' "web_LINT='true \$DEFAULT_BRANCH'" "web_TEST='false \$FLAGS'"
+     'api_TEST="false"' "api_LINT='true \$LIBX'" 'FLAGS="-x"' "LIBX='\${#BASEV}'" 'BASEV="1"' 'TOOL_OPTS="good"'
+     'COMMIT_TYPES="feat|fix"' 'DEFAULT_BRANCH="dev"' 'web_BUILD="true"' 'web_RUN="true"' 'web_ALSO_PATHS="a.cfg"')
+repo
+decl "${STK[@]}"
+put web/a.js 'x'
+put api/b.js 'y'
+git -C "$R" add .claude/stack.md || exit 1
+cmt base
+# stk_case <설명> <기대 rc> <있어야 할 말|-> <없어야 할 말|-> <바꿀 줄> <새 줄|-> — STK 의 한 줄을 바꿔(-면 지워)
+# stack.md 를 다시 쓰고 스테이지한 뒤 훅을 돌린다
+stk_case() {
+  local label="$1" wrc="$2" yes="$3" no="$4" from="$5" to="$6" l lines=()
+  for l in "${STK[@]}"; do
+    if [ "$l" = "$from" ]; then [ "$to" = - ] || lines+=("$to"); else lines+=("$l"); fi
+  done
+  decl "${lines[@]}"
+  git -C "$R" add .claude/stack.md || { echo "!! git add 실패: stack.md"; exit 1; }
+  check "$label" "$wrc" "$yes" "$no"
+}
+stk_case "stack.md · web_ 검사 줄을 고침 · web 만 돈다" 1 "[web]" "[api]" "web_TEST='false \$FLAGS'" "web_TEST='false \$FLAGS -y'"
+expect   "stack.md · web_ 검사 줄을 고침 · 까닭을 찍는다" 1 "stack.md 에서 커밋 검사 선언이 바뀐 영역도 돈다 — web" -
+stk_case "stack.md · web_ 검사 줄을 지움 · web 만 돈다" 1 "[web]" "[api]" "web_LINT='true \$DEFAULT_BRANCH'" -
+# 값에 나오는 이름은 부르는 꼴이 여러 가지라($X · ${#X} …) 누가 읽는지 다 못 따라간다
+stk_case "stack.md · \$이름 으로 부르는 변수 · 모든 영역" 1 "FLAGS 이(가) 선언의 값에 나온다" - 'FLAGS="-x"' 'FLAGS="-z"'
+expect   "stack.md · \$이름 으로 부르는 변수 · api 도 돈다" 1 "[api]" -
+stk_case "stack.md · \${#이름} 으로 부르는 변수 · 모든 영역" 1 "BASEV 이(가) 선언의 값에 나온다" - 'BASEV="1"' 'BASEV="22"'
+expect   "stack.md · \${#이름} 으로 부르는 변수 · web 도 돈다" 1 "[web]" -
+stk_case "stack.md · 영역이 부르는 훅 설정 · 모든 영역" 1 "DEFAULT_BRANCH 이(가) 선언의 값에 나온다" - \
+  'DEFAULT_BRANCH="dev"' 'DEFAULT_BRANCH="main"'
+# 값에 안 나와도 셸이 내보낸 이름(PATH 등)이면 명령의 환경으로 넘어간다
+stk_case "stack.md · 아무도 안 부르는 공용 변수 · 모든 영역" 1 "공용 변수 TOOL_OPTS" - 'TOOL_OPTS="good"' 'TOOL_OPTS="bad"'
+expect   "stack.md · 아무도 안 부르는 공용 변수 · api 도 돈다" 1 "[api]" -
+stk_case "stack.md · 영역이 안 부르는 훅 설정 · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]" \
+  'COMMIT_TYPES="feat|fix"' 'COMMIT_TYPES="feat|fix|docs"'
+expect   "stack.md · 영역이 안 부르는 훅 설정 · api 도 안 돈다" 0 - "[api]"
+stk_case "stack.md · 커밋 검사가 안 돌리는 _BUILD · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]" \
+  'web_BUILD="true"' 'web_BUILD="false"'
+stk_case "stack.md · 커밋 검사가 안 돌리는 _RUN · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]" \
+  'web_RUN="true"' 'web_RUN="false"'
+stk_case "stack.md · _ALSO_PATHS 만 · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]" \
+  'web_ALSO_PATHS="a.cfg"' 'web_ALSO_PATHS="a.cfg b.cfg"'
+stk_case "stack.md · 선언 뒤 설명만 · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[api]" \
+  'BASEV="1"' 'BASEV="1"   # 설명만 더함'
+decl "${STK[@]}" '# 블록 안 주석만 더함'
+git -C "$R" add .claude/stack.md || exit 1
+check "stack.md · 블록 안 주석만 · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]"
+decl "${STK[@]}"
+printf '\n## 블록 밖 글\n\n| 표 | x=1 |\n' >> "$R/.claude/stack.md" || exit 1
+git -C "$R" add .claude/stack.md || exit 1
+check "stack.md · 블록 밖 글만 · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]"
+# sed -i 는 BSD sed 와 문법이 달라 awk 로 쓴다 (test-upgrade.sh 와 같다)
+decl "${STK[@]}"
+awk '{ printf "%s\r\n", $0 }' "$R/.claude/stack.md" > "$R/stack.crlf" && mv "$R/stack.crlf" "$R/.claude/stack.md" || exit 1
+git -C "$R" add .claude/stack.md || exit 1
+check "stack.md · 줄바꿈(CRLF)만 · 영역 검사 없음" 0 "커밋 검사가 쓰는 선언은 그대로다" "[web]"
+# 큰따옴표 값은 읽는 순서에 따라 펼쳐진 값이 달라진다. 같은 이름을 두 번 적으면 순서가 값을 정한다
+decl "${STK[@]:1}" "${STK[0]}"
+git -C "$R" add .claude/stack.md || exit 1
+check  "stack.md · 선언 순서만 · 모든 영역" 1 "선언 순서가 바뀌었다" -
+expect "stack.md · 선언 순서만 · api 도 돈다" 1 "[api]" -
+decl "${STK[@]}" 'web_RUN="true"'
+git -C "$R" add .claude/stack.md || exit 1
+check  "stack.md · 같은 이름 두 번 · 모든 영역" 1 "같은 이름을 두 번 적은 선언이 있다" -
+expect "stack.md · 같은 이름 두 번 · api 도 돈다" 1 "[api]" -
+# AREAS 에 새로 넣은 영역은 그 영역 줄이 그대로여도 돈다
+repo
+decl 'AREAS="web"' 'web_PATH="web"' 'api_PATH="api"' 'web_TEST="false"' 'api_TEST="false"'
+put web/a.js 'x'
+put api/b.js 'y'
+git -C "$R" add .claude/stack.md || exit 1
+cmt base
+decl 'AREAS="web api"   # api 를 더함' 'web_PATH="web"' 'api_PATH="api"' 'web_TEST="false"' 'api_TEST="false"'
+git -C "$R" add .claude/stack.md || exit 1
+check "stack.md · AREAS 에 새 영역 · 그 영역만 돈다" 1 "[api]" "[web]"
+
+# --- 커밋 게이트 · 하네스 훅 · settings.json 이 바뀌면 그 파일을 확인하는 하네스 테스트를 돈다 -----
+# 고치기 전 훅은 이때 전 영역을 돌았다. 고친 훅을 한 번은 돌려 본 채로 커밋하게 하려면 훅의 회귀 테스트가 맞다.
+# 하네스 전체(run.sh)는 10분쯤 걸려 그 파일 이름을 본문에 적은 테스트 파일만 돈다.
+repo
+decl 'AREAS="web"' 'web_PATH="web"' 'web_TEST="false"'
+put web/a.js 'x'
+cmt base
+mkdir -p "$R/.claude/hooks/tests" || exit 1
+# hstub <테스트 파일> <본문에 적을 이름> <끝 코드> — 그 이름을 본문에 적은 가짜 하네스 테스트를 만든다
+hstub() {
+  printf '#!/usr/bin/env bash\n# 보는 것: %s\nexit %s\n' "$2" "$3" > "$R/.claude/hooks/tests/$1" || exit 1
+}
+hstub test-commit-msg.sh commit-msg 0
+hstub test-deny-sync.sh settings.json 0
+hstub test-other.sh nothing 1
+put .claude/hooks/commit-msg 'x'
+check  "하네스 훅 · 그 훅을 적은 테스트를 돈다"      0 "→ 하네스 검사 test-commit-msg.sh" "[web]"
+expect "하네스 훅 · 다른 테스트는 안 돈다"           0 - "test-other.sh"
+expect "하네스 훅 · ALSO_PATHS 에 적으라고 하지 않는다" 0 "영역 검사 없음 — 바뀐 영역이 없다" "ALSO_PATHS"
+git -C "$R" reset -q || exit 1
+put .claude/settings.json '{}'
+check  "settings.json · 그 이름을 적은 테스트를 돈다" 0 "→ 하네스 검사 test-deny-sync.sh" "[web]"
+hstub test-deny-sync.sh settings.json 1
+check  "하네스 테스트가 실패하면 막는다"             1 "하네스 검사 test-deny-sync.sh 실패" -
+git -C "$R" reset -q || exit 1
+git -C "$R" add .claude/hooks/tests/test-other.sh || exit 1
+check  "하네스 테스트 파일을 고침 · 그 파일을 돈다"   1 "하네스 검사 test-other.sh 실패" -
+git -C "$R" reset -q || exit 1
+put .claude/hooks/lonely.sh 'x'
+check  "확인하는 테스트가 없는 하네스 파일 · 알리고 넘어간다" 0 "lonely.sh 를 확인하는 하네스 테스트가 없다" -
+git -C "$R" reset -q || exit 1
+put .claude/skills/x/data.csv 'x'
+check "하네스 밖 .claude 파일 · 하네스 검사도 영역 검사도 없다" 0 "영역 검사 없음" "[하네스]"
 
 # --- git commit -a · git commit <경로> 때 훅이 받은 저장소 변수가 명령으로 새지 않는다 ---
 # git 은 훅에 GIT_INDEX_FILE 을 넘긴다. 고치기 전 훅은 그것을 명령에 그대로 넘겨서, 임시 저장소를 만들어
