@@ -1,0 +1,11 @@
+# Argo CD 3.5 (argo-cd 차트 10.10.5) 값 — kind 리허설과 실제 서버가 같이 쓴다
+
+# 로그인은 기본 admin 계정으로 충분하다 (SSO 를 안 쓴다)
+dex:
+  enabled: false
+# 알림(Slack 등)은 아직 정하지 않았다
+notifications:
+  enabled: false
+
+# resource.exclusions 는 덮어쓰지 않는다 — 차트 기본 제외 목록에 Endpoints · Lease 와
+# Cilium 의 CiliumIdentity · CiliumEndpoint 가 이미 들어 있다. 더 뺄 것은 configs.cm 의 resourceExclusionsAdditional 로 덧붙인다

@@ -5,29 +5,11 @@
 
 ## 처음 한 번
 
-1. **Docker Desktop** 을 설치한다. Windows 는 WSL 2 백엔드를 쓴다. healthcheck 의 `start_interval` 때문에 Docker Engine 25 이상이 필요하다 (Engine 29.6.2 · Compose v5.3.1 에서 확인했다).
-2. **Windows 는 WSL 2 리눅스 쪽에 클론한다.** Ubuntu 터미널을 열고 `~/` 아래에 받는다. C: 드라이브 폴더를 연결하면 고친 파일이 컨테이너에 반영되지 않는다.
+처음 세팅하는 순서(AI 에게 맡기는 프롬프트 · 직접 치는 명령)는 저장소 루트 `README.md` 「개발 환경 세팅」에 있다. 이 문서는 그 뒤에 알아 둘 것을 다룬다.
 
-   ```bash
-   git clone https://lab.ssafy.com/s15-final/S15P31A102.git && cd S15P31A102
-   ```
-
-3. 저장소 루트에서 환경변수 파일을 만든다.
-
-   ```bash
-   cp .env.example .env
-   ```
-
-4. 전부 띄운다. `--wait` 는 모든 컨테이너가 정상이 될 때까지 기다렸다가 끝난다.
-
-   ```bash
-   docker compose --profile full up -d --wait
-   ```
-
-5. 브라우저로 http://localhost:5173 을 연다. 「API 상태: UP」 이 보이면 화면 · API · DB · Redis 가 다 이어진 것이다.
-
-첫 실행은 이미지(약 1.9 GB)를 받은 뒤 Gradle · npm · Python 의존성(볼륨에 약 1.8 GB)을 받느라 몇 분 걸린다. 걸린 시간은 `SSOT.md` 10절에 적었다.
-의존성은 볼륨에 남아서 다음부터는 금방 뜬다.
+- Docker Engine 25 이상이 필요한 까닭은 healthcheck 의 `start_interval` 이다 (Engine 29.6.2 · Compose v5.3.1 에서 확인했다)
+- WSL 2 리눅스 쪽(`~/` 아래)에 클론해야 하는 까닭은 C: 드라이브 폴더를 연결하면 고친 파일이 컨테이너에 반영되지 않아서다
+- 첫 실행에 받는 것은 이미지 약 1.9 GB 와 의존성(볼륨에 약 1.8 GB)이다. 걸린 시간은 `SSOT.md` 10절에 적었다
 
 ## 무엇이 뜨나
 
