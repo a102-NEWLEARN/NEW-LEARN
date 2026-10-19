@@ -38,7 +38,7 @@ variable "admin_cidrs" {
 }
 
 variable "worker_cidrs" {
-  description = "워커 노드(Lightsail) 공인 IP. 받기 전에는 비워 둔다 — 비어 있으면 노드 사이 포트를 열지 않는다"
+  description = "워커 노드(Lightsail) 공인 IP. 받기 전에는 비워 둔다 — 비어 있으면 WireGuard 포트를 열지 않는다"
   type        = list(string)
   default     = []
 
