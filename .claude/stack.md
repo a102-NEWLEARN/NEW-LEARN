@@ -98,7 +98,7 @@ infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # 
 infra_RUN="bash kind/up.sh"   # 내 PC 의 kind 리허설 클러스터 (Docker Desktop · kind · Helm 필요). Terraform plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
-infra_LINT="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh; do bash -n $f || exit 1; done"   # 셸 스크립트는 문법만 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
+infra_LINT="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh; do [ -e $f ] || continue; bash -n $f || exit 1; done"   # 셸 스크립트(kind 리허설 · 서버 설정)는 문법만 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
 infra_TEST="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test"   # 가짜 provider 로 보안 그룹 규칙을 검사한다
 infra_BUILD=""   # 산출물이 없다 — 실제 생성(apply)은 사람이 plan 을 읽고 한다 (.claude/docs/deploy.md 3절)
 
@@ -304,7 +304,9 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | Lightsail 접속 키(`*.pem`) | 서비스 서버 접속 | 받으면 저장소 밖에 둔다 |
 | `infra/terraform/terraform.tfvars` | Terraform 변수 (관리자 IP · SSH 공개키 · 예산 알림 메일) | `terraform.tfvars.example` 을 복사해 채운다 |
 | `infra/kind/.kubeconfig` · `infra/kind/.git-mirror/` | kind 리허설 클러스터 접속 정보 · Argo CD 가 읽는 로컬 Git 미러 | `bash infra/kind/up.sh` 가 만든다. 내 `~/.kube/config` 와 섞지 않으려고 따로 둔다 |
-| AWS 액세스 키 (`~/.aws/credentials`, 저장소 밖) | `terraform plan` 자격 증명 (읽기 전용 IAM 사용자) | IAM 콘솔에서 만들어 `aws configure --profile newlearn` 에 넣는다 — 하는 법은 `infra/README.md`. plan 뒤 비활성화 |
+| `infra/terraform/backend.hcl` | Terraform 상태 파일 버킷 이름 · 프로필 | `backend.hcl.example` 을 복사해 채운다. 버킷은 `infra/README.md` 「처음 한 번」에서 한 번 만든다 |
+| AWS 액세스 키 (`~/.aws/credentials`, 저장소 밖) | `terraform plan` · `apply` 자격 증명 — apply 전용 IAM 사용자(`newlearn-apply` 프로필). 10/18 의 읽기 전용 키(`newlearn`)는 비활성화한다 | IAM 콘솔에서 `infra/terraform/iam/apply-policy.json` 을 붙인 사용자를 만들고 `aws configure --profile newlearn-apply` 에 넣는다 — 하는 법은 `infra/README.md` |
+| SSH 개인키 `~/.ssh/newlearn-admin` (저장소 밖) | 관리 서버 접속 | `ssh-keygen` 으로 만든다. 공개키만 `terraform.tfvars` 에 넣는다 |
 
 ⚠️ 새로 생기면 **그 즉시** 여기와 `.gitignore` 에 추가한다. **값 자체는 절대 적지 않는다.**
 
