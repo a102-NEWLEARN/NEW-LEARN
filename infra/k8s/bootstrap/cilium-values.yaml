@@ -1,0 +1,19 @@
+# Cilium 1.20 공통 값 — kind 리허설과 실제 서버(kubeadm)가 같이 쓴다
+# 환경마다 다른 값(API 서버 주소)은 cilium-values.<환경>.yaml 로 덮는다
+
+# kube-proxy 를 깔지 않고 Cilium 이 Service · NodePort · hostPort 를 eBPF 로 처리한다
+# 실제 서버의 kubeadm init 옵션은 SSOT.md 6절
+kubeProxyReplacement: true
+k8sServicePort: 6443
+
+# 노드마다 받은 Pod 주소 범위(spec.podCIDR)를 쓴다 — kubeadm 에 Pod 주소 범위를 줘야 생긴다 (SSOT.md 6절)
+ipam:
+  mode: kubernetes
+
+# 노드 사이 Pod 트래픽은 VXLAN 터널(8472/udp)로 보낸다 — EC2 보안 그룹이 워커 IP 에만 연 포트와 같다
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+# 워커가 1대라 operator 도 1개면 된다
+operator:
+  replicas: 1

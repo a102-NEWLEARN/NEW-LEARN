@@ -1,0 +1,58 @@
+# 무중단 교체 조건 (SSOT 6절 「무중단 배포 조건」)을 리허설로 확인하는 앱
+# - 새 Pod 를 먼저 띄우고(maxSurge 1) 준비가 끝나야 옛 Pod 를 뺀다(maxUnavailable 0)
+# - 준비 확인(readinessProbe)이 통과해야 요청을 받는다
+# - 끝낼 때 10초 쉬는 동안 Envoy 가 이 Pod 를 목록에서 뺀다(preStop sleep)
+# 버전은 -text 만 바꾼다. rehearse-rollout.sh 가 v1 ↔ v2 를 바꿔 커밋한다
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      containers:
+        - name: hello
+          image: hashicorp/http-echo:1.0.0@sha256:fcb75f691c8b0414d670ae570240cbf95502cc18a9ba57e982ecac589760a186
+          args:
+            - -listen=:5678
+            - -text=hello v1
+          ports:
+            - name: http
+              containerPort: 5678
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 2
+            failureThreshold: 1
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

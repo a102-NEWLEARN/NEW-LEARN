@@ -1,0 +1,30 @@
+# 리허설용 hello 앱 (infra/k8s/hello) — 무중단 교체 · 되돌리기를 재는 데만 쓴다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/hello
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hello
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
