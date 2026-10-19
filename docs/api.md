@@ -1,10 +1,31 @@
 # API 계약 (v0)
 
-화면(FE) · 수집 배치 · AI 워커가 API 서버와 주고받는 모양이다. 테이블 설계는 `docs/data-model.md`.
+화면(FE) · 수집 배치 · AI 워커가 API 서버와 주고받는 모양이다. 테이블 설계는 `docs/data-model.md`, 용어는 `docs/glossary.md`.
 
-- **v0 (2026-10-19, Jira S15P31A102-28)**: 확정 기능(F01~F08 · F11)의 흐름 A · B 에 필요한 것만 담았다. 아직 코드가 없다
+- **v0 (2026-10-19, Jira S15P31A102-28 · 80)**: 확정 기능(F01~F08 · F11)의 흐름 A · B 에 필요한 것만 담았다. 아직 코드가 없다
 - 1절 공통 규칙은 나중에 바꾸면 비싸서 v0 에서 먼저 정한다. FE · AI 와 합의하기 전까지는 제안이다(`SSOT.md` 8절)
-- 응답 필드 · 엔드포인트는 기능 티켓마다 더한다. 구현이 생기면 그 MR 에서 이 문서를 같이 고친다
+- 응답 필드 · 엔드포인트는 기능 티켓마다 더한다. 구현이 생기면 그 MR 에서 이 문서들을 같이 고친다
+- 그림을 한 보드에 모은 보기용 사본이 Figma NEW:LEARN 팀 FigJam 에 있다. 원본은 이 md 들이다
+
+| 문서 | 담는 것 |
+|---|---|
+| `docs/api.md` (이 문서) | 계약 지도, 공통 규칙, 오류 코드, 엔드포인트 목록과 흐름, 질문, Jira 대조 |
+| `docs/api-screen.md` | 화면용 A1~A13 의 인자 · 응답 필드(용도 · 어디서 오나) · 예시, 마인드맵 근거 모양 |
+| `docs/api-internal.md` | 수집 배치 투입(B1) · 작업 큐 · 워커 결과(W1)의 필드, 작업 상태 |
+
+계약 지도 — 누가 누구와 어떤 계약으로 주고받나
+
+```mermaid
+flowchart LR
+  FE["화면 (React)"] -- "A1~A13 · /api/v1" --> API["API 서버 (Spring Boot)"]
+  B["수집 배치"] -- "B1 투입 · /internal/v1" --> API
+  B -. "적재 (길 미정)" .-> DB[("PostgreSQL + pgvector")]
+  API -- "조회 · 저장 · 후보 검색" --> DB
+  API -- "작업 메시지" --> R[("Redis 작업 큐")]
+  R -- "그룹 extract · embed · match_event" --> W["AI 워커 (FastAPI)"]
+  W -- "W1 결과 · /internal/v1" --> API
+  W -- "6하원칙 추출 · 동일 사건 판정" --> G["SSAFY GMS"]
+```
 
 ---
 
@@ -28,74 +49,106 @@
 
 목록 응답
 
-```json
-{ "items": [], "page": 0, "size": 20, "totalElements": 0, "totalPages": 0 }
-```
+| 필드 | 타입 | 용도 |
+|---|---|---|
+| `items` | array | 이번 쪽의 항목들. 없으면 빈 배열 |
+| `page` | number | 지금 쪽 번호(0부터). 요청의 `page` 그대로 |
+| `size` | number | 한 쪽 크기. 요청의 `size` 그대로 |
+| `totalElements` | number | 전체 항목 수. 「기사 23개」 같은 개수 표시에 쓴다 |
+| `totalPages` | number | 전체 쪽 수. *더 보기* 를 보일지 가른다(`page + 1 < totalPages`) |
 
-오류 응답 — 화면은 `code` 로 갈라 안내 문구를 고르고, `detail` 은 개발자용이다.
+---
+
+## 2. 오류 코드
+
+HTTP 상태는 「어떤 종류의 실패인가」를, `code` 는 「정확히 어떤 경우인가」를 말한다. 같은 404 라도 화면 문구가 다르고(이슈를 못 찾음 · 마인드맵이 아직 없음), 같은 400 이라도 받는 쪽이 할 일이 달라서 둘을 같이 보낸다.
+
+오류 응답 필드
+
+| 필드 | 타입 | 용도 |
+|---|---|---|
+| `type` | string | 오류 종류를 가리키는 주소. 문서 주소를 아직 두지 않아 늘 `about:blank` |
+| `title` | string | 상태 코드의 이름(`Not Found`). Spring 이 채운다 |
+| `status` | number | HTTP 상태 코드. 본문만 받아도 알 수 있게 다시 적는다 |
+| `detail` | string | 개발자용 설명. 내부 사정이 들어갈 수 있어 화면에 그대로 보이지 않는다 |
+| `instance` | string | 오류가 난 요청 주소. 로그를 찾을 때 쓴다 |
+| `code` | string | 이 프로젝트의 오류 코드(아래 표). 화면 · 워커는 이것으로 갈라 처리한다 |
+| `errors` | array · 없을 수 있음 | `VALIDATION_FAILED` 일 때만. `{ "field", "reason" }` — 어느 칸이 왜 틀렸나 |
 
 ```json
 {
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "기사를 찾을 수 없다: 456",
-  "instance": "/api/v1/articles/456",
+  "type": "about:blank", "title": "Not Found", "status": 404,
+  "detail": "기사를 찾을 수 없다: 456", "instance": "/api/v1/articles/456",
   "code": "ARTICLE_NOT_FOUND"
 }
 ```
 
-입력 검증 오류는 `errors` 에 칸마다 까닭을 담는다.
+어느 검사에서 어느 코드가 나가나 — 화면용 요청
 
-```json
-{ "status": 400, "code": "VALIDATION_FAILED", "errors": [{ "field": "size", "reason": "100 이하여야 한다" }] }
+```mermaid
+flowchart TD
+  V{"요청 값이 규칙에 맞나"} -- "아니오" --> E400["400 VALIDATION_FAILED · INVALID_URL"]
+  V -- "예" --> L{"A10 이면 요청 수 상한 안인가"}
+  L -- "아니오" --> E429["429 TOO_MANY_REQUESTS"]
+  L -- "예 · A10 아님" --> F{"찾는 자원이 있나 (투입 전 기사는 없음)"}
+  F -- "아니오" --> E404["404 …_NOT_FOUND"]
+  F -- "예" --> S{"A10 이면 지원 출처이고 본문을 가져왔나"}
+  S -- "지원 안 함 · 못 가져옴" --> E4225["422 UNSUPPORTED_SOURCE · 502 SOURCE_FETCH_FAILED"]
+  S -- "예 · A10 아님" --> OK["200 · 202 성공"]
 ```
 
-### 오류 코드
+### 화면용 · 공통
 
-| code | 상태 | 언제 |
-|---|---|---|
-| `VALIDATION_FAILED` | 400 | 요청 값이 규칙에 안 맞을 때 |
-| `INVALID_URL` | 400 | 분석 요청의 URL 이 URL 형식이 아닐 때 |
-| `UNSUPPORTED_SOURCE` | 422 | 지원하지 않는 출처의 기사 URL (PRD FR-32). 화면은 A12 로 지원 출처를 보여 준다 |
-| `SOURCE_FETCH_FAILED` | 502 | 지원 출처인데 본문을 가져오지 못했을 때. URL 본문을 누가 가져오는지 정해지면 바뀔 수 있다(`data-model.md` 5절 11번) |
-| `TOO_MANY_REQUESTS` | 429 | A10 요청이 상한을 넘었을 때. 상한 값은 `SSOT.md` 8절 |
-| `CATEGORY_NOT_FOUND` · `ISSUE_NOT_FOUND` · `EVENT_NOT_FOUND` · `ARTICLE_NOT_FOUND` · `ANALYSIS_JOB_NOT_FOUND` | 404 | 그 ID 가 없을 때 |
-| `MINDMAP_NOT_FOUND` | 404 | 기사는 있는데 마인드맵이 아직 없을 때. 화면은 A8 의 `mindmapStatus` 로 분석 중인지 실패했는지 본다 |
-| `UNAUTHORIZED` · `FORBIDDEN` | 401 · 403 | 내부 API 인증을 정하면(`SSOT.md` 8절) 쓴다 |
-| `INTERNAL_ERROR` | 500 | 그 밖의 서버 오류 |
-| `RESULT_SCHEMA_INVALID` · `EVIDENCE_NOT_IN_BODY` · `JOB_STATE_CONFLICT` · `ALREADY_RELEASED` | 400 · 400 · 409 · 409 | 내부 API(B1 · W1)에서만. 4절 |
+| code | 상태 | 뜻 · 언제 나오나 | 왜 이 상태인가 | 받는 쪽이 할 일 |
+|---|---|---|---|---|
+| `VALIDATION_FAILED` | 400 | 요청 값이 규칙에 안 맞는다. 예: `size=101`, 오프셋 없는 시각, 숫자 자리에 글자 | 400 Bad Request 는 「요청이 잘못돼 그대로는 처리 못 한다」는 뜻이다. 요청을 고쳐 보내면 된다 | 화면: 대개 화면 코드의 버그다. 일반 오류 안내를 띄우고 `errors` 를 로그에 남긴다 |
+| `INVALID_URL` | 400 | A10 에 넣은 값이 URL 모양이 아니다 | 위와 같은 400. 사용자가 직접 입력한 값이라 `VALIDATION_FAILED` 와 코드를 나눴다 — 화면이 입력칸 옆에 안내를 띄우게 | 화면: 입력칸 옆에 「URL 을 확인해 주세요」 |
+| `UNSUPPORTED_SOURCE` | 422 | URL 모양은 맞는데 지원하지 않는 언론사다(PRD FR-32) | 422 Unprocessable Content 는 「형식은 맞지만 내용 때문에 처리할 수 없다」는 뜻이다. 형식 오류(400)와 갈라야 화면 안내가 달라진다 | 화면: 「지원하지 않는 출처」 안내, A12 지원 출처 목록, 저장된 기사로 가는 길 |
+| `SOURCE_FETCH_FAILED` | 502 | 지원 출처인데 그 언론사 서버에서 본문을 받아 오지 못했다 | 502 Bad Gateway 는 「우리 서버가 다른 서버에 부탁했는데 제대로 된 답을 못 받았다」는 뜻이다. 사용자 잘못도 우리 서버 고장도 아니다 | 화면: 잠시 뒤 다시 해 보라고 안내 |
+| `TOO_MANY_REQUESTS` | 429 | A10 요청이 상한을 넘었다 | 429 는 이 경우를 위한 표준 상태다. URL 분석마다 GMS 비용이 들어 상한을 둔다(SSOT 3절 예산). 상한 값과 다시 해도 되는 때를 알릴지는 `SSOT.md` 8절 | 화면: 「잠시 뒤 다시 시도해 주세요」 |
+| `CATEGORY_NOT_FOUND` · `ISSUE_NOT_FOUND` · `EVENT_NOT_FOUND` · `ARTICLE_NOT_FOUND` · `ANALYSIS_JOB_NOT_FOUND` | 404 | 그 코드 · ID 가 없다. 아직 투입하지 않은 기사도 없는 것으로 본다 | 404 Not Found 는 「그런 자원이 없다」는 뜻이다. 자원마다 코드를 나눈 까닭: 한 화면이 여러 자원을 부를 때 어느 것이 없는지 알 수 있고, 화면 문구도 다르다 | 화면: 「이슈를 찾을 수 없어요」 같은 안내와 홈으로 가는 길 |
+| `MINDMAP_NOT_FOUND` | 404 | 기사는 있는데 마인드맵 결과가 아직 없다 | 「없는 단건은 404」(1절)를 지킨다. 다만 `ARTICLE_NOT_FOUND` 와 코드를 나눠 「기사가 없음」과 「결과가 아직 없음」을 가른다 | 화면: A8 의 `mindmapStatus` 를 보고 분석 중이면 기다리고, 실패면 실패 안내 |
+| `UNAUTHORIZED` · `FORBIDDEN` | 401 · 403 | 내부 API 를 인증 없이(401) · 권한 없이(403) 불렀다. 인증 방식은 `SSOT.md` 8절에서 정한다 | 401 은 「누구인지 모른다」, 403 은 「누군지는 알지만 허락되지 않았다」는 뜻이다 | 배치 · 워커: 설정한 키를 확인한다. 화면용 API 는 로그인이 없어 나오지 않는다 |
+| `INTERNAL_ERROR` | 500 | 그 밖의 서버 오류 | 500 은 서버 쪽 잘못이다. 받는 쪽이 고칠 것이 없다 | 화면: 일반 오류 안내와 *다시 시도*. 서버는 로그를 남긴다 |
+
+### 내부 API 전용 (B1 · W1)
+
+| code | 상태 | 뜻 · 언제 나오나 | 왜 이 상태인가 | 받는 쪽이 할 일 |
+|---|---|---|---|---|
+| `RESULT_SCHEMA_INVALID` | 400 | W1 결과가 약속한 모양이 아니다. 빠진 필드, 후보에 없는 `eventId` · `issueId` 도 여기 | 워커가 보낸 요청이 잘못됐으니 400 이다. 같은 내용을 다시 보내도 또 실패한다는 신호다 | 워커: ack 하고 로그를 남긴다. 다시 생성할지는 Jira 30 재처리 정책 |
+| `EVIDENCE_NOT_IN_BODY` | 400 | 근거를 본문과 대조해 맞지 않는 것을 뺐더니 남는 노드가 없다(`api-screen.md` 마인드맵 근거) | v0 는 워커 쪽 실패를 400 으로 모아 「같은 것을 다시 보내지 말라」로 쓴다. `RESULT_SCHEMA_INVALID` 와 코드를 나눈 까닭은 근거 정확도(PRD SM-2)를 따로 세어 프롬프트를 고치는 데 쓰려는 것이다. 형식은 맞고 내용이 문제라 422 가 더 맞을 수 있다 — 바꿀지 MR 에서 묻는다 | 워커: ack 하고 로그를 남긴다. 다시 생성할지는 Jira 30 |
+| `JOB_STATE_CONFLICT` | 409 | 이미 끝난 작업이거나 `attempt` 가 지금 시도와 다르다. 같은 메시지를 두 번 받았거나 옛 시도의 결과가 늦게 왔을 때다 | 409 Conflict 는 「요청은 맞는데 지금 자원 상태와 부딪친다」는 뜻이다. 오류라기보다 「이미 처리됐으니 신경 쓰지 말라」는 신호다 | 워커: ack 하고 넘어간다 |
+| `ALREADY_RELEASED` | 409 | B1 로 이미 투입한 기사를 또 투입했다 | 위와 같은 409 | 배치: 건너뛰고 다음 기사로 |
 
 ### 작업 실패 코드
 
-A11 과 W1 의 `error.code` 에 쓴다. `message` 는 개발자용이라 화면에 그대로 보이지 않고, 화면은 `code` 로 문구를 고른다.
+오류 응답이 아니라, 분석 작업이 실패했을 때 A11 · W1 의 `error.code` 에 담는 값이다. `retryable`(다시 하면 될 것 같은가)은 워커가 판단해 보낸다.
 
-| code | 뜻 |
-|---|---|
-| `LLM_TIMEOUT` · `LLM_RATE_LIMITED` | GMS 가 제때 답하지 않았거나 호출 한도에 걸렸다 |
-| `LLM_OUTPUT_INVALID` | GMS 출력이 약속한 형식에 안 맞았다 |
-| `SOURCE_FETCH_FAILED` | 기사 본문을 가져오지 못했다 |
-| `INTERNAL` | 그 밖의 워커 · 서버 오류 |
+| code | 뜻 | 다시 하면 되나 | 화면 안내 |
+|---|---|---|---|
+| `LLM_TIMEOUT` | GMS 가 정한 시간 안에 답하지 않았다 | 대개 된다 | 「분석이 늦어지고 있어요」 · *다시 시도* |
+| `LLM_RATE_LIMITED` | GMS 호출 한도에 걸렸다 | 잠시 뒤에 된다 | 위와 같음 |
+| `LLM_OUTPUT_INVALID` | GMS 출력이 약속한 JSON 모양이 아니다 | 몇 번은 될 수 있다 | 「분석하지 못했어요」 |
+| `SOURCE_FETCH_FAILED` | 기사 본문을 가져오지 못했다 | 언론사 서버에 달렸다 | 「기사를 가져오지 못했어요」 |
+| `INTERNAL` | 그 밖의 워커 · 서버 오류 | 모른다 | 일반 오류 안내 |
 
 ---
 
-## 2. 화면용 엔드포인트
+## 3. 엔드포인트
 
-두 흐름(MVP 개요 5장)이 어느 엔드포인트를 부르는지다. 홈은 따로 두지 않고 A1 · A2 · A7 을 쓴다.
+주소 지도 — 화면용 상세는 `docs/api-screen.md`, 내부용 상세는 `docs/api-internal.md`
 
 ```mermaid
 flowchart LR
-  subgraph FA["흐름 A — 카테고리에서"]
-    A1["A1 카테고리"] --> A2["A2 이슈 목록"] --> A4["A3 · A4 이슈 헤더 · 타임라인"] --> A5["A5 · A6 사건 · 관련 기사"]
-  end
-  subgraph FB["흐름 B — 기사에서"]
-    A7["A7 최신 기사"]
-    B1["상단 생성 — A10 · A11 URL 분석"]
-  end
-  A5 --> M["A8 · A9 기사 · 마인드맵"]
-  A7 --> M
-  B1 --> M
-  M -- "소속 이슈 (F11)" --> A4
+  R["/api/v1"] --> C["/categories — A1 카테고리"]
+  R --> I["/issues — A2 목록 · A3 헤더 · A4 타임라인"]
+  R --> E["/events — A5 사건 패널 · A6 관련 기사"]
+  R --> AR["/articles — A7 최신 기사 · A8 상세 · A9 마인드맵"]
+  R --> J["/analysis-jobs — A10 URL 분석 요청 · A11 상태"]
+  R --> S["/sources — A12 지원 출처"]
+  R --> Q["/search — A13 통합 검색 (자리만)"]
+  R2["/internal/v1 (배치 · 워커만)"] --> B1["/articles/{articleId}/release — B1 투입"]
+  R2 --> W1["/analysis-jobs/{jobId}/result — W1 결과 전달"]
 ```
 
 | # | 엔드포인트 | 쓰는 곳 |
@@ -113,312 +166,39 @@ flowchart LR
 | A11 | `GET /api/v1/analysis-jobs/{jobId}` | 분석 상태 (Jira 57) |
 | A12 | `GET /api/v1/sources` | 지원 출처 목록 (Jira 57, Q26) |
 | A13 | `GET /api/v1/search` | 통합 검색 — 자리만 (Jira 43) |
+| B1 | `POST /internal/v1/articles/{articleId}/release` | 수집 배치의 기사 투입 — `docs/api-internal.md` |
+| W1 | `POST /internal/v1/analysis-jobs/{jobId}/result` | 워커의 분석 결과 전달 — `docs/api-internal.md` |
 
-### A1. 카테고리
-
-7개를 MVP 개요 2-1 순서로 준다. 투입한 기사와 사건이 있는 이슈만 센다.
-
-```json
-{ "items": [{ "code": "economy", "name": "경제", "issueCount": 3, "articleCount": 1520 }] }
-```
-
-### A2. 이슈 목록
-
-- 인자: `category`(없으면 전체) · `page` · `size`
-- 사건이 하나라도 있는 이슈만 준다(PRD FR-4). 정렬은 마지막 사건 발생 시점 최신순(PRD FR-4 가정), 같으면 `id` 내림차순
-- 없는 카테고리 코드면 404 `CATEGORY_NOT_FOUND`. 이슈가 없는 카테고리는 200 과 빈 `items`
-
-```json
-{
-  "items": [{
-    "id": 12,
-    "title": "한빛반도체 미국 공장 건설",
-    "summary": "한빛반도체가 텍사스 공장 투자를 늘리고 착공했다",
-    "categories": [{ "code": "economy", "name": "경제" }],
-    "eventCount": 8, "articleCount": 23, "publisherCount": 5,
-    "firstEventAt": "2026-08-04T00:00:00+09:00",
-    "lastEventAt": "2026-10-09T08:41:00+09:00",
-    "lastEvent": { "id": 98, "title": "인력 수급 우려" }
-  }],
-  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
-}
-```
-
-### A3. 이슈 헤더
-
-A2 의 항목과 같은 모양에서 `lastEvent` 만 뺀다. 기간은 `firstEventAt` ~ `lastEventAt` 이다(PRD FR-20).
-
-### A4. 타임라인
-
-- 이슈의 사건을 전부 한 번에 준다(페이지 없음). 정렬은 `occurredAt` 오름차순, 같으면 `id` 오름차순
-- `relations` 는 P0 에서 늘 빈 배열이다. 후속 · 반응 · 반박(PRD FR-22, Q25)을 넣으면 `{ "fromEventId", "toEventId", "type" }` 로 채운다
-- 세로축 보도량은 아직 정하지 않았다(Q15). 프로토타입처럼 기사 수로 그린다면 `articleCount` 를 쓴다. 사건 태그(#새 정보 등)는 F09 · F10 이라 없다. 언론사 필터(PRD FR-23)는 P1 이다
-
-```json
-{
-  "issueId": 12,
-  "events": [{
-    "id": 91, "title": "공식 발표",
-    "occurredAt": "2026-08-21T00:00:00+09:00", "occurredAtBasis": "EXTRACTED",
-    "articleCount": 5, "publisherCount": 3
-  }],
-  "relations": []
-}
-```
-
-`occurredAtBasis` 가 `FIRST_PUBLISHED` 면 본문에서 시점을 못 뽑아 가장 이른 기사의 발행 시각을 썼다(`data-model.md` 2절 event).
-
-### A5. 사건 패널
-
-- `issue` 가 `null` 이면 아직 이슈로 묶이지 않은 사건이다
-- `previousEvent` · `nextEvent` 는 같은 이슈 안에서 발생 시점 순서로 앞뒤 사건이다. 없으면 `null`
-- 관점(PRD FR-24~26, P2)과 이 사건의 변화(F09 · F10)는 빠져 있다. 사건 요약의 AI 표시와 「핵심 근거」(PRD 5.4)는 `data-model.md` 5절 13번이 정해지면 더한다
-
-```json
-{
-  "id": 98, "title": "인력 수급 우려", "summary": "텍사스 공장에 필요한 엔지니어 수를 두고 보도가 엇갈렸다",
-  "occurredAt": "2026-10-09T08:41:00+09:00", "occurredAtBasis": "FIRST_PUBLISHED",
-  "issue": { "id": 12, "title": "한빛반도체 미국 공장 건설" },
-  "articleCount": 4, "publishers": ["바른신문", "새벽타임즈"],
-  "previousEvent": { "id": 97, "title": "착공식", "occurredAt": "2026-10-06T00:00:00+09:00" },
-  "nextEvent": null
-}
-```
-
-### A6. 사건 관련 기사
-
-- 인자: `page` · `size`. 화면은 처음 4건(PRD FR-11)을 `size=4` 로 부르고 *더 보기* 에서 다음 쪽을 부른다
-- 정렬은 발행 시각 오름차순, 같으면 `id` 오름차순. 특정 언론사를 앞세우지 않는다(PRD 4.11)
-- 항목 모양(기사 요약)은 A7 과 같다
-
-### A7. 최신 기사
-
-- 인자: `category`(없으면 전체) · `page` · `size`
-- 정렬은 발행 시각 최신순(PRD FR-2), 같으면 `id` 내림차순
-- `summary` 는 마인드맵의 요약이라 분석 전이면 `null` 이다. 본문 첫 문장으로 대신할지는 본문 노출 범위(Q3)가 정해진 뒤에 본다
-- `mindmapStatus` 로 마인드맵 유무를 가른다(Jira 42). 마인드맵 결과가 있으면 다시 분석하는 중이어도 `SUCCEEDED` 다. 결과가 없으면 6하원칙 추출 작업의 상태(`QUEUED` · `FAILED`), 작업도 없으면 `NONE`
-
-```json
-{
-  "items": [{
-    "id": 456, "title": "한빛반도체 텍사스 공장 첫 삽… \"2028년 양산 변함없다\"",
-    "publisher": "가람일보", "publishedAt": "2026-10-06T10:12:00+09:00",
-    "category": { "code": "economy", "name": "경제" },
-    "summary": "한빛반도체가 텍사스 공장을 착공했다", "url": "https://news.example.com/a/456",
-    "mindmapStatus": "SUCCEEDED"
-  }],
-  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
-}
-```
-
-### A8. 기사 상세
-
-A7 항목에 기자 · 소속 사건 · 소속 이슈를 더한다. 본문(`body`)은 노출 범위(Q3 · Q28)가 정해질 때까지 내보내지 않는다.
-
-```json
-{
-  "id": 456, "title": "…", "publisher": "가람일보", "reporter": "김민정 기자",
-  "publishedAt": "2026-10-06T10:12:00+09:00", "url": "https://news.example.com/a/456",
-  "category": { "code": "economy", "name": "경제" },
-  "summary": "…", "mindmapStatus": "SUCCEEDED", "eventMatchStatus": "SUCCEEDED",
-  "event": { "id": 97, "title": "착공식", "occurredAt": "2026-10-06T00:00:00+09:00" },
-  "issue": { "id": 12, "title": "한빛반도체 미국 공장 건설" }
-}
-```
-
-- *이 기사가 속한 이슈 보기*(PRD FR-15)는 `issue.id` 로 A3 · A4 를 열고 `event.id` 사건을 강조한다
-- `eventMatchStatus` 는 동일 사건 판정 작업의 상태다(`NONE` · `QUEUED` · `SUCCEEDED` · `FAILED`). 화면은 이것으로 「사건을 찾는 중」과 「묶이지 않음」을 가른다
-- 판정이 끝났는데 `issue` 가 `null` 이면 「아직 이슈로 묶이지 않았다」고 안내한다(PRD FR-30)
-
-### A9. 기사 마인드맵
-
-- 마인드맵이 없으면 404 `MINDMAP_NOT_FOUND`
-- `content` 는 저장한 jsonb 를 그대로 준다. 모양은 3절. `generatedAt` 은 워커가 결과를 만든 시각이다
-- 노드 상세의 관련 기사(PRD FR-7)는 A8 의 `event.id` 로 A6 을 불러 채운다
-
-```json
-{
-  "articleId": 456, "schemaVersion": "mindmap-v0",
-  "generatedAt": "2026-10-06T10:13:05+09:00", "aiGenerated": true,
-  "content": { }
-}
-```
-
-### A10 · A11. 지원 URL 분석
-
-요청 `POST /api/v1/analysis-jobs`
-
-```json
-{ "url": "https://news.example.com/a/812" }
-```
-
-| 결과 | 상태 | 본문 |
-|---|---|---|
-| 새로 분석을 건다 | 202 · `Location: /api/v1/analysis-jobs/{jobId}` | `{ "jobId": 901, "articleId": 812, "status": "QUEUED" }` |
-| 같은 URL 기사가 이미 있다 | 200 | 그 기사의 6하원칙 추출 작업. 끝났으면 `status` 가 `SUCCEEDED` 라 바로 A9 를 연다 |
-| URL 이 아님 · 지원하지 않는 출처 · 본문을 못 가져옴 · 요청이 너무 많음 | 400 · 422 · 502 · 429 | 1절 오류 |
-
-- 같은 기사인지는 원문 링크가 같은지로 가른다(`article.url` 고유). 링크 정규화는 Jira 34
-- 아직 투입하지 않은 데이터셋 기사의 URL 이면 그 자리에서 투입하고 분석을 건다(202). 제안이다(`data-model.md` 5절 8번)
-- 본문은 A12 목록의 도메인일 때만 가져온다. 다른 호스트로 가는 리다이렉트는 따라가지 않는다 — 서버가 엉뚱한 주소를 부르게 하는 요청을 막으려는 것이다
-
-상태 `GET /api/v1/analysis-jobs/{jobId}` — 화면은 2초마다 불러 `SUCCEEDED` 면 A9 를, `FAILED` 면 오류 안내를 연다. 이 작업은 6하원칙 추출(`EXTRACT`) 단계다. 사건 · 이슈 연결은 그 뒤에 이어서 돌고, 화면은 A8 의 `eventMatchStatus` 로 본다.
-
-```json
-{
-  "jobId": 901, "articleId": 812, "stage": "EXTRACT", "status": "FAILED",
-  "createdAt": "2026-10-19T11:00:00+09:00", "finishedAt": "2026-10-19T11:00:40+09:00",
-  "error": { "code": "LLM_TIMEOUT", "message": "GMS 응답이 60초 안에 오지 않았다" }
-}
-```
-
-`status` 는 `QUEUED`(대기 또는 처리 중) · `SUCCEEDED` · `FAILED` 셋이다. 분석 단계별 진행 표시(PRD FR-32 P1)를 넣으면 이 응답에 단계 목록을 더한다.
-
-### A12. 지원 출처
-
-어느 언론사 URL 을 받을지는 Q26 이다. 모양만 정한다.
-
-```json
-{ "items": [{ "publisher": "가람일보", "domain": "news.example.com" }] }
-```
-
-### A13. 통합 검색 — 자리만
-
-인자 `q`(검색어). 이슈 · 사건 · 기사를 나눠 돌려준다(PRD FR-3 빠른 이동, Jira 43). 검색 범위 · 검색어 길이 제한 · 유형별 개수는 Jira 43 에서 합의한다.
-
-```json
-{ "issues": [{ "id": 12, "title": "…" }], "events": [{ "id": 98, "title": "…", "issueId": 12 }], "articles": [{ "id": 456, "title": "…" }] }
-```
-
----
-
-## 3. 마인드맵 `content` (제안)
-
-노드 구조와 AI 출력 스키마는 Q33 에서 AI · FE 가 정한다. 그 전에 화면과 검증에 꼭 필요한 **근거 한 개의 모양**만 먼저 제안한다.
-
-```json
-{ "text": "13일 이사회에서 선임될 예정이다.", "paragraphIndex": 3, "sentenceIndex": 1 }
-```
-
-- `paragraphIndex` 는 본문을 줄바꿈으로 나누고 빈 줄을 뺀 순서, `sentenceIndex` 는 그 문단 안의 문장 순서다. 둘 다 0부터. 화면은 1을 더해 「4번째 문단」으로 보여 준다(PRD FR-7)
-- `text` 는 그 문단에 글자 그대로 있어야 한다(PRD FR-5). API 가 저장 전에 대조해 맞지 않는 근거는 빼고, 근거가 하나도 남지 않은 노드도 뺀다(Jira 54 「근거 없는 항목을 채우지 않는다」). 노드가 하나도 안 남으면 W1 이 400 `EVIDENCE_NOT_IN_BODY` 를 돌려준다
-- 근거 하나 때문에 추출 전체를 다시 돌리면 GMS 비용이 든다. 그래서 통째로 거절하지 않고 빼고 저장하자고 제안한다. 뺀 개수는 로그에 남겨 평가에 쓴다
-- 문장을 나누는 규칙은 AI 쪽 코드 하나에만 둔다
-
-아래는 6하원칙(F03) 기준으로 그려 본 예시일 뿐 계약이 아니다.
-
-```json
-{
-  "root": { "title": "40대 여성 CEO 김유진, '실적 부진' 한샘의 구원투수될까" },
-  "branches": [{
-    "type": "WHO",
-    "nodes": [{ "id": "n1", "label": "김유진", "summary": "IMM오퍼레이션즈본부장, 한샘 신임 대표 내정", "evidence": [] }]
-  }],
-  "edges": [{ "from": "n1", "to": "n2", "label": "내정" }]
-}
-```
-
-`type` 후보: `WHO` · `WHEN` · `WHERE` · `WHAT` · `HOW` · `WHY`. 근거 없는 항목은 채우지 않는다(Jira 54).
-
----
-
-## 4. 내부 계약 — 수집 배치 · AI 워커
-
-SSOT 2절 3~6번(배치가 적재 · 투입, 작업 큐 등록, 워커 분석, 결과 저장)을 이렇게 하자고 제안한다. 큐에 넣는 코드는 API 한 곳에만 두고(SSOT 4절), 워커는 DB 를 직접 쓰지 않는다. pgvector 후보 검색과 저장은 API 가 한다.
+흐름 A — 카테고리에서 시작 (MVP 개요 5장). 둥근 상자는 사용자 행동, 네모 상자는 그때 화면이 부르는 API 와 받는 것이다. 홈은 따로 두지 않고 A1 · A2 · A7 을 쓴다.
 
 ```mermaid
-sequenceDiagram
-  participant B as 수집 배치
-  participant API as API 서버
-  participant Q as Redis 작업 큐
-  participant W as AI 워커
-  B->>API: B1 투입 (발행 순서대로)
-  API->>Q: analysis.released (EXTRACT · EMBED)
-  Q->>W: 그룹 extract · embed 가 각자 읽음
-  W->>API: W1 결과 — 요약 · 마인드맵 · 발생 시점 / 벡터
-  API->>API: 비슷한 기사로 후보 사건 최대 5개
-  API->>Q: analysis.match_event (후보 포함)
-  Q->>W: 그룹 match_event 가 하나씩 읽음
-  W->>API: W1 결과 — 기존 사건 또는 새 사건
+flowchart TD
+  U1(["사용자 — 카테고리를 고름"]) -->|"화면 → API"| C1["GET /categories (A1) · GET /issues?category=economy (A2) — 카테고리 7개와 이슈 카드 목록을 받음"]
+  C1 --> U2(["사용자 — 이슈 카드를 누름"])
+  U2 -->|"화면 → API"| C2["GET /issues/12 (A3) · GET /issues/12/timeline (A4) — 이슈 헤더와 사건 노드를 받음"]
+  C2 --> U3(["사용자 — 사건 노드를 누름"])
+  U3 -->|"화면 → API"| C3["GET /events/98 (A5) · GET /events/98/articles?size=4 (A6) — 사건 패널과 관련 기사 4건을 받음"]
+  C3 --> U4(["사용자 — 기사를 누름"])
+  U4 -->|"화면 → API"| C4["GET /articles/456 (A8) · GET /articles/456/mindmap (A9) — 기사 상세와 마인드맵을 받음"]
 ```
 
-### B1. 기사 투입 — `POST /internal/v1/articles/{articleId}/release`
+흐름 B — 기사에서 시작. URL 을 넣었으면 분석이 끝날 때까지 2초마다 상태를 본다. 「화면 → API」 선 아래 상자가 그때 부르는 API 와 받는 것이다.
 
-- 수집 배치가 적재해 둔 기사를 서비스에 넣는다. API 가 `released_at` 을 채우고 `EXTRACT` · `EMBED` 작업 행을 만든다
-- 기사를 적재하는 길(배치가 DB 에 바로 넣나, API 를 부르나)은 수집 배치 구현 언어와 같이 정한다(`SSOT.md` 8절)
-- 응답: 202(작업을 걸었다) · 404 `ARTICLE_NOT_FOUND` · 409 `ALREADY_RELEASED`
-
-### 큐 모양과 순서
-
-- 스트림 `analysis.released` 하나를 consumer group `extract` · `embed` 가 각자 읽는다. SSOT 4절의 「단계마다 consumer group」 모양이다
-- 스트림 `analysis.match_event` 는 그룹 `match_event` 하나가 읽는다. 후보를 API 가 붙여 넣어야 해서 따로 둔다
-- API 는 DB 를 커밋한 **뒤** 큐에 넣는다. 그래서 정상 흐름에서 W1 이 404 를 받는 일은 없다. 큐에 넣다 실패해 오래 `QUEUED` 로 남은 작업은 다시 넣는다. 그 기준 시간 · 스트림 길이 상한 · 다시 가져가기 기준 시간은 Jira 30
-- `MATCH_EVENT` 는 한 번에 하나씩 발행 순서대로 돈다. API 는 앞 기사의 판정이 끝난 뒤 다음 기사의 판정을 건다. 같은 사건 기사 둘이 동시에 판정되면 서로를 후보로 못 봐 사건이 둘로 갈라지기 때문이다(PRD FR-31 「앞선 기사들과만 비교」)
-- `MATCH_EVENT` 는 `EXTRACT` 와 `EMBED` 가 둘 다 끝난 뒤에 건다. 판정에 기사의 주체 · 시점(MVP 개요 F06)과 벡터가 다 필요하다
-
-### 작업 메시지 — API → 큐 → 워커
-
-항목 하나에 `payload` 필드 하나를 두고 JSON 문자열을 넣는다. `analysis.released` 메시지는 단계별 작업 ID 를 같이 싣는다. 한 단계만 다시 돌릴 때는 그 단계만 싣고, 다른 그룹은 자기 단계가 없으면 넘어간다.
-
-```json
-{
-  "articleId": 456, "jobs": { "EXTRACT": 789, "EMBED": 790 }, "attempt": 1,
-  "article": { "title": "…", "publisher": "가람일보", "publishedAt": "2026-10-06T10:12:00+09:00", "body": "…" }
-}
+```mermaid
+flowchart TD
+  U1(["사용자 — 최신 기사를 고름"]) -->|"화면 → API"| C1["GET /articles?category=economy (A7) — 기사 목록을 받음"]
+  U0(["사용자 — 상단 생성에 URL 을 넣음"]) -->|"화면 → API"| C2["POST /analysis-jobs (A10) — 202 와 jobId 를 받음"]
+  C2 --> P{"GET /analysis-jobs/901 (A11) 을 2초마다 — 아직 QUEUED 면 2초 뒤 다시, 끝났으면 아래로"}
+  P -->|"FAILED"| F["오류 안내 — 작업 실패 코드로 문구를 고름"]
+  P -->|"SUCCEEDED"| C3["GET /articles/812 (A8) · GET /articles/812/mindmap (A9) — 기사 상세(소속 사건 · 이슈)와 마인드맵"]
+  C1 --> C3
+  C3 --> U2(["사용자 — 이 기사가 속한 이슈 보기"])
+  U2 -->|"화면 → API"| C4["GET /issues/12 (A3) · GET /issues/12/timeline (A4) — A8 의 event.id 사건을 강조"]
 ```
-
-`analysis.match_event` 메시지
-
-```json
-{
-  "articleId": 456, "jobId": 791, "attempt": 1,
-  "article": { "title": "…", "publisher": "가람일보", "publishedAt": "2026-10-06T10:12:00+09:00" },
-  "extracted": { "summary": "…", "occurredAt": "2026-10-06T00:00:00+09:00", "mindmap": { } },
-  "candidates": [{ "eventId": 97, "title": "착공식", "summary": "…", "occurredAt": "2026-10-06T00:00:00+09:00", "issueId": 12, "similarity": 0.83 }]
-}
-```
-
-`extracted.mindmap` 은 3절 `content` 그대로다. 판정에 쓸 주체(`WHO`) · 시점이 여기에 있다.
-
-### W1. 결과 전달 — `POST /internal/v1/analysis-jobs/{jobId}/result`
-
-모든 단계가 같은 봉투를 쓰고 `result` 만 단계마다 다르다. `attempt` 는 받은 메시지의 값을 그대로 돌려준다.
-
-```json
-{
-  "attempt": 1, "status": "SUCCEEDED",
-  "model": "gpt-5-mini", "promptVersion": "extract-v1",
-  "startedAt": "2026-10-06T10:12:30+09:00", "finishedAt": "2026-10-06T10:13:05+09:00",
-  "result": { },
-  "error": null
-}
-```
-
-실패면 `status` 가 `FAILED`, `result` 는 `null`, `error` 는 `{ "code": "LLM_TIMEOUT", "message": "…", "retryable": true }` 다. 코드는 1절 「작업 실패 코드」.
-
-| 단계 | `result` |
-|---|---|
-| `EXTRACT` | `{ "summary": "…", "schemaVersion": "mindmap-v0", "mindmap": { 3절 }, "occurredAt": "…" 또는 null }` |
-| `EMBED` | `{ "model": "…", "dimension": 384, "vector": [0.012, -0.034] }` — 384 는 시험 모델(SSOT 10절) 값일 뿐이고 쓸 모델은 미정 |
-| `MATCH_EVENT` | 기존 사건 `{ "decision": "EXISTING", "eventId": 97, "newEvent": null, "reason": "…" }` · 새 사건 `{ "decision": "NEW", "eventId": null, "newEvent": { "title": "…", "summary": "…", "issueId": 12 또는 null }, "reason": "…" }` |
-
-- `NEW` 면 API 가 사건을 만든다. 발생 시점은 `EXTRACT` 의 `occurredAt`(`article_mindmap.occurred_at`), 없으면 그 기사의 발행 시각이다
-- `newEvent.issueId` 는 워커가 후보 사건들의 이슈 중에서 고른다. 맞는 이슈가 없으면 `null` 이고 사건은 이슈 밖에 남는다. 대표 이슈와 첫 사건을 사람이 넣는 길(관리용 내부 API · 초기 데이터)은 Q5 와 같이 정한다. 모두 제안이다
-- 사건에 기사가 늘 때 사건 이름 · 요약을 고칠지는 Q21
-
-API 응답
-
-| 상태 | 뜻 | 워커가 할 일 |
-|---|---|---|
-| 204 | 저장했다 | 메시지를 ack 한다 |
-| 400 `RESULT_SCHEMA_INVALID` · `EVIDENCE_NOT_IN_BODY` | 형식이 틀렸거나 남는 노드가 없다. 후보에 없는 `eventId` · `issueId` 도 여기 | ack 한다. 다시 생성할지는 Jira 30 재처리 정책 |
-| 404 `ANALYSIS_JOB_NOT_FOUND` | 그런 작업이 없다. 정상 흐름에서는 나오지 않는다 | ack 하고 로그를 남긴다 |
-| 409 `JOB_STATE_CONFLICT` | 이미 끝난 작업이거나 `attempt` 가 지금 시도와 다르다. 같은 메시지를 두 번 받았거나 옛 시도의 결과가 늦게 왔을 때 | ack 하고 넘어간다 |
-| 5xx · 연결 실패 | API 가 배포 중이거나 죽었다 | ack 하지 않는다. 메시지가 다시 온다 |
 
 ---
 
-## 5. FE · AI 에게 물을 것
+## 4. FE · AI 에게 물을 것
 
 답을 받으면 해당 절을 고치고 이 목록에서 지운다. 데이터 모델 쪽 미정은 `data-model.md` 5절.
 
@@ -435,16 +215,16 @@ FE
 AI
 
 1. 결과를 HTTP 내부 API(W1)로 보내고 DB 는 직접 안 쓰는 방식이면 되나. 결과용 스트림이 낫다면 까닭
-2. 큐 모양(4절 — 스트림 둘, 그룹 셋)과 메시지에 본문을 통째로 넣는 것
-3. 근거 모양(3절) — 문단 · 문장 번호를 0부터 세고 문장 나누기 규칙을 워커가 갖는 것, 맞지 않는 근거는 API 가 빼고 저장하는 것
+2. 큐 모양(`api-internal.md` — 스트림 둘, 그룹 셋)과 메시지에 본문을 통째로 넣는 것
+3. 근거 모양(`api-screen.md` 마인드맵 근거) — 문단 · 문장 번호를 0부터 세고 문장 나누기 규칙을 워커가 갖는 것, 맞지 않는 근거는 API 가 빼고 저장하는 것
 4. 본문에서 뽑은 발생 시점이 날짜까지만 있을 때 어떻게 보낼지 (`data-model.md` 5절 12번)
 5. `MATCH_EVENT` 결과 모양 — 새 사건 이름 · 요약을 워커가 짓고, 이슈를 후보 사건의 이슈 중에서 고르는 것
-6. 실패 코드 목록과 `retryable` 을 워커가 판단해 보내는 것
+6. 작업 실패 코드 목록(2절)과 `retryable` 을 워커가 판단해 보내는 것
 7. 임베딩 모델 · 차원 (`SSOT.md` 8절)
 
 ---
 
-## 6. Jira 티켓 대조
+## 5. Jira 티켓 대조
 
 BE API 티켓의 「출력」 칸과 완료 기준이 어디에 들어갔는지다.
 
@@ -455,15 +235,16 @@ BE API 티켓의 「출력」 칸과 완료 기준이 어디에 들어갔는지�
 | 43 이슈·사건·기사 통합 검색 | 유형별 결과 · 이동 대상 ID, 0건 | A13 (자리만) |
 | 48 타임라인·관계·필터 조회 | 사건 · 관계 · 관련 기사 수, 발생 시각 · 발행일 구분 | A4 (`occurredAt` 과 기사 쪽 `publishedAt` 은 다른 필드). 언론사 필터는 P1(PRD FR-23)이라 뺐다 |
 | 49 사건 상세·기사·관점·변화 조회 | 요약 · 관련 기사 · 관점 · 변화 전후 근거 | A5 · A6. 관점은 P2, 변화는 F09 · F10 이라 뺐다 |
-| 56 마인드맵 결과 저장·조회 | 노드 · 관계 · 근거 · 유형 · 관련 콘텐츠, 기존 결과 재사용 여부 | A9 `content`(3절), 관련 기사는 A8 → A6, 저장은 W1. 재사용은 A10 의 200(이미 있는 결과)과 `mindmapStatus` 로 읽었다 — 이 해석은 티켓 원문 작성자에게 확인한다 |
+| 56 마인드맵 결과 저장·조회 | 노드 · 관계 · 근거 · 유형 · 관련 콘텐츠, 기존 결과 재사용 여부 | A9 `content`, 관련 기사는 A8 → A6, 저장은 W1. 재사용은 A10 의 200(이미 있는 결과)과 `mindmapStatus` 로 읽었다 — 이 해석은 티켓 원문 작성자에게 확인한다 |
 | 57 기사 URL 분석 요청·지원 출처·상태 | 분석 요청 ID · 진행/완료/실패 상태 · 결과 ID, 잘못된 · 미지원 URL 구분 | A10 · A11 · A12, `INVALID_URL` · `UNSUPPORTED_SOURCE` |
 | 62~64 로그인 · 북마크 · 관심 이슈 | — | 범위 미정이라 v0 에 없다(`data-model.md` 5절 6번) |
 
 ---
 
-## 7. 바꾸는 법
+## 6. 바꾸는 법
 
 - 응답에 필드를 더하는 것은 언제든 된다. 화면은 모르는 필드를 무시한다
 - 필드 이름 · 뜻을 바꾸거나 지우는 것은 FE 와 같은 MR 에서 고친다. 배포 중에는 옛 화면과 새 API 가 같이 돌 수 있다(SSOT 6절 「무중단 배포 조건」)
 - 1절 공통 규칙을 바꾸면 `SSOT.md` 9절 「뒤집은 것」에 한 줄 남긴다
 - 첫 API 티켓은 `+09:00` 직렬화와 `ProblemDetail` 의 `code` 를 테스트로 확인한다. Spring Boot 4 · Jackson 3 에서 기본값으로 나오는지는 아직 돌려 보지 않았다
+- md 를 고치면 FigJam 보기용 사본에서 같은 그림만 다시 만든다
