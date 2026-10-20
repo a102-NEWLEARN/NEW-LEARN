@@ -41,13 +41,15 @@ DB · Redis 만 compose 로 띄우고 내 영역은 IDE 나 터미널에서 띄�
 - **워커** — `uv run --env-file ../.env` 로 같은 `.env` 를 읽는다. Python 3.14 가 없으면 uv 가 받아 쓴다.
 - **화면** — Vite 개발 서버가 루트 `.env` 의 `BACKEND_PORT` 로 API 를 찾아 `/api` 요청을 넘긴다.
 
-커밋 전 검사(포맷 · 린트 · 테스트)는 호스트에서 돈다. 바꾼 영역의 런타임은 호스트에도 있어야 한다.
+커밋 전 검사(포맷 · 린트 · 테스트)는 호스트에서 바꾼 영역만 돈다. 바꾼 영역의 런타임은 호스트에도 있어야 한다.
+`.gitignore` · `compose.yaml` · `.env.example` 처럼 영역 폴더 밖 파일만 바꾼 커밋은 영역 검사를 돌지 않는다. 어느 영역이 도는지는 `.claude/stack.md` 4절에 있다.
 
 | 영역 | 호스트에 필요한 것 | 확인한 버전 |
 |---|---|---|
 | 화면 | Node 24.15 이상 (도구들의 최소 버전) | Node 24.18 · 컨테이너는 26 |
 | API | JDK 21 이상. 컴파일에 쓰는 25 는 Gradle 이 받는다 | JDK 21.0.11 |
 | 워커 | uv. Python 3.14 는 uv 가 받는다 | uv 0.12.5 · 컨테이너는 0.13.1 |
+| 인프라 | Terraform 1.16.6 이상 1.17 미만 (`infra/terraform/versions.tf`) | Terraform 1.16.6 |
 
 API 테스트는 Testcontainers 로 DB · Redis 컨테이너를 따로 띄우므로 Docker Desktop 이 켜져 있어야 한다.
 
