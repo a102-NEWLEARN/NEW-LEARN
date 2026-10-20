@@ -271,7 +271,7 @@ SEED 는 글꼴 파일을 함께 주지 않고 `body` 에 자동으로 걸지도
 이름 있는 간격(SEED 값, 참고)은 화면 좌우 여백 16px, 칩 사이 8px, 내비게이션–제목 20px, 컴포넌트 사이 12px, 텍스트 사이 6px, 화면 하단 56px 이다 (`spacing-x-*` · `spacing-y-*`).
 
 레이아웃 그리드도 SEED 를 따른다. 콘텐츠 화면은 12컬럼이고 최대 너비 1040px(넓은 탐색 화면은 1280px)로 가운데 정렬한다.
-브레이크포인트(sm 480 · md 768 · lg 1280 · xl 1440px)별 거터 · 마진은 v2 `Foundations/04-layout.md` 에 있다. 화면 크기별로 무엇이 바뀌는지는 EXPERIENCE.md 에서 정한다. EXPERIENCE.md 는 아직 비어 있다.
+브레이크포인트(sm 480 · md 768 · lg 1280 · xl 1440px)별 거터 · 마진은 v2 `Foundations/04-layout.md` 에 있다. 화면 크기별로 무엇이 바뀌는지는 EXPERIENCE.md 의 Responsive & Platform 절에 있다.
 
 ## Elevation & Depth
 
