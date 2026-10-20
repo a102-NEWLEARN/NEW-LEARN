@@ -1,0 +1,175 @@
+# CI 파이프라인 — Jira S15P31A102-92. 계획은 docs/plans/2026-10-20-ci-pipeline.md, 정한 것은 SSOT.md 6절
+#
+# 하네스 껍데기(.claude/ci/gitlab-ci.yml)를 바탕으로 했다. 검사 명령은 여기 적지 않는다.
+# 영역 잡은 .claude/hooks/pre-commit --ci <영역> 으로 .claude/stack.md §3 의 명령을 그대로 돌린다.
+#
+# 잡을 「무엇에 막히나」로 나눈 갈래마다 CPU · 메모리 요청과 상한을 따로 준다 (잡 이름 앞머리).
+#   w0  규칙 — 시크릿 스캔 · MR 규칙 · 하네스 자체 검사. 거의 안 막힌다
+#   w12 영역 정적 검사 + DB 없는 테스트 — frontend · ai · infra
+#   w3  DB · Redis 가 필요한 테스트 — backend (services 로 DB · Redis 를 잡 옆에 띄운다)
+#   이미지 빌드(w4)는 Jira S15P31A102-96
+# KUBERNETES_* 변수는 EC2 러너(Kubernetes executor)만 읽는다. 러너 값의 *_overwrite_max_allowed 를 넘으면
+# 무시된다 (infra/k8s/bootstrap/gitlab-runner-values.yaml). 노트북 러너(Docker executor)는 자기 설정의 상한을 쓴다.
+#
+# 껍데기와 다른 점
+#   - 영역마다 fast · slow 두 잡이 아니라 한 잡이다. 러너 자리가 1개라 두 잡이면 Pod 와 설치가 두 번 돈다
+#     (ai 의존성 약 1 GB). 게이트가 포맷 → 린트 → 테스트 순서라 포맷 오류는 여전히 먼저 실패한다
+#   - 하네스 자체 검사(run.sh)는 .claude/ 가 바뀐 MR 과 dev 에서만 돈다. 한 번에 수 분 걸린다
+#
+# 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 정한다 (SSOT.md 6절).
+# 이미지는 digest 로 고정한다 (2026-10-20 확인). 태그는 사람이 읽으라고 남긴다.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      auto_cancel:
+        on_new_commit: interruptible
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+    - when: never
+
+default:
+  interruptible: true
+  # 러너가 죽거나 멈췄을 때만 한 번 더 돈다. 테스트 실패를 재시도하면 흔들리는 테스트가 가려진다
+  retry:
+    max: 1
+    when: [runner_system_failure, stuck_or_timeout_failure]
+  # 잡이 CPU 상한에 얼마나 막혔는지 로그에 남긴다 — cpu.max 는 상한, cpu.stat 의 nr_throttled · throttled_usec 가 막힌 양
+  after_script:
+    - cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat 2>/dev/null || true
+
+stages:
+  - rules
+  - check
+
+# ---------------------------------------------------------------------------
+# 갈래별 자원
+# ---------------------------------------------------------------------------
+.w0:
+  variables:
+    KUBERNETES_CPU_REQUEST: "100m"
+    KUBERNETES_CPU_LIMIT: "500m"
+    KUBERNETES_MEMORY_REQUEST: "128Mi"
+    KUBERNETES_MEMORY_LIMIT: "256Mi"
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w0"
+
+.area:
+  stage: check
+  variables:
+    KUBERNETES_CPU_REQUEST: "250m"
+    KUBERNETES_CPU_LIMIT: "1"
+    KUBERNETES_MEMORY_REQUEST: "1Gi"
+    KUBERNETES_MEMORY_LIMIT: "2Gi"
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w12"
+  script:
+    - bash .claude/hooks/pre-commit --ci "$AREA"
+
+# ---------------------------------------------------------------------------
+# w0 규칙
+# ---------------------------------------------------------------------------
+# 영역을 좁혀 부르면 게이트가 시크릿 스캔을 건너뛴다. 저장소 전체와 MR 이력은 여기서 한 번만 본다
+w0:rules:
+  extends: .w0
+  stage: rules
+  image: buildpack-deps:trixie-scm@sha256:4241005cb2c47ea99750627baeb06714f6fde7f01a69ce451d85f8dccf0f5691
+  variables:
+    GIT_DEPTH: 0   # MR 의 커밋 이력을 기준 커밋까지 받는다
+  script:
+    - bash .claude/hooks/secret-scan.sh --all
+    - if [ -n "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" ]; then bash .claude/hooks/secret-scan.sh --range "$CI_MERGE_REQUEST_DIFF_BASE_SHA"; fi
+    # 커밋 제목 · MR 제목 규칙 (stack.md §3 COMMIT_TYPES)
+    - if [ "$CI_PIPELINE_SOURCE" = merge_request_event ]; then bash .claude/hooks/mr-check.sh; fi
+
+w0:harness:
+  extends: .w0
+  stage: check
+  image: buildpack-deps:trixie-scm@sha256:4241005cb2c47ea99750627baeb06714f6fde7f01a69ce451d85f8dccf0f5691
+  variables:
+    KUBERNETES_CPU_REQUEST: "250m"
+    KUBERNETES_CPU_LIMIT: "1"
+    KUBERNETES_MEMORY_REQUEST: "512Mi"
+    KUBERNETES_MEMORY_LIMIT: "1Gi"
+  script:
+    - bash .claude/hooks/tests/run.sh
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: [".claude/**/*"]
+
+# ---------------------------------------------------------------------------
+# w12 · w3 영역
+# ---------------------------------------------------------------------------
+# changes: 는 영역 폴더 · stack.md §3 의 <영역>_ALSO_PATHS · .claude/ · 이 파일이다. ALSO_PATHS 를 바꾸면 여기도 맞춘다.
+# dev 는 changes: 없이 전 영역을 돈다. MR 에서 놓친 것을 거기서 잡는다
+w12:frontend:
+  extends: .area
+  image: node:26-trixie@sha256:1b84b89ada025e3b14543cbb837ffaa1c1b5273b841c5b94dd1a8f9c1d8cf7fe   # Node 26.12.0
+  variables:
+    AREA: frontend
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["frontend/**/*", .editorconfig, ".prettierrc*", "prettier.config.*", package.json, package-lock.json, ".claude/**/*", .gitlab-ci.yml]
+
+w12:ai:
+  extends: .area
+  image: ghcr.io/astral-sh/uv:0.13.1-python3.14-trixie@sha256:6863df3d2e87426f81a136ecb2ae6a7e567b2c413a6bf623af89d75a63a00405   # Python 3.14.8
+  variables:
+    AREA: ai
+    UV_PYTHON_DOWNLOADS: never   # 이미지의 Python 3.14 를 쓴다 (ai/.python-version)
+    PYTEST_ADDOPTS: "--junitxml=$CI_PROJECT_DIR/ai-junit.xml"   # 테스트마다 시간이 MR 화면에 남는다
+  artifacts:
+    when: always
+    reports:
+      junit: ai-junit.xml
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["ai/**/*", pyproject.toml, uv.lock, ".claude/**/*", .gitlab-ci.yml]
+
+w12:infra:
+  extends: .area
+  image:
+    name: hashicorp/terraform:1.16.6@sha256:bfffc1ded5fbf0a17beaaf22eb4793980abdb19d0761ff6a3a0efb2ab4d9b316
+    entrypoint: [""]   # 기본 진입점이 terraform 이라 노트북 러너(Docker executor)에서 셸이 안 뜬다
+  variables:
+    AREA: infra
+  before_script:
+    # alpine 이라 bash 가 없고 grep 은 busybox 다. 게이트는 bash 와 GNU grep 을 쓴다
+    - apk add --no-cache bash grep
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["infra/**/*", ".claude/**/*", .gitlab-ci.yml]
+
+# 로컬은 Testcontainers 로 DB · Redis 를 띄우지만 잡에는 Docker 가 없다.
+# NEWLEARN_TEST_TESTCONTAINERS=false 로 그 설정을 끄고(backend/src/test/java/kr/io/newlearn/TestcontainersConfiguration.java)
+# 잡 옆에 띄운 services 에 application.yaml 의 DB_HOST · REDIS_HOST 로 붙는다. 이미지는 compose.yaml 과 같은 태그
+w3:backend:
+  extends: .area
+  image: gradle:9.8.1-jdk25@sha256:4a80c8083135754f689c3e31bb858a22282c66f5625cafb09ed217814b363ee5   # JDK 25.0.4
+  services:
+    - name: pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+      alias: postgres
+    - name: redis:8.10.2@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6
+      alias: redis
+  variables:
+    AREA: backend
+    KUBERNETES_CPU_REQUEST: "300m"
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w3"
+    NEWLEARN_TEST_TESTCONTAINERS: "false"
+    # 잡과 함께 생겼다 사라지는 시험용 DB 의 값이다. 비밀이 아니다
+    POSTGRES_DB: newlearn
+    POSTGRES_USER: newlearn
+    POSTGRES_PASSWORD: ci-test-only
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+  before_script:
+    # 서비스가 받을 준비가 될 때까지 기다린다 (최대 60초). PostgreSQL 은 초기화를 마친 뒤에야 TCP 를 연다
+    - for i in $(seq 1 60); do (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null && (exec 3<>/dev/tcp/redis/6379) 2>/dev/null && echo "services ready ${i}s" && break; sleep 1; done
+  artifacts:
+    when: always
+    reports:
+      junit: backend/build/test-results/test/TEST-*.xml
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["backend/**/*", ".claude/**/*", .gitlab-ci.yml]

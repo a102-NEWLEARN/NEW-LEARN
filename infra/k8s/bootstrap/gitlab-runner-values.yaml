@@ -80,6 +80,19 @@ runners:
         service_memory_request = "128Mi"
         service_memory_limit = "512Mi"
 
+        # 잡마다 갈래(W0~W3, .gitlab-ci.yml)에 맞춰 KUBERNETES_CPU_REQUEST 같은 변수로 자원을 바꾼다 (Jira S15P31A102-92)
+        # 여기 상한을 안 적으면 그 변수는 무시된다. 상한은 위 기본값과 같아서 잡은 기본보다 줄이기만 할 수 있다
+        cpu_request_overwrite_max_allowed = "500m"
+        cpu_limit_overwrite_max_allowed = "1"
+        memory_request_overwrite_max_allowed = "1Gi"
+        memory_limit_overwrite_max_allowed = "2Gi"
+        service_cpu_request_overwrite_max_allowed = "100m"
+        service_cpu_limit_overwrite_max_allowed = "500m"
+        service_memory_request_overwrite_max_allowed = "128Mi"
+        service_memory_limit_overwrite_max_allowed = "512Mi"
+        # 잡 Pod 에 갈래 이름표(newlearn.io/workload)만 붙일 수 있게 한다 — 잡 Pod 이름에는 잡 이름이 없어서
+        pod_labels_overwrite_allowed = 'newlearn\.io/workload'
+
         # 팀원 MR 의 코드가 이 Pod 안에서 돈다 — 권한 없는 컨테이너, 쿠버네티스 API 토큰도 안 넣는다
         privileged = false
         allow_privilege_escalation = false
