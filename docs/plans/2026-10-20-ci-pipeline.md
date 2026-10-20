@@ -80,7 +80,7 @@ MR 3 — 노트북 러너
 - [x] Jira 92 를 진행 중으로 옮긴다. 새 티켓 「[INFRA] 이미지 빌드 · 저장소 · 태그」를 스토리 포인트 3 · 상위 27 · 라벨 infra newlearn-mvp 로 만든다 — S15P31A102-96
 - [x] backend 스위치 — 로컬에서 두 방식으로 테스트를 돌려 확인 (기본 29초 · 컨테이너 3개, 끈 채 바깥 DB 14초 · 컨테이너 0개, DB 를 내리면 2개 실패)
 - [x] 러너 값 덮어쓰기 허용 → 서버 `helm upgrade` — 러너 online (판 4, 63초)
-- [ ] `.gitlab-ci.yml` — CI Lint API 로 검사 → push → MR 1 파이프라인 초록, 잡별 대기 · 시간을 잰다
+- [x] `.gitlab-ci.yml` — CI Lint API 로 검사 → push → MR 1 파이프라인 초록, 잡별 대기 · 시간을 잰다 (Lint API 는 개인 토큰이 필요해 Pipeline editor 의 「syntax is correct」로 대신함. !48 첫 실행 520초 · 둘째 490초, SSOT 10절)
 - [ ] 문서만 바꾼 시험 Draft MR 로 「바뀐 영역만」 확인 (`rules` 잡만 뜨는지) → MR 을 닫는다. 원격 시험 브랜치 삭제는 사용자 허락 뒤
 - [ ] 문서(SSOT · stack.md · README)를 고치고 MR 1 을 머지한다
 - [ ] MR 2 캐시 — 같은 잡을 캐시 전후로 잰다
