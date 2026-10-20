@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 const readText = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const themeCss = readText("./newlearn-theme.css");
+const indexHtml = readText("../index.html");
 
 // 기대값의 출처는 DESIGN.md Colors 절이다
 // (_bmad-output/planning-artifacts/ux-designs/ux-S15P31A102-2026-10-15/DESIGN.md).
@@ -102,4 +103,9 @@ describe("NEW:LEARN 테마 — 글꼴", () => {
   test("Pretendard 웹폰트를 불러온다", () => {
     expect(readText("./style.css")).toMatch(/@import\s+"pretendard\//);
   });
+});
+
+test("브라우저 탭 아이콘이 NEW:LEARN 심볼이다", () => {
+  expect(indexHtml).toMatch(/<link[^>]*rel="icon"[^>]*href="\/favicon\.svg"/);
+  expect(readText("../public/favicon.svg")).toContain('aria-label="NEW:LEARN"');
 });

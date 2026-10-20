@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ActionButton } from "seed-design/ui/action-button";
 import { api } from "./api/client";
+import { Logo } from "./components/Logo";
 
 type Health = { status: string };
 
@@ -17,18 +18,24 @@ export function App() {
   if (health.isSuccess) apiStatus = health.data.status;
 
   return (
-    <main className="flex flex-col gap-x3 p-x6">
-      <h1 className="screen-title">NEW:LEARN</h1>
-      <p className="t4-regular text-fg-neutral">API 상태: {apiStatus}</p>
-      <div>
-        <ActionButton
-          variant="neutralWeak"
-          loading={health.isFetching}
-          onClick={() => health.refetch()}
-        >
-          다시 확인
-        </ActionButton>
-      </div>
-    </main>
+    <>
+      <header className="border-b border-stroke-neutral-weak px-x6 py-x4">
+        <h1>
+          <Logo />
+        </h1>
+      </header>
+      <main className="flex flex-col gap-x3 p-x6">
+        <p className="t4-regular text-fg-neutral">API 상태: {apiStatus}</p>
+        <div>
+          <ActionButton
+            variant="brandSolid"
+            loading={health.isFetching}
+            onClick={() => health.refetch()}
+          >
+            다시 확인
+          </ActionButton>
+        </div>
+      </main>
+    </>
   );
 }
