@@ -1,0 +1,152 @@
+# kube-prometheus-stack 92.10.1 (Prometheus Operator v0.94.1) 값 — 관리 서버(EC2)에만 올린다 (Jira S15P31A102-95)
+# 쓰는 곳: infra/server/README.md 「모니터링」. 왜 · 무엇을 보나는 SSOT.md 6절 · docs/plans/2026-10-20-monitoring.md
+# 값의 뜻은 차트 92.10.1 과 하위 차트(grafana · kube-state-metrics · prometheus-node-exporter)의 values.yaml 로 확인했다 (2026-10-20)
+#
+# 노드가 컨트롤 플레인 하나뿐이라 모든 Pod 가 control-plane taint 를 견디고 그 노드를 고른다. 워커가 붙으면 옮길지 다시 정한다
+# CPU 예약은 작게 — 노드 예약 1000m(컨트롤 플레인 950m + 러너 50m) + 모니터링 + CI 잡 550m 가 2000m 안에 들어야 CI 잡이 뜬다
+
+# 알림 받을 곳이 아직 없다 (Mattermost 웹훅이 되는지 확인한 뒤)
+alertmanager:
+  enabled: false
+
+# kubeadm 은 etcd · controller-manager · scheduler 를 127.0.0.1 에만 열고, kube-proxy 는 없다(Cilium 이 대신함) — 못 긁는 대상과 그 규칙을 끈다
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    alertmanager: false
+    etcd: false
+    kubeControllerManager: false
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    windows: false
+
+prometheusOperator:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  # 설치 · 업그레이드 때 인증서를 만드는 잡도 같은 노드에서 돌아야 한다
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    # 30초면 CI 잡(분 단위)을 보기에 충분하고, 15초보다 CPU 를 덜 쓴다
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    retention: 15d
+    retentionSize: 8GB
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    # 다른 네임스페이스(gitlab-runner)의 ServiceMonitor 도 읽는다 — 안 바꾸면 이 차트가 만든 것만 읽는다
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    # Pod 를 다시 띄워도 데이터가 남게 — 관리 서버 디스크의 정적 PV(prometheus-pv.yaml)에 묶는다. 프로비저너는 깔지 않는다
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: newlearn-local-manual
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus-local
+
+grafana:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  # 대시보드를 몇 개 열자 Grafana 컨테이너가 30분 최대 368.5MiB 까지 올랐다(2026-10-20) — 처음 잡은 상한 384Mi 는 너무 빠듯했다
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 640Mi
+  # helm test 용 Pod 는 만들지 않는다 (toleration 이 없어 뜨지 못한다)
+  testFramework:
+    enabled: false
+  # 관리자 아이디 · 비밀번호는 저장소에 두지 않는다 — 사람이 서버에서 만든 Secret 을 읽는다
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  # 하위 경로를 쓰면 /metrics 가 root_url(localhost)로 넘겨져 수집이 실패한다 — 하위 경로째 긁는다 (2026-10-20 겪음)
+  serviceMonitor:
+    path: /grafana/metrics
+  # 대시보드는 저장소의 설정으로 그린다 — Grafana 자체 디스크는 두지 않는다
+  persistence:
+    enabled: false
+  grafana.ini:
+    server:
+      # 지금은 SSH 터널(kubectl port-forward 3000)로 연다. 공개할 때 https://newlearn.io.kr/grafana/ 로 바꾼다 (Jira 93)
+      domain: localhost
+      root_url: http://localhost:3000/grafana/
+      serve_from_sub_path: true
+    users:
+      allow_sign_up: false
+    auth.anonymous:
+      enabled: false
+    analytics:
+      check_for_updates: false
+      reporting_enabled: false
+
+kube-state-metrics:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+# node-exporter 는 차트 기본값이 NoSchedule taint 를 견딘다
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
