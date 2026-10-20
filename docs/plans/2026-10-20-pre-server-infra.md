@@ -30,8 +30,8 @@
 
 ## 작업 순서 (Jira 티켓 · MR 단위, 각 MR 은 infra 대상으로 만들어 바로 머지)
 
-- [ ] **A. 설계 반영** (Jira 새 티켓) — SSOT · README 문구, 보안 그룹 · 테스트. 확인: `terraform fmt -check` · `validate` · `test`, `grep -n "8472\|4240" SSOT.md infra/` 에 옛 서술이 없음
-- [ ] **B. S3 상태 파일 · apply 권한** (Jira 새 티켓) — 부분 백엔드, 정책 JSON, gitignore, stack.md §8. 확인: 커밋 게이트 통과, `git check-ignore infra/terraform/backend.hcl`, `jq . apply-policy.json`
+- [x] **A. 설계 반영** (Jira 새 티켓) — SSOT · README 문구, 보안 그룹 · 테스트. 확인: `terraform fmt -check` · `validate` · `test`, `grep -n "8472\|4240" SSOT.md infra/` 에 옛 서술이 없음
+- [x] **B. S3 상태 파일 · apply 권한** (Jira 새 티켓) — 부분 백엔드, 정책 JSON, gitignore, stack.md §8. 확인: 커밋 게이트 통과, `git check-ignore infra/terraform/backend.hcl`, `jq . apply-policy.json`
   - 사용자: IAM 콘솔에서 apply 전용 사용자 생성 · 정책 붙이기 · 키 발급 → `aws configure --profile newlearn-apply`. SSH 키(`ssh-keygen -t ed25519`) 만들고 `terraform.tfvars` 채우기
   - 나: apply 키로 버킷 생성(CLI), `terraform init -backend-config=backend.hcl`, plan 출력 보여 주기
 - [ ] **C. 서버 스크립트 · kubeadm · Cilium 값** (Jira 새 티켓, A 와 파일이 안 겹쳐 따로 진행 가능) — 확인: `bash -n`, kindest/node v1.36.4 이미지 안에서 `kubeadm config validate --config init.yaml`, `helm template` 으로 MTU · devices 반영, ubuntu:24.04 컨테이너에서 `common.sh` 의 패키지 설치 부분

@@ -170,7 +170,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 ### 현재 상태
 
-- EC2: 카드 등록 완료, 서버 미생성. 서버 시작 예정 10/19(승인 금액 산정 기준). Terraform 코드는 plan까지 확인(Jira S15P31A102-76)
+- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 서버 안 설정(WireGuard · kubeadm · Cilium)은 아직이다
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
@@ -242,3 +242,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-18 | Envoy Pod 교체 (워커 80 hostPort) | 기본 전략: 새 Pod Pending, 67초 지나도 교체 안 끝남(실패 0 — 옛 Pod가 받음). maxSurge 0 · maxUnavailable 1: 끊김 약 1.6초(요청 4번 실패), 교체 완료 23 · 28초 | 요청을 보내며 `kubectl rollout restart`와 전략 변경 반영. 끊김은 첫 실패부터 마지막 실패까지 |
 | 2026-10-18 | kind 노드 메모리 (앱 4개가 Synced · Healthy일 때) | 컨트롤 플레인 1.69 GiB · 워커 1.59 GiB | `docker stats --no-stream` |
 | 2026-10-18 | sentence-transformers 6.1.0이 Python 3.14.8·torch 2.14.1 CPU에서 임베딩 | 384차원. 비슷한 두 문장 유사도 0.976, 다른 문장 0.359 | 워커 컨테이너에서 시험용 모델(all-MiniLM-L6-v2)로 세 문장을 임베딩. 쓸 모델은 8절 |
+| 2026-10-20 | 관리 서버 `terraform apply` (자원 7개) | 19초 | 검토한 plan 파일로 apply(`apply ec2.tfplan`), 시작 · 끝 시각 차이. EC2 만들기 13초 |
+| 2026-10-20 | apply 뒤 SSH 접속 | 첫 시도에 접속 | apply가 끝나고 AWS 쪽 확인(약 1분)을 마친 뒤 5초 간격 재시도로 붙임. 그때 부팅 상태 검사는 아직 initializing |
+| 2026-10-20 | EC2 기본 네트워크 MTU | `ens5` 9001 | 서버에서 `ip -o link show`. 인터넷으로는 1500까지만 나가서 WireGuard MTU를 1420으로 고정하는 근거(6절) |
