@@ -21,3 +21,7 @@
     #   /cache    — 러너가 잡마다 쓰는 자리
     #   /ci-cache — npm · uv · Gradle 이 받은 것 (.gitlab-ci.yml 의 캐시 폴더). EC2 러너의 캐시와는 따로 쌓인다
     volumes = ["/cache", "newlearn-ci-cache:/ci-cache"]
+  # Docker 29 는 옛 컨테이너 링크를 만들지 않아 services 의 별칭(postgres · redis)이 안 풀린다 (2026-10-20 겪음)
+  # 잡마다 네트워크를 만들면 Docker DNS 가 별칭을 푼다
+  [runners.feature_flags]
+    FF_NETWORK_PER_BUILD = true

@@ -56,6 +56,13 @@ Docker Desktop 을 켜 두면 러너도 다시 뜬다(`restart: unless-stopped`)
 | 잡을 받는지 | MR 파이프라인의 잡 화면 오른쪽 | Runner 가 `newlearn-laptop` 인 잡이 초록 |
 | 상한 | 잡 로그 끝의 `cpu.max` | `400000 100000` (CPU 4) |
 
+## 막혔을 때
+
+| 증상 | 확인 · 해결 |
+|---|---|
+| backend 잡이 `services ready` 를 찍지 않고 멈추고, 앞에 `Service … probably didn't start properly` | Docker 29 는 예전 컨테이너 연결(link)을 만들지 않아 `postgres` · `redis` 이름이 안 풀린다. `config.toml` 의 `[runners.feature_flags]` 에 `FF_NETWORK_PER_BUILD = true` 가 있는지 본다 — 이 틀로 등록했으면 들어 있다 (2026-10-20 겪음) |
+| 잡이 노트북에서 유난히 오래 걸림 | 처음 한 번은 내려받기가 병목이다. 두 번째부터 `newlearn-ci-cache` 볼륨에서 다시 쓴다 |
+
 ## 되돌리기
 
 `docker compose -f infra/laptop-runner/compose.yaml down -v` 로 컨테이너와 설정 볼륨(토큰 포함)을 지우고, GitLab 화면에서 러너를 지운다.
