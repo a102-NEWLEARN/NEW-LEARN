@@ -74,8 +74,9 @@ for p in kubeadm kubelet kubectl; do
     exit 1
   fi
 done
-apt-get install -y -q "kubeadm=$K8S_VERSION-*" "kubelet=$K8S_VERSION-*" "kubectl=$K8S_VERSION-*"
-apt-mark hold kubeadm kubelet kubectl >/dev/null
+# crictl(cri-tools)은 kubeadm 이 끌어오지 않는다(2026-10-20 EC2 에서 확인) — 같은 저장소에서 같은 minor 판을 따로 깐다
+apt-get install -y -q "kubeadm=$K8S_VERSION-*" "kubelet=$K8S_VERSION-*" "kubectl=$K8S_VERSION-*" "cri-tools=$K8S_MINOR.*"
+apt-mark hold kubeadm kubelet kubectl cri-tools >/dev/null
 
 log "4/5 containerd 2.x"
 # Ubuntu 24.04 저장소의 containerd 를 쓴다 — 2026-10-20 기준 2.2.1 (noble-updates). 다른 저장소를 더하지 않는다
@@ -104,7 +105,7 @@ if ! cmp -s "$tmp" /etc/containerd/config.toml; then
   install -m 0644 "$tmp" /etc/containerd/config.toml
   CONTAINERD_CHANGED=true
 fi
-# crictl(kubeadm 과 같이 깔린다)이 containerd 를 바로 찾게 한다 — 서버에서 crictl ps 로 컨테이너를 본다
+# crictl 이 containerd 를 바로 찾게 한다 — 서버에서 crictl ps 로 컨테이너를 본다
 echo 'runtime-endpoint: unix:///run/containerd/containerd.sock' >/etc/crictl.yaml
 
 log "5/5 wireguard-tools"
@@ -118,6 +119,6 @@ if ! $PACKAGES_ONLY; then
 fi
 
 log "끝 — 깔린 판"
-dpkg-query -W -f='${Package} ${Version}\n' kubeadm kubelet kubectl containerd runc wireguard-tools
+dpkg-query -W -f='${Package} ${Version}\n' kubeadm kubelet kubectl cri-tools containerd runc wireguard-tools
 apt-mark showhold
 echo "sandbox: $PAUSE_IMAGE"
