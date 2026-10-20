@@ -60,6 +60,8 @@ runners:
   secret: gitlab-runner-token
   config: |
     [[runners]]
+      # 잡의 cache: 를 관리 서버 디스크에 남긴다 — 아래 볼륨 표가 ci-cache-pv.yaml 의 PVC 를 여기에 붙인다
+      cache_dir = "/ci-cache"
       [runners.kubernetes]
         namespace = "{{ default .Release.Namespace .Values.runners.jobNamespace }}"
         # 잡이 image 를 안 적었을 때 쓰는 이미지
@@ -105,3 +107,7 @@ runners:
           "node-role.kubernetes.io/control-plane" = ""
         [runners.kubernetes.node_tolerations]
           "node-role.kubernetes.io/control-plane" = "NoSchedule"
+        # CI 캐시 (Jira S15P31A102-92) — infra/k8s/bootstrap/ci-cache-pv.yaml 을 먼저 apply 한다
+        [[runners.kubernetes.volumes.pvc]]
+          name = "gitlab-runner-cache"
+          mount_path = "/ci-cache"
