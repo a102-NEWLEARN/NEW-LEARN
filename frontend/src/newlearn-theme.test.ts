@@ -87,3 +87,16 @@ describe("NEW:LEARN 테마 — DESIGN.md 색과 같다", () => {
     expect(indexHtml).toMatch(/<html[^>]*data-seed-color-mode="light-only"/);
   });
 });
+
+describe("NEW:LEARN 테마 — 글꼴", () => {
+  // SEED 는 글꼴 파일을 주지 않고 body 에 글꼴을 걸지도 않는다
+  test("body 가 SEED 글꼴 순서를 쓴다", () => {
+    expect(themeCss).toMatch(
+      /body\s*\{[^}]*font-family:\s*var\(--seed-font-family\)/,
+    );
+  });
+
+  test("Pretendard 웹폰트를 불러온다", () => {
+    expect(readText("./style.css")).toMatch(/@import\s+"pretendard\//);
+  });
+});

@@ -34,7 +34,7 @@
 ## 작업 순서 (커밋 3개)
 
 - [x] 색 — 테스트 먼저(역할 17개 값 · light-only · carrot 4곳) → `newlearn-theme.css` · `index.html` → 테스트 통과
-- [ ] 글꼴 — Pretendard 설치 · import, `body` 글꼴 → 빌드 통과, 화면에서 글꼴 확인
+- [x] 글꼴 — Pretendard 설치 · import, `body` 글꼴 → 빌드 통과, 화면에서 글꼴 확인
 - [ ] 로고 — Logo 테스트 먼저 → 로고 · 파비콘 · App 헤더 · 버튼 → 테스트 통과
 
 ## 안 바꿀 것

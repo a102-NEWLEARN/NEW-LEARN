@@ -1,6 +1,8 @@
 @layer theme, base, seed-base, components, seed-components, utilities;
 
 @import "@seed-design/css/base.layered.css";
+/* SEED 글꼴 순서의 "Pretendard Variable" — 쓰는 글자 조각만 내려받는 동적 서브셋 */
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "tailwindcss";
 @import "@seed-design/tailwind4-theme";
 @import "./newlearn-theme.css";

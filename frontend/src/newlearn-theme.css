@@ -94,6 +94,7 @@
 }
 
 body {
+  font-family: var(--seed-font-family);
   color: var(--seed-color-fg-neutral);
   background: var(--seed-color-bg-layer-default);
 }
