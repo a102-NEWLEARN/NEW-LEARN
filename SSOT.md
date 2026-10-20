@@ -101,6 +101,14 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 러너 · 잡 Pod 모두 관리 서버에만 둔다(control-plane taint를 견디고 그 노드를 고른다). 한 번에 잡 1개, 잡 CPU 요청 500m · 상한 1, 메모리 1Gi · 2Gi — 잡이 바빠도 1 vCPU는 apiserver · etcd 몫으로 남는다. 실제 CI 잡 시간을 재서 조정한다(Jira S15P31A102-92). 값은 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 까는 법은 `infra/server/README.md` 「GitLab Runner」
   - 러너 판은 GitLab과 major.minor를 맞춘다 — 차트 0.88.4(러너 18.11.4). 토큰은 저장소에 두지 않고 서버의 Secret(`gitlab-runner-token`)에만 있다
   - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
+- CI 파이프라인: `.gitlab-ci.yml`(2026-10-20, Jira S15P31A102-92). MR과 dev push에서 돈다. 계획은 `docs/plans/2026-10-20-ci-pipeline.md`
+  - 잡을 「무엇에 막히나」로 나눈 갈래로 둔다 — w0 규칙(시크릿 스캔 · MR 규칙 · 하네스 자체 검사) → w12 영역 검사(frontend · ai · infra) · w3 backend(DB · Redis가 필요한 테스트). 영역 잡은 `pre-commit --ci <영역>`으로 `.claude/stack.md` 3절 명령을 그대로 돈다. MR은 바뀐 영역만, dev는 전부 돈다. 하네스 자체 검사는 `.claude/`가 바뀔 때와 dev에서만
+  - 영역마다 잡 하나다(하네스 껍데기는 fast · slow 두 잡). 러너 자리가 1개라 두 잡이면 Pod와 설치가 두 번 돈다
+  - 갈래마다 CPU · 메모리 요청을 따로 준다 — w0 100m, w12 250m, w3 300m + 서비스 각 100m, CPU 상한은 모두 1 이하. 러너 값의 덮어쓰기 상한이 기본값(요청 500m · 상한 1 · 메모리 2Gi)과 같아서 잡은 줄이기만 한다. 잡 Pod에 이름표 `newlearn.io/workload`(w0 · w12 · w3)를 붙인다
+  - 백엔드 테스트는 로컬에서는 Testcontainers로 DB · Redis를 띄우고, CI는 잡 Pod에 Docker가 없어서 services로 잡 옆에 띄운 DB · Redis에 붙는다(`NEWLEARN_TEST_TESTCONTAINERS=false`). 이미지는 compose와 같은 태그
+  - 시간 목표(여신보좌관 실측보다 짧게): MR 파이프라인 중앙값 5분 · p90 10분, 기다림 p90 2분, backend 잡 중앙값 7분
+  - 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 인프라 담당이 정한다
+  - 이미지 빌드 · 저장소 · 태그는 Jira S15P31A102-96에서 한다
 - 모니터링: kube-prometheus-stack 92.10.1(Prometheus · Grafana · node-exporter · kube-state-metrics)을 관리 서버에 둔다(2026-10-20, Jira S15P31A102-95). Lightsail을 기다리지 않고 CI 병목을 CI 파이프라인(92) 전부터 재려는 것이다. 값은 `infra/k8s/bootstrap/monitoring-values.yaml`, 까는 법은 `infra/server/README.md` 「모니터링」
   - 무엇을 보나: 노드 CPU · 메모리, Pod CPU · 스로틀(cAdvisor — `container_cpu_cfs_throttled_periods_total`, `…_throttled_seconds_total`은 차트 기본값이 버린다), GitLab Runner 지표(기다림 · 자리 사용률). 잡별 기다림 · 걸린 시간은 CI 파일이 생긴 뒤 gitlab-ci-pipelines-exporter로 더한다
   - CPU 예약을 작게 잡는다(모니터링 합 약 190m) — 노드 예약이 1190m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
@@ -185,7 +193,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 - EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
   - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인
-  - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 저장소에 `.gitlab-ci.yml`이 아직 없어 MR에서는 파이프라인이 돌지 않는다(Jira S15P31A102-92)
+  - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 2026-10-20 `.gitlab-ci.yml`을 넣어 MR 파이프라인이 돈다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
@@ -210,12 +218,12 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 항목 | 누가 | 관련 |
 |---|---|---|
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
-| 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절 |
+| 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 2026-10-20 다시 봐도 프로젝트에 이미지 주소가 없다(서버에서 레지스트리가 꺼져 있다). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절, Jira S15P31A102-96 |
 | HTTPS 인증서 발급 방식 | Infra | — |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다 | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
-| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절 |
+| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절, Jira S15P31A102-96 |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |

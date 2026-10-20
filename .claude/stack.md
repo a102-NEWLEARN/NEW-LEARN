@@ -84,7 +84,7 @@ backend_RUN="./gradlew bootRun"   # IDE 에서 BackendApplication 을 실행해�
 backend_FORMAT_FIX="./gradlew spotlessApply"
 backend_FORMAT_CHECK="./gradlew spotlessCheck"
 backend_LINT=""   # 린트 도구를 아직 안 골랐다 — 포맷 검사와 컴파일만 본다 (SSOT.md 8절)
-backend_TEST="./gradlew test"   # Testcontainers 로 DB · Redis 를 띄운다. Docker Desktop 이 켜져 있어야 한다
+backend_TEST="./gradlew test"   # Testcontainers 로 DB · Redis 를 띄운다. Docker Desktop 이 켜져 있어야 한다. CI 잡에는 Docker 가 없어 services 로 띄운 DB · Redis 를 쓴다 (.gitlab-ci.yml 의 w3:backend)
 backend_BUILD="./gradlew bootJar"
 
 ai_PATH="ai"   # AI 분석 워커 (FastAPI)
@@ -166,6 +166,7 @@ PR · MR 이면 그 사이 커밋 이력까지 시크릿을 찾는다(`SCAN_BASE
 
 | | |
 |---|---|
+| 러너가 동시에 몇 개 | EC2 러너 1 (관리 서버의 잡 Pod, 잡 CPU 상한 1). 그래서 CI 는 영역마다 잡 하나로 두고 MR 에서는 바뀐 영역만 돈다 — `SSOT.md` 6절 「CI 파이프라인」 |
 | 테스트가 너무 느릴 때 | 해당 없음 — 아직 느리지 않다 (잰 값은 `SSOT.md` 10절). 느려지면 그때 나눈다 (예: 커밋 전엔 단위만, 통합은 CI 에서 — `<영역>_TEST="단위${CI:+ && 통합}"`) |
 | 게이트를 건너뛰는 법 | `git commit --no-verify` — **급할 때만, 사람이 친다. 쓴 사실을 PR 에 적는다** (Claude 는 `settings.json` deny 로 막혀 있다) |
 
