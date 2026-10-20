@@ -5,9 +5,9 @@ variable "region" {
 }
 
 variable "aws_profile" {
-  description = "aws configure --profile 로 만든 프로필 이름 (읽기 전용 IAM 사용자 키)"
+  description = "aws configure --profile 로 만든 프로필 이름 (apply 전용 IAM 사용자 키 — plan 도 이 키로 한다)"
   type        = string
-  default     = "newlearn"
+  default     = "newlearn-apply"
 }
 
 variable "instance_type" {
@@ -38,7 +38,7 @@ variable "admin_cidrs" {
 }
 
 variable "worker_cidrs" {
-  description = "워커 노드(Lightsail) 공인 IP. 받기 전에는 비워 둔다 — 비어 있으면 노드 사이 포트를 열지 않는다"
+  description = "워커 노드(Lightsail) 공인 IP. 받기 전에는 비워 둔다 — 비어 있으면 WireGuard 포트를 열지 않는다"
   type        = list(string)
   default     = []
 
