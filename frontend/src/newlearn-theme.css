@@ -1,0 +1,99 @@
+/*
+ * NEW:LEARN 브랜드 테마 — SEED 색 변수에 NEW:LEARN 값을 입힌다.
+ * 값의 출처: DESIGN.md Colors 절
+ * (_bmad-output/planning-artifacts/ux-designs/ux-S15P31A102-2026-10-15/DESIGN.md)
+ *
+ * SEED 에는 브랜드 색을 바꾸는 공식 방법이 없다. SEED 컴포넌트와 Tailwind 테마가
+ * 모두 --seed-color-* 변수를 읽으므로 그 변수를 덮어쓴다.
+ * @layer 밖에 둬서 SEED 층(seed-base · seed-components)보다 항상 이긴다.
+ *
+ * SEED 를 올릴 때 다시 본다:
+ *   grep -l palette-carrot node_modules/@seed-design/css/recipes/*.css
+ * 역할 변수 대신 당근 팔레트를 직접 쓰는 곳이 늘었거나 선택자 이름이 바뀌었으면
+ * 아래 「당근 팔레트를 직접 쓰는 SEED 레시피」를 고친다.
+ */
+
+:root {
+  /* 기본 색 11개 — 화면 코드에서는 쓰지 않고 아래 역할 변수로 쓴다 */
+  --nl-brand-main: #28cdaa;
+  --nl-brand-dark: #087f72;
+  --nl-brand-pressed: #066b61;
+  --nl-brand-light: #e7faf5;
+  --nl-brand-light-pressed: #d0f5ec;
+  --nl-brand-accent-lime: #c7f36c;
+  --nl-brand-background: #ffffff;
+  --nl-brand-background-subtle: #fafbfc;
+  --nl-brand-text-primary: #222b30;
+  --nl-brand-text-secondary: #66717a;
+  --nl-brand-border: #e7ecef;
+
+  /* 값을 바꾼 SEED 역할 14개 */
+  --seed-color-fg-brand: var(--nl-brand-dark);
+  --seed-color-fg-brand-contrast: var(--nl-brand-pressed);
+  --seed-color-fg-neutral: var(--nl-brand-text-primary);
+  --seed-color-fg-neutral-muted: var(--nl-brand-text-secondary);
+  --seed-color-bg-brand-solid: var(--nl-brand-dark);
+  --seed-color-bg-brand-solid-pressed: var(--nl-brand-pressed);
+  --seed-color-bg-brand-weak: var(--nl-brand-light);
+  --seed-color-bg-brand-weak-pressed: var(--nl-brand-light-pressed);
+  --seed-color-bg-layer-default: var(--nl-brand-background);
+  --seed-color-bg-neutral-muted: var(--nl-brand-background-subtle);
+  --seed-color-bg-neutral-solid: var(--nl-brand-text-primary);
+  --seed-color-stroke-brand-solid: var(--nl-brand-dark);
+  --seed-color-stroke-brand-weak: var(--nl-brand-main);
+  --seed-color-stroke-neutral-weak: var(--nl-brand-border);
+
+  /* SEED 에 없는 새 역할 3개 */
+  --nl-color-fg-brand-accent: var(--nl-brand-main);
+  --nl-color-bg-brand-accent: var(--nl-brand-main);
+  --nl-color-bg-accent-lime: var(--nl-brand-accent-lime);
+}
+
+/* 새 역할을 SEED 역할처럼 Tailwind 클래스로 쓰게 한다
+   (text-fg-brand-accent · bg-bg-brand-accent · bg-bg-accent-lime) */
+@theme {
+  --color-fg-brand-accent: var(--nl-color-fg-brand-accent);
+  --color-bg-brand-accent: var(--nl-color-bg-brand-accent);
+  --color-bg-accent-lime: var(--nl-color-bg-accent-lime);
+}
+
+/* 당근 팔레트를 직접 쓰는 SEED 레시피 — SEED 가 쓴 carrot-200 은
+   SEED 의 bg-brand-weak-pressed 와 같은 값이라 그 역할로 바꾼다. 선택자는 SEED 그대로 */
+.seed-action-button--variant_brandOutline {
+  --track-color: var(--seed-color-bg-brand-weak-pressed);
+}
+
+.seed-progress-circle__root--tone_brand {
+  --track-color: var(--seed-color-bg-brand-weak-pressed);
+}
+
+.seed-reaction-button:is([aria-pressed="true"], [data-pressed])[data-loading] {
+  --track-color: var(--seed-color-bg-brand-weak-pressed);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seed-checkmark__root--variant_ghost-tone_brand:not(
+      :is(:disabled, [disabled], [data-disabled])
+    ):is(:checked, :indeterminate, [data-checked], [data-indeterminate]):is(
+      :hover,
+      [data-hover]
+    ) {
+    background: var(--seed-color-bg-brand-weak-pressed);
+  }
+}
+
+@media not all and (hover: hover) and (pointer: fine) {
+  .seed-checkmark__root--variant_ghost-tone_brand:not(
+      :is(:disabled, [disabled], [data-disabled])
+    ):is(:checked, :indeterminate, [data-checked], [data-indeterminate]):is(
+      :active,
+      [data-active]
+    ) {
+    background: var(--seed-color-bg-brand-weak-pressed);
+  }
+}
+
+body {
+  color: var(--seed-color-fg-neutral);
+  background: var(--seed-color-bg-layer-default);
+}

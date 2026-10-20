@@ -3,3 +3,4 @@
 @import "@seed-design/css/base.layered.css";
 @import "tailwindcss";
 @import "@seed-design/tailwind4-theme";
+@import "./newlearn-theme.css";
