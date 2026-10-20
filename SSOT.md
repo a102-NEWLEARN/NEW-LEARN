@@ -115,7 +115,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 - 계정이 다른 EC2와 Lightsail은 사설 IP로 서로 닿지 않는다. Cilium은 상대 노드의 주소(InternalIP)로 VXLAN을 보내므로, 두 노드를 WireGuard(`wg0`)로 잇고 노드 주소를 터널 주소로 둔다. 연결과 노드 사이 암호화가 함께 풀린다
 - 터널 10.200.0.0/24 — EC2 10.200.0.1(51820/udp에서 기다림), Lightsail 10.200.0.2(EC2 탄력적 IP로 먼저 연결하고 `PersistentKeepalive = 25`로 유지). 상대 노드 /32만 터널로 보낸다(`AllowedIPs`)
-- MTU: `wg0`는 1420으로 고정한다. EC2는 점보 프레임(9001)을 쓰는데 인터넷으로는 1500까지만 나가서 자동값을 믿지 않는다. Cilium MTU도 1420. VXLAN 머리(50바이트)를 Cilium이 스스로 빼는지는 문서로 확인하지 못해 서버에서 Pod 사이 큰 패킷으로 본다
+- MTU: `wg0`는 1420으로 고정한다. EC2는 점보 프레임(9001)을 쓰는데 인터넷으로는 1500까지만 나가서 자동값을 믿지 않는다. Cilium MTU도 1420. Cilium이 VXLAN 머리(50바이트)를 스스로 빼서 Pod의 기본 경로 MTU는 1370이 된다(2026-10-20 EC2에서 확인, 10절)
 - 개인키는 각 서버에서 만들고 밖으로 내지 않는다. 공개키만 주고받는다
 - kubeadm은 `wg0`를 먼저 올린 뒤 터널 주소로 init·join한다(advertiseAddress · kubelet node-ip). 이 주소가 클러스터 인증서에 들어가서 나중에 바꾸기 어렵다. 재부팅 때 kubelet이 `wg0` 뒤에 뜨게 한다
 - 쿠버네티스 밖에 있어서 서버를 다시 만들면 WireGuard도 다시 설정한다. 순서와 값은 `docs/plans/2026-10-20-pre-server-infra.md`
@@ -170,7 +170,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 ### 현재 상태
 
-- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 서버 안 설정(WireGuard · kubeadm · Cilium)은 아직이다
+- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
@@ -245,3 +245,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | 관리 서버 `terraform apply` (자원 7개) | 19초 | 검토한 plan 파일로 apply(`apply ec2.tfplan`), 시작 · 끝 시각 차이. EC2 만들기 13초 |
 | 2026-10-20 | apply 뒤 SSH 접속 | 첫 시도에 접속 | apply가 끝나고 AWS 쪽 확인(약 1분)을 마친 뒤 5초 간격 재시도로 붙임. 그때 부팅 상태 검사는 아직 initializing |
 | 2026-10-20 | EC2 기본 네트워크 MTU | `ens5` 9001 | 서버에서 `ip -o link show`. 인터넷으로는 1500까지만 나가서 WireGuard MTU를 1420으로 고정하는 근거(6절) |
+| 2026-10-20 | EC2 공통 설정 (`infra/server/common.sh`) | 52초 | 처음 실행, 패키지 받기 포함. containerd 2.2.1 · kubeadm/kubelet/kubectl 1.36.5 · runc 1.3.4 |
+| 2026-10-20 | kubeadm init → Cilium → 노드 Ready · CoreDNS (`init-control-plane.sh`) | 1분 51초 | 이미지 받기 · Helm 받기 포함, 스크립트 시작 · 끝 시각 차이 |
+| 2026-10-20 | Pod 안 MTU (CoreDNS 2개) | 인터페이스 1420 · 기본 경로 1370 | 서버에서 `nsenter -n ip link` · `ip route`. Cilium이 VXLAN 50바이트를 경로 MTU로 뺀다 |
+| 2026-10-20 | 재부팅 뒤 회복 | SSH 24초, 노드 Ready 약 34초, kube-system Pod 9개 다시 Ready | `systemctl reboot` 뒤 5초 간격으로 확인. `wg-quick@wg0` 와 kubelet 이 같은 초에 떴고 kubelet 의 After 에 wg-quick 이 있다 |
