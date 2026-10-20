@@ -1,0 +1,27 @@
+# 노트북 러너 설정 틀 — 등록할 때 register --template-config 로 합쳐진다 (infra/laptop-runner/README.md)
+# 토큰은 여기 없다. 등록할 때 사람이 직접 친다
+# 틀은 [[runners]] 하나만 받는다. 전역 값(concurrent)은 등록 뒤 README 의 한 줄로 바꾼다
+[[runners]]
+  name = "newlearn-laptop"
+  # 이 러너가 한 번에 받는 잡 수
+  limit = 2
+  [runners.docker]
+    image = "alpine:3.24.2"
+    # 팀원 MR 의 코드가 이 컨테이너에서 돈다 — 권한 없는 컨테이너로
+    privileged = false
+    # 잡 하나 상한. 동시 2 라 노트북에서 잡이 쓰는 CPU 는 최대 8 (나머지는 내 작업 몫)
+    cpus = "4"
+    memory = "4g"
+    # 잡 옆에 띄우는 DB · Redis(services) 하나의 상한
+    service_cpus = "1"
+    service_memory = "1g"
+    # .gitlab-ci.yml 이 이미지를 digest 로 고정해서, 받아 둔 이미지를 다시 써도 내용이 바뀌지 않는다
+    pull_policy = ["if-not-present"]
+    # 호스트 폴더는 붙이지 않는다. 둘 다 노트북 Docker 안의 볼륨이다
+    #   /cache    — 러너가 잡마다 쓰는 자리
+    #   /ci-cache — npm · uv · Gradle 이 받은 것 (.gitlab-ci.yml 의 캐시 폴더). EC2 러너의 캐시와는 따로 쌓인다
+    volumes = ["/cache", "newlearn-ci-cache:/ci-cache"]
+  # Docker 29 는 옛 컨테이너 링크를 만들지 않아 services 의 별칭(postgres · redis)이 안 풀린다 (2026-10-20 겪음)
+  # 잡마다 네트워크를 만들면 Docker DNS 가 별칭을 푼다
+  [runners.feature_flags]
+    FF_NETWORK_PER_BUILD = true

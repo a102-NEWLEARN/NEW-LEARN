@@ -1,0 +1,45 @@
+# CI 캐시용 정적 PV · PVC — 관리 서버 디스크의 폴더 하나 (Jira S15P31A102-92)
+# 러너 값(gitlab-runner-values.yaml)이 잡 Pod 마다 이 PVC 를 /ci-cache 에 붙인다.
+# 잡의 npm · uv · Gradle 이 받은 것을 여기에 직접 쌓아 다음 잡이 다시 받지 않는다 (.gitlab-ci.yml)
+# StorageClass newlearn-local-manual 은 prometheus-pv.yaml 에 있다 — 그 파일을 먼저 apply 한다
+# 폴더는 먼저 만든다 — infra/server/README.md 「GitLab Runner」 · 「CI 캐시」
+# Retain: PVC 를 지워도 캐시 파일은 남는다. 비울 때는 폴더 안을 손으로 지운다 (캐시는 지워도 다음 잡이 다시 받는다)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ci-cache-local
+  labels:
+    app.kubernetes.io/name: ci-cache-local
+spec:
+  # 로컬 볼륨은 크기를 강제하지 않는다. 디스크 계획용 표시값이다 (관리 서버 디스크 30 GiB)
+  capacity:
+    storage: 8Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: newlearn-local-manual
+  local:
+    path: /var/lib/newlearn/ci-cache
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+---
+# ReadWriteOnce 는 「한 노드」에서만이라는 뜻이다. 잡 Pod 는 모두 관리 서버에 떠서 같이 붙을 수 있다
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-runner-cache
+  namespace: gitlab-runner
+spec:
+  storageClassName: newlearn-local-manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ci-cache-local
