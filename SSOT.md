@@ -95,8 +95,12 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
     - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. Lightsail 공인 IP에서 오는 WireGuard 51820/udp 하나만 더 연다. 쿠버네티스 포트(6443·10250·Cilium)는 WireGuard 터널 안으로만 다녀서 밖에 열지 않는다(아래 「노드 사이 — 호스트 WireGuard」). kubectl은 SSH 터널로 6443에 붙는다
     - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다 — Ubuntu 기본 규칙은 22·80뿐이라 443은 받는 날 확인한다(8절)
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
-- 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버에 설치)
-  - SSAFY GitLab은 18.11.5다(2026-10-18 API로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서 CI는 러너를 직접 둬야 돈다
+- 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버의 클러스터 안 Pod — Kubernetes executor)
+  - SSAFY GitLab은 Community Edition 18.11.5다(2026-10-18 API, 2026-10-20 Help 화면으로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서(인스턴스 · 그룹 러너 0개) CI는 러너를 직접 둬야 돈다
+  - 러너는 서버에 Docker를 깔지 않고 Pod로 띄운다 — Docker를 깔면 kubelet과 containerd를 같이 쓰고, Docker의 iptables 규칙이 Cilium(호스트 라우팅 Legacy · iptables 마스커레이드)과 같은 표를 만진다. 잡도 잡마다 Pod로 떴다 사라진다(2026-10-20 결정, Jira S15P31A102-89)
+  - 러너 · 잡 Pod 모두 관리 서버에만 둔다(control-plane taint를 견디고 그 노드를 고른다). 한 번에 잡 1개, 잡 CPU 요청 500m · 상한 1, 메모리 1Gi · 2Gi — 잡이 바빠도 1 vCPU는 apiserver · etcd 몫으로 남는다. 실제 CI 잡 시간을 재서 조정한다(Jira S15P31A102-92). 값은 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 까는 법은 `infra/server/README.md` 「GitLab Runner」
+  - 러너 판은 GitLab과 major.minor를 맞춘다 — 차트 0.88.4(러너 18.11.4). 토큰은 저장소에 두지 않고 서버의 Secret(`gitlab-runner-token`)에만 있다
+  - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
 - 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유)
   - 상태 파일: 팀 계정 S3 버킷(버전 관리 · 퍼블릭 차단)에 두고 S3 잠금 파일로 동시 실행을 막는다(`use_lockfile`, DynamoDB 없이). 버킷 이름은 저장소에 적지 않는다(`infra/terraform/backend.hcl.example`). PC를 반납 · 분실해도 11/18 destroy를 할 수 있게 하려는 것이다(2026-10-20 결정)
   - 자격 증명: plan · apply 모두 범위를 좁힌 apply 전용 IAM 사용자 키로 한다 — EC2는 서울 리전만, 예산, 상태 버킷만(`infra/terraform/iam/apply-policy.json`). S3 잠금 때문에 plan도 쓰기가 필요해서, 10/18의 읽기 전용 키는 비활성화한다. 키는 `~/.aws/credentials`에만 둔다(`infra/README.md`)
@@ -166,11 +170,13 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 ### 관리 서버 주의 — containerd
 
+- 2026-10-20 러너를 Docker 없이 Pod로 올려서 지금은 해당 없다. 아래는 Docker를 깔게 될 때의 주의다
 - 관리 서버에 Runner용 Docker를 깔면 kubelet과 containerd를 같이 쓴다. 패키지로 깐 containerd는 CRI 플러그인이 꺼져 있을 수 있다 → `/etc/containerd/config.toml`의 `disabled_plugins`에서 `cri`를 빼고, cgroup 드라이버를 systemd로 맞춘다
 
 ### 현재 상태
 
 - EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
+  - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 저장소에 `.gitlab-ci.yml`이 아직 없어 MR에서는 파이프라인이 돌지 않는다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
@@ -249,3 +255,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | kubeadm init → Cilium → 노드 Ready · CoreDNS (`init-control-plane.sh`) | 1분 51초 | 이미지 받기 · Helm 받기 포함, 스크립트 시작 · 끝 시각 차이 |
 | 2026-10-20 | Pod 안 MTU (CoreDNS 2개) | 인터페이스 1420 · 기본 경로 1370 | 서버에서 `nsenter -n ip link` · `ip route`. Cilium이 VXLAN 50바이트를 경로 MTU로 뺀다 |
 | 2026-10-20 | 재부팅 뒤 회복 | SSH 24초, 노드 Ready 약 34초, kube-system Pod 9개 다시 Ready | `systemctl reboot` 뒤 5초 간격으로 확인. `wg-quick@wg0` 와 kubelet 이 같은 초에 떴고 kubelet 의 After 에 wg-quick 이 있다 |
+| 2026-10-20 | 관리 서버 CPU (러너 전) | 유휴 88 ~ 92% — 2 vCPU 중 약 0.2 사용. Pod CPU 요청 합 950m | `vmstat 2 6`, `kubectl describe node` |
+| 2026-10-20 | GitLab Runner 설치 (`helm upgrade --install --wait`) | 63초 · 러너 Pod Running, GitLab에 online | 서버의 helm 4.3.1, 차트 0.88.4 받기 포함. 시작 · 끝 시각 차이 |
+| 2026-10-20 | 시험 잡 (alpine 3.24.2, echo · uname · nproc) | 대기 0.8초 · 잡 18.6초(그중 잡 Pod Pending 약 12초 — 이미지 처음 받기). 잡 안에서 `cpu.max 100000 100000`(상한 1 vCPU) · `memory.max` 2 GiB, 서비스 계정 토큰 없음 | 임시 브랜치에 시험용 `.gitlab-ci.yml` 을 올리고 API 로 파이프라인 1번. 시간은 GitLab 잡 기록(`queued_duration` · `duration`) |
+| 2026-10-20 | 러너 설치 뒤 관리 서버 | 노드 Ready, kube-system 9개 Running, 유휴 90 ~ 93%, 메모리 사용 1,376 MiB / 7,816 MiB, CPU 요청 합 1000m | `kubectl`, `vmstat`, `free -m` |
