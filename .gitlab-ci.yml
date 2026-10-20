@@ -138,11 +138,10 @@ w12:infra:
     entrypoint: [""]   # 기본 진입점이 terraform 이라 노트북 러너(Docker executor)에서 셸이 안 뜬다
   variables:
     AREA: infra
-    TF_PLUGIN_CACHE_DIR: /ci-cache/terraform
+  # Terraform 플러그인 캐시는 뺐다 — 쓰면 설치가 오히려 느렸다(20 → 28초, SSOT.md 10절)
   before_script:
     # alpine 이라 bash 가 없고 grep 은 busybox 다. 게이트는 bash 와 GNU grep 을 쓴다
     - apk add --no-cache bash grep
-    - mkdir -p "$TF_PLUGIN_CACHE_DIR"   # Terraform 은 없는 캐시 폴더를 만들지 않는다
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["infra/**/*", ".claude/**/*", .gitlab-ci.yml]
