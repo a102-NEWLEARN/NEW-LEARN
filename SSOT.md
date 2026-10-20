@@ -101,6 +101,13 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 러너 · 잡 Pod 모두 관리 서버에만 둔다(control-plane taint를 견디고 그 노드를 고른다). 한 번에 잡 1개, 잡 CPU 요청 500m · 상한 1, 메모리 1Gi · 2Gi — 잡이 바빠도 1 vCPU는 apiserver · etcd 몫으로 남는다. 실제 CI 잡 시간을 재서 조정한다(Jira S15P31A102-92). 값은 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 까는 법은 `infra/server/README.md` 「GitLab Runner」
   - 러너 판은 GitLab과 major.minor를 맞춘다 — 차트 0.88.4(러너 18.11.4). 토큰은 저장소에 두지 않고 서버의 Secret(`gitlab-runner-token`)에만 있다
   - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
+- 모니터링: kube-prometheus-stack 92.10.1(Prometheus · Grafana · node-exporter · kube-state-metrics)을 관리 서버에 둔다(2026-10-20, Jira S15P31A102-95). Lightsail을 기다리지 않고 CI 병목을 CI 파이프라인(92) 전부터 재려는 것이다. 값은 `infra/k8s/bootstrap/monitoring-values.yaml`, 까는 법은 `infra/server/README.md` 「모니터링」
+  - 무엇을 보나: 노드 CPU · 메모리, Pod CPU · 스로틀(cAdvisor — `container_cpu_cfs_throttled_periods_total`, `…_throttled_seconds_total`은 차트 기본값이 버린다), GitLab Runner 지표(기다림 · 자리 사용률). 잡별 기다림 · 걸린 시간은 CI 파일이 생긴 뒤 gitlab-ci-pipelines-exporter로 더한다
+  - CPU 예약을 작게 잡는다(모니터링 합 약 190m) — 노드 예약이 1190m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
+  - Prometheus 데이터는 관리 서버 디스크의 정적 PV(`/var/lib/newlearn/prometheus`, 10Gi, 15일 · 8GB 보존)에 둔다 — Pod를 다시 띄워도 남는다. 프로비저너 없이 이름표용 StorageClass(`kubernetes.io/no-provisioner`)만 둔다(Prometheus Operator는 StorageClass가 실제로 있어야 한다)
+  - Grafana: 아이디 · 비밀번호 로그인. 계정은 사람이 서버에서 만든 Secret(`grafana-admin`)에서 읽는다. 가입 · 익명 보기는 끈다. 대시보드는 설정으로 그리고 Grafana 자체 디스크는 두지 않는다(다시 뜨면 로그인을 새로 한다)
+  - 여는 길: 지금은 SSH 터널로 `http://localhost:3000/grafana/`. 공개 주소 `newlearn.io.kr/grafana`는 Lightsail · 정문 · HTTPS(Jira 90 · 91 · 93) 뒤에 연다 — 그때 Grafana `root_url`을 바꾼다. Prometheus는 로그인이 없어 공개하지 않는다. Swagger도 공개할 때 브라우저 팝업(HTTP 기본 인증)으로 아이디 · 비밀번호를 묻는다(2026-10-20 결정, 구현은 93 · BE)
+  - CloudWatch는 쓰지 않는다(API 호출 요금). CPU 크레딧 잔액은 EC2 콘솔에서 본다
 - 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유)
   - 상태 파일: 팀 계정 S3 버킷(버전 관리 · 퍼블릭 차단)에 두고 S3 잠금 파일로 동시 실행을 막는다(`use_lockfile`, DynamoDB 없이). 버킷 이름은 저장소에 적지 않는다(`infra/terraform/backend.hcl.example`). PC를 반납 · 분실해도 11/18 destroy를 할 수 있게 하려는 것이다(2026-10-20 결정)
   - 자격 증명: plan · apply 모두 범위를 좁힌 apply 전용 IAM 사용자 키로 한다 — EC2는 서울 리전만, 예산, 상태 버킷만(`infra/terraform/iam/apply-policy.json`). S3 잠금 때문에 plan도 쓰기가 필요해서, 10/18의 읽기 전용 키는 비활성화한다. 키는 `~/.aws/credentials`에만 둔다(`infra/README.md`)
@@ -136,6 +143,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 클러스터 구성
 
 - 서비스 Pod는 전부 워커에서 돈다. 네임스페이스: ai, ingress·web, app, data·batch, monitoring(Prometheus·Grafana), argocd (+kube-system)
+  - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
 - 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
 
@@ -176,6 +184,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 현재 상태
 
 - EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
+  - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인
   - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 저장소에 `.gitlab-ci.yml`이 아직 없어 MR에서는 파이프라인이 돌지 않는다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
@@ -259,3 +268,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | GitLab Runner 설치 (`helm upgrade --install --wait`) | 63초 · 러너 Pod Running, GitLab에 online | 서버의 helm 4.3.1, 차트 0.88.4 받기 포함. 시작 · 끝 시각 차이 |
 | 2026-10-20 | 시험 잡 (alpine 3.24.2, echo · uname · nproc) | 대기 0.8초 · 잡 18.6초(그중 잡 Pod Pending 약 12초 — 이미지 처음 받기). 잡 안에서 `cpu.max 100000 100000`(상한 1 vCPU) · `memory.max` 2 GiB, 서비스 계정 토큰 없음 | 임시 브랜치에 시험용 `.gitlab-ci.yml` 을 올리고 API 로 파이프라인 1번. 시간은 GitLab 잡 기록(`queued_duration` · `duration`) |
 | 2026-10-20 | 러너 설치 뒤 관리 서버 | 노드 Ready, kube-system 9개 Running, 유휴 90 ~ 93%, 메모리 사용 1,376 MiB / 7,816 MiB, CPU 요청 합 1000m | `kubectl`, `vmstat`, `free -m` |
+| 2026-10-20 | 모니터링 설치 (`helm upgrade --install kps --wait`) | 91초. 처음엔 Prometheus가 안 뜸(StorageClass 없음) → StorageClass를 만든 뒤 약 90초에 Running · PVC Bound | 서버의 helm 4.3.1, 차트 받기 포함 |
+| 2026-10-20 | 모니터링 Pod 자원 (설치 약 30분 뒤) | CPU: Grafana 0.024 · Prometheus 0.018 · operator 0.003 코어(대시보드를 보는 중, 5분 평균). 메모리: Prometheus 202MiB, Grafana 컨테이너 30분 최대 368.5MiB(사이드카 2개 각 약 77MiB) — 처음 상한 384Mi가 빠듯해 256Mi 요청 · 640Mi 상한으로 올림 | Prometheus 쿼리 `rate(container_cpu_usage_seconds_total[5m])` · `container_memory_working_set_bytes` |
+| 2026-10-20 | 모니터링 뒤 관리 서버 | 유휴 85 ~ 89%(전 88 ~ 92%), 노드 CPU 5분 평균 18%(대시보드를 여는 중), CPU 예약 1190m · 메모리 예약 1274Mi | `vmstat`, node-exporter 쿼리, `kubectl describe node` |
+| 2026-10-20 | 스로틀 지표 | CPU 상한 0.1 시험 Pod — 2분 스로틀 비율 0.99, Grafana 「CPU Throttling」 패널 98.7% | `container_cpu_cfs_throttled_periods_total ÷ container_cpu_cfs_periods_total` |
+| 2026-10-20 | Prometheus 데이터 보존 | Pod를 지웠다 다시 띄운 뒤에도 4분 전 시점 `count(up)` = 13 그대로, 저장 폴더 3.7MB | 지우기 전 · 뒤 같은 시점 쿼리 |
