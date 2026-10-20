@@ -58,6 +58,10 @@ MR 1 — 파이프라인 (브랜치 `chore/infra/S15P31A102-92-ci-pipeline` → 
 - `infra/server/README.md` 「GitLab Runner」 — 확인 표에 덮어쓰기 확인을 더한다
 
 MR 2 — 캐시 (MR 1 에서 잰 설치 시간이 크면만)
+
+> 2026-10-20 바꿈 (사용자 승인): 아래 GitLab `cache:` 방식을 재 보니 잡마다 다시 압축해서 캐시 없음보다 느렸다(파이프라인 572초 vs 480 ~ 490초).
+> 그래서 PVC 를 `/ci-cache` 로 붙이고 npm · uv · Gradle 이 캐시 폴더로 바로 쓰게 했다(320초). infra 는 캐시를 쓰면 더 느려 뺐다.
+> 모든 브랜치가 같은 캐시를 쓰는 것(Gradle 은 내용 검사 없음)은 같은 팀 저장소라 받아들였다. 잰 값은 `SSOT.md` 10절
 - `infra/k8s/bootstrap/ci-cache-pv.yaml` (새) — 정적 PV `/var/lib/newlearn/ci-cache` (StorageClass `newlearn-local-manual`, `prometheus-pv.yaml` 과 같은 방식) + PVC `gitlab-runner-cache`
 - 러너 값 — `cache_dir = "/cache"` 와 `[[runners.kubernetes.volumes.pvc]]` (TOML 표는 맨 끝 규칙)
 - `.gitlab-ci.yml`
@@ -81,9 +85,9 @@ MR 3 — 노트북 러너
 - [x] backend 스위치 — 로컬에서 두 방식으로 테스트를 돌려 확인 (기본 29초 · 컨테이너 3개, 끈 채 바깥 DB 14초 · 컨테이너 0개, DB 를 내리면 2개 실패)
 - [x] 러너 값 덮어쓰기 허용 → 서버 `helm upgrade` — 러너 online (판 4, 63초)
 - [x] `.gitlab-ci.yml` — CI Lint API 로 검사 → push → MR 1 파이프라인 초록, 잡별 대기 · 시간을 잰다 (Lint API 는 개인 토큰이 필요해 Pipeline editor 의 「syntax is correct」로 대신함. !48 첫 실행 520초 · 둘째 490초, SSOT 10절)
-- [ ] 문서만 바꾼 시험 Draft MR 로 「바뀐 영역만」 확인 (`rules` 잡만 뜨는지) → MR 을 닫는다. 원격 시험 브랜치 삭제는 사용자 허락 뒤
-- [ ] 문서(SSOT · stack.md · README)를 고치고 MR 1 을 머지한다
-- [ ] MR 2 캐시 — 같은 잡을 캐시 전후로 잰다
+- [x] 문서만 바꾼 시험 Draft MR 로 「바뀐 영역만」 확인 (`rules` 잡만 뜨는지) — !49 에서 `w0:rules` 하나만. 닫는 대신 잰 값 문서를 담아 !48 브랜치에 머지해서 시험 브랜치가 머지와 함께 지워짐
+- [x] 문서(SSOT · stack.md · README)를 고치고 MR 1 을 머지한다 — !48 → infra (40922c7)
+- [x] MR 2 캐시 — 같은 잡을 캐시 전후로 잰다 (!50: 없음 · GitLab `cache:` · 바로 쓰기 세 방식, 위 「바꿈」)
 - [ ] MR 3 노트북 러너 — 사용자가 등록, 노트북이 받은 잡(backend 포함) 초록, 노트북을 끈 채 EC2 만으로도 초록
 - [ ] `infra` → `dev` → 분야 브랜치 넷에 반영. 머지 직전마다 원격 `dev` 를 확인하고, 반영 MR 마다 파이프라인 결과를 본다
 - [ ] 팀 공지 문안을 쓴다 (사용자가 올림): 무엇을 검사하나, 빨간불이면 어디를 보나, 아직 머지를 막지 않는다는 것

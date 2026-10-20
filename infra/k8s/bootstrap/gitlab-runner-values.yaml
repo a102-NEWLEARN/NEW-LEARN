@@ -105,3 +105,8 @@ runners:
           "node-role.kubernetes.io/control-plane" = ""
         [runners.kubernetes.node_tolerations]
           "node-role.kubernetes.io/control-plane" = "NoSchedule"
+        # CI 캐시 (Jira S15P31A102-92) — 잡의 npm · uv · Gradle 이 받은 것을 /ci-cache 에 직접 쌓는다 (.gitlab-ci.yml)
+        # GitLab cache: 처럼 잡마다 압축하지 않아 저장 시간이 없다. infra/k8s/bootstrap/ci-cache-pv.yaml 을 먼저 apply 한다
+        [[runners.kubernetes.volumes.pvc]]
+          name = "gitlab-runner-cache"
+          mount_path = "/ci-cache"

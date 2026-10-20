@@ -101,11 +101,15 @@ w0:harness:
 # ---------------------------------------------------------------------------
 # changes: 는 영역 폴더 · stack.md §3 의 <영역>_ALSO_PATHS · .claude/ · 이 파일이다. ALSO_PATHS 를 바꾸면 여기도 맞춘다.
 # dev 는 changes: 없이 전 영역을 돈다. MR 에서 놓친 것을 거기서 잡는다
+# 내려받은 의존성은 /ci-cache 에 도구가 직접 쌓는다 — 러너가 잡마다 붙이는 디스크다(EC2 는 infra/k8s/bootstrap/ci-cache-pv.yaml).
+# GitLab cache: 는 잡마다 압축해 다시 저장해서 ai 는 저장에만 98초가 들었다 — 잰 값은 SSOT.md 10절
+# 러너에 /ci-cache 가 없으면 잡 안에 빈 폴더가 생겨 캐시 없이 돈다
 w12:frontend:
   extends: .area
   image: node:26-trixie@sha256:1b84b89ada025e3b14543cbb837ffaa1c1b5273b841c5b94dd1a8f9c1d8cf7fe   # Node 26.12.0
   variables:
     AREA: frontend
+    npm_config_cache: /ci-cache/npm
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["frontend/**/*", .editorconfig, ".prettierrc*", "prettier.config.*", package.json, package-lock.json, ".claude/**/*", .gitlab-ci.yml]
@@ -117,6 +121,8 @@ w12:ai:
     AREA: ai
     UV_PYTHON_DOWNLOADS: never   # 이미지의 Python 3.14 를 쓴다 (ai/.python-version)
     PYTEST_ADDOPTS: "--junitxml=$CI_PROJECT_DIR/ai-junit.xml"   # 테스트마다 시간이 MR 화면에 남는다
+    UV_CACHE_DIR: /ci-cache/uv
+    UV_LINK_MODE: copy   # 캐시와 가상환경이 다른 파일 시스템이라 하드 링크 대신 복사
   artifacts:
     when: always
     reports:
@@ -132,6 +138,7 @@ w12:infra:
     entrypoint: [""]   # 기본 진입점이 terraform 이라 노트북 러너(Docker executor)에서 셸이 안 뜬다
   variables:
     AREA: infra
+  # Terraform 플러그인 캐시는 뺐다 — 쓰면 설치가 오히려 느렸다(20 → 28초, SSOT.md 10절)
   before_script:
     # alpine 이라 bash 가 없고 grep 은 busybox 다. 게이트는 bash 와 GNU grep 을 쓴다
     - apk add --no-cache bash grep
@@ -163,6 +170,7 @@ w3:backend:
     DB_PORT: "5432"
     REDIS_HOST: redis
     REDIS_PORT: "6379"
+    GRADLE_USER_HOME: /ci-cache/gradle   # Gradle 배포판과 받은 라이브러리. 여러 잡이 같이 써도 Gradle 이 잠금으로 막는다
   before_script:
     # 서비스가 받을 준비가 될 때까지 기다린다 (최대 60초). PostgreSQL 은 초기화를 마친 뒤에야 TCP 를 연다
     - for i in $(seq 1 60); do (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null && (exec 3<>/dev/tcp/redis/6379) 2>/dev/null && echo "services ready ${i}s" && break; sleep 1; done

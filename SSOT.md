@@ -106,6 +106,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 영역마다 잡 하나다(하네스 껍데기는 fast · slow 두 잡). 러너 자리가 1개라 두 잡이면 Pod와 설치가 두 번 돈다
   - 갈래마다 CPU · 메모리 요청을 따로 준다 — w0 100m, w12 250m, w3 300m + 서비스 각 100m, CPU 상한은 모두 1 이하. 러너 값의 덮어쓰기 상한이 기본값(요청 500m · 상한 1 · 메모리 2Gi)과 같아서 잡은 줄이기만 한다. 잡 Pod에 이름표 `newlearn.io/workload`(w0 · w12 · w3)를 붙인다
   - 백엔드 테스트는 로컬에서는 Testcontainers로 DB · Redis를 띄우고, CI는 잡 Pod에 Docker가 없어서 services로 잡 옆에 띄운 DB · Redis에 붙는다(`NEWLEARN_TEST_TESTCONTAINERS=false`). 이미지는 compose와 같은 태그
+  - 캐시: 잡 Pod마다 관리 서버 디스크 폴더(`/var/lib/newlearn/ci-cache`, `infra/k8s/bootstrap/ci-cache-pv.yaml`)를 `/ci-cache`로 붙이고 npm · uv · Gradle이 캐시 폴더로 바로 쓴다. GitLab `cache:`는 잡마다 다시 압축해 캐시 없음보다 느렸다(10절). infra는 캐시를 쓰면 더 느려 뺐다
+    - 모든 브랜치가 같은 캐시를 쓴다. npm · uv는 잠금 파일의 해시로 내용을 검사하지만 Gradle은 검사하지 않는다 — 같은 팀 저장소라 받아들였다(2026-10-20)
   - 시간 목표(여신보좌관 실측보다 짧게): MR 파이프라인 중앙값 5분 · p90 10분, 기다림 p90 2분, backend 잡 중앙값 7분
   - 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 인프라 담당이 정한다
   - 이미지 빌드 · 저장소 · 태그는 Jira S15P31A102-96에서 한다
@@ -282,5 +284,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | 스로틀 지표 | CPU 상한 0.1 시험 Pod — 2분 스로틀 비율 0.99, Grafana 「CPU Throttling」 패널 98.7% | `container_cpu_cfs_throttled_periods_total ÷ container_cpu_cfs_periods_total` |
 | 2026-10-20 | 첫 CI 파이프라인 (MR !48, 모든 영역, 이미지를 처음 받음, 캐시 없음) | 520초. 잡별 대기 · 실행: rules 2 · 26초, frontend 3 · 75초, ai 78 · 68초, infra 146 · 61초, backend 208 · 290초. 자리가 1개라 영역 잡이 차례로 돌아 대기가 쌓였다. backend 는 CPU 상한 1에 2221 구간 중 2036 구간(92%) 막혔고 이미지 받기에 61초 | GitLab 잡 기록(`queued_duration` · `duration`), 잡 로그의 구간 시각, 잡 끝에 찍은 `cpu.stat` |
 | 2026-10-20 | 두 번째 CI 파이프라인 (이미지가 노드에 있음, `.claude/` 를 바꿔 하네스 검사 포함) | 490초. rules 14초, harness 46초(하네스 테스트 8개 파일 통과), frontend 54초, ai 64초, infra 55초, backend 258초(막힘 90%). 단계: 설치 ai 41 · infra 20 · frontend 17초, backend 포맷 검사 75초(Gradle 받기 포함) · 테스트 130초. 준비는 첫 실행 9 ~ 61초 → 3 ~ 4초(backend 33초) | 같은 방법 |
+| 2026-10-20 | CI 캐시 — GitLab `cache:` (MR !50, 관리 서버 디스크에 압축 파일) | 채울 때 612초, 쓸 때 572초 — 캐시 없음(480 ~ 490초)보다 느림. 쓸 때 잡별(복원 · 스크립트 · 저장): frontend 58초(3 · 39 · 5, 없음 54초), ai 182초(30 · 41 · 97, 없음 64초), infra 124초(16 · 54 · 46, 없음 55초), backend 192초(15 · 102 · 35, 없음 258초). 압축 파일 frontend 51 · infra 183 · backend 304 · ai 336 MB | 같은 MR 에서 두 번(두 번째는 MR 파이프라인을 다시 만듦). 잡 로그의 `restore_cache` · `archive_cache` 구간 |
+| 2026-10-20 | CI 캐시 — 도구가 `/ci-cache`(관리 서버 디스크)에 직접 쌓음, 압축 없음 (MR !50) | 채울 때 437초, 쓸 때 **320초** — 캐시 없음(480 ~ 490초) · GitLab `cache:`(572초)보다 빠름. 쓸 때 잡별: frontend 49초(설치 11초, 없음 17초), ai 56초(설치 33초 — 받기는 없고 약 1 GB 를 가상환경에 복사하는 시간), infra 63초(설치 28초, 없음 20초 — 그래서 infra 는 뺌), backend 136초(포맷 검사 33 · 테스트 51초, 없음 75 · 130초, CPU 막힘 871/961 구간) | 같은 MR 에서 두 번. 잡 로그의 단계 시각 |
 | 2026-10-20 | 갈래별 잡 자원 | w0 잡 Pod 의 build 컨테이너 요청 100m · 128Mi, 상한 500m · 256Mi, 이름표 `newlearn.io/workload=w0` | 잡이 도는 동안 `kubectl -n gitlab-runner get pod -o jsonpath` |
 | 2026-10-20 | Prometheus 데이터 보존 | Pod를 지웠다 다시 띄운 뒤에도 4분 전 시점 `count(up)` = 13 그대로, 저장 폴더 3.7MB | 지우기 전 · 뒤 같은 시점 쿼리 |
