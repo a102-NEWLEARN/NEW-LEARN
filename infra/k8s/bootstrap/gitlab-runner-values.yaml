@@ -1,0 +1,85 @@
+# GitLab Runner 18.11.4 (gitlab-runner 차트 0.88.4) 값 — 관리 서버(EC2)에만 올린다
+# 쓰는 곳: infra/server/README.md 「GitLab Runner」. 왜 Pod 로 띄우나 · 왜 잡 CPU 상한이 1 인가는 SSOT.md 6절 · docs/plans/2026-10-20-gitlab-runner.md
+# 러너 판은 GitLab(18.11.5)과 major.minor 를 맞춘다 — GitLab 이 오르면 같은 minor 의 차트로 올린다
+# 값의 뜻은 차트 0.88.4 의 values.yaml · templates 와 GitLab 문서 「Kubernetes executor」로 확인했다 (2026-10-20)
+
+gitlabUrl: https://lab.ssafy.com/
+
+# 한 번에 잡 하나만. 관리 서버는 2 vCPU 이고 apiserver · etcd 와 CPU 를 나눈다
+concurrent: 1
+
+# 러너 Pod 도 관리 서버에만 — control-plane 표시(taint)를 견디고, 그 노드를 고른다
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+# 러너 Pod 가 쓸 서비스 계정 — 아래 Role 이 여기에 붙는다 (안 적으면 차트가 경고하고 만든다)
+serviceAccount:
+  create: true
+
+# 러너가 잡 Pod 를 만들 권한. rules 를 비우면 차트가 네임스페이스 안 모든 자원(*)을 주므로 문서의 필요한 것만 적는다
+rbac:
+  create: true
+  rules:
+    - resources: ["pods"]
+      verbs: ["create", "delete", "get", "list", "watch"]
+    - resources: ["pods/attach", "pods/exec"]
+      verbs: ["create", "delete", "get", "patch"]
+    - resources: ["pods/log"]
+      verbs: ["get", "list"]
+    - resources: ["secrets"]
+      verbs: ["create", "delete", "get", "update"]
+    - resources: ["serviceaccounts"]
+      verbs: ["get"]
+    - resources: ["services"]
+      verbs: ["create", "get"]
+    - resources: ["events"]
+      verbs: ["list", "watch"]
+
+runners:
+  # 토큰은 이 파일에 쓰지 않는다. 서버에서 사람이 만든 Secret 을 읽는다 — 키 runner-token(값) · runner-registration-token(빈 값)
+  secret: gitlab-runner-token
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        namespace = "{{ default .Release.Namespace .Values.runners.jobNamespace }}"
+        # 잡이 image 를 안 적었을 때 쓰는 이미지
+        image = "alpine:3.24.2"
+
+        # 빌드 컨테이너 상한 CPU 1 — 잡이 바빠도 1 vCPU 는 컨트롤 플레인 몫으로 남는다
+        # 요청 500m 를 더해도 노드 요청 합계는 2000m 안이다 (지금 950m)
+        cpu_request = "500m"
+        cpu_limit = "1"
+        memory_request = "1Gi"
+        memory_limit = "2Gi"
+        helper_cpu_request = "50m"
+        helper_cpu_limit = "500m"
+        helper_memory_request = "64Mi"
+        helper_memory_limit = "256Mi"
+        service_cpu_request = "100m"
+        service_cpu_limit = "500m"
+        service_memory_request = "128Mi"
+        service_memory_limit = "512Mi"
+
+        # 팀원 MR 의 코드가 이 Pod 안에서 돈다 — 권한 없는 컨테이너, 쿠버네티스 API 토큰도 안 넣는다
+        privileged = false
+        allow_privilege_escalation = false
+        automount_service_account_token = false
+
+        # 잡 Pod 도 관리 서버에만
+        # 🔴 아래 두 표는 맨 끝에 둔다. TOML 은 [표] 머리 뒤의 키를 다음 머리까지 그 표에 넣는다 —
+        #    가운데에 두면 뒤의 cpu_limit · privileged 가 node_tolerations 로 읽혀 러너가 등록하지 못한다 (2026-10-20 겪음)
+        [runners.kubernetes.node_selector]
+          "node-role.kubernetes.io/control-plane" = ""
+        [runners.kubernetes.node_tolerations]
+          "node-role.kubernetes.io/control-plane" = "NoSchedule"
