@@ -16,7 +16,10 @@
 
 ## 바꿀 파일 (모두 `frontend/` 안)
 
-- `index.html` — `<html>` 에 `data-seed-color-mode="light-only"`, 파비콘 링크
+> **2026-10-20 계획 변경 (승인받음):** 라이트 고정은 `vite.config.ts` 의 `seedDesignPlugin({ colorMode: "light-only" })` 로 한다. SEED Vite 플러그인이 페이지를 띄울 때 `<html data-seed-color-mode>` 를 자기 옵션 값(기본 `system`)으로 덮어써서 `index.html` 속성은 효과가 없었다. 헤드리스 Edge 로 화면을 열어 보고 알았다.
+
+- `vite.config.ts` — `seedDesignPlugin({ colorMode: "light-only" })` (위 변경)
+- `index.html` — 파비콘 링크
 - `src/newlearn-theme.css` (새 파일) — 층(`@layer`) 밖에 둬서 SEED 층보다 항상 이기게 한다
   - 기본 색 11개 `--nl-brand-*` (DESIGN.md Colors 「기본 색 11개」)
   - 값을 바꾼 SEED 역할 14개 `--seed-color-*` 덮어쓰기 (「값을 바꾼 SEED 역할 14개」)

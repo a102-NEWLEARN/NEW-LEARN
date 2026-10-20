@@ -35,7 +35,14 @@ export default defineConfig(({ mode }) => {
     env.API_PROXY_TARGET ?? `http://localhost:${env.BACKEND_PORT ?? "8080"}`;
 
   return {
-    plugins: [injectLayerOrder(), react(), tailwindcss(), seedDesignPlugin()],
+    plugins: [
+      injectLayerOrder(),
+      react(),
+      tailwindcss(),
+      // NEW:LEARN 은 라이트 테마만 쓴다 (DESIGN.md). 이 플러그인이 <html data-seed-color-mode> 를
+      // 옵션 값으로 덮어쓰므로 index.html 이 아니라 여기서 고정한다
+      seedDesignPlugin({ colorMode: "light-only" }),
+    ],
     resolve: {
       conditions: ["seed-layered", ...defaultClientConditions],
       tsconfigPaths: true,

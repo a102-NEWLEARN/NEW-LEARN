@@ -6,7 +6,6 @@ import { describe, expect, test } from "vitest";
 const readText = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const themeCss = readText("./newlearn-theme.css");
-const indexHtml = readText("../index.html");
 
 // 기대값의 출처는 DESIGN.md Colors 절이다
 // (_bmad-output/planning-artifacts/ux-designs/ux-S15P31A102-2026-10-15/DESIGN.md).
@@ -83,8 +82,12 @@ describe("NEW:LEARN 테마 — DESIGN.md 색과 같다", () => {
     expect(themeCss).not.toMatch(/var\(--seed-color-palette-carrot/);
   });
 
+  // SEED Vite 플러그인이 페이지를 띄울 때 <html data-seed-color-mode> 를 자기 옵션 값으로 덮어쓴다.
+  // 그래서 index.html 이 아니라 플러그인 옵션으로 고정한다
   test("라이트 테마로 고정한다", () => {
-    expect(indexHtml).toMatch(/<html[^>]*data-seed-color-mode="light-only"/);
+    expect(readText("../vite.config.ts")).toMatch(
+      /seedDesignPlugin\(\{\s*colorMode:\s*"light-only"\s*\}\)/,
+    );
   });
 });
 
