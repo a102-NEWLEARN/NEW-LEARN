@@ -101,6 +101,18 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 러너 · 잡 Pod 모두 관리 서버에만 둔다(control-plane taint를 견디고 그 노드를 고른다). 한 번에 잡 1개, 잡 CPU 요청 500m · 상한 1, 메모리 1Gi · 2Gi — 잡이 바빠도 1 vCPU는 apiserver · etcd 몫으로 남는다. 실제 CI 잡 시간을 재서 조정한다(Jira S15P31A102-92). 값은 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 까는 법은 `infra/server/README.md` 「GitLab Runner」
   - 러너 판은 GitLab과 major.minor를 맞춘다 — 차트 0.88.4(러너 18.11.4). 토큰은 저장소에 두지 않고 서버의 Secret(`gitlab-runner-token`)에만 있다
   - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
+- CI 파이프라인: `.gitlab-ci.yml`(2026-10-20, Jira S15P31A102-92). MR과 dev push에서 돈다. 계획은 `docs/plans/2026-10-20-ci-pipeline.md`
+  - 잡을 「무엇에 막히나」로 나눈 갈래로 둔다 — w0 규칙(시크릿 스캔 · MR 규칙 · 하네스 자체 검사) → w12 영역 검사(frontend · ai · infra) · w3 backend(DB · Redis가 필요한 테스트). 영역 잡은 `pre-commit --ci <영역>`으로 `.claude/stack.md` 3절 명령을 그대로 돈다. MR은 바뀐 영역만, dev는 전부 돈다. 하네스 자체 검사는 `.claude/`가 바뀔 때와 dev에서만
+  - 영역마다 잡 하나다(하네스 껍데기는 fast · slow 두 잡). 러너 자리가 1개라 두 잡이면 Pod와 설치가 두 번 돈다
+  - 갈래마다 CPU · 메모리 요청을 따로 준다 — w0 100m, w12 250m, w3 300m + 서비스 각 100m, CPU 상한은 모두 1 이하. 러너 값의 덮어쓰기 상한이 기본값(요청 500m · 상한 1 · 메모리 2Gi)과 같아서 잡은 줄이기만 한다. 잡 Pod에 이름표 `newlearn.io/workload`(w0 · w12 · w3)를 붙인다
+  - 백엔드 테스트는 로컬에서는 Testcontainers로 DB · Redis를 띄우고, CI는 잡 Pod에 Docker가 없어서 services로 잡 옆에 띄운 DB · Redis에 붙는다(`NEWLEARN_TEST_TESTCONTAINERS=false`). 이미지는 compose와 같은 태그
+  - 캐시: 잡 Pod마다 관리 서버 디스크 폴더(`/var/lib/newlearn/ci-cache`, `infra/k8s/bootstrap/ci-cache-pv.yaml`)를 `/ci-cache`로 붙이고 npm · uv · Gradle이 캐시 폴더로 바로 쓴다. GitLab `cache:`는 잡마다 다시 압축해 캐시 없음보다 느렸다(10절). infra는 캐시를 쓰면 더 느려 뺐다
+    - 모든 브랜치가 같은 캐시를 쓴다. npm · uv는 잠금 파일의 해시로 내용을 검사하지만 Gradle은 검사하지 않는다 — 같은 팀 저장소라 받아들였다(2026-10-20)
+  - 노트북 러너: 인프라 담당 노트북의 Docker Desktop 안에 러너를 컨테이너로 둔다(`infra/laptop-runner/`, 2026-10-20 사용자 허락). 켜져 있을 때만 EC2 러너에 더해지는 「큰 러너」다 — 잡 하나 CPU 4 · 메모리 4g, 동시 2, 잡 시간 상한 20분. 노트북이 꺼져도 CI 는 EC2 만으로 돈다
+    - 권한 없는 컨테이너, 호스트 폴더를 잡에 붙이지 않음, Docker 엔진 연결은 러너 컨테이너에만. 잡마다 네트워크를 만든다(`FF_NETWORK_PER_BUILD`) — Docker 29 는 예전 컨테이너 연결을 만들지 않아 services 별칭이 안 풀렸다. 캐시는 노트북 Docker 볼륨에 따로 쌓인다. 어느 러너가 잡을 받을지는 고를 수 없다(먼저 비는 쪽)
+  - 시간 목표(여신보좌관 실측보다 짧게): MR 파이프라인 중앙값 5분 · p90 10분, 기다림 p90 2분, backend 잡 중앙값 7분
+  - 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 인프라 담당이 정한다
+  - 이미지 빌드 · 저장소 · 태그는 Jira S15P31A102-96에서 한다
 - 모니터링: kube-prometheus-stack 92.10.1(Prometheus · Grafana · node-exporter · kube-state-metrics)을 관리 서버에 둔다(2026-10-20, Jira S15P31A102-95). Lightsail을 기다리지 않고 CI 병목을 CI 파이프라인(92) 전부터 재려는 것이다. 값은 `infra/k8s/bootstrap/monitoring-values.yaml`, 까는 법은 `infra/server/README.md` 「모니터링」
   - 무엇을 보나: 노드 CPU · 메모리, Pod CPU · 스로틀(cAdvisor — `container_cpu_cfs_throttled_periods_total`, `…_throttled_seconds_total`은 차트 기본값이 버린다), GitLab Runner 지표(기다림 · 자리 사용률). 잡별 기다림 · 걸린 시간은 CI 파일이 생긴 뒤 gitlab-ci-pipelines-exporter로 더한다
   - CPU 예약을 작게 잡는다(모니터링 합 약 190m) — 노드 예약이 1190m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
@@ -185,7 +197,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 - EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
   - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인
-  - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 저장소에 `.gitlab-ci.yml`이 아직 없어 MR에서는 파이프라인이 돌지 않는다(Jira S15P31A102-92)
+  - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 2026-10-20 `.gitlab-ci.yml`을 넣어 MR 파이프라인이 돈다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
@@ -210,12 +222,12 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 항목 | 누가 | 관련 |
 |---|---|---|
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
-| 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절 |
+| 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 2026-10-20 다시 봐도 프로젝트에 이미지 주소가 없다(서버에서 레지스트리가 꺼져 있다). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절, Jira S15P31A102-96 |
 | HTTPS 인증서 발급 방식 | Infra | — |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다 | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
-| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절 |
+| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절, Jira S15P31A102-96 |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
@@ -272,4 +284,11 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | 모니터링 Pod 자원 (설치 약 30분 뒤) | CPU: Grafana 0.024 · Prometheus 0.018 · operator 0.003 코어(대시보드를 보는 중, 5분 평균). 메모리: Prometheus 202MiB, Grafana 컨테이너 30분 최대 368.5MiB(사이드카 2개 각 약 77MiB) — 처음 상한 384Mi가 빠듯해 256Mi 요청 · 640Mi 상한으로 올림 | Prometheus 쿼리 `rate(container_cpu_usage_seconds_total[5m])` · `container_memory_working_set_bytes` |
 | 2026-10-20 | 모니터링 뒤 관리 서버 | 유휴 85 ~ 89%(전 88 ~ 92%), 노드 CPU 5분 평균 18%(대시보드를 여는 중), CPU 예약 1190m · 메모리 예약 1274Mi | `vmstat`, node-exporter 쿼리, `kubectl describe node` |
 | 2026-10-20 | 스로틀 지표 | CPU 상한 0.1 시험 Pod — 2분 스로틀 비율 0.99, Grafana 「CPU Throttling」 패널 98.7% | `container_cpu_cfs_throttled_periods_total ÷ container_cpu_cfs_periods_total` |
+| 2026-10-20 | 첫 CI 파이프라인 (MR !48, 모든 영역, 이미지를 처음 받음, 캐시 없음) | 520초. 잡별 대기 · 실행: rules 2 · 26초, frontend 3 · 75초, ai 78 · 68초, infra 146 · 61초, backend 208 · 290초. 자리가 1개라 영역 잡이 차례로 돌아 대기가 쌓였다. backend 는 CPU 상한 1에 2221 구간 중 2036 구간(92%) 막혔고 이미지 받기에 61초 | GitLab 잡 기록(`queued_duration` · `duration`), 잡 로그의 구간 시각, 잡 끝에 찍은 `cpu.stat` |
+| 2026-10-20 | 두 번째 CI 파이프라인 (이미지가 노드에 있음, `.claude/` 를 바꿔 하네스 검사 포함) | 490초. rules 14초, harness 46초(하네스 테스트 8개 파일 통과), frontend 54초, ai 64초, infra 55초, backend 258초(막힘 90%). 단계: 설치 ai 41 · infra 20 · frontend 17초, backend 포맷 검사 75초(Gradle 받기 포함) · 테스트 130초. 준비는 첫 실행 9 ~ 61초 → 3 ~ 4초(backend 33초) | 같은 방법 |
+| 2026-10-20 | CI 캐시 — GitLab `cache:` (MR !50, 관리 서버 디스크에 압축 파일) | 채울 때 612초, 쓸 때 572초 — 캐시 없음(480 ~ 490초)보다 느림. 쓸 때 잡별(복원 · 스크립트 · 저장): frontend 58초(3 · 39 · 5, 없음 54초), ai 182초(30 · 41 · 97, 없음 64초), infra 124초(16 · 54 · 46, 없음 55초), backend 192초(15 · 102 · 35, 없음 258초). 압축 파일 frontend 51 · infra 183 · backend 304 · ai 336 MB | 같은 MR 에서 두 번(두 번째는 MR 파이프라인을 다시 만듦). 잡 로그의 `restore_cache` · `archive_cache` 구간 |
+| 2026-10-20 | CI 캐시 — 도구가 `/ci-cache`(관리 서버 디스크)에 직접 쌓음, 압축 없음 (MR !50) | 채울 때 437초, 쓸 때 **320초** — 캐시 없음(480 ~ 490초) · GitLab `cache:`(572초)보다 빠름. 쓸 때 잡별: frontend 49초(설치 11초, 없음 17초), ai 56초(설치 33초 — 받기는 없고 약 1 GB 를 가상환경에 복사하는 시간), infra 63초(설치 28초, 없음 20초 — 그래서 infra 는 뺌), backend 136초(포맷 검사 33 · 테스트 51초, 없음 75 · 130초, CPU 막힘 871/961 구간) | 같은 MR 에서 두 번. 잡 로그의 단계 시각 |
+| 2026-10-20 | 노트북 러너만 (EC2 러너를 잠시 멈춤, MR !52) | 첫 실행 330초 — 내려받기가 병목(ai 206 · backend 208초, backend 포맷 검사에 137초). 캐시를 쓴 실행 **109초** — rules 7 · harness 25 · frontend 22 · ai 15 · infra 76 · backend 39초(EC2 는 136초). 잡 CPU 상한 4(`cpu.max 400000 100000`) | 같은 MR 파이프라인을 두 번. Docker executor 는 after_script 를 따로 띄운 컨테이너에서 돌려, 잡 끝 `cpu.stat` 으로는 노트북 잡의 막힘을 못 본다 |
+| 2026-10-21 | 두 러너가 함께 (MR !52) | **119초**. EC2 가 rules 14 · ai 47초, 노트북이 harness 26 · frontend 22 · infra 83 · backend 41초. 가장 긴 기다림 27초 (EC2 만일 때 같은 파이프라인 305초) | 같은 방법. 어느 러너가 받을지는 고르지 않았다 |
+| 2026-10-20 | 갈래별 잡 자원 | w0 잡 Pod 의 build 컨테이너 요청 100m · 128Mi, 상한 500m · 256Mi, 이름표 `newlearn.io/workload=w0` | 잡이 도는 동안 `kubectl -n gitlab-runner get pod -o jsonpath` |
 | 2026-10-20 | Prometheus 데이터 보존 | Pod를 지웠다 다시 띄운 뒤에도 4분 전 시점 `count(up)` = 13 그대로, 저장 폴더 3.7MB | 지우기 전 · 뒤 같은 시점 쿼리 |
