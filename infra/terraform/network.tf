@@ -24,33 +24,22 @@ resource "aws_vpc_security_group_ingress_rule" "admin_ssh" {
   to_port           = 22
 }
 
-# 워커 노드가 컨트롤 플레인과 주고받는 포트. 워커는 다른 계정(SSAFY 지급 Lightsail)이라 공인 IP 로 붙는다.
-# Lightsail 방화벽도 짝을 맞춰 EC2 IP 에서 10250 · 8472/udp · 4240 을 열어야 한다 (SSOT.md 6절)
+# 워커 노드(SSAFY 지급 Lightsail)는 다른 계정이라 사설 IP 로 닿지 않는다. 두 노드를 호스트 WireGuard 로 잇고
+# 쿠버네티스 트래픽(6443 · 10250 · Cilium)은 그 터널 안으로만 다닌다. 보안 그룹은 바깥 포장인 WireGuard UDP 만 본다.
+# Lightsail 이 먼저 연결하므로 EC2 쪽만 연다 (SSOT.md 6절)
 locals {
-  worker_ports = {
-    kube-apiserver = { protocol = "tcp", port = 6443 }
-    kubelet        = { protocol = "tcp", port = 10250 }
-    cilium-health  = { protocol = "tcp", port = 4240 }
-    cilium-vxlan   = { protocol = "udp", port = 8472 }
-  }
+  wireguard_port = 51820
 }
 
-resource "aws_vpc_security_group_ingress_rule" "worker" {
-  for_each = {
-    for pair in setproduct(var.worker_cidrs, keys(local.worker_ports)) : "${pair[1]}-${pair[0]}" => {
-      cidr     = pair[0]
-      name     = pair[1]
-      protocol = local.worker_ports[pair[1]].protocol
-      port     = local.worker_ports[pair[1]].port
-    }
-  }
+resource "aws_vpc_security_group_ingress_rule" "worker_wireguard" {
+  for_each = toset(var.worker_cidrs)
 
   security_group_id = aws_security_group.control_plane.id
-  description       = "worker ${each.value.name}"
-  cidr_ipv4         = each.value.cidr
-  ip_protocol       = each.value.protocol
-  from_port         = each.value.port
-  to_port           = each.value.port
+  description       = "worker wireguard"
+  cidr_ipv4         = each.value
+  ip_protocol       = "udp"
+  from_port         = local.wireguard_port
+  to_port           = local.wireguard_port
 }
 
 resource "aws_vpc_security_group_egress_rule" "all" {
