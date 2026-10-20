@@ -65,7 +65,10 @@
 AREAS="frontend backend ai infra"
 
 # 명령은 호스트에서 돈다. 영역의 런타임이 호스트에 있어야 한다 (docs/dev-environment.md 「내 영역을 호스트에서 띄울 때」).
+# <영역>_ALSO_PATHS — 영역 폴더 밖이지만 그 영역 검사가 읽는 파일. 바뀌면 커밋 검사가 그 영역을 돈다 (§4).
+#   저장소 루트 기준 경로, 공백 구분. * 를 쓸 수 있고 / 도 넘는다. 끝이 / 면 그 폴더 아래 전부
 frontend_PATH="frontend"   # 화면 (React)
+frontend_ALSO_PATHS=".editorconfig .prettierrc* prettier.config.* package.json package-lock.json"   # frontend/ 에 prettier 설정이 없어 prettier 가 루트까지 올라가 찾는다. 루트 package.json 은 npm 워크스페이스가 될 수 있다. eslint 는 frontend/eslint.config.js 에서 멈춘다
 frontend_INSTALL="npm ci"   # 의존성 설치
 frontend_RUN="npm run dev"   # 개발 서버. compose full 프로필이면 frontend 컨테이너가 띄운다
 frontend_FORMAT_FIX="npm run format"   # 포맷을 실제로 고친다
@@ -75,6 +78,7 @@ frontend_TEST="npm test"   # 테스트
 frontend_BUILD="npm run build"   # 빌드
 
 backend_PATH="backend"   # API 서버 (Spring Boot)
+backend_ALSO_PATHS=""   # backend/settings.gradle 에서 Gradle 이 멈춰 루트 파일을 안 읽는다. 루트 .env 는 커밋되지 않는다
 backend_INSTALL=""   # 따로 설치하는 단계가 없다 — Gradle 이 다른 명령을 돌릴 때 의존성을 받는다
 backend_RUN="./gradlew bootRun"   # IDE 에서 BackendApplication 을 실행해도 같다. 둘 다 루트 .env 를 읽는다
 backend_FORMAT_FIX="./gradlew spotlessApply"
@@ -84,6 +88,7 @@ backend_TEST="./gradlew test"   # Testcontainers 로 DB · Redis 를 띄운다. 
 backend_BUILD="./gradlew bootJar"
 
 ai_PATH="ai"   # AI 분석 워커 (FastAPI)
+ai_ALSO_PATHS="pyproject.toml uv.lock"   # ruff · pytest · uv 설정은 ai/pyproject.toml 에서 멈춘다. 루트에 uv 워크스페이스가 생기면 ai 가 그 일부가 될 수 있다. 루트 .gitignore 도 ruff 가 따르지만 일부러 뺐다 — 무시 규칙을 지워 숨던 파일이 드러날 때만 다르고, 그 파일은 다음 ai 커밋과 CI 가 잡는다
 ai_INSTALL="uv sync --locked"
 ai_RUN="uv run --env-file ../.env uvicorn app.main:app --reload --port 8000"
 ai_FORMAT_FIX="uv run --locked ruff check --select I --fix . && uv run --locked ruff format ."   # import 정렬 + 포맷
@@ -94,6 +99,7 @@ ai_BUILD=""   # 빌드 산출물이 없다 — 운영 이미지는 CI 에서 굽
 ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jira S15P31A102-33 에서 채운다
 
 infra_PATH="infra"   # 인프라 코드 (Terraform · 쿠버네티스 매니페스트 · kind 리허설). 검사는 AWS 자격 증명 없이 돈다
+infra_ALSO_PATHS=""   # 검사가 terraform -chdir 와 infra/kind/ 만 본다
 infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # provider 를 받는다. 상태 파일은 만들지 않는다
 infra_RUN="bash kind/up.sh"   # 내 PC 의 kind 리허설 클러스터 (Docker Desktop · kind · Helm 필요). Terraform plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
@@ -138,6 +144,19 @@ DEFAULT_BRANCH="dev"    # 저장소 기본 브랜치이자 MR 이 모이는 브�
 | 4 | 테스트 | 3절의 `<영역>_TEST` |
 
 **바뀐 파일이 있는 영역만 돌린다.** 전부 돌리면 느려서 결국 훅을 꺼버리게 된다.
+
+| 바뀐 것 | 도는 것 |
+|---|---|
+| 영역 폴더(`<영역>_PATH`) 안 파일 · `<영역>_ALSO_PATHS` 에 맞는 영역 밖 파일 | 그 영역 |
+| 이 파일 3절 블록의 `<영역>_PATH` · `_FORMAT_CHECK` · `_LINT` · `_TEST` | 그 영역 |
+| 3절 `AREAS` 에 새로 넣은 영역 | 그 영역 |
+| 3절의 공용 변수 · 다른 선언의 값에 나오는 이름 · 선언 순서 · 같은 이름 두 번 | 모든 영역 — 누가 읽는지 다 알 수 없다 |
+| 3절 블록 밖 글 · 주석 · 선언 뒤 설명 · 커밋 검사가 안 돌리는 선언(`_RUN` · `_BUILD` …) · 다른 훅 설정(`COMMIT_TYPES` …) | 없음 |
+| `.claude/hooks/` · `.claude/settings.json` | 그 파일 이름을 본문에 적은 하네스 테스트(`hooks/tests/test-*.sh`). 바뀐 것이 테스트 파일이면 그 파일 |
+| 그 밖의 영역 밖 파일 (`.gitignore` · `compose.yaml` · `.env.example` …) · 문서 | 없음 — `영역 검사 없음` 을 찍는다 |
+
+영역 도구가 위로 올라가 찾아 읽는 루트 파일(포맷터 설정 · 워크스페이스 파일)은 `<영역>_ALSO_PATHS` 에 적는다.
+안 적으면 그 파일만 바꾼 커밋은 그 영역을 안 돈다. 그 영역을 바꾸는 다음 커밋과 CI 가 잡는다.
 
 **CI 는 같은 스크립트를 두 층으로 부른다** — `--ci-fast`(시크릿 · 설치 · 포맷 · 린트) 다음 `--ci`(전부 + 테스트 · 빌드).
 둘 다 바뀐 파일과 상관없이 모든 영역을 돈다. 빠른 층은 하네스 자체 검사(`hooks/tests/run.sh`)도 돌리고,
