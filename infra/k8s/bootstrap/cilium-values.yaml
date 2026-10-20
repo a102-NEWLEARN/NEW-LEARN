@@ -10,7 +10,7 @@ k8sServicePort: 6443
 ipam:
   mode: kubernetes
 
-# 노드 사이 Pod 트래픽은 VXLAN 터널(8472/udp)로 보낸다 — EC2 보안 그룹이 워커 IP 에만 연 포트와 같다
+# 노드 사이 Pod 트래픽은 VXLAN 터널로 보낸다 — 실제 서버에서는 노드 주소가 WireGuard 터널 주소라 VXLAN 이 터널 안에 담긴다 (SSOT.md 6절)
 routingMode: tunnel
 tunnelProtocol: vxlan
 

@@ -2,5 +2,6 @@
 *.tfplan
 *.tfstate
 *.tfstate.*
+terraform/backend.hcl
 kind/.kubeconfig
 kind/.git-mirror/
