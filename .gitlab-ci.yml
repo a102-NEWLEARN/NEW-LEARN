@@ -214,8 +214,10 @@ w3:backend:
       else
         set -- --no-push
       fi
+      # --use-new-run · --compressed-caching=false — 메모리를 덜 쓰게. 둘 없이 EC2(메모리 2Gi)에서 ai 가
+      # 의존성 설치 뒤 파일 시스템 스냅샷 중 OOMKilled 됐다 (2026-10-21, MR !60)
       /kaniko/executor --context "$CI_PROJECT_DIR/$AREA" --dockerfile "$CI_PROJECT_DIR/$AREA/Dockerfile" \
-        --custom-platform linux/amd64 --snapshot-mode redo \
+        --custom-platform linux/amd64 --snapshot-mode redo --use-new-run --compressed-caching=false \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
         "$@"
     # CPU 막힘 · 최대 메모리 기록을 여기서 남긴다. Kaniko 가 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아
