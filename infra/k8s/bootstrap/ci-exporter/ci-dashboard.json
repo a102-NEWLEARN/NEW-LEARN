@@ -83,7 +83,7 @@
     {
       "type": "stat",
       "title": "GitLab 으로 보낸 요청 (시간당)",
-      "description": "exporter 가 SSAFY GitLab API 에 보낸 요청 수를 시간당으로 환산. 상한은 초당 1회(시간당 3600)",
+      "description": "exporter 가 SSAFY GitLab API 에 보낸 요청 수 — 최근 30분 평균을 시간당으로 환산. 상한은 초당 1회(시간당 3600)",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -96,7 +96,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(gcpe_gitlab_api_requests_count[$__rate_interval])) * 3600",
+          "expr": "sum(rate(gcpe_gitlab_api_requests_count[30m])) * 3600",
           "refId": "A",
           "legendFormat": "요청",
           "range": true,
@@ -106,7 +106,7 @@
       "options": {
         "reduceOptions": {
           "calcs": [
-            "mean"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
@@ -235,7 +235,9 @@
               "project": true,
               "topics": true,
               "variables": true,
-              "tag_list": true
+              "tag_list": true,
+              "kind": true,
+              "stage": true
             },
             "indexByName": {
               "Value #D": 0,
@@ -481,7 +483,13 @@
         },
         "valueMode": "color",
         "namePlacement": "left",
-        "sizing": "auto"
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -535,7 +543,13 @@
         },
         "valueMode": "color",
         "namePlacement": "left",
-        "sizing": "auto"
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -589,7 +603,13 @@
         },
         "valueMode": "color",
         "namePlacement": "left",
-        "sizing": "auto"
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -660,7 +680,13 @@
         },
         "valueMode": "color",
         "namePlacement": "left",
-        "sizing": "auto"
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -725,7 +751,13 @@
         },
         "valueMode": "color",
         "namePlacement": "left",
-        "sizing": "auto"
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -780,7 +812,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "calcs": [
             "max",
             "mean"
@@ -907,7 +939,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "calcs": [
             "max",
             "mean"
@@ -1017,7 +1049,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "calcs": [
             "max",
             "mean"
@@ -1116,7 +1148,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "calcs": [
             "max",
             "mean"
@@ -1178,7 +1210,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "calcs": [
             "max",
             "mean"
