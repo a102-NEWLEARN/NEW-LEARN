@@ -141,6 +141,13 @@ kube-state-metrics:
       memory: 32Mi
     limits:
       memory: 128Mi
+  # CI 잡 Pod 의 갈래 이름표와 러너가 붙인 잡 주석(잡 ID · 이름 · ref)을 지표로 낸다 — 스로틀 패널이 잡 이름으로 보인다 (Jira S15P31A102-98)
+  # 지표 이름표는 kube_pod_labels 의 label_newlearn_io_workload, kube_pod_annotations 의 annotation_job_runner_gitlab_com_name 처럼 바뀐다
+  # 값 이름은 하위 차트 kube-state-metrics 8.6.0 그대로 — Labels 는 소문자 l, Annotations 는 대문자 L
+  metricLabelsAllowlist:
+    - pods=[newlearn.io/workload]
+  metricAnnotationsAllowList:
+    - pods=[job.runner.gitlab.com/id,job.runner.gitlab.com/name,job.runner.gitlab.com/ref]
 
 # node-exporter 는 차트 기본값이 NoSchedule taint 를 견딘다
 prometheus-node-exporter:
