@@ -162,7 +162,7 @@ flowchart LR
 | `summary` | string · null | 우리 AI 기사 요약. GMS 토큰을 아끼려고 끈 동안은 null(2026-10-19) | `article_mindmap.summary` |
 | `schemaVersion` | string | `mindmap` 모양의 버전(`mindmap-v1`) | `article_mindmap.schema_version` |
 | `mindmap` | object | 가지 4개와 잎, 잎마다 선택 칸인 근거(`api-screen.md` 3절). API 가 근거를 본문과 대조해 맞지 않는 근거만 지운 뒤 저장한다. 가지가 하나도 없으면 400 | `article_mindmap.content` |
-| `occurredAt` | 시각 · null | 본문에서 뽑은 사건 발생 시점. 못 뽑았으면 null | `article_mindmap.occurred_at` |
+| `occurredAt` | 시각 · null | 본문에서 뽑은 사건 발생 시점. 시각까지 있으면 시각까지, 날짜까지만 있으면 그날 0시(`+09:00`). 「지난 6일」 · 「어제」 같은 상대 날짜는 메시지의 `publishedAt` 을 기준으로 푼다. 「현지시간 6일」처럼 해외 날짜는 한국 시간으로 옮기지 않고 적힌 날짜 그대로. 「지난달」 · 「올해 초」처럼 날짜보다 흐리거나 못 뽑았으면 null — API 가 첫 기사 발행 시각으로 채운다(2026-10-21 BE 안) | `article_mindmap.occurred_at` |
 
 `EMBED` 결과
 
