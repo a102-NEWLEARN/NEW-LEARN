@@ -1,0 +1,7 @@
+# 내 컴퓨터의 node_modules · 빌드 결과가 이미지에 섞이지 않게 뺀다 — 설치 · 빌드는 Dockerfile 안에서 다시 한다
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+Dockerfile
+.dockerignore

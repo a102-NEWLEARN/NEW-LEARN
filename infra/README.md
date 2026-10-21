@@ -122,6 +122,46 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 - 새 Ubuntu 이미지가 나와도 서버를 바꿔 끼우지 않는다 (`compute.tf` 의 `ignore_changes`). OS 갱신은 서버 안에서 한다
 - **최종 발표(11/18) 뒤 `terraform destroy` 로 지운다.** 서버를 멈추기만 하면 EBS · 탄력적 IP 요금이 계속 나간다. 상태 버킷은 destroy 가 끝난 뒤 버전까지 비우고 지운다
 
+## 이미지 저장소 (GHCR)
+
+운영 이미지는 CI 의 w4 잡이 dev 에서 굽고 GHCR 에 올린다. 왜 GHCR 인지 · 태그 규칙 · 굽는 때는 `SSOT.md` 6절 「배포 흐름」.
+코드와 CI 는 GitLab 그대로고, 이미지를 두는 창고만 GitHub 에 있다.
+
+| 무엇 | 값 |
+|---|---|
+| 이미지 | `ghcr.io/kimzoo5676-del/newlearn-backend` · `newlearn-frontend` · `newlearn-ai` — 비공개 |
+| 빌드 캐시 | `ghcr.io/kimzoo5676-del/newlearn-kaniko-cache` — 비공개 |
+| 태그 | 커밋 짧은 SHA 8자 |
+
+### 처음 한 번 — 토큰 (사람이 한다)
+
+토큰 화면과 값은 사람만 본다. 저장소 · 대화에 붙여 넣지 않는다.
+
+1. **GitHub** › Settings › Developer settings › Personal access tokens › Tokens (classic) › Generate new token (classic). GHCR 은 classic 토큰만 받는다
+
+   | 칸 | 값 |
+   |---|---|
+   | Note | `newlearn-ci-push` |
+   | Expiration | Custom — 2026-11-30 (발표 뒤) |
+   | Scopes | `write:packages` 하나 — `read:packages` 가 같이 켜진다. `repo` 등 다른 칸은 켜지 않는다 |
+
+2. **GitLab** › Settings › CI/CD › Variables › Add variable — 두 개
+
+   | Key | Value | Visibility | Protect variable |
+   |---|---|---|---|
+   | `GHCR_USER` | GitHub 아이디 | Visible | 켬 |
+   | `GHCR_TOKEN` | 1에서 만든 토큰 | Masked and hidden | 켬 |
+
+   Protect 를 켜면 보호 브랜치(dev) 파이프라인에만 들어간다. MR 파이프라인은 토큰 없이 굽기만 한다
+
+3. **확인** — dev 파이프라인의 w4 잡이 초록이고, GitHub 프로필 › Packages 에 `newlearn-` 패키지가 Private 으로 있다. 처음 올린 패키지는 비공개로 생긴다 — 공개로 바꾸지 않는다
+
+### 11/18 뒤 정리
+
+- GitHub › Packages 에서 `newlearn-` 패키지 넷을 지운다 (패키지 › Package settings › Delete this package)
+- 토큰을 지운다 (Developer settings › Tokens (classic)), GitLab 변수 두 개를 지운다
+- 워커가 받는 읽기 토큰(Jira S15P31A102-91)도 같이 지운다
+
 ## kind 리허설
 
 서버가 오기 전에 내 PC 의 kind(Docker 컨테이너를 노드로 쓰는 쿠버네티스)로 배포 흐름(`SSOT.md` 6절)을 돌려 본다.
