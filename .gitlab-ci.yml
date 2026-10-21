@@ -218,6 +218,10 @@ w3:backend:
         --custom-platform linux/amd64 --snapshot-mode redo \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
         "$@"
+    # CPU 막힘 · 최대 메모리 기록을 여기서 남긴다. Kaniko 가 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아
+    # EC2 러너에서는 after_script 가 시작 폴더(/workspace)를 못 찾고 실패한다 (2026-10-21 겪음)
+    - cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.peak 2>/dev/null || true
+  after_script: []
 
 # needs — 그 영역 검사가 통과해야 굽는다. MR 에서 검사 잡이 없을 때도 돌게 optional
 w4:backend:
