@@ -139,15 +139,13 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `events[].occurredAtBasis` | enum | 발생 시점을 본문에서 뽑았나(`EXTRACTED`) · 첫 기사 발행 시각으로 채웠나(`FIRST_PUBLISHED`). 뒤의 것이면 「추정」 표시를 붙일 수 있다 | `event.occurred_at_basis` |
 | `events[].articleCount` | number | 점에 마우스를 올리면 보이는 기사 수 | 계산 — 이 사건의 투입 기사 수 |
 | `events[].publisherCount` | number | 마우스를 올리면 보이는 언론사 수 | 계산 |
-| `relations[]` | array | 사건 사이 선. 화면은 선 종류를 그리지 않기로 해서(2026-10-20) 늘 빈 배열이다. 레인 기준에 사건 관계를 쓰기로 하면 `{ fromEventId, toEventId, type }` 으로 채운다 | `event_relation`(P1) |
 
-새 정보 같은 사건 태그는 그리지 않는다(2026-10-20). 언론사 필터(PRD FR-23)는 P1 이다.
+사건 사이 선(후속 · 반응 · 반박 같은 관계)과 새 정보 같은 사건 태그는 그리지 않는다(2026-10-20). 그래서 응답에 관계 칸이 없다. 화면이 선을 그리기로 하면 그때 `relations[]`(`{ fromEventId, toEventId, type }`, `event_relation` P1)를 더한다(2026-10-21). 언론사 필터(PRD FR-23)는 P1 이다.
 
 ```json
 {
   "issueId": 12,
-  "events": [{ "id": 91, "title": "한빛반도체, 텍사스 공장 투자 확대 공식 발표", "label": "공식 발표", "lane": null, "occurredAt": "2026-08-21T00:00:00+09:00", "occurredAtBasis": "EXTRACTED", "articleCount": 5, "publisherCount": 3 }],
-  "relations": []
+  "events": [{ "id": 91, "title": "한빛반도체, 텍사스 공장 투자 확대 공식 발표", "label": "공식 발표", "lane": null, "occurredAt": "2026-08-21T00:00:00+09:00", "occurredAtBasis": "EXTRACTED", "articleCount": 5, "publisherCount": 3 }]
 }
 ```
 
