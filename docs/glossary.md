@@ -51,7 +51,7 @@ flowchart LR
 | 잎 | 가지 아래 문장 하나 | `article_mindmap.content` 안 | `branches[].items[].text` |
 | 근거 문장 | 잎의 바탕이 된, 원문에 글자 그대로 있는 문장. 화면에 보이지 않고 저장만 한다 | `article_mindmap.content` 안 | `evidence` (A9 에는 없음) |
 | 요약 | 한두 문장으로 줄인 설명. 기사 · 사건 · 이슈마다 따로 있다. 기사 요약은 우리 AI 요약과 NewsData 요약 두 칸 | `article_mindmap.summary` · `article.source_summary` · `event.summary` · `issue.summary` | `summary` |
-| 사건 관계 | 후속 · 반응 · 반박 같은 사건 사이 선 (P1). 화면은 그리지 않는다 | `event_relation` | `relations` |
+| 사건 관계 | 후속 · 반응 · 반박 같은 사건 사이 선 (P1). 화면은 그리지 않는다 | `event_relation` | 없음 (그리기로 하면 `relations`) |
 | 회원 · 관심 분야 | 아이디 · 비밀번호 · 이름으로 가입한 사용자와 그가 고른 카테고리(여러 개, 고칠 수 있음) | `member` · `member_category` | A14 ~ A18, `categories` |
 | 용어사전 | 모르는 단어를 찾아보는 작은 창. 표준국어대사전에서 뜻을 가져온다 | 없음 | A19 |
 
