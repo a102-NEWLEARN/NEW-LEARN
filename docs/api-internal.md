@@ -178,11 +178,11 @@ flowchart LR
 |---|---|---|---|
 | `decision` | enum | `EXISTING`(후보 중 하나와 같은 사건) · `NEW`(새 사건) | — |
 | `eventId` | number · null | `EXISTING` 일 때 고른 후보 사건. 후보에 없으면 400 | `article_event.event_id` |
-| `newEvent` | object · null | `NEW` 일 때 `{ title, label, summary }` — 사건 이름 · 키워드(「첫 목격」) · 요약 | `event.title` · `label` · `summary` 로 사건을 만든다. `issue_id` 는 비워 둔다 |
+| `newEvent` | object · null | `NEW` 일 때 `{ title, label, summary }` — 사건 이름 · 키워드(「첫 목격」) · 요약. 판정과 같은 호출에서 짓는다. 길이(제안): 키워드 2 ~ 10자 명사구, 이름 한 줄 40자 안, 요약 1 ~ 2문장. 길이는 프롬프트로 맞추고 API 는 막지 않는다(넘치면 화면이 줄임표로 자름). 셋 중 빈 값이 있으면 400 | `event.title` · `label` · `summary` 로 사건을 만든다. `issue_id` 는 비워 둔다 |
 | `reason` | string | 판정 까닭 한두 문장. 평가 · 디버깅용 | 저장할 칸이 없다. 판정 기준(Q34)이 정해지면 칸을 더할지 본다 |
 
 - `NEW` 면 API 가 사건을 만들고 `ISSUE` 작업을 건다. 발생 시점은 `EXTRACT` 의 `occurredAt`, 없으면 그 기사의 발행 시각이다(`occurred_at_basis` 로 구분)
-- 사건에 기사가 늘 때 사건 이름 · 키워드 · 요약을 고칠지는 미정이다(`data-model.md` 5절 13번)
+- 사건에 기사가 늘어도 이름 · 키워드 · 요약은 처음 지은 그대로 둔다. 사건은 한 번 일어난 일이라 크게 바뀌지 않고, 다시 쓰면 거의 모든 판정의 출력이 길어진다. 첫 기사가 짧은 속보라 요약이 부족한지는 평가하며 다시 본다(2026-10-21 BE 안, `data-model.md` 5절 13번)
 
 `ISSUE` 결과 (제안)
 
