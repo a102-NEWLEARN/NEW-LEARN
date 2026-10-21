@@ -68,9 +68,9 @@ FigJam 보기용 사본
 - [x] 커밋 2 `api.md` · `api-screen.md` · `api-internal.md` — 그림 확인, 엔드포인트 · 오류 코드 표와 각 절 대조
 - [x] 커밋 3 `glossary.md` · `SSOT.md` · 계획 파일 — 커밋 직전 dev 다시 받아 SSOT 충돌 확인
 - [x] reviewer 조수 새 눈 리뷰 → 고칠 것 반영
-- [ ] MR 1 열기(템플릿, 결정 대조표 첨부)
-- [ ] MR 2 브랜치 · 커밋 · MR(PM 확인)
-- [ ] FigJam 반영 · 캡처로 확인
+- [x] MR 1 열기(템플릿, 결정 대조표 첨부) — !70
+- [x] MR 2 브랜치 · 커밋 · MR(PM 확인) — !69
+- [x] FigJam 반영 · 캡처로 확인
 - 머지는 사용자가 말할 때. 머지 직전마다 원격 dev · MR 상태 확인
 
 ## 안 바꿀 것
