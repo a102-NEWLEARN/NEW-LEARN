@@ -147,7 +147,7 @@ flowchart LR
 | `promptVersion` | string · null | 쓴 프롬프트 버전. 임베딩처럼 프롬프트가 없으면 null | `EXTRACT` 는 `article_mindmap.prompt_version` |
 | `startedAt` · `finishedAt` | 시각 | 워커가 처리를 시작 · 끝낸 때 | `analysis_job.started_at` · `finished_at`. `EXTRACT` 의 `finishedAt` 은 `article_mindmap.generated_at` 에도 |
 | `result` | object · null | 단계별 결과(아래). 실패면 null | 단계마다 다름 |
-| `error` | object · null | 실패했을 때 `{ code, message, retryable }`. 성공이면 null | `code` → `analysis_job.error_code`, `message` → `error_message`. `retryable` 은 저장하지 않고 다시 돌릴지 정할 때 쓴다(Jira 30) |
+| `error` | object · null | 실패했을 때 `{ code, message }`. 성공이면 null. 다시 할지는 API 가 `code` 와 시도 횟수로 정해서 워커는 `retryable` 을 보내지 않는다(2026-10-21 BE 안, `api.md` 2절) | `code` → `analysis_job.error_code`, `message` → `error_message` |
 
 ```json
 {
