@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.util.List;
+import kr.io.newlearn.article.Article;
+import kr.io.newlearn.article.ArticleRepository;
+import kr.io.newlearn.article.ArticleSource;
 import kr.io.newlearn.category.Category;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.event.Event;
@@ -59,6 +63,9 @@ class CoreMappingTest {
 
     @Autowired
     EventRepository eventRepository;
+
+    @Autowired
+    ArticleRepository articleRepository;
 
     // ① 코드 키
 
@@ -161,5 +168,83 @@ class CoreMappingTest {
         assertThat(found.getOccurredAtBasis()).isEqualTo(OccurredAtBasis.EXTRACTED);
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(found.getUpdatedAt()).isNotNull();
+    }
+
+    // ③ 배열 칸
+
+    @Test
+    void sourceCategoriesAreStoredAsTextArray() {
+        Long id = articleRepository
+                .save(newArticle("https://example.com/news/1", List.of("business", "top")))
+                .getId();
+        em.flush();
+        em.clear();
+
+        Article found = articleRepository.findById(id).orElseThrow();
+        String stored = jdbc.sql("select source_categories::text from article where id = ?")
+                .param(id)
+                .query(String.class)
+                .single();
+
+        assertThat(found.getSourceCategories()).containsExactly("business", "top");
+        assertThat(stored).isEqualTo("{business,top}");
+        assertThat(found.getPress().getCode()).isEqualTo("garam");
+        assertThat(found.getCategory()).isNull();
+        assertThat(found.getReleasedAt()).isNull();
+    }
+
+    @Test
+    void emptySourceCategoriesAreStoredAsEmptyArray() {
+        Long id = articleRepository
+                .save(newArticle("https://example.com/news/2", List.of()))
+                .getId();
+        em.flush();
+        em.clear();
+
+        String stored = jdbc.sql("select source_categories::text from article where id = ?")
+                .param(id)
+                .query(String.class)
+                .single();
+
+        assertThat(articleRepository.findById(id).orElseThrow().getSourceCategories())
+                .isEmpty();
+        assertThat(stored).isEqualTo("{}");
+    }
+
+    // 대표 카테고리는 수집이 category_mapping 으로 고른다(Jira 34). 여기서는 SQL 로 넣어 코드 키로 이어지는지만 본다
+    @Test
+    void articleCategoryLinksByCode() {
+        Long id = articleRepository
+                .save(newArticle("https://example.com/news/3", List.of("business")))
+                .getId();
+        em.flush();
+        jdbc.sql("update article set category_code = 'economy' where id = ?")
+                .param(id)
+                .update();
+        em.clear();
+
+        Article found = articleRepository.findById(id).orElseThrow();
+
+        assertThat(found.getCategory().getName()).isEqualTo("경제");
+    }
+
+    @Test
+    void duplicateUrlIsRejected() {
+        articleRepository.saveAndFlush(newArticle("https://example.com/news/4", List.of()));
+
+        assertThatThrownBy(() -> articleRepository.saveAndFlush(newArticle("https://example.com/news/4", List.of())))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private Article newArticle(String url, List<String> sourceCategories) {
+        Press garam = pressRepository.save(new Press("garam", "가람일보"));
+        return new Article(
+                ArticleSource.NEWSDATA,
+                url,
+                garam,
+                "한빛반도체 텍사스 공장 첫 삽",
+                "한빛반도체는 6일 텍사스 공장 착공식을 열었다.",
+                Instant.parse("2026-10-06T00:30:00Z"),
+                sourceCategories);
     }
 }
