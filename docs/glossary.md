@@ -74,7 +74,8 @@ flowchart LR
 | 작업 큐 · 스트림 · consumer group | Redis 에 쌓는 작업 줄 · 그 줄 하나 · 같은 줄을 각자 따로 읽는 무리 | 스트림 `analysis.released` · `analysis.match_event` · `analysis.issue`, 그룹 `extract` · `embed` · `match_event` · `issue` |
 | ack | 워커가 메시지를 다 처리했다고 Redis 에 알리는 것. 안 하면 그 메시지가 다시 온다 | Redis `XACK` |
 | 내부 API | 수집 배치 · 워커만 부르는 주소. Gateway 밖에 열지 않는다 | `/internal/v1` |
-| 세션 | 로그인한 사용자를 기억하는 서버 쪽 기록. 브라우저는 쿠키로 들고 다닌다 | 세션 저장소(구현 때), A15 |
+| 세션 | 로그인한 사용자를 기억하는 서버 쪽 기록. 브라우저는 쿠키로 들고 다닌다 | Redis, A15 |
+| CSRF 번호표 | 다른 사이트가 사용자의 로그인 쿠키를 빌려 요청을 보내는 공격(CSRF)을 막는 값. 서버가 쿠키로 주고 화면이 POST · PUT · DELETE 때 헤더로 돌려보낸다 | 쿠키 `XSRF-TOKEN`, 헤더 `X-XSRF-TOKEN` |
 | 봉투 | 응답을 `{success, data}` 처럼 한 번 더 감싸는 껍데기. 이 프로젝트는 성공 응답에 쓰지 않는다 | `docs/api.md` 1절 |
 | Problem Details | 오류 응답의 표준 모양(RFC 9457) | `application/problem+json` + `code` |
 
