@@ -1,0 +1,10 @@
+# 이미지에 넣는 것은 build.gradle · settings.gradle · src 뿐이다 (Dockerfile)
+# 나머지는 빌드 맥락에서 빼 보낼 양을 줄이고, 내 컴퓨터의 산출물이 섞이지 않게 한다
+build/
+.gradle/
+bin/
+out/
+.idea/
+.vscode/
+*.iml
+.env
