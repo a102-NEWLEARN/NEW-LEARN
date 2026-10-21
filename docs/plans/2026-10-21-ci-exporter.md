@@ -70,6 +70,7 @@ flowchart LR
 - **열린 MR 만 읽는다** (`exclude_non_opened: true`). 머지된 MR 까지 최근 10개를 읽으니 exporter 가 주기마다 프로젝트 전체 잡 목록을 넘겨 가며 다시 찾아 초당 0.75번 — 상한(1)에 거의 붙었다. 바꾼 뒤 약 290/시간. 리스크 칸에 적어 둔 대응이다
 - **exporter Pod 이름표를 버린다** (ServiceMonitor `metricRelabelings` 의 `labeldrop pod|instance`, 쿼리는 `max without (pod, instance)`). 설정을 바꿔 Pod 가 다시 뜨자 같은 잡이 두 줄로 세졌다
 - **dev 줄 한계** — GitLab API 가 `ref=dev` 에 dev 에서 연 MR 파이프라인도 돌려준다(API 로 확인). 반영 MR 을 dev push 직후 열면 dev push 값이 덮인다. v0.6.0 의 `pipeline.per_ref` 는 코드를 보니 잡 지표 · 실행 횟수가 엉킬 수 있어 쓰지 않고, 대시보드 머리말 · SSOT 6절에 한계로 적었다
+- **같은 잡의 두 줄을 하나로** — 기다리던 잡이 러너에 잡히면 exporter 가 「러너 없음」 시계열을 지우지 않고 새 시계열을 더한다. 쿼리는 ref · 잡 이름마다 잡 ID 가 큰 것, 같으면 러너 · 실패 까닭이 채워진 것을 고른다(`topk` + 점수)
 - 대시보드의 상태 칸은 뺐다. exporter 가 상태를 지금 것만 내서(sparse) 기간으로 고르면 옛 상태가 섞인다. 실패한 잡은 「실패 까닭」 칸으로 본다
 
 ## 안 바꿀 것

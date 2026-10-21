@@ -178,7 +178,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
+          "expr": "max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
           "refId": "A",
           "legendFormat": "",
           "range": false,
@@ -190,7 +190,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
+          "expr": "max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
           "refId": "B",
           "legendFormat": "",
           "range": false,
@@ -202,7 +202,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
+          "expr": "floor(topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))))",
           "refId": "C",
           "legendFormat": "",
           "range": false,
@@ -214,7 +214,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))) * 1000",
+          "expr": "(max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))) * 1000",
           "refId": "D",
           "legendFormat": "",
           "range": false,
@@ -452,22 +452,22 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg by (lane) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"lane\", \"$1\", \"job_name\", \"(w[0-9]+):.*\"))",
+          "expr": "avg by (lane) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"lane\", \"$1\", \"job_name\", \"(w[0-9]+):.*\"))",
           "refId": "A",
           "legendFormat": "{{lane}} 평균",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (lane) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"lane\", \"$1\", \"job_name\", \"(w[0-9]+):.*\"))",
+          "expr": "max by (lane) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"lane\", \"$1\", \"job_name\", \"(w[0-9]+):.*\"))",
           "refId": "B",
           "legendFormat": "{{lane}} 최대",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         }
       ],
       "options": {
@@ -523,11 +523,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg by (job_name) ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))))",
+          "expr": "avg by (job_name) ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))))",
           "refId": "A",
           "legendFormat": "{{job_name}}",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         }
       ],
       "options": {
@@ -586,8 +586,8 @@
           "expr": "avg by (test_suite_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_test_suite_total_time{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and on (project, ref) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))",
           "refId": "A",
           "legendFormat": "{{test_suite_name}}",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         }
       ],
       "options": {
@@ -660,11 +660,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (runner_description) (((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s)))",
+          "expr": "count by (runner_description) (label_replace((topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s)), \"runner_description\", \"(러너 아직 없음)\", \"runner_description\", \"\"))",
           "refId": "A",
           "legendFormat": "{{runner_description}}",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         }
       ],
       "options": {
@@ -720,22 +720,22 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg by (runner_description) ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))))",
+          "expr": "avg by (runner_description) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"runner_description\", \"(러너 아직 없음)\", \"runner_description\", \"\"))",
           "refId": "A",
           "legendFormat": "{{runner_description}} 평균",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (runner_description) ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) == on (project, ref, job_name) group_left () max by (project, ref, job_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))))",
+          "expr": "max by (runner_description) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"runner_description\", \"(러너 아직 없음)\", \"runner_description\", \"\"))",
           "refId": "B",
           "legendFormat": "{{runner_description}} 최대",
-          "range": true,
-          "instant": false
+          "range": false,
+          "instant": true
         }
       ],
       "options": {
