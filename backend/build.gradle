@@ -29,6 +29,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'io.github.openfeign.querydsl:querydsl-jpa:7.7'
+	// 엔티티는 @Getter · @NoArgsConstructor(access = PROTECTED) 만 쓴다 (Jira 100 코드 약속). 판은 Spring Boot 가 정한다
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
 	annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:7.7:jpa'
 	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
