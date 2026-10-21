@@ -6,6 +6,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
+import kr.io.newlearn.analysis.AnalysisJob;
+import kr.io.newlearn.analysis.AnalysisJobRepository;
+import kr.io.newlearn.analysis.AnalysisJobStatus;
+import kr.io.newlearn.analysis.AnalysisStage;
+import kr.io.newlearn.analysis.RequestedBy;
 import kr.io.newlearn.article.Article;
 import kr.io.newlearn.article.ArticleRepository;
 import kr.io.newlearn.article.ArticleSource;
@@ -15,6 +20,8 @@ import kr.io.newlearn.category.CategoryMappingId;
 import kr.io.newlearn.category.CategoryMappingRepository;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.common.MappingSource;
+import kr.io.newlearn.event.ArticleEvent;
+import kr.io.newlearn.event.ArticleEventRepository;
 import kr.io.newlearn.event.Event;
 import kr.io.newlearn.event.EventRepository;
 import kr.io.newlearn.event.OccurredAtBasis;
@@ -31,6 +38,8 @@ import kr.io.newlearn.member.MemberCategory;
 import kr.io.newlearn.member.MemberCategoryId;
 import kr.io.newlearn.member.MemberCategoryRepository;
 import kr.io.newlearn.member.MemberRepository;
+import kr.io.newlearn.mindmap.ArticleMindmap;
+import kr.io.newlearn.mindmap.ArticleMindmapRepository;
 import kr.io.newlearn.press.Press;
 import kr.io.newlearn.press.PressMapping;
 import kr.io.newlearn.press.PressMappingId;
@@ -90,6 +99,15 @@ class CoreMappingTest {
 
     @Autowired
     MemberCategoryRepository memberCategoryRepository;
+
+    @Autowired
+    AnalysisJobRepository analysisJobRepository;
+
+    @Autowired
+    ArticleEventRepository articleEventRepository;
+
+    @Autowired
+    ArticleMindmapRepository articleMindmapRepository;
 
     // ① 코드 키
 
@@ -352,6 +370,91 @@ class CoreMappingTest {
 
         assertThatThrownBy(() -> jdbc.sql(insert).param(member.getId()).update())
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    // ⑤ jsonb · 공유 키
+
+    // jsonb 는 저장할 때 띄어쓰기 · 키 순서를 PostgreSQL 이 정리한다. 그래서 DB 에서는 jsonb 끼리 비교한다
+    @Test
+    void analysisJobStoresCandidatesAsJsonb() {
+        Article article = articleRepository.save(newArticle("https://example.com/news/5", List.of()));
+        Long id = analysisJobRepository
+                .save(new AnalysisJob(article, AnalysisStage.MATCH_EVENT, RequestedBy.BATCH, "{\"eventIds\":[97,98]}"))
+                .getId();
+        em.flush();
+        em.clear();
+
+        AnalysisJob found = analysisJobRepository.findById(id).orElseThrow();
+        Boolean sameJson = jdbc.sql(
+                        "select candidates = '{\"eventIds\": [97, 98]}'::jsonb from analysis_job where id = ?")
+                .param(id)
+                .query(Boolean.class)
+                .single();
+
+        assertThat(sameJson).isTrue();
+        assertThat(found.getCandidates()).isEqualTo("{\"eventIds\": [97, 98]}");
+        assertThat(found.getStage()).isEqualTo(AnalysisStage.MATCH_EVENT);
+        assertThat(found.getStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
+        assertThat(found.getAttempt()).isEqualTo(1);
+    }
+
+    // 기사 하나 · 단계 하나에 한 행이다. 다시 돌릴 때는 행을 더하지 않고 attempt 를 올린다
+    @Test
+    void sameStageForSameArticleIsRejected() {
+        Article article = articleRepository.save(newArticle("https://example.com/news/6", List.of()));
+        analysisJobRepository.saveAndFlush(new AnalysisJob(article, AnalysisStage.EXTRACT, RequestedBy.BATCH, null));
+
+        assertThatThrownBy(() -> analysisJobRepository.saveAndFlush(
+                        new AnalysisJob(article, AnalysisStage.EXTRACT, RequestedBy.BATCH, null)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    // 기본 키가 기사 키라 기사 하나는 사건 하나에만 속한다
+    @Test
+    void articleEventSharesArticleKey() {
+        Article article = articleRepository.save(newArticle("https://example.com/news/7", List.of()));
+        Event event = eventRepository.save(new Event(
+                "한빛반도체 텍사스 공장 착공식", "착공식", null, Instant.parse("2026-10-05T15:00:00Z"), OccurredAtBasis.EXTRACTED));
+        articleEventRepository.save(new ArticleEvent(article, event));
+        em.flush();
+        em.clear();
+
+        ArticleEvent found = articleEventRepository.findById(article.getId()).orElseThrow();
+
+        assertThat(found.getArticleId()).isEqualTo(article.getId());
+        assertThat(found.getEvent().getTitle()).isEqualTo("한빛반도체 텍사스 공장 착공식");
+        assertThat(found.getLinkedAt()).isNotNull();
+    }
+
+    @Test
+    void articleMindmapStoresContentAsJsonb() {
+        Article article = articleRepository.save(newArticle("https://example.com/news/8", List.of()));
+        String content = """
+                {"title": null, "branches": [{"type": "CORE", "items": [{"text": "한빛반도체가 텍사스 공장 착공식을 열었다"}]}]}
+                """;
+        articleMindmapRepository.save(new ArticleMindmap(
+                article,
+                "한빛반도체가 텍사스 공장 착공식을 열었다.",
+                content,
+                Instant.parse("2026-10-05T15:00:00Z"),
+                "mindmap-v1",
+                "gpt-5-mini",
+                "extract-v1",
+                Instant.parse("2026-10-06T01:13:05Z")));
+        em.flush();
+        em.clear();
+
+        ArticleMindmap found =
+                articleMindmapRepository.findById(article.getId()).orElseThrow();
+        String firstBranch = jdbc.sql(
+                        "select content -> 'branches' -> 0 ->> 'type' from article_mindmap where article_id = ?")
+                .param(article.getId())
+                .query(String.class)
+                .single();
+
+        assertThat(firstBranch).isEqualTo("CORE");
+        assertThat(found.getContent()).contains("한빛반도체가 텍사스 공장 착공식을 열었다");
+        assertThat(found.getSchemaVersion()).isEqualTo("mindmap-v1");
     }
 
     private Article newArticle(String url, List<String> sourceCategories) {
