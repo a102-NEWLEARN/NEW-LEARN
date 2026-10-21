@@ -70,7 +70,7 @@ flowchart LR
 - 스트림 `analysis.match_event` 는 그룹 `match_event`, `analysis.issue` 는 그룹 `issue` 하나가 읽는다. 후보를 API 가 붙여 넣어야 해서 따로 둔다
 - API 는 DB 를 커밋한 **뒤** 큐에 넣는다. 그래서 정상 흐름에서 W1 이 404 를 받는 일은 없다. 큐에 넣다 실패해 오래 `QUEUED` 로 남은 작업은 다시 넣는다. 그 기준 시간 · 스트림 길이 상한 · 다시 가져가기 기준 시간은 Jira 30
 - `MATCH_EVENT` 는 한 번에 하나씩 발행 순서대로 돈다. API 는 앞 기사의 판정이 끝난 뒤 다음 기사의 판정을 건다. 같은 사건 기사 둘이 동시에 판정되면 서로를 후보로 못 봐 사건이 둘로 갈라지기 때문이다(PRD FR-31 「앞선 기사들과만 비교」)
-- `ISSUE` 도 한 번에 하나씩 돈다. 같은 사건들로 이슈가 둘 만들어지지 않게 하려는 것이다
+- `ISSUE` 도 한 번에 하나씩 돈다. API 는 앞 `ISSUE` 결과를 저장한 뒤 다음 작업을 걸고, **그때** 후보를 계산한다. 다시 돌릴 때(`attempt + 1`)도 후보를 새로 계산한다. 같은 사건들로 이슈가 둘 생기거나, 이미 이슈에 든 사건을 다른 이슈가 가져가지 않게 하려는 것이다
 - `MATCH_EVENT` 는 `EXTRACT` 와 `EMBED` 가 둘 다 끝난 뒤에 건다. 판정에 기사의 핵심 내용 · 발생 시점과 벡터가 다 필요하다
 - `ISSUE` 는 `MATCH_EVENT` 가 새 사건을 만들었을 때만 건다(`decision` 이 `NEW`). 이슈 요약은 이슈에 **사건**이 붙을 때 다시 만들기 때문에(2026-10-20), 이미 있는 사건에 기사만 붙을 때는 걸지 않는다
 
@@ -181,7 +181,7 @@ flowchart LR
 | `reason` | string | 판정 까닭 한두 문장. 평가 · 디버깅용 | 저장할 칸이 없다. 판정 기준(Q34)이 정해지면 칸을 더할지 본다 |
 
 - `NEW` 면 API 가 사건을 만들고 `ISSUE` 작업을 건다. 발생 시점은 `EXTRACT` 의 `occurredAt`, 없으면 그 기사의 발행 시각이다(`occurred_at_basis` 로 구분)
-- 사건에 기사가 늘 때 사건 이름 · 키워드 · 요약을 고칠지는 Q21(`data-model.md` 5절 13번)
+- 사건에 기사가 늘 때 사건 이름 · 키워드 · 요약을 고칠지는 미정이다(`data-model.md` 5절 13번)
 
 `ISSUE` 결과 (제안)
 
@@ -189,13 +189,14 @@ flowchart LR
 |---|---|---|---|
 | `decision` | enum | `ATTACH`(후보 이슈에 붙임) · `CREATE`(새 이슈) · `NONE`(아직 이슈 없음) | — |
 | `issueId` | number · null | `ATTACH` 일 때 고른 후보 이슈. 후보에 없으면 400 | `event.issue_id` |
-| `eventIds` | array(number) · null | `CREATE` 일 때 새 이슈에 넣을 사건. 이번 사건과 `candidateEvents` 중에서 고르고 **3개 이상**이어야 한다(2026-10-20). 아니면 400 | 그 사건들의 `event.issue_id` |
+| `eventIds` | array(number) · null | `CREATE` 일 때 새 이슈에 넣을 사건. **이번 사건을 꼭 넣고** 나머지는 `candidateEvents` 중에서 고른다. 모두 합쳐 **3개 이상**이어야 한다(2026-10-20). 아니면 400 | 그 사건들의 `event.issue_id` |
 | `issueTitle` | string · null | `CREATE` 일 때 이슈 이름. 한 번 짓고 바꾸지 않는다 | `issue.title` |
 | `issueSummary` | string · null | `ATTACH` · `CREATE` 일 때 이슈 요약. `ATTACH` 면 새 사건까지 넣어 다시 지은 요약으로 덮어쓴다 | `issue.summary` |
 | `reason` | string | 판단 까닭 한두 문장. 평가 · 디버깅용 | 저장할 칸이 없다 |
 
 - `NONE` 이면 사건은 이슈 밖에 남는다. 그 기사들은 개별 기사로 보인다(`data-model.md` 2절 issue)
-- `issue_category` 를 무엇으로 채울지는 아직 결과에 넣지 않았다(`data-model.md` 5절 2번)
+- 저장할 때 API 가 다시 확인한다 — 이번 사건과 `eventIds` 의 사건이 모두 아직 이슈 밖(`issue_id` 가 빔)이고, `ATTACH` 의 이슈가 있어야 한다. 아니면 409 `JOB_STATE_CONFLICT` 로 거절하고 이 작업을 후보를 새로 계산해 다시 건다
+- `issue_category` 는 API 가 이슈 기사들의 대표 카테고리로 채운다(가정, `data-model.md` 5절 2번). 워커 결과에는 넣지 않는다
 
 API 응답
 
@@ -204,7 +205,7 @@ API 응답
 | 204 | 저장했다 | 메시지를 ack 한다 |
 | 400 `RESULT_SCHEMA_INVALID` | 형식이 틀렸다. 가지가 없는 마인드맵, 후보에 없는 `eventId` · `issueId`, 사건이 3개 안 되는 새 이슈도 여기 | ack 한다. 다시 생성할지는 Jira 30 재처리 정책 |
 | 404 `ANALYSIS_JOB_NOT_FOUND` | 그런 작업이 없다. 정상 흐름에서는 나오지 않는다 | ack 하고 로그를 남긴다 |
-| 409 `JOB_STATE_CONFLICT` | 이미 끝난 작업이거나 `attempt` 가 다르다 | ack 하고 넘어간다 |
+| 409 `JOB_STATE_CONFLICT` | 이미 끝난 작업이거나 `attempt` 가 다르다. `ISSUE` 결과의 사건이 그사이 다른 이슈에 들어간 때도 여기다(API 가 작업을 다시 건다) | ack 하고 넘어간다 |
 | 5xx · 연결 실패 | API 가 배포 중이거나 죽었다 | ack 하지 않는다. 메시지가 다시 온다 |
 
 코드마다 왜 그 상태인지는 `api.md` 2절.
