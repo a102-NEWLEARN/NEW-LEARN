@@ -122,12 +122,14 @@ flowchart LR
 
 새 사건 하나를 두고 「어느 이슈에 붙일까, 새 이슈를 만들까」를 묻는다. 어떤 사건들을 한 이슈로 묶을지는 실험으로 정한다(`data-model.md` 5절 2번). 아래 후보 고르기는 시작점이다.
 
+새 사건마다 AI 가 판단하는 것은 묶는 기준을 실험하며 프롬프트로 고치려는 것이다. 유사도 임계값 같은 규칙으로 API 가 묶으면 `NONE` 일 때 GMS 호출을 아끼지만, 비슷하지만 다른 이야기를 묶을 수 있고 기준을 바꿀 때마다 API 코드를 고쳐야 한다. 후보 수는 시작값이고 실험하며 조정한다 — 숫자가 있어야 프롬프트 길이(GMS 비용)를 가늠할 수 있다(2026-10-21 BE 안).
+
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
 | `articleId` · `jobId` · `attempt` | number | 새 사건을 만든 기사 · 이 작업 · 몇 번째 시도인지 | `article.id` · `analysis_job` |
 | `event` | `{ id, title, label, summary, occurredAt }` | 이번에 새로 생긴 사건 | `event` |
-| `candidateIssues[]` | `{ issueId, title, summary, events[] }` | 붙일지도 모르는 이슈. `events[]` 는 그 이슈 사건들의 `{ title, label, occurredAt }` | 계산 — 비슷한 기사들의 사건이 속한 이슈 |
-| `candidateEvents[]` | `{ eventId, title, label, summary, occurredAt, similarity }` | 아직 이슈 밖에 있는 비슷한 사건. 새 이슈를 만들 때 함께 묶을 후보 | 계산 — 비슷한 기사들의 사건 중 `issue_id` 가 빈 것 |
+| `candidateIssues[]` | `{ issueId, title, summary, events[] }` | 붙일지도 모르는 이슈. 최대 5개(시작값). `events[]` 는 그 이슈의 최근 사건 5개의 `{ title, label, occurredAt }` — 사건이 많은 이슈도 프롬프트 길이가 일정하게 | 계산 — 비슷한 기사들의 사건이 속한 이슈 |
+| `candidateEvents[]` | `{ eventId, title, label, summary, occurredAt, similarity }` | 아직 이슈 밖에 있는 비슷한 사건. 새 이슈를 만들 때 함께 묶을 후보. 최대 10개(시작값), 비슷한 순서 | 계산 — 비슷한 기사들의 사건 중 `issue_id` 가 빈 것 |
 
 보낸 이슈 · 사건 ID 는 `analysis_job.candidates` 에 남긴다.
 
