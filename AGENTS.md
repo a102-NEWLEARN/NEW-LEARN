@@ -1,5 +1,5 @@
 # 프로젝트: NEW:LEARN (S15P31A102)
-한 줄 목적: 뉴스 기사를 AI 로 6하원칙 마인드맵으로 구조화하고, 같은 사건을 다룬 기사를 묶어 이슈의 흐름으로 보여 주는 AI 뉴스 서비스. 최종 발표 2026-11-18.
+한 줄 목적: 뉴스 기사를 AI 로 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망) 마인드맵으로 구조화하고, 같은 사건을 다룬 기사를 묶어 이슈의 흐름으로 보여 주는 AI 뉴스 서비스. 최종 발표 2026-11-18.
 
 ## 하네스
 - 하네스 지도: `.claude/README.md`
@@ -15,7 +15,7 @@
 ## 아키텍처
 - `frontend/` — React. 기사 마인드맵 · 이슈 에볼루션 맵 화면
 - `backend/` — Spring Boot. 조회 API, 분석 작업 등록, 분석 결과 저장. PostgreSQL(pgvector) · Redis
-- `ai/` — FastAPI 워커. Redis Streams 작업 큐를 소비해 임베딩과 SSAFY GMS 호출(6하원칙 추출 · 동일 사건 판정)을 한다
+- `ai/` — FastAPI 워커. Redis Streams 작업 큐를 소비해 임베딩과 SSAFY GMS 호출(마인드맵 가지 4개 추출 · 동일 사건 판정)을 한다
 - 구성 · 정한 것 · 못 정한 것은 `SSOT.md`. 무엇을 만드는지는 `docs/mvp-overview.md`
 
 ## 명령
