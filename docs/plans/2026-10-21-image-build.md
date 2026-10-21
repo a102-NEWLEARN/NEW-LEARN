@@ -38,10 +38,10 @@ SSAFY GitLab 레지스트리는 꺼져 있고, 관리 서버에는 Docker 가 �
 
 - [x] 1. 세 Dockerfile · `.dockerignore` · `nginx.conf` — 이 노트북에서 `docker build` 성공, 띄워서 backend `/actuator/health` UP(compose DB · Redis 와), ai `/health` 200, frontend `/` 와 깊은 주소 모두 200. 이미지 크기를 적어 둔다 — frontend 31초 · backend 143초 · ai 170초, 모두 헬스 정상 (a1aed0a)
 - [x] 2. `.gitlab-ci.yml` w4 잡 — MR 파이프라인에서 w4 세 잡이 **EC2 러너만**(노트북 러너 stop)으로 한 번, **노트북 러너만**(EC2 러너를 GitLab 화면에서 잠시 멈춤 — 사람)으로 한 번 성공. Kaniko 시험이 이 단계다 — 한쪽이라도 실패하면 멈추고 다시 계획 — MR !60. 여섯 칸 모두 성공(EC2 를 멈추는 대신 EC2 가 다른 잡으로 바쁠 때 다시 돌려 노트북이 받게 함). **바꿈:** EC2 에서 ai 가 OOMKilled(두 번) → 멈추고 사용자가 ①(Kaniko 옵션만) 선택 → `--use-new-run` · `--compressed-caching=false` 로 426초 성공. after_script 는 Kaniko 가 파일을 바꿔 놓아 EC2 에서 실패 → script 끝으로 옮김
-- [ ] 3. (사람) 개인 GitHub 계정에서 classic 토큰(`write:packages` · `read:packages` 만, 만료 2026-11-30) · GitLab Settings › CI/CD › Variables 에 `GHCR_USER` · `GHCR_TOKEN`(protected · masked). 1 · 2 와 같이 해도 된다. Claude 는 토큰 화면을 보지 않고, 넣었다는 말만 받는다
-- [ ] 4. `infra/README.md` · `SSOT.md` 6 · 8절 · `stack.md` §6 — MR → infra 머지
-- [ ] 5. infra → dev MR(「Delete source branch」 끔) 머지 → dev 파이프라인에서 push 확인
-- [ ] 6. 잰 값을 `SSOT.md` 10절에 — 작은 MR 하나. 머지되면 Jira 96 Done
+- [x] 3. (사람) 개인 GitHub 계정에서 classic 토큰(`write:packages` · `read:packages` 만, 만료 2026-11-30) · GitLab Settings › CI/CD › Variables 에 `GHCR_USER` · `GHCR_TOKEN`(protected · masked). 1 · 2 와 같이 해도 된다. Claude 는 토큰 화면을 보지 않고, 넣었다는 말만 받는다
+- [x] 4. `infra/README.md` · `SSOT.md` 6 · 8절 · `stack.md` §6 — MR → infra 머지 — !60(def54a3)
+- [x] 5. infra → dev MR(「Delete source branch」 끔) 머지 → dev 파이프라인에서 push 확인 — !61(4abd39a), #235466. 첫 실행은 CI 변수가 저장되지 않아 DENIED → 사용자가 다시 넣은 뒤 w4 셋만 다시 돌려 세 이미지가 `4abd39a2` 로 올라감, 익명 받기 403(비공개)
+- [x] 6. 잰 값을 `SSOT.md` 10절에 — 작은 MR 하나. 머지되면 Jira 96 Done — 완료 기준 셋이 dev 에서 채워져 2026-10-21 Jira 96 완료. 첫 dev 굽기 값은 이 MR
 
 ## 안 바꿀 것
 
