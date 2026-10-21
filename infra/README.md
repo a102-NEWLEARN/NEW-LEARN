@@ -156,6 +156,8 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 
 3. **확인** — dev 파이프라인의 w4 잡이 초록이고, GitHub 프로필 › Packages 에 `newlearn-` 패키지가 Private 으로 있다. 처음 올린 패키지는 비공개로 생긴다 — 공개로 바꾸지 않는다
 
+w4 잡이 `error checking push permissions ... DENIED: requested access to the resource is denied` 로 실패하면 잡에 토큰이 안 들어온 것이다. Variables 목록에 두 줄이 있는지 본다 — 서랍 맨 아래 **Add variable** 을 눌러야 저장된다 (2026-10-21 겪음). 넣은 뒤 실패한 w4 잡만 다시 돌리면 같은 커밋 태그로 올라간다
+
 ### 11/18 뒤 정리
 
 - GitHub › Packages 에서 `newlearn-` 패키지 넷을 지운다 (패키지 › Package settings › Delete this package)
