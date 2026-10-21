@@ -250,7 +250,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 실제 서버에서 hostPort 80이 Lightsail 공인 IP로 열리는지 (kind에서는 확인, Lightsail 방화벽 권한과 같이 본다) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
-| 워커 → API 결과 전달 방식(HTTP 내부 API · 결과용 스트림)과 작업 큐의 스트림 · consumer group 구성 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
+| 워커 → API 결과 전달 방식(BE 안은 HTTP 내부 API W1 — 2026-10-21, AI 확인 전)과 작업 큐의 스트림 · consumer group 구성 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
 | 한 기사가 여러 사건에 속할 수 있는지 (PRD FR-9) | AI · BE | `docs/data-model.md` 5절 |
 | 북마크 · 관심 이슈를 MVP 에 넣을지 — 회원 · 관심 분야는 MVP 로 정했다(2026-10-20). Jira 63 · 64 는 만들게 돼 있고 PRD 4.7 은 MVP 이후로 둔다 | PM · 팀 | `docs/data-model.md` 5절 |
