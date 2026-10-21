@@ -129,7 +129,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
   - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」
   - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다. dev 머지 뒤 사이트에 바로 반영할지 사람이 버튼을 누를지는 Jira S15P31A102-91에서 정한다
-  - 굽는 도구: Kaniko 후속판(osscontainertools, digest 고정) — Docker 데몬 · 특권 없이 잡 컨테이너 안에서 Dockerfile을 돈다. BuildKit rootless는 두 러너의 보안 설정(seccomp · AppArmor · user namespace)을 풀어야 해서 뺐다
+  - 굽는 도구: Kaniko 후속판(osscontainertools, digest 고정) — Docker 데몬 · 특권 없이 잡 컨테이너 안에서 Dockerfile을 돈다. BuildKit rootless는 두 러너의 보안 설정(seccomp · AppArmor · user namespace)을 풀어야 해서 뺐다. 두 러너 모두 설정을 바꾸지 않고 세 이미지를 굽는 것을 확인했다(MR !60, 10절)
+    - EC2 잡 메모리 상한(2Gi)에서는 `--use-new-run` · `--compressed-caching=false`를 줘야 ai(가상환경 약 1 GB)가 굽힌다. 없으면 의존성 설치 뒤 스냅샷에서 OOMKilled(두 번 재현). 옵션을 줘도 최대 메모리가 상한에 닿는다(디스크 캐시 포함) — 의존성이 크게 늘면 다시 잰다
+    - Kaniko는 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아 EC2 러너에서는 after_script가 실패한다. 굽기 잡은 CPU · 메모리 기록을 script 끝에서 찍는다
   - Dockerfile은 영역 폴더마다 하나(`backend/` · `frontend/` · `ai/`). 베이스 이미지는 digest로 고정하고 root가 아닌 사용자로 돈다
   - 토큰: GitLab CI 변수 `GHCR_USER` · `GHCR_TOKEN`(보호 · 가림) — 보호 브랜치(dev) 파이프라인에만 들어간다. classic 토큰이라 개인 계정의 모든 패키지에 권한이 걸려서 `write:packages` · `read:packages`만, 만료 2026-11-30. 워커가 받을 읽기 토큰은 Jira S15P31A102-91(Sealed Secret)
 - 되돌리기: Git에서 이전 커밋으로 되돌리면 Argo CD가 이전 버전으로 맞춤
@@ -298,4 +300,5 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-21 | EC2 CPU 크레딧 잔액 | **269.8** (07:45 KST). 10-20 12:30 무렵 약 54 → 그사이 CI 파이프라인 21번을 돌리고도 늘었다 — 시간당 36 적립이 CI 사용보다 크다. 5분 사용량 최고 3.73 | EC2 콘솔 › 인스턴스 › 모니터링 탭 「CPU 크레딧 밸런스」 · 「CPU 크레딧 사용량」 (사람이 읽음) |
 | 2026-10-20 | 갈래별 잡 자원 | w0 잡 Pod 의 build 컨테이너 요청 100m · 128Mi, 상한 500m · 256Mi, 이름표 `newlearn.io/workload=w0` | 잡이 도는 동안 `kubectl -n gitlab-runner get pod -o jsonpath` |
 | 2026-10-20 | Prometheus 데이터 보존 | Pod를 지웠다 다시 띄운 뒤에도 4분 전 시점 `count(up)` = 13 그대로, 저장 폴더 3.7MB | 지우기 전 · 뒤 같은 시점 쿼리 |
+| 2026-10-21 | CI 굽기 잡 w4 — Kaniko, 올리지 않고 캐시 없이 (MR !60) | EC2 러너: backend 273 · 267초, frontend 126초(새 옵션 122초), ai 옵션 없이 251 · 278초에 OOMKilled → `--use-new-run` · `--compressed-caching=false`로 426초. 노트북 러너: backend 228초, frontend 326초 · ai 475초(둘이 동시에). EC2 frontend CPU 막힘 71%(838 구간 중 597), ai 14%(4154 중 600), 최대 메모리 둘 다 상한 2Gi에 닿음. 같은 frontend를 노트북에서 Docker로 31초, Kaniko로 199초 | GitLab 잡 기록 `duration`, 잡 끝 `cpu.stat` · `memory.peak`(디스크 캐시 포함). 어느 러너가 받을지는 러너를 멈추거나 바쁘게 두어 맞췄다. 노트북 Kaniko는 `docker run`으로 직접 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |
