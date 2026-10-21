@@ -1,0 +1,50 @@
+# gitlab-ci-pipelines-exporter v0.6.0 설정 (Jira S15P31A102-98)
+# 키의 뜻 · 기본값은 그 판의 docs/configuration_syntax.md · pkg/config/project.go 로 확인했다 (2026-10-21)
+# 토큰은 여기 쓰지 않는다 — 환경변수 GCPE_GITLAB_TOKEN 으로 들어온다 (exporter.yaml, Secret gitlab-ci-exporter)
+#
+# exporter 는 ref(브랜치 · MR)마다 가장 최근 파이프라인과 잡 이름마다 가장 최근 잡의 값만 지표로 낸다.
+# 지난 값은 Prometheus 가 긁어 둔 시계열에 남는다
+
+gitlab:
+  url: https://lab.ssafy.com
+  # lab.ssafy.com 의 /-/health · /-/readiness 는 밖에서 404 다 (2026-10-21 확인) — 켜 두면 Pod 가 Ready 가 되지 않는다
+  enable_health_check: false
+  # SSAFY 공용 GitLab 이다. 초당 1회(기본값)를 넘는 요청은 줄을 서서 기다린다
+  maximum_requests_per_second: 1
+
+pull:
+  # 파이프라인 · 잡 값을 60초마다 다시 읽는다 (기본 30초). 잡 시간이 분 단위라 60초로 충분하고 요청이 반으로 준다
+  # 새 MR 을 찾는 주기(refs_from_projects)는 기본 300초 그대로 — 늦게 찾아도 끝난 잡의 값은 그대로 잡힌다
+  metrics:
+    interval_seconds: 60
+
+project_defaults:
+  pull:
+    refs:
+      # 파이프라인은 MR 과 dev 에서만 돈다 (.gitlab-ci.yml 의 workflow)
+      branches:
+        regexp: ^dev$
+      tags:
+        enabled: false
+      # 열린 MR 만 — 최근 10개 가운데 마지막 파이프라인이 3일 안인 것
+      # exporter 는 값이 그대로인 ref 도 주기마다 프로젝트 전체 잡 목록을 넘겨 가며 다시 찾는다. 머지된 MR 까지 읽으니
+      # 초당 1회 상한에 붙었다(2026-10-21, 약 2.5분에 144번). 머지된 MR 의 값은 열려 있는 동안 Prometheus 에 이미 남는다
+      merge_requests:
+        enabled: true
+        most_recent: 10
+        max_age_seconds: 259200
+        exclude_non_opened: true
+    pipeline:
+      # 잡마다 기다림(queued_duration) · 걸린 시간(duration) · 상태 · 받은 러너(runner_description)
+      jobs:
+        enabled: true
+        # 자식 파이프라인을 쓰지 않는다
+        from_child_pipelines:
+          enabled: false
+      # JUnit 리포트 — 스위트마다 시간 · 개수. GitLab 은 잡 이름을 스위트 이름으로 쓴다
+      # 테스트 하나하나(test_cases)는 끈다(기본값) — MR 마다 시계열이 수백 개 생긴다
+      test_reports:
+        enabled: true
+
+projects:
+  - name: s15-final/S15P31A102
