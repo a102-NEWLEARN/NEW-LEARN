@@ -112,7 +112,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
     - 권한 없는 컨테이너, 호스트 폴더를 잡에 붙이지 않음, Docker 엔진 연결은 러너 컨테이너에만. 잡마다 네트워크를 만든다(`FF_NETWORK_PER_BUILD`) — Docker 29 는 예전 컨테이너 연결을 만들지 않아 services 별칭이 안 풀렸다. 캐시는 노트북 Docker 볼륨에 따로 쌓인다. 어느 러너가 잡을 받을지는 고를 수 없다(먼저 비는 쪽)
   - 시간 목표(여신보좌관 실측보다 짧게): MR 파이프라인 중앙값 5분 · p90 10분, 기다림 p90 2분, backend 잡 중앙값 7분
   - 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 인프라 담당이 정한다
-  - 이미지 빌드 · 저장소 · 태그는 Jira S15P31A102-96에서 한다
+  - w4 운영 이미지 굽기(Jira S15P31A102-96) — 저장소 · 태그 · 굽는 때는 아래 「배포 흐름」
 - 모니터링: kube-prometheus-stack 92.10.1(Prometheus · Grafana · node-exporter · kube-state-metrics)을 관리 서버에 둔다(2026-10-20, Jira S15P31A102-95). Lightsail을 기다리지 않고 CI 병목을 CI 파이프라인(92) 전부터 재려는 것이다. 값은 `infra/k8s/bootstrap/monitoring-values.yaml`, 까는 법은 `infra/server/README.md` 「모니터링」
   - 무엇을 보나: 노드 CPU · 메모리, Pod CPU · 스로틀(cAdvisor — `container_cpu_cfs_throttled_periods_total`, `…_throttled_seconds_total`은 차트 기본값이 버린다), GitLab Runner 지표(기다림 · 자리 사용률). 잡별 기다림 · 걸린 시간은 CI 파일이 생긴 뒤 gitlab-ci-pipelines-exporter로 더한다
   - CPU 예약을 작게 잡는다(모니터링 합 약 190m) — 노드 예약이 1190m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
@@ -127,6 +127,11 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 루트 계정은 결제·비상시에만 쓰고 MFA를 건다. 이 AWS 계정은 개인 계정과 분리한 프로젝트 전용 팀 계정이다
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
   - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
+  - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」
+  - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다. dev 머지 뒤 사이트에 바로 반영할지 사람이 버튼을 누를지는 Jira S15P31A102-91에서 정한다
+  - 굽는 도구: Kaniko 후속판(osscontainertools, digest 고정) — Docker 데몬 · 특권 없이 잡 컨테이너 안에서 Dockerfile을 돈다. BuildKit rootless는 두 러너의 보안 설정(seccomp · AppArmor · user namespace)을 풀어야 해서 뺐다
+  - Dockerfile은 영역 폴더마다 하나(`backend/` · `frontend/` · `ai/`). 베이스 이미지는 digest로 고정하고 root가 아닌 사용자로 돈다
+  - 토큰: GitLab CI 변수 `GHCR_USER` · `GHCR_TOKEN`(보호 · 가림) — 보호 브랜치(dev) 파이프라인에만 들어간다. classic 토큰이라 개인 계정의 모든 패키지에 권한이 걸려서 `write:packages` · `read:packages`만, 만료 2026-11-30. 워커가 받을 읽기 토큰은 Jira S15P31A102-91(Sealed Secret)
 - 되돌리기: Git에서 이전 커밋으로 되돌리면 Argo CD가 이전 버전으로 맞춤
 - 배포 설정: Argo CD가 읽는 앱 목록은 `infra/k8s/apps/`(app-of-apps — 이 폴더를 Helm 차트로 그려 앱마다 Application을 만든다). 루트 Application은 부트스트랩 때 한 번 건다(`infra/k8s/bootstrap/root-app.yaml`). Cilium·Argo CD는 Argo CD 밖에서 Helm으로 깐다(`infra/k8s/bootstrap/`)
   - Argo CD는 기본 120초(+최대 60초 지터)마다 Git을 다시 본다(`timeout.reconciliation`). push 직후 반영하려면 웹훅이나 새로고침이 필요하다
@@ -222,12 +227,11 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 항목 | 누가 | 관련 |
 |---|---|---|
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
-| 이미지 저장소 — SSAFY GitLab의 Container Registry 화면이 404라 쓸 수 없어 보인다(2026-10-18). 2026-10-20 다시 봐도 프로젝트에 이미지 주소가 없다(서버에서 레지스트리가 꺼져 있다). 후보: AWS ECR · Docker Hub · 클러스터 안 레지스트리 | Infra | 6절, Jira S15P31A102-96 |
+| 개인 외부 계정(GHCR)에 프로젝트 이미지를 두는 것이 SSAFY 규칙에 맞는지 — 막혀 있으면 저장소를 다시 고른다(바꿀 곳은 `.gitlab-ci.yml`의 이미지 주소와 CI 변수) | Infra | 6절 「배포 흐름」 |
 | HTTPS 인증서 발급 방식 | Infra | — |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다 | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
-| 배포를 어느 브랜치 머지에서 할지 · 이미지 태그 형식(커밋마다 다르게, `latest` 금지는 정함) | Infra | 6절, Jira S15P31A102-96 |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
@@ -294,3 +298,4 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-21 | EC2 CPU 크레딧 잔액 | **269.8** (07:45 KST). 10-20 12:30 무렵 약 54 → 그사이 CI 파이프라인 21번을 돌리고도 늘었다 — 시간당 36 적립이 CI 사용보다 크다. 5분 사용량 최고 3.73 | EC2 콘솔 › 인스턴스 › 모니터링 탭 「CPU 크레딧 밸런스」 · 「CPU 크레딧 사용량」 (사람이 읽음) |
 | 2026-10-20 | 갈래별 잡 자원 | w0 잡 Pod 의 build 컨테이너 요청 100m · 128Mi, 상한 500m · 256Mi, 이름표 `newlearn.io/workload=w0` | 잡이 도는 동안 `kubectl -n gitlab-runner get pod -o jsonpath` |
 | 2026-10-20 | Prometheus 데이터 보존 | Pod를 지웠다 다시 띄운 뒤에도 4분 전 시점 `count(up)` = 13 그대로, 저장 폴더 3.7MB | 지우기 전 · 뒤 같은 시점 쿼리 |
+| 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |
