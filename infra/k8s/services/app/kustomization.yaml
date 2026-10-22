@@ -10,6 +10,6 @@ resources:
 # 배포 태그 — dev 에서 구운 커밋 짧은 SHA 8자. CI 태그 MR 잡이 이 블록의 newTag 만 바꾼다 (사람이 손으로 바꿀 때도 MR 로)
 images:
   - name: ghcr.io/kimzoo5676-del/newlearn-backend
-    newTag: a0a8a571
+    newTag: 0c9fc65b
   - name: ghcr.io/kimzoo5676-del/newlearn-frontend
-    newTag: 4abd39a2
+    newTag: 0c9fc65b
