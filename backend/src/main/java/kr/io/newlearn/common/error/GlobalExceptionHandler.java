@@ -1,5 +1,6 @@
 package kr.io.newlearn.common.error;
 
+import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -40,6 +41,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     static final String NUMBER_EXPECTED = "숫자로 보내 주세요";
     static final String CHOICE_EXPECTED = "정해진 값 중 하나로 보내 주세요";
     static final String REQUIRED = "꼭 보내야 하는 값이에요";
+    static final String TIME_EXPECTED = "시각은 2026-10-06T09:30:00+09:00 처럼 오프셋까지 보내 주세요";
 
     // 서비스가 던진 ApiException · NotFoundException
     @ExceptionHandler(ApiException.class)
@@ -164,6 +166,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         if (type.isEnum()) {
             return CHOICE_EXPECTED;
+        }
+        // 시각(OffsetDateTime 등)은 오프셋이 없으면 못 읽는다 (docs/api.md 1절 「시간」)
+        if (Temporal.class.isAssignableFrom(type)) {
+            return TIME_EXPECTED;
         }
         return WRONG_FORMAT;
     }
