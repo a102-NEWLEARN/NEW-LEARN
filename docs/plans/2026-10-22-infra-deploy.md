@@ -70,22 +70,24 @@ DB 비밀번호는 서버 스크립트가 무작위로 만들어 바로 봉인�
 - [x] `/argocd` HTTPRoute(argocd 네임스페이스, 접두사를 떼지 않음, `timeouts.request: 0s` — 화면의 실시간 스트림이 15초에 끊기지 않게). Argo CD 값에 익명 읽기 전용(`users.anonymous.enabled` · `policy.default: role:readonly`). CLI 는 팝업 밖 port-forward 로
 - [x] `/grafana` HTTPRoute + `monitoring-values.yaml`: `root_url` · `domain` → `https://newlearn.io.kr/grafana/`, 프록시 로그인(`auth.proxy` — Envoy 가 넘긴 팝업 아이디 머리로 자동 로그인 · 보기 권한, 바깥에서 같은 머리를 꾸며 보내도 Envoy 가 덮어쓰는지 확인). kps helm upgrade, 같은 판. 기존 `grafana-admin` 로그인은 남김. 그 뒤 SSH 터널 접속은 공개 주소로 넘어감
 - [x] Envoy Gateway v1.9.2 가 팝업 아이디를 머리로 넘기는 설정을 지원하는지 먼저 확인 — 안 되면 Grafana 는 익명 보기(팝업 뒤)로 바꾸고 계획 차이를 알림
-- [ ] 문서: `SSOT.md` 6절(도메인 · 인증서 · 공개 경로 · 갱신 확인법) · 8절(인증서 방식 줄 지움), README
-- [ ] MR → infra → dev. Jira 93 완료
+- [x] 문서: `SSOT.md` 6절(도메인 · 인증서 · 공개 경로 · 갱신 확인법) · 8절(인증서 방식 줄 지움), README
+- [x] MR → infra → dev. Jira 93 완료
 
 ### C. 서비스 첫 배포 — 새 Jira 「[INFRA] 서비스 첫 배포 — DB · Redis · 앱 셋 · 태그 MR」(작업 · 상위 27 · infra newlearn-mvp · SP 5), 브랜치 `feat/infra/S15P31A102-<번호>-services`. 따로 되돌릴 수 있게 MR 셋으로 나눈다
 
+> 계획과 다른 점(2026-10-22): C1 · C2 는 한 브랜치 · 한 MR 로 갔다(둘을 같이 확인). kind 리허설은 은퇴(사용자 선택). 첫 태그 중 frontend · ai 는 MR 파이프라인의 커밋(`9f436817`)을 적었다가 GHCR 에 없어 dev push 태그 `4abd39a2` 로 고침. 「`cmctl renew` 로 갱신 한 번」은 cmctl 대신 같은 방식(Issuing 조건)으로 — 소유 확인은 캐시라 안 돌아 입구 목록 확인으로 대신(SSOT 10절)
+
 **C1 · 저장소 · DB · Redis**
-- [ ] `infra/k8s/apps/templates/local-path.yaml` — 공식 Helm 저장소가 없어 git 소스를 태그로 고정. `nodePathMap` 에 워커만(`/var/lib/newlearn/local-path`), 기본 SC `local-path`(Delete)는 끄고 `newlearn-local`(Retain · WaitForFirstConsumer)만
-- [ ] `infra/k8s/services/data/` — postgres StatefulSet(`pgvector/pgvector:0.8.7-pg18`, 마운트 `/var/lib/postgresql` — compose 와 같게, 20Gi) · redis StatefulSet(`redis:8.10.2`, AOF, `maxmemory 1gb noeviction`, limit 2Gi — AOF 재작성 fork 여유). volumeClaimTemplates 는 나중에 못 바꾸니 크기 · SC 를 여기서 확정, StatefulSet 에 `Delete=false`
-- [ ] `infra/server/seal-secrets.sh` — DB 비밀번호는 무작위로 만들어 바로 봉인, **봉인 파일이 이미 있으면 건너뜀**(postgres 는 처음 초기화 때만 읽음). 평문은 파일 · 화면 · `ps` 에 안 남김
-- [ ] 확인: postgres Pod 를 지웠다 다시 띄워도 데이터가 남는지. PVC 를 지웠을 때 살리는 법(`claimRef` 풀기)을 README 에
+- [x] `infra/k8s/apps/templates/local-path.yaml` — 공식 Helm 저장소가 없어 git 소스를 태그로 고정. `nodePathMap` 에 워커만(`/var/lib/newlearn/local-path`), 기본 SC `local-path`(Delete)는 끄고 `newlearn-local`(Retain · WaitForFirstConsumer)만
+- [x] `infra/k8s/services/data/` — postgres StatefulSet(`pgvector/pgvector:0.8.7-pg18`, 마운트 `/var/lib/postgresql` — compose 와 같게, 20Gi) · redis StatefulSet(`redis:8.10.2`, AOF, `maxmemory 1gb noeviction`, limit 2Gi — AOF 재작성 fork 여유). volumeClaimTemplates 는 나중에 못 바꾸니 크기 · SC 를 여기서 확정, StatefulSet 에 `Delete=false`
+- [x] `infra/server/seal-secrets.sh` — DB 비밀번호는 무작위로 만들어 바로 봉인, **봉인 파일이 이미 있으면 건너뜀**(postgres 는 처음 초기화 때만 읽음). 평문은 파일 · 화면 · `ps` 에 안 남김
+- [x] 확인: postgres Pod 를 지웠다 다시 띄워도 데이터가 남는지. PVC 를 지웠을 때 살리는 법(`claimRef` 풀기)을 README 에
 
 **C2 · 앱 셋 · 입구**
-- [ ] `infra/k8s/services/app/` — backend · frontend Deployment · Service · HTTPRoute(`sectionName: https`, `/api` → backend, `/actuator/health` 만 → backend, Swagger `/swagger-ui` · `/v3/api-docs` → backend 잠금 없이, `/` → frontend). backend 에 springdoc 이 아직 없어 Swagger 는 BE 가 넣으면 바로 열림 — Spring Security 허용 목록도 BE 몫이라 BE 팀원에게 알림. `infra/k8s/services/ai/` — ai Deployment(`LLM_MODE=mock`, Redis 는 `data` 네임스페이스). readiness · preStop 10초 · requests/limits 는 SSOT 「무중단 배포 조건」대로
-- [ ] GHCR 받기 Secret — `seal-secrets.sh` 가 사람이 넣은 토큰을 stdin 으로 dockerconfigjson 을 만들어 `app` · `ai` 에 따로 봉인(strict 범위라 이름 · 네임스페이스에 묶임 — kustomize 가 이름을 바꾸지 않게)
-- [ ] Gateway `allowedRoutes` — `kubernetes.io/metadata.name In [envoy-gateway-system, argocd, monitoring, app]` (cert-manager solver 는 `envoy-gateway-system` 에 생김). 좁힌 뒤 `cmctl renew` 로 실제 갱신을 한 번 돌려 봄. hello 앱은 지움
-- [ ] 첫 태그 = 지금 GHCR 에 있는 dev 최신 태그(영역별로 확인). 태그는 봇만 고치는 파일 한 곳(`infra/k8s/services/images.yaml` 같은)
+- [x] `infra/k8s/services/app/` — backend · frontend Deployment · Service · HTTPRoute(`sectionName: https`, `/api` → backend, `/actuator/health` 만 → backend, Swagger `/swagger-ui` · `/v3/api-docs` → backend 잠금 없이, `/` → frontend). backend 에 springdoc 이 아직 없어 Swagger 는 BE 가 넣으면 바로 열림 — Spring Security 허용 목록도 BE 몫이라 BE 팀원에게 알림. `infra/k8s/services/ai/` — ai Deployment(`LLM_MODE=mock`, Redis 는 `data` 네임스페이스). readiness · preStop 10초 · requests/limits 는 SSOT 「무중단 배포 조건」대로
+- [x] GHCR 받기 Secret — `seal-secrets.sh` 가 사람이 넣은 토큰을 stdin 으로 dockerconfigjson 을 만들어 `app` · `ai` 에 따로 봉인(strict 범위라 이름 · 네임스페이스에 묶임 — kustomize 가 이름을 바꾸지 않게)
+- [x] Gateway `allowedRoutes` — `kubernetes.io/metadata.name In [envoy-gateway-system, argocd, monitoring, app]` (cert-manager solver 는 `envoy-gateway-system` 에 생김). 좁힌 뒤 `cmctl renew` 로 실제 갱신을 한 번 돌려 봄. hello 앱은 지움
+- [x] 첫 태그 = 지금 GHCR 에 있는 dev 최신 태그(영역별로 확인). 태그는 봇만 고치는 파일 한 곳(`infra/k8s/services/images.yaml` 같은)
 
 **C3 · 태그 MR 잡** (팀 파이프라인이라 따로)
 - [ ] `.gitlab-ci.yml` — dev 파이프라인 끝에 `when: always` 잡. 성공한 w4 만 dotenv 로 태그를 남기고 그것만 반영. GHCR 에 그 태그가 있는지 HEAD 로 먼저 확인

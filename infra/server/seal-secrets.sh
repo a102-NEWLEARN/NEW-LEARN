@@ -84,7 +84,7 @@ case "${1:-}" in
     echo "사용자 이름: $gh_user"
     read -rsp "토큰 (ghp_…, 화면에 안 보인다): " gh_token
     echo
-    gh_token="$(printf '%s' "$gh_token" | LC_ALL=C tr -cd 'A-Za-z0-9_')"
+    gh_token="$(printf '%s' "$gh_token" | LC_ALL=C tr -cd 'A-Za-z0-9_')"  # secret-scan:allow — 값이 아니라 변수
     [[ "$gh_token" =~ ^ghp_[A-Za-z0-9]{30,}$ ]] || { echo "❌ classic 토큰(ghp_…) 모양이 아니다 — GHCR 은 fine-grained 토큰을 받지 않는다" >&2; exit 2; }
     # 봉인하기 전에 이 토큰으로 backend 이미지를 받을 수 있는지 본다 — 계정은 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임)
     code="$(printf 'user = "%s:%s"\n' "$gh_user" "$gh_token" \

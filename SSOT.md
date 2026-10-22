@@ -175,6 +175,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 클러스터 구성
 
 - 서비스 Pod는 전부 워커에서 돈다. 네임스페이스: ai, ingress·web, app, data·batch, monitoring(Prometheus·Grafana), argocd (+kube-system)
+  - 실제 이름(2026-10-22, Jira S15P31A102-105): `app`(backend · frontend) · `ai` · `data`(PostgreSQL · Redis) · `envoy-gateway-system`(입구) · `argocd` · `sealed-secrets` · `cert-manager` · `local-path-storage` · `monitoring`. 배치는 아직 없다(만들 때 `data`나 따로)
+  - 배포 설정: `infra/k8s/services/<네임스페이스>/`, Argo CD 앱 하나씩(`infra/k8s/apps/templates/`). 이미지 태그는 `infra/k8s/services/app · ai/kustomization.yaml`의 `images` 한 곳 — 바꾸는 길은 아래 「배포 흐름」의 태그 MR
+  - 무중단 교체 조건(아래)을 backend · frontend · ai에 넣었다 — 새 Pod 먼저, 준비 확인(backend는 DB · Redis까지), 끝낼 때 10초. 살아 있는지는 포트만 본다(DB가 잠깐 끊겼다고 재시작하지 않게)
   - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
 - 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
@@ -213,6 +216,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 저장소·백업
 
 - kubeadm에는 기본 StorageClass가 없다 → local-path-provisioner를 설치한다
+  - 2026-10-22 깔았다(v0.0.37, Argo CD 앱 `local-path`). StorageClass `newlearn-local` — PVC를 지워도 PV · 폴더를 남기고(Retain), Pod가 뜬 노드(워커)의 `/var/lib/newlearn/local-path`에 만든다. 기본 StorageClass로 두지 않아 PVC마다 이름을 적는다
+  - PostgreSQL(pgvector 0.8.7-pg18, 20Gi) · Redis(8.10.2, AOF, `maxmemory 1gb` · `noeviction`, 5Gi)는 StatefulSet. Argo CD가 지우지 않게 막고(`Delete=false,Prune=false`), StatefulSet을 지워도 PVC를 남긴다. 크기 · StorageClass는 나중에 못 바꾼다
+  - DB 계정은 `infra/server/seal-secrets.sh db`가 무작위 비밀번호로 `data` · `app`에 봉인한다. PostgreSQL은 처음 초기화 때만 읽어서 봉인 파일이 있으면 다시 만들지 않는다
 - PostgreSQL 백업은 pg_dump CronJob. 같은 서버 안에만 두면 서버를 잃을 때 같이 사라진다 — 서버 밖 보관은 8절
 
 ### 무중단 배포 조건
@@ -245,7 +251,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Argo CD(2026-10-22, Jira S15P31A102-91, `docs/plans/2026-10-22-infra-deploy.md`): `bootstrap-argocd.sh`로 깔았다. 앱 다섯(root · sealed-secrets · envoy-gateway · gateway · hello) Synced · Healthy, Argo CD · Sealed Secrets · Envoy · hello Pod는 모두 워커에 떴다. 관리자 PC에서 SSAFY 도메인의 80으로 hello가 응답한다 — SSAFY 방화벽 → ufw → Envoy hostPort 80이 이어졌다. 봉인한 시험 Secret을 컨트롤러가 풀어 Pod가 읽었다. 워커 요청 합계 CPU 560m · 메모리 1418Mi
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다. 2026-10-22 은퇴 — 실제 클러스터의 앱 목록과 맞지 않게 되어(cert-manager · 운영 키로 봉인한 Secret · 서비스) 시험 앱 hello를 지우고 확인은 실제 서버에서 한다(Jira S15P31A102-105)
 - 도메인: 2026-10-22 가비아 DNS에 A 레코드 `@` · `www` → 워커 공인 IP(TTL 600). 가비아 네임서버 셋과 공개 DNS가 워커 IP로 답한다
-  - HTTPS(2026-10-22, Jira S15P31A102-93): `https://newlearn.io.kr`이 Let's Encrypt 인증서로 열린다(첫 발급 만료 2027-01-20, 갱신 예정 2026-12-21). `/`는 서비스 첫 배포 전까지 시험 응답. `/argocd` · `/grafana`는 팝업 하나로 열린다 — 계정 없이 · 틀린 비밀번호 · 꾸민 머리만으로는 401. 앱 일곱(admin-ui · cert-manager 더함) Synced · Healthy
+  - HTTPS(2026-10-22, Jira S15P31A102-93): `https://newlearn.io.kr`이 Let's Encrypt 인증서로 열린다(첫 발급 만료 2027-01-20, 갱신 예정 2026-12-21). `/argocd` · `/grafana`는 팝업 하나로 열린다 — 계정 없이 · 틀린 비밀번호 · 꾸민 머리만으로는 401
+  - 서비스 첫 배포(2026-10-22, Jira S15P31A102-105): `https://newlearn.io.kr/`에 화면이 뜨고 「API 상태: UP」(화면 → `/actuator/health` → backend → DB · Redis). backend `a0a8a571` · frontend · ai `4abd39a2`(dev에서 구워 GHCR에 올라간 마지막 태그), ai는 `mock`. 앱 열(local-path · data · app · ai 더하고 hello 뺌) Synced · Healthy. 워커 요청 합계 CPU 990m(24%) · 메모리 2762Mi(17%), 메모리 상한 합 10304Mi(65%). dev의 backend는 아직 SecurityConfig(!83) 전이라 `/api` · Swagger는 401
 
 ## 7. 개발 환경
 
@@ -360,5 +367,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-22 | 헤어핀 — 워커 Pod → `newlearn.io.kr` · `www` (워커 자기 공인 IP) | 둘 다 `hello v1` | 워커에 묶은 busybox 의 `wget` |
 | 2026-10-22 | HTTPS 첫 발급 (Jira S15P31A102-93) | cert-manager · 443 리스너가 담긴 브랜치로 루트를 돌리고 앱 여섯 Healthy 까지 162초(Envoy 교체 포함). staging 인증서 64일짜리 · prod 로 바꾼 뒤 새 발급 42초, prod 90일짜리(만료 2027-01-20, 갱신 예정 2026-12-21). 브라우저처럼 검증해도 통과 — ISRG Root X2 → YE2 | `kubectl get certificate · order`, push 부터 `status.revision` 2 까지, `curl`(검증 결과 0) · `openssl s_client` |
 | 2026-10-22 | 넘기기 · 잠금 | `http://` 의 `/` · `/api/x` · `/argocd` · `/grafana/` 와 www(http · https) 모두 301 → `https://newlearn.io.kr/…`. `/argocd/` · `/argocd/api/v1/applications` · `/grafana/` · `/grafana/api/user` 계정 없이 401 + `WWW-Authenticate: Basic`, 틀린 비밀번호 401, `X-WEBAUTH-USER: admin` 만 꾸며 보내도 401. 맞는 계정으로 Grafana 는 바로 대시보드(기록에 `uname` 은 팝업 아이디뿐) · Argo CD 는 읽기 전용 앱 목록. 맞는 계정 + `X-WEBAUTH-USER: admin` 이면 `login` 은 팝업 아이디(꾸민 머리가 지워짐). 처음엔 `isGrafanaAdmin: true` — 팝업 아이디가 관리자 아이디와 같았음 → 관리자 아이디를 바꾸고 Grafana 를 다시 띄운 뒤 `false` · 조직 역할 `Viewer` | 관리자 PC `curl -D -` · `Invoke-RestMethod -Credential`(사람이 비밀번호 입력), 사람이 Chrome 으로 확인한 화면, Grafana 로그의 `uname` |
+| 2026-10-22 | 서비스 저장소 (local-path · PostgreSQL · Redis, Jira S15P31A102-105) | 루트를 돌리고 앱 아홉 Healthy 까지 51초, PVC 둘 Bound(Retain PV, 워커 폴더). PostgreSQL 18.6 · pgvector 0.8.7. 시험 표 · Redis 키를 쓰고 Pod 를 지웠다 띄워도 그대로(다시 Ready 2초) | `kubectl get pvc,pv`, 시험 표 · 키 쓰기 → `delete pod` → 읽기 → 지움 |
+| 2026-10-22 | 서비스 첫 배포 — 바깥에서 본 경로 | `/` 200 화면(「API 상태: UP」) · `/actuator/health` 200 `UP` · `/api/…` · `/v3/api-docs` · `/swagger-ui` 401(SecurityConfig 전) · `/internal/v1/x` · `/actuator/env` 는 화면 HTML(backend 로 안 감) · `http://…/api` 301. 클러스터 안 ai `/health` `UP`(redis UP, mock). 처음엔 frontend · ai 태그(`9f436817`)가 GHCR 에 없어 ImagePullBackOff — MR 파이프라인이 굽기만 한 커밋이었음 → dev push 로 올라간 `4abd39a2` 로 고침 | 관리자 PC `curl -w "%{http_code}"`, 클러스터 안 busybox `wget`, 내장 브라우저 화면 |
+| 2026-10-22 | backend 무중단 교체 (실제 서버) | `rollout restart` 17초 동안 바깥에서 `/actuator/health` 61번 — 61번 모두 200, 실패 0 | 관리자 PC 에서 0.2초마다 `curl`, 같은 때 EC2 에서 `kubectl rollout restart` · `rollout status` |
+| 2026-10-22 | 인증서 갱신 한 번 · 좁힌 입구 목록 | Certificate 에 Issuing 조건을 더해(cmctl renew 와 같은 방식) revision 2 → 3, 6초, 그동안 사이트 18번 모두 200. 이번엔 Let's Encrypt 가 30일 동안 기억하는 소유 확인을 다시 써 소유 확인 라우트가 안 생겼다 — 대신 같은 네임스페이스(envoy-gateway-system)의 라우트가 http 에 Accepted, default 에서 붙인 시험 라우트는 NotAllowedByListeners. 소유 확인이 실제로 다시 도는 첫 갱신은 2026-12 | `kubectl patch certificate --subresource status`(json add), `kubectl get order`, HTTPRoute `status.parents` |
 | 2026-10-21 | 12:24 몰림 — dev push 1개 + 반영 MR 셋(!64 · !65 · !66, `.gitlab-ci.yml` 이 달라 MR 마다 w4 굽기 3개까지) | MR 파이프라인 742 · 643 · 568초, 잡 기다림 최대 **760초**(!66 w3:backend) · !65 392초 · !64 50초 | exporter 지표(`gitlab_ci_pipeline_duration_seconds` · `…_job_queued_duration_seconds`), 위 대조로 API 와 같음을 확인 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |
