@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@karrotmarket/react-monochrome-icon": "1.30.0",
     "@seed-design/css": "3.0.3",
     "@seed-design/react": "3.0.0",
     "@tanstack/react-query": "5.104.4",
