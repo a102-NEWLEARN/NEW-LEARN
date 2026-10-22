@@ -43,7 +43,7 @@
 | 영역 | 언어 · 프레임워크 |
 |---|---|
 | `frontend` | TypeScript 6 · React 19 · Vite 8 · Tailwind CSS 4 · SEED Design · TanStack Query · Zustand · React Router · D3. Node 26 |
-| `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · QueryDSL · Flyway) · Gradle 9 (Groovy DSL) |
+| `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · Flyway) · Lombok · Gradle 9 (Groovy DSL) |
 | `ai` | Python 3.14 · FastAPI · LangChain · sentence-transformers (torch CPU 판) · uv |
 | `infra` | Terraform 1.16 (AWS provider 6) — 관리 서버 EC2. 쿠버네티스 Helm 값 · Argo CD 앱 목록 · 매니페스트(`infra/k8s/`)와 kind 리허설 스크립트(`infra/kind/`) |
 
@@ -284,6 +284,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | 시스템 구성도 | `SSOT.md` 1 · 2절 (그림은 아직 없다) |
 | 로컬 개발 환경 쓰는 법 | `docs/dev-environment.md` (정한 것은 `SSOT.md` 7절) |
 | 협업 규칙 (브랜치·커밋·PR) | `docs/git-convention.md` · MR 양식은 `.gitlab/merge_request_templates/Default.md` |
+| 백엔드 코드 약속 | `docs/backend-convention.md` (패키지 · 엔티티 · 오류 · 시각 · 목록 · 보안 · 테스트를 코드로 옮기는 법) |
 | 기능 스펙 | `docs/specs/` — 기능마다 한 파일, 이름은 기능 번호로 시작한다 (예: `docs/specs/F07-issue-evolution-map.md`) |
 | 승인한 계획 | `docs/plans/` (`settings.json` 의 `plansDirectory` 로 plan mode 가 바로 쓴다) |
 | 인계 메모 | MR 본문 (작업 중이면 Draft MR) |
