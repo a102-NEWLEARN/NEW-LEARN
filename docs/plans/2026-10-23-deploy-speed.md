@@ -52,13 +52,13 @@ dev 에 머지된 코드가 사이트에 뜨기까지 오래 걸린다. 10-22 Gi
 ## 작업 순서 — 따로 되돌릴 수 있게 MR 셋, 각각 feature → infra → dev
 
 ### C. Argo CD 웹훅 · Mattermost 배포 알림 (먼저 — 뒤 단계의 반영 시간을 사람 손 없이 재고, 알림이 오는지도 같이 보려고)
-- [ ] `infra/k8s/admin-ui/argocd.yaml` — HTTPRoute `argocd-webhook`: `sectionName: https`, Exact `/argocd/api/webhook`, method POST, 머리 `X-Gitlab-Event` 정규식 `.+` → `argocd-server:80`. SecurityPolicy 는 `argocd` 라우트만 가리킨다(정확 경로가 접두사보다 이김)
-- [ ] `infra/server/seal-secrets.sh` — `argocd-webhook` 하위 명령(TTY 확인, `openssl rand -hex 32`, 봉인 파일이 있으면 건너뜀). 봉인 전에 `kubectl label --local … app.kubernetes.io/part-of=argocd` → `infra/k8s/admin-ui/sealed-argocd-webhook.yaml`
-- [ ] `infra/k8s/bootstrap/argocd-values.prod.yaml` — `configs.secret.gitlabSecret` 참조 · `configs.cm."webhook.maxPayloadSizeMB": "1"`
-- [ ] 서버 순서: Argo CD 가 봉인 Secret 을 풀었는지(`kubectl -n argocd get secret argocd-webhook --show-labels`, 이름표 확인) → `bash infra/server/bootstrap-argocd.sh`(같은 차트 10.10.5) → `kubectl -n argocd rollout restart deploy/argocd-server`(토큰 · 상한은 서버가 뜰 때 한 번 읽음) → admin 로그인 확인
-- [ ] 배포 알림(같은 MR, 커밋 따로): `infra/server/seal-secrets.sh` 에 `mattermost` 하위 명령(TTY, `read -rs`, `https://…/hooks/…` 모양 확인, 화면 · 파일에 안 남김) → `infra/k8s/admin-ui/sealed-argocd-notifications.yaml`. `argocd-values.prod.yaml` 에 `notifications`(켜기 · 자원 상한 · `secret.create: false` · `notifiers` 의 `service.webhook.mattermost` · 템플릿 셋 · 트리거 셋 · 전역 구독 ②③). `infra/k8s/apps/templates/app.yaml` · `ai.yaml` 에 배포 완료 구독 주석. 위 helm upgrade 한 번에 같이 반영
+- [x] `infra/k8s/admin-ui/argocd.yaml` — HTTPRoute `argocd-webhook`: `sectionName: https`, Exact `/argocd/api/webhook`, method POST, 머리 `X-Gitlab-Event` 정규식 `.+` → `argocd-server:80`. SecurityPolicy 는 `argocd` 라우트만 가리킨다(정확 경로가 접두사보다 이김)
+- [x] `infra/server/seal-secrets.sh` — `argocd-webhook` 하위 명령(TTY 확인, `openssl rand -hex 32`, 봉인 파일이 있으면 건너뜀). 봉인 전에 `kubectl label --local … app.kubernetes.io/part-of=argocd` → `infra/k8s/admin-ui/sealed-argocd-webhook.yaml`
+- [x] `infra/k8s/bootstrap/argocd-values.prod.yaml` — `configs.secret.gitlabSecret` 참조 · `configs.cm."webhook.maxPayloadSizeMB": "1"`
+- [x] 서버 순서: Argo CD 가 봉인 Secret 을 풀었는지(`kubectl -n argocd get secret argocd-webhook --show-labels`, 이름표 확인) → `bash infra/server/bootstrap-argocd.sh`(같은 차트 10.10.5) → `kubectl -n argocd rollout restart deploy/argocd-server`(토큰 · 상한은 서버가 뜰 때 한 번 읽음) → admin 로그인 확인
+- [x] 배포 알림(같은 MR, 커밋 따로): `infra/server/seal-secrets.sh` 에 `mattermost` 하위 명령(TTY, `read -rs`, `https://…/hooks/…` 모양 확인, 화면 · 파일에 안 남김) → `infra/k8s/admin-ui/sealed-argocd-notifications.yaml`. `argocd-values.prod.yaml` 에 `notifications`(켜기 · 자원 상한 · `secret.create: false` · `notifiers` 의 `service.webhook.mattermost` · 템플릿 셋 · 트리거 셋 · 전역 구독 ②③). `infra/k8s/apps/templates/app.yaml` · `ai.yaml` 에 배포 완료 구독 주석. 위 helm upgrade 한 번에 같이 반영
 - [ ] 알림 시험: 컨트롤러 Pod 에서 `argocd admin notifications template notify <템플릿> <앱> --recipient mattermost` 로 셋 다 채널에 오는지, 이어서 A 의 태그 MR 머지로 실제 배포 완료가 한 번만 오는지
-- [ ] 문서: SSOT 6절 「배포 흐름」 · 공개 경로 · 「모니터링」(알림이 가는 곳), `infra/server/README.md` 웹훅 · 알림 절(토큰을 바꾸면 argocd-server 재시작, 웹훅 주소를 바꾸면 다시 봉인)
+- [x] 문서: SSOT 6절 「배포 흐름」 · 공개 경로 · 「모니터링」(알림이 가는 곳), `infra/server/README.md` 웹훅 · 알림 절(토큰을 바꾸면 argocd-server 재시작, 웹훅 주소를 바꾸면 다시 봉인)
 
 ### A. 굽기 러너를 Lightsail 로 + Kaniko 재시도 + 태그 머지 검사 건너뛰기
 - [ ] `infra/k8s/bootstrap/gitlab-runner-build-values.yaml` 새로 — 위 표의 값. affinity 표는 설정 끝에(TOML 표 순서 함정, 지금 값 파일 102 ~ 103줄 주석)
