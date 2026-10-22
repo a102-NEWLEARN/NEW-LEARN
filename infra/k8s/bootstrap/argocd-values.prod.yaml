@@ -64,11 +64,13 @@ notifications:
             {"text": ":warning: **건강 나빠짐** `{{.app.metadata.name}}` — 상태 {{.app.status.health.status}}\n[Argo CD 에서 보기]({{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}})"}
   triggers:
     # 앱 10개가 모두 dev 를 읽어 「커밋마다 한 번」이면 문서 머지에도 울린다 — 이미지 목록이 바뀔 때만 한 번
+    # 교체 끝 직후엔 종료 중인 옛 Pod 의 이미지가 목록에 같이 있어 두 번 울렸다(2026-10-23) —
+    # 이미지 수가 Deployment 수와 같을 때(옛 Pod 가 사라진 뒤)만 본다. 우리 Deployment 는 컨테이너가 하나씩이다
     trigger.on-deployed: |
-      - description: 이미지가 바뀐 뒤 동기화가 끝나고 건강할 때 한 번
+      - description: 이미지가 바뀐 뒤 동기화가 끝나고 건강하고 옛 Pod 가 다 사라졌을 때 한 번
         oncePer: app.status.summary.images
         send: [app-deployed]
-        when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy' and len(app.status.summary.images) == len(filter(app.status.resources, {.kind == 'Deployment'}))
     trigger.on-sync-failed: |
       - description: 동기화가 실패했을 때
         send: [app-sync-failed]

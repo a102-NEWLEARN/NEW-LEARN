@@ -57,22 +57,22 @@ dev 에 머지된 코드가 사이트에 뜨기까지 오래 걸린다. 10-22 Gi
 - [x] `infra/k8s/bootstrap/argocd-values.prod.yaml` — `configs.secret.gitlabSecret` 참조 · `configs.cm."webhook.maxPayloadSizeMB": "1"`
 - [x] 서버 순서: Argo CD 가 봉인 Secret 을 풀었는지(`kubectl -n argocd get secret argocd-webhook --show-labels`, 이름표 확인) → `bash infra/server/bootstrap-argocd.sh`(같은 차트 10.10.5) → `kubectl -n argocd rollout restart deploy/argocd-server`(토큰 · 상한은 서버가 뜰 때 한 번 읽음) → admin 로그인 확인
 - [x] 배포 알림(같은 MR, 커밋 따로): `infra/server/seal-secrets.sh` 에 `mattermost` 하위 명령(TTY, `read -rs`, `https://…/hooks/…` 모양 확인, 화면 · 파일에 안 남김) → `infra/k8s/admin-ui/sealed-argocd-notifications.yaml`. `argocd-values.prod.yaml` 에 `notifications`(켜기 · 자원 상한 · `secret.create: false` · `notifiers` 의 `service.webhook.mattermost` · 템플릿 셋 · 트리거 셋 · 전역 구독 ②③). `infra/k8s/apps/templates/app.yaml` · `ai.yaml` 에 배포 완료 구독 주석. 위 helm upgrade 한 번에 같이 반영
-- [ ] 알림 시험: 컨트롤러 Pod 에서 `argocd admin notifications template notify <템플릿> <앱> --recipient mattermost` 로 셋 다 채널에 오는지, 이어서 A 의 태그 MR 머지로 실제 배포 완료가 한 번만 오는지
+- [x] 알림 시험: 컨트롤러 Pod 에서 `argocd admin notifications template notify <템플릿> <앱> --recipient mattermost` 로 셋 다 채널에 오는지, 이어서 A 의 태그 MR 머지로 실제 배포 완료가 한 번만 오는지
 - [x] 문서: SSOT 6절 「배포 흐름」 · 공개 경로 · 「모니터링」(알림이 가는 곳), `infra/server/README.md` 웹훅 · 알림 절(토큰을 바꾸면 argocd-server 재시작, 웹훅 주소를 바꾸면 다시 봉인)
 
 ### A. 굽기 러너를 Lightsail 로 + Kaniko 재시도 + 태그 머지 검사 건너뛰기
-- [ ] `infra/k8s/bootstrap/gitlab-runner-build-values.yaml` 새로 — 위 표의 값. affinity 표는 설정 끝에(TOML 표 순서 함정, 지금 값 파일 102 ~ 103줄 주석)
-- [ ] `infra/k8s/bootstrap/build-netpol.yaml` 새로 — 위 표의 CiliumNetworkPolicy
-- [ ] **서버 먼저 (MR 을 열기 전에 — MR 파이프라인부터 새 태그로 굽기 때문)**: 사람이 러너를 만들면 `gitlab-runner-build` 네임스페이스 · 토큰 Secret(`read -rs`) · 정책 apply · `helm upgrade --install`. 러너 online 확인. health 1초 재기를 백그라운드로 시작
-- [ ] `.gitlab-ci.yml` — `.w4` 에 태그 · 자원(2 · 3Gi) · Kaniko 재시도 · 메모리 기록 줄. `.skip-deploy-merge` 와 검사 잡 넷의 첫 규칙. 틀린 주석 고침(12 ~ 13줄 「넘게 요청하면」 · 196줄 근처 「두 러너」)
-- [ ] `infra/k8s/bootstrap/ci-exporter/ci-dashboard.json` — `namespace="gitlab-runner"` 세 곳을 `=~"gitlab-runner(-build)?"` 로, `kubectl apply -k`
-- [ ] MR 파이프라인(굽기 셋, 올리지 않음) → infra → dev 파이프라인(굽기 셋, 캐시 씀, 올림) 시간을 영역별로 이전 값과 비교 → w5 태그 MR 머지로 웹훅 반영 · 검사 건너뛰기 확인
-- [ ] 문서: SSOT 6절 CI 러너 · 굽는 도구 줄, 9절 뒤집은 것, 10절 잰 것, `.claude/stack.md` §4 두 줄, README 「굽기 러너」 절(online 확인 · 되돌리기)
+- [x] `infra/k8s/bootstrap/gitlab-runner-build-values.yaml` 새로 — 위 표의 값. affinity 표는 설정 끝에(TOML 표 순서 함정, 지금 값 파일 102 ~ 103줄 주석)
+- [x] `infra/k8s/bootstrap/build-netpol.yaml` 새로 — 위 표의 CiliumNetworkPolicy
+- [x] **서버 먼저 (MR 을 열기 전에 — MR 파이프라인부터 새 태그로 굽기 때문)**: 사람이 러너를 만들면 `gitlab-runner-build` 네임스페이스 · 토큰 Secret(`read -rs`) · 정책 apply · `helm upgrade --install`. 러너 online 확인. health 1초 재기를 백그라운드로 시작
+- [x] `.gitlab-ci.yml` — `.w4` 에 태그 · 자원(2 · 3Gi) · Kaniko 재시도 · 메모리 기록 줄. `.skip-deploy-merge` 와 검사 잡 넷의 첫 규칙. 틀린 주석 고침(12 ~ 13줄 「넘게 요청하면」 · 196줄 근처 「두 러너」)
+- [x] `infra/k8s/bootstrap/ci-exporter/ci-dashboard.json` — `namespace="gitlab-runner"` 세 곳을 `=~"gitlab-runner(-build)?"` 로, `kubectl apply -k`
+- [x] MR 파이프라인(굽기 셋, 올리지 않음) → infra → dev 파이프라인(굽기 셋, 캐시 씀, 올림) 시간을 영역별로 이전 값과 비교 → w5 태그 MR 머지로 웹훅 반영 · 검사 건너뛰기 확인
+- [x] 문서: SSOT 6절 CI 러너 · 굽는 도구 줄, 9절 뒤집은 것, 10절 잰 것, `.claude/stack.md` §4 두 줄, README 「굽기 러너」 절(online 확인 · 되돌리기)
 
 ### B. ai 층 나누기
-- [ ] `ai/Dockerfile` 한 단계로(위 표). 런타임에 `/app` 의 다른 파일을 읽는 코드 없음(조수가 origin/dev 에서 확인) — 실행 사용자 10001 · `UV_COMPILE_BYTECODE` · `PATH` 는 그대로
-- [ ] 로컬 확인: `docker build` · `docker run` 으로 `/health` UP, 크기 비교. 노트북에 임시 레지스트리(`registry:2`)를 띄우고 Kaniko 로 코드만 다르게 두 번 구워 가상환경 층 digest 가 같은지
-- [ ] dev 반영 뒤 ai 교체 시간. AI 팀원 알림 문안(대화로 드림)
+- [x] `ai/Dockerfile` 한 단계로(위 표). 런타임에 `/app` 의 다른 파일을 읽는 코드 없음(조수가 origin/dev 에서 확인) — 실행 사용자 10001 · `UV_COMPILE_BYTECODE` · `PATH` 는 그대로
+- [x] 로컬 확인: `docker build` · `docker run` 으로 `/health` UP, 크기 비교. 노트북에 임시 레지스트리(`registry:2`)를 띄우고 Kaniko 로 코드만 다르게 두 번 구워 가상환경 층 digest 가 같은지
+- [x] dev 반영 뒤 ai 교체 시간. AI 팀원 알림 문안(대화로 드림)
 
 ### 기록
 - zoo_docs: learn 글 「CI 잡에 root 를 주면 왜 안 되나」(이번 질문), status · troubleshooting · cheatsheet · decisions(굽기 자리 뒤집기), 결과 txt
