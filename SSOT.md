@@ -21,8 +21,8 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | AI 분석 워커 | FastAPI (Python) | 작업 큐 소비, 임베딩, LLM 호출(LangChain) |
 | LLM | SSAFY GMS (GPT-5-mini) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
 | DB | PostgreSQL + pgvector | 기사 원본, 분석 결과, 임베딩 저장·유사도 검색 |
-| 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐 |
-| 뉴스 수집 배치 | 운영 시 쿠버네티스 CronJob (구현 언어 미정) | 데이터셋 적재, 순차 투입, 외부 뉴스 API 수집 |
+| 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐, 로그인 세션 |
+| 뉴스 수집 배치 | 운영 시 쿠버네티스 CronJob (구현 언어 미정) | NewsData.io 수집(하루 두 번 00 · 12시), 데이터셋 적재(검증용) |
 | 외부 입구 | Envoy Gateway | HTTPS 요청을 화면·API로 분배 |
 | 모니터링 | Prometheus, Grafana | 지표 수집, 대시보드 |
 
@@ -35,7 +35,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 
 1. 사용자 → Gateway → React(화면) / Spring Boot(API)
 2. Spring Boot ↔ PostgreSQL 저장·조회
-3. 수집 배치가 기사를 PostgreSQL에 적재 (F01). 데이터셋은 발행일 순서로 순차 투입 (PRD 6.2)
+3. 수집 배치(CronJob, 하루 두 번 00 · 12시 `Asia/Seoul`)가 NewsData.io 기사를 PostgreSQL에 적재하고 투입한다 (F01, 2026-10-20). SSAFY 데이터셋은 학습 · 검증용이다(5절)
 4. 새 기사에 대해 분석 작업을 Redis 작업 큐에 등록
 5. AI 분석 워커가 작업을 가져가 분석 단계를 수행 (3절)
 6. 워커가 결과를 Spring Boot에 전달해 저장
@@ -48,9 +48,10 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 
 | 단계 | MVP 개요 기능 | 무엇으로 | 상태 |
 |---|---|---|---|
-| 6하원칙 추출 (누가·언제·어디서·무엇을·어떻게·왜) | F03 → F04·F05(마인드맵·근거) | GMS. 노드 구조·출력 스키마 상세는 Q33 | 켬 |
+| 핵심 정보 추출 — 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망) | F03 → F04(흐름지도 · 마인드맵) | GMS. 출력 모양은 `docs/api-screen.md` 3절. 근거 문장은 데이터로만 남긴다(F05 화면 표시는 추후, 2026-10-21) | 켬 |
 | 같은 사건 후보 찾기 | F06 | 임베딩(sentence-transformers, CPU) + pgvector, 후보 최대 5개 | 켬 |
-| 동일 사건 판정 | F06 → F07(이슈맵) | GMS. 판단 기준은 Q34 | 켬 |
+| 동일 사건 판정 | F06 → F07(이슈맵) | GMS. 새 사건이면 이름 · 키워드 · 요약도 짓는다. 판단 기준은 Q34 | 켬 |
+| 이슈 판단 — 새 사건을 이슈에 붙이거나, 사건 3개 이상으로 새 이슈를 만들고 이름 · 요약을 짓는다 | F07 | GMS. 단계 모양은 `docs/api-internal.md`(제안). 어떤 사건을 묶을지는 실험 | 켬(제안) |
 | 주장 추출 · 관계 판정 | F09 → F10(변화 카드) | GMS | 추후 논의. 자리만 두고 꺼 둠 |
 
 - 평가 지표는 `addendum.md` 「평가 지표 메모」를 따른다
@@ -79,11 +80,12 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 소스 | 확보 | 넣는 방식 |
 |---|---|---|
-| SSAFY NEWS 2025 상반기 | 기존 확보 | 적재 후 발행일 순서로 순차 투입 |
-| SSAFY NEWS 2024 상반기 · 하반기 | 2차 교보재 | 적재 후 발행일 순서로 순차 투입 |
-| NewsData.io News API (Basic 1개월, 선불) | 2차 교보재 | 수집 배치가 주기적으로 호출 |
+| SSAFY NEWS 2025 상반기 | 기존 확보 | 학습 · 검증용. 서비스 DB 에 넣을지는 미정(`docs/data-model.md` 5절) |
+| SSAFY NEWS 2024 상반기 · 하반기 | 2차 교보재 | 위와 같음 |
+| NewsData.io News API (Basic 1개월, 선불) | 2차 교보재 | 실서비스 화면의 기사. 수집 배치(k8s CronJob)가 하루 두 번(00 · 12시 `Asia/Seoul`) 호출 |
+| 국립국어원 표준국어대사전 Open API | 인증 키 신청 필요 | 용어사전(A19) 요청 때 API 서버가 대신 부른다. 하루 한도 · 결과 저장 · 출처 표시 조건은 키 신청 때 약관으로 확인 |
 
-세 소스 모두 MVP 범위에 넣는다.
+데이터셋은 학습 · 검증에, NewsData 는 서비스 화면에 쓴다(2026-10-20 팀 회의).
 수집 배치는 소스별로 읽는 부분만 다르게 두고, 적재 경로는 하나로 쓴다.
 2024~2025 상반기 데이터셋과 실시간 뉴스(2026) 사이에는 기간 공백이 있다.
 
@@ -114,8 +116,14 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 인프라 담당이 정한다
   - w4 운영 이미지 굽기(Jira S15P31A102-96) — 저장소 · 태그 · 굽는 때는 아래 「배포 흐름」
 - 모니터링: kube-prometheus-stack 92.10.1(Prometheus · Grafana · node-exporter · kube-state-metrics)을 관리 서버에 둔다(2026-10-20, Jira S15P31A102-95). Lightsail을 기다리지 않고 CI 병목을 CI 파이프라인(92) 전부터 재려는 것이다. 값은 `infra/k8s/bootstrap/monitoring-values.yaml`, 까는 법은 `infra/server/README.md` 「모니터링」
-  - 무엇을 보나: 노드 CPU · 메모리, Pod CPU · 스로틀(cAdvisor — `container_cpu_cfs_throttled_periods_total`, `…_throttled_seconds_total`은 차트 기본값이 버린다), GitLab Runner 지표(기다림 · 자리 사용률). 잡별 기다림 · 걸린 시간은 CI 파일이 생긴 뒤 gitlab-ci-pipelines-exporter로 더한다
-  - CPU 예약을 작게 잡는다(모니터링 합 약 190m) — 노드 예약이 1190m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
+  - 무엇을 보나: 노드 CPU · 메모리, Pod CPU · 스로틀(cAdvisor — `container_cpu_cfs_throttled_periods_total`, `…_throttled_seconds_total`은 차트 기본값이 버린다), GitLab Runner 지표(기다림 · 자리 사용률), 잡마다 기다림 · 걸린 시간 · 받은 러너(아래 「CI 잡 지표」)
+  - CI 잡 지표(2026-10-21, Jira S15P31A102-98): gitlab-ci-pipelines-exporter v0.6.0 한 대가 GitLab API를 60초마다 읽어 잡마다 기다림(`queued_duration`) · 걸린 시간 · 러너 · JUnit 스위트 시간을 지표로 바꾼다. Grafana 대시보드 「CI 병목」에 갈래별 잡 시간 · 러너별 잡 수와 기다림 · 노드 CPU · 잡 Pod 스로틀을 모은다. 값은 `infra/k8s/bootstrap/ci-exporter/`, 까는 법은 `infra/server/README.md` 「모니터링」 6번
+    - 읽는 범위는 이 프로젝트의 dev와 열린 MR뿐이다. 머지된 MR까지 읽으니 exporter가 주기마다 프로젝트 전체 잡 목록을 넘겨 가며 다시 찾아 SSAFY GitLab에 초당 1회(설정한 상한)를 붙였다(10절). 머지된 MR의 값은 열려 있는 동안 Prometheus에 남는다
+    - 한계: ref(MR · 브랜치)마다 가장 최근 잡의 값만 낸다 — 지난 값은 Prometheus 시계열에만 있다. GitLab API는 `ref=dev`로 물으면 dev에서 연 MR(분야 브랜치 반영)의 파이프라인도 돌려줘서, 반영 MR을 dev push 직후 열면 exporter의 dev 값이 그 MR 파이프라인으로 덮인다
+    - 토큰은 프로젝트 액세스 토큰(Reporter · `read_api`, 만료 2026-11-30)이다. 사람이 서버에서 Secret `gitlab-ci-exporter`에 넣고 저장소에는 없다. `lab.ssafy.com/-/health`가 밖에서 404라 exporter의 GitLab 헬스 검사는 끈다
+    - 공식 Helm 차트는 쓰지 않고 매니페스트(kustomize)로 둔다 — 차트(0.3.5)는 앱이 v0.5.10에 멈춰 있고 Bitnami Redis를 기본으로 켠다. 수집할 때 exporter Pod 이름 · 주소 이름표는 버린다(Pod가 다시 뜰 때 같은 잡이 두 번 세지지 않게)
+    - 잡 Pod의 갈래 이름표(`newlearn.io/workload`)와 러너가 붙이는 잡 주석(`job.runner.gitlab.com/id` · `name` · `ref`)을 kube-state-metrics에 허용해 스로틀을 잡 이름으로 본다. 노트북 러너의 잡은 클러스터 밖이라 CPU · 스로틀은 EC2 잡만 보인다
+  - CPU 예약을 작게 잡는다(모니터링 합 약 200m, exporter 10m 포함) — 노드 예약이 1200m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
   - Prometheus 데이터는 관리 서버 디스크의 정적 PV(`/var/lib/newlearn/prometheus`, 10Gi, 15일 · 8GB 보존)에 둔다 — Pod를 다시 띄워도 남는다. 프로비저너 없이 이름표용 StorageClass(`kubernetes.io/no-provisioner`)만 둔다(Prometheus Operator는 StorageClass가 실제로 있어야 한다)
   - Grafana: 아이디 · 비밀번호 로그인. 계정은 사람이 서버에서 만든 Secret(`grafana-admin`)에서 읽는다. 가입 · 익명 보기는 끈다. 대시보드는 설정으로 그리고 Grafana 자체 디스크는 두지 않는다(다시 뜨면 로그인을 새로 한다)
   - 여는 길: 지금은 SSH 터널로 `http://localhost:3000/grafana/`. 공개 주소 `newlearn.io.kr/grafana`는 Lightsail · 정문 · HTTPS(Jira 90 · 91 · 93) 뒤에 연다 — 그때 Grafana `root_url`을 바꾼다. Prometheus는 로그인이 없어 공개하지 않는다. Swagger도 공개할 때 브라우저 팝업(HTTP 기본 인증)으로 아이디 · 비밀번호를 묻는다(2026-10-20 결정, 구현은 93 · BE)
@@ -203,7 +211,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 현재 상태
 
 - EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
-  - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인
+  - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인. 2026-10-21 CI 잡 지표(exporter)와 대시보드 「CI 병목」을 더해 수집 대상 14개(Jira S15P31A102-98)
   - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 2026-10-20 `.gitlab-ci.yml`을 넣어 MR 파이프라인이 돈다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
 - Lightsail: 미수령 (pem 키로 받을 예정)
@@ -232,21 +240,24 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 개인 외부 계정(GHCR)에 프로젝트 이미지를 두는 것이 SSAFY 규칙에 맞는지 — 막혀 있으면 저장소를 다시 고른다(바꿀 곳은 `.gitlab-ci.yml`의 이미지 주소와 CI 변수) | Infra | 6절 「배포 흐름」 |
 | HTTPS 인증서 발급 방식 | Infra | — |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
-| 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다 | AI | 3절, `docs/data-model.md` |
+| 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다. Jira 35 시작 전까지 정한다. 고를 때 볼 것: 한국어 기사 품질, Lightsail CPU 에서 기사 한 건 임베딩 시간, 워커 메모리, 차원 2,000 이하(pgvector HNSW 한도), 한 번에 받는 입력 길이(`EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다 — 제목 · 본문 앞부분 중 무엇을 넣을지). BE 안: 칸은 `vector(N)`, 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
-| API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지, 로그인 없는 URL 분석 요청이 GMS 예산을 쓰지 않게 요청 수를 얼마로 막을지도 여기서 정한다 | BE | `docs/api.md` 1절 |
+| API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
 | Lightsail(SSAFY 지급) 받는 날 첫 확인 — ① Lightsail이 먼저 보낸 WireGuard UDP의 응답이 Lightsail 방화벽을 지나 돌아오는지(문서에 없다, `wg show`의 최근 handshake로 본다) ② 443이 열려 있는지(Ubuntu 기본 규칙은 22·80뿐, 못 바꾸면 SSAFY에 요청) ③ 고정 IP를 붙일 수 있는지(없으면 껐다 켤 때 공인 IP가 바뀌어 보안 그룹 · DNS를 다시 맞춘다) | Infra | 6절 |
 | 실제 서버에서 hostPort 80이 Lightsail 공인 IP로 열리는지 (kind에서는 확인, Lightsail 방화벽 권한과 같이 본다) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
-| 워커 → API 결과 전달 방식(HTTP 내부 API · 결과용 스트림)과 작업 큐의 스트림 · consumer group 구성 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
-| 이슈를 만들고 사건을 이슈에 붙이는 길 — 사람이 고르는지 AI 가 만드는지, 이름은 누가 붙이는지(Q5), 사건 하나가 여러 이슈에 속할 수 있는지 | 팀 | `docs/data-model.md` 5절 |
+| 워커 → API 결과 전달 방식과 작업 큐의 스트림 · consumer group 구성. BE 안(2026-10-21, AI 확인 전): 결과는 HTTP 내부 API W1, 큐는 스트림 3 · 그룹 4, 투입 메시지에 본문 통째 · `ACKED MAXLEN ~` 상한 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
+| 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
 | 한 기사가 여러 사건에 속할 수 있는지 (PRD FR-9) | AI · BE | `docs/data-model.md` 5절 |
-| 회원 · 북마크 · 관심 이슈를 MVP 에 넣을지 — Jira 28 · 62~64 는 만들게 돼 있고 MVP 개요 9절 · PRD 4.7 은 MVP 이후로 둔다 | PM · 팀 | `docs/data-model.md` 5절 |
-| 지원 URL 기사 본문을 누가 가져오는지 (API · 워커 · 수집 배치) | BE · AI | `docs/data-model.md` 5절 |
+| 북마크 · 관심 이슈를 MVP 에 넣을지 — 회원 · 관심 분야는 MVP 로 정했다(2026-10-20). Jira 63 · 64 는 만들게 돼 있고 PRD 4.7 은 MVP 이후로 둔다 | PM · 팀 | `docs/data-model.md` 5절 |
+| 타임라인 메인 흐름 · 서브 흐름을 나누는 기준 | 팀 | `docs/data-model.md` 5절 |
+| 기사가 몇 개 모여야 사건으로 보이는지 | AI | `docs/data-model.md` 5절 |
+| NewsData 원본 분류를 카테고리 5개에 맞추는 행, 이슈가 카테고리 여러 개에 걸치는지 — NewsData 구독 뒤 실제 데이터로 | BE · 팀 | `docs/data-model.md` 5절 |
+| 표준국어대사전 Open API 하루 한도 · 결과 저장 · 출처 표시 조건 | BE | 5절 |
 
 정해지면 그 사실이 들어갈 절에 적고 이 표에서 지운다.
 
@@ -257,6 +268,12 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 날짜 | 무엇을 | 왜 |
 |---|---|---|
 | 2026-10-20 | 노드 사이 연결: Cilium이 공인 IP로 VXLAN을 보내고 6443·10250·4240·8472/udp를 보안 그룹 · Lightsail 방화벽에 연다 → 호스트 WireGuard 터널 위로 보내고 EC2에 51820/udp 하나만 연다 | 계정이 달라 사설 IP로 닿지 않고, Lightsail 방화벽은 우리가 못 바꿀 수 있다. WireGuard는 EC2 쪽 포트 하나로 연결과 암호화를 함께 푼다(Jira S15P31A102-85) |
+| 2026-10-20 | 카테고리 7개 → 5개(정치 · 경제 · 사회 · 국제 · IT·과학) | 팀 회의. 스포츠 · 문화/연예는 MVP 뒤 확장 후보로 둔다 |
+| 2026-10-20 | 사용자 URL 입력 분석(API A10 ~ A12) → MVP 에서 뺐다 | 팀 회의. 실서비스 기사는 NewsData 로 받고 크롤링은 계획에 없다 |
+| 2026-10-20 | 데이터셋 3개를 순차 투입해 서비스 → 데이터셋은 학습 · 검증용, 서비스 기사는 NewsData 를 CronJob 하루 두 번 | 팀 회의(실서비스 운영 방식). 발표 시연 방식은 따로 정한다 |
+| 2026-10-21 | 마인드맵 1차 가지 6하원칙 → 핵심 내용 · 원인·배경 · 반응 · 전망 4개, 노드 근거 화면 표시(F05) → 추후 | 마인드맵 회의. 같은 결과를 흐름지도 · 마인드맵 두 보기로 보인다. 근거는 데이터로만 남긴다 |
+| 2026-10-20 | 회원 · 관심 분야: MVP 이후 → MVP(가입 · 로그인 · 관심 분야) | 팀 회의. 북마크 · 관심 이슈는 아직 미정 |
+| 2026-10-21 | 「어려운 용어 자동 설명」(MVP 개요 P2) → 용어사전(표준국어대사전 Open API) MVP | 마인드맵 회의 |
 
 ## 10. 잰 것
 
@@ -302,4 +319,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | Prometheus 데이터 보존 | Pod를 지웠다 다시 띄운 뒤에도 4분 전 시점 `count(up)` = 13 그대로, 저장 폴더 3.7MB | 지우기 전 · 뒤 같은 시점 쿼리 |
 | 2026-10-21 | 첫 dev 굽기 — GHCR에 올리고 캐시를 처음 채움 (dev `4abd39a2`, 파이프라인 #235466) | 세 이미지가 태그 `4abd39a2`로 올라감. ai 680초(EC2, CPU 막힘 33% — 6459 구간 중 2102, 최대 메모리 상한 2Gi에 닿음), backend 566초 · frontend 359초(노트북, 둘이 동시에). 잡 대기 2 ~ 3초. 로그인 없이 받기는 세 이미지 모두 `authentication required` · 403(공개 이미지는 200) — 비공개 | GitLab 잡 기록 `duration` · `queued_duration`, 잡 끝 `cpu.stat` · `memory.peak`. 비공개는 `ghcr.io/token` 익명 요청과 manifest 받기를 공개 이미지와 견줌. CI 변수를 넣기 전 첫 실행은 세 잡 모두 `DENIED`로 실패했다 |
 | 2026-10-21 | CI 굽기 잡 w4 — Kaniko, 올리지 않고 캐시 없이 (MR !60) | EC2 러너: backend 273 · 267초, frontend 126초(새 옵션 122초), ai 옵션 없이 251 · 278초에 OOMKilled → `--use-new-run` · `--compressed-caching=false`로 426초. 노트북 러너: backend 228초, frontend 326초 · ai 475초(둘이 동시에). EC2 frontend CPU 막힘 71%(838 구간 중 597), ai 14%(4154 중 600), 최대 메모리 둘 다 상한 2Gi에 닿음. 같은 frontend를 노트북에서 Docker로 31초, Kaniko로 199초 | GitLab 잡 기록 `duration`, 잡 끝 `cpu.stat` · `memory.peak`(디스크 캐시 포함). 어느 러너가 받을지는 러너를 멈추거나 바쁘게 두어 맞췄다. 노트북 Kaniko는 `docker run`으로 직접 |
+| 2026-10-21 | CI 잡 지표 exporter 설치 (`kubectl apply -k`, Jira S15P31A102-98) | Pod Running까지 36초, 뜬 지 2초에 ref 11개(dev + MR 10개)를 찾음. kube-state-metrics 허용 목록을 넣은 kps `helm upgrade`(같은 92.10.1)는 30초 — 렌더링을 견주니 바뀐 곳은 kube-state-metrics 인자 두 줄뿐 | 시작 · 끝 시각 차이, 지금 값 · 새 값으로 `helm template` 두 벌을 diff |
+| 2026-10-21 | exporter 가 SSAFY GitLab 에 보내는 요청 | 머지된 MR 까지(최근 10개) 읽을 때 초당 0.75번(약 2,700/시간) · 21분에 916번 — 상한 초당 1회에 거의 붙음. 열린 MR 만 읽게 바꾼 뒤 약 290/시간(그때 열린 MR 0개, dev 하나) | exporter 지표 `gcpe_gitlab_api_requests_count` 의 10분 · 20분 `rate` |
+| 2026-10-21 | exporter 자원 · 시계열 | CPU 0.001코어(10분 평균), 메모리 최대 12.3MiB(30분), exporter 시계열 105개 · 잡 Pod 주석 16개 | `container_cpu_usage_seconds_total` · `container_memory_working_set_bytes` · `count({job="gitlab-ci-exporter"})` |
+| 2026-10-21 | exporter 값 ↔ GitLab 잡 API 대조 — MR !66 파이프라인 235615 잡 9개, MR !67 파이프라인 235681 · 235732 잡 4개(열린 MR 로 실시간) | 13개 모두 잡 ID · 러너 · 기다림 · 걸린 시간이 소수점 셋째 자리까지 같음 (예: !66 w3:backend 노트북, 기다림 760.512초 · 걸린 시간 44.094초) | 클러스터 안 일회용 Pod 가 exporter 와 같은 읽기 토큰으로 `/projects/:id/pipelines/235615/jobs` 를 부르고, Prometheus 의 `gitlab_ci_pipeline_job_*` 와 견줌 |
+| 2026-10-21 | 12:24 몰림 — dev push 1개 + 반영 MR 셋(!64 · !65 · !66, `.gitlab-ci.yml` 이 달라 MR 마다 w4 굽기 3개까지) | MR 파이프라인 742 · 643 · 568초, 잡 기다림 최대 **760초**(!66 w3:backend) · !65 392초 · !64 50초 | exporter 지표(`gitlab_ci_pipeline_duration_seconds` · `…_job_queued_duration_seconds`), 위 대조로 API 와 같음을 확인 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |
