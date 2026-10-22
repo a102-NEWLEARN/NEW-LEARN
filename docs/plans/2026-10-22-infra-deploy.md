@@ -90,13 +90,13 @@ DB 비밀번호는 서버 스크립트가 무작위로 만들어 바로 봉인�
 - [x] 첫 태그 = 지금 GHCR 에 있는 dev 최신 태그(영역별로 확인). 태그는 봇만 고치는 파일 한 곳(`infra/k8s/services/images.yaml` 같은)
 
 **C3 · 태그 MR 잡** (팀 파이프라인이라 따로)
-- [ ] `.gitlab-ci.yml` — dev 파이프라인 끝에 `when: always` 잡. 성공한 w4 만 dotenv 로 태그를 남기고 그것만 반영. GHCR 에 그 태그가 있는지 HEAD 로 먼저 확인
-- [ ] 영역별 고정 브랜치(`deploy/backend` 등)를 Commits API(`start_branch=dev`, `force`)로 덮고, 열린 MR 이 있으면 갱신만 — 옛 MR 과 새 MR 이 부딪히지 않게. `resource_group` 으로 줄 세우고, 늦게 끝난 옛 파이프라인이 새 태그를 덮지 않게 조상 검사
-- [ ] 커밋 · MR 제목은 mr-check 규칙(`chore(infra): …`). dev 로 바로 가는 이 예외를 `docs/git-convention.md` 에 적음. 태그 MR 머지 뒤 전 영역 검사를 다시 도는 낭비는 workflow 규칙으로 건너뛸지 그때 봄
-- [ ] 토큰: 프로젝트 액세스 토큰(Maintainer 가 만듦, `api`, Developer, 만료 11-30) → CI 변수 `DEPLOY_MR_TOKEN`
+- [x] `.gitlab-ci.yml` — dev 파이프라인 끝에 `when: always` 잡. 성공한 w4 만 dotenv 로 태그를 남기고 그것만 반영. GHCR 에 그 태그가 있는지 HEAD 로 먼저 확인
+- [x] 영역별 고정 브랜치(`deploy/backend` 등)를 Commits API(`start_branch=dev`, `force`)로 덮고, 열린 MR 이 있으면 갱신만 — 옛 MR 과 새 MR 이 부딪히지 않게. `resource_group` 으로 줄 세우고, 늦게 끝난 옛 파이프라인이 새 태그를 덮지 않게 조상 검사
+- [x] 커밋 · MR 제목은 mr-check 규칙(`chore(infra): …`). dev 로 바로 가는 이 예외를 `docs/git-convention.md` 에 적음. 태그 MR 머지 뒤 전 영역 검사를 다시 도는 낭비는 workflow 규칙으로 건너뛸지 그때 봄
+- [x] 토큰: 프로젝트 액세스 토큰(Maintainer 가 만듦, `api`, Developer, 만료 11-30) → CI 변수 `DEPLOY_MR_TOKEN`
 
-- [ ] 문서: `SSOT.md` 6절(네임스페이스 · DB · Redis · 반영 방식) · 8절, `.claude/stack.md` §5 L2 · L3 · §6 「새 환경변수」, README 「서비스 배포 · 되돌리기」, 팀 공지 문안(대화로 드림)
-- [ ] C1 · C2 · C3 각각 MR → infra → dev. C3 뒤 첫 태그 MR 이 자동으로 열리는지까지. 새 티켓 완료
+- [x] 문서: `SSOT.md` 6절(네임스페이스 · DB · Redis · 반영 방식) · 8절, `.claude/stack.md` §5 L2 · L3 · §6 「새 환경변수」, README 「서비스 배포 · 되돌리기」, 팀 공지 문안(대화로 드림)
+- [x] C1 · C2 · C3 각각 MR → infra → dev. C3 뒤 첫 태그 MR 이 자동으로 열리는지까지. 새 티켓 완료
 
 ### 기록 (단계마다)
 - zoo_docs: status · cheatsheet · troubleshooting · 결과 txt(가림) · 화면 가이드(Argo CD · Grafana 공개 화면 캡처), learn 글은 질문이 나오면
