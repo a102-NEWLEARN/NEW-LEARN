@@ -106,5 +106,5 @@ UDP 를 따로 시험할 길이 없어(EC2 의 51820 은 wg0 가 쓰고, 보안 
 - 1 접속 기록: 등록된 키는 SSAFY 가 준 `K15A102T`(RSA 2048) 하나, 로그인 계정은 `root` · `ubuntu` 뿐. 첫 로그인(09:58 KST)도 이 키로, 같은 SSAFY 망 대역에서 들어왔다 → 멈출 일 없음
 - 2 80 · 443: 내 PC(SSAFY 망) · EC2(바깥 인터넷) 모두 200 — SSAFY 쪽 방화벽이 열려 있다. 시험 뒤 ufw 는 22 만, 듣는 80 · 443 없음
 - 3 WireGuard: Terraform 상태 잠금이 10-20 의 plan 시험에서 남아 있어(같은 PC, `-var` 따옴표 시험이 오류로 끝남) `force-unlock` 으로 그 잠금만 풀었다. plan 이 `1 to add, 0 to change, 0 to destroy`(51820/udp 규칙 하나)라 apply. `wireguard-tools` 설치 → `wg-up.sh worker` → EC2 설정 백업(`wg0.conf.bak-20261022`) → `wg-up.sh control-plane`. handshake 맺힘, `ping 10.200.0.1` 3/3 약 1ms, 1392 통과 · 1393 「message too long」, EC2 컨트롤 플레인 `Ready` 그대로
-- 4 고정 IP: 메타데이터 공인 IP = SSAFY 도메인이 가리키는 IP. 고정인지는 SSAFY 에 문의(사용자)
+- 4 고정 IP: 메타데이터 공인 IP = SSAFY 도메인이 가리키는 IP. 서버를 껐다 켜지 않기로 해서(2026-10-22 사용자) 고정인지는 묻지 않는다 — `SSOT.md` 6절 「현재 상태」
 - 시험 중 실수: 시험 서버를 `pkill -f "python3 -m http.server"` 로 끄다 같은 글자가 든 원격 셸까지 끊겨 ufw 정리가 한 번 안 돌았다 → 다시 확인하고 지웠다

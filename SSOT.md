@@ -217,7 +217,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - Lightsail: 2026-10-22 받았다(SSAFY 도메인 + pem 키, 콘솔 없음). Ubuntu 24.04.4 · CPU 4 · 메모리 15GiB · 디스크 309GB · 공인 쪽 인터페이스 `ens5` · `sudo` 비밀번호 없음, ufw 켜짐(22만). 같은 날 첫 확인(Jira S15P31A102-90, `docs/plans/2026-10-22-lightsail-first-check.md`)
   - WireGuard: 보안 그룹 `worker_cidrs`에 Lightsail 공인 IP(/32)를 넣고 apply → `wg-up.sh` 로 양쪽을 이었다. handshake가 맺히고 `ping 10.200.0.1` 왕복 약 1ms, 1392바이트는 지나가고 1393바이트는 「message too long」(MTU 1420). Lightsail ufw를 따로 열지 않아도 Lightsail이 먼저 보낸 것의 응답은 들어온다
   - 80 · 443: ufw를 잠깐 열고 시험 서버를 띄워 내 PC(SSAFY 망) · EC2(바깥 인터넷)에서 둘 다 200을 받았다 — SSAFY 쪽 방화벽이 열려 있다. 시험 뒤 ufw는 다시 22만
-  - 아직: kubeadm join(`common.sh` · `ufw-worker.sh` · `join-worker.sh`), 고정 IP인지(8절)
+  - 공인 IP: 고정 IP인지는 확인하지 않는다. 서버를 껐다 켜지 않기로 해서(2026-10-22) 바뀔 일이 없다. 지금 IP는 SSAFY 도메인이 가리키는 IP와 같다. SSAFY · AWS 점검으로 꺼졌다 켜져 바뀌면 보안 그룹 `worker_cidrs` apply · DNS · 80/443 입구를 다시 맞춘다(WireGuard는 Lightsail이 먼저 붙어서 EC2가 새 주소를 handshake로 안다)
+  - 아직: kubeadm join(`common.sh` · `ufw-worker.sh` · `join-worker.sh`)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
 - 도메인: 구매 완료, DNS 레코드 미설정 (서비스 서버 IP를 받은 뒤 연결)
 
@@ -249,7 +250,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
-| Lightsail 공인 IP가 고정인지 — 서버를 껐다 켜면 바뀌나. 콘솔이 없어 서버 안에서는 판정할 수 없다(2026-10-22: 지금 IP는 SSAFY 도메인이 가리키는 IP와 같다). 바뀌면 보안 그룹 `worker_cidrs` apply · DNS · 80/443 입구를 다시 맞춘다. 받는 날 첫 확인 중 UDP 응답 · 443은 확인했다(6절 「현재 상태」) | Infra (SSAFY 에 문의) | 6절 |
 | Envoy hostPort 80 · 443이 Lightsail 공인 IP로 받는지 — SSAFY 쪽 방화벽은 열려 있다(2026-10-22 시험 서버로 확인), Envoy로는 Jira 91에서 본다 (kind에서는 확인) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
