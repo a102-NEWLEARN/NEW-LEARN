@@ -243,7 +243,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 확인: 워커 Pod 가 컨트롤 플레인의 CoreDNS · Grafana 에 닿고, 컨트롤 플레인에서 311KB 응답을 받고, ufw 를 켠 채 인터넷으로 나간다. Prometheus 가 워커 kubelet · node-exporter 를 수집한다(up). 재부팅 뒤 wg0 · kubelet 이 부팅 5초에 뜨고(kubelet 은 wg0 뒤) 공인 IP · 노드 주소가 그대로다
   - Pod MTU: 설계대로다 — Pod 인터페이스 1420, 기본 경로 `mtu 1370`. 노드 사이 Pod끼리 1342바이트(1370 − 28)는 지나가고 1343은 보내기 전에 거절되며, 두 노드 모두 IP 쪼개기 0이다. join 날(2026-10-22) 「1420」이라 적은 것은 busybox `ip route`가 경로 mtu를 찍지 않아 잘못 읽은 것이다(10절)
   - Argo CD(2026-10-22, Jira S15P31A102-91, `docs/plans/2026-10-22-infra-deploy.md`): `bootstrap-argocd.sh`로 깔았다. 앱 다섯(root · sealed-secrets · envoy-gateway · gateway · hello) Synced · Healthy, Argo CD · Sealed Secrets · Envoy · hello Pod는 모두 워커에 떴다. 관리자 PC에서 SSAFY 도메인의 80으로 hello가 응답한다 — SSAFY 방화벽 → ufw → Envoy hostPort 80이 이어졌다. 봉인한 시험 Secret을 컨트롤러가 풀어 Pod가 읽었다. 워커 요청 합계 CPU 560m · 메모리 1418Mi
-- kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
+- kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다. 2026-10-22 은퇴 — 실제 클러스터의 앱 목록과 맞지 않게 되어(cert-manager · 운영 키로 봉인한 Secret · 서비스) 시험 앱 hello를 지우고 확인은 실제 서버에서 한다(Jira S15P31A102-105)
 - 도메인: 2026-10-22 가비아 DNS에 A 레코드 `@` · `www` → 워커 공인 IP(TTL 600). 가비아 네임서버 셋과 공개 DNS가 워커 IP로 답한다
   - HTTPS(2026-10-22, Jira S15P31A102-93): `https://newlearn.io.kr`이 Let's Encrypt 인증서로 열린다(첫 발급 만료 2027-01-20, 갱신 예정 2026-12-21). `/`는 서비스 첫 배포 전까지 시험 응답. `/argocd` · `/grafana`는 팝업 하나로 열린다 — 계정 없이 · 틀린 비밀번호 · 꾸민 머리만으로는 401. 앱 일곱(admin-ui · cert-manager 더함) Synced · Healthy
 

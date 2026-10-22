@@ -101,7 +101,7 @@ ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jir
 infra_PATH="infra"   # 인프라 코드 (Terraform · 쿠버네티스 매니페스트 · kind 리허설). 검사는 AWS 자격 증명 없이 돈다
 infra_ALSO_PATHS=""   # 검사가 terraform -chdir 와 infra/kind/ 만 본다
 infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # provider 를 받는다. 상태 파일은 만들지 않는다
-infra_RUN="bash kind/up.sh"   # 내 PC 의 kind 리허설 클러스터 (Docker Desktop · kind · Helm 필요). Terraform plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
+infra_RUN="ssh newlearn 'kubectl -n argocd get applications' && curl -fsS https://newlearn.io.kr/actuator/health"   # 실제 클러스터의 앱 상태와 사이트 헬스. newlearn 은 EC2(컨트롤 플레인) SSH 별칭 — 없으면 ubuntu@<EC2 탄력적 IP> (infra/server/README.md). kind 리허설(kind/up.sh)은 2026-10-22 은퇴. Terraform plan 은 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
 infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done'   # 셸 스크립트(kind 리허설 · 서버 설정)는 문법만 본다. 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
