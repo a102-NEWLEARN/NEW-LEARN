@@ -9,7 +9,11 @@ type Health = { status: string };
 export function App() {
   const health = useQuery({
     queryKey: ["api-health"],
-    queryFn: () => api.get<Health>("/actuator/health").then((res) => res.data),
+    // 헬스는 /api/v1 밖에 있어 기본 주소를 덮는다
+    queryFn: () =>
+      api
+        .get<Health>("/actuator/health", { baseURL: "/" })
+        .then((res) => res.data),
     retry: false,
   });
 
