@@ -242,7 +242,7 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | | |
 |---|---|
 | 배포가 있나 | 서버 — 쿠버네티스(kubeadm 직접 구축) |
-| 어디로 | 노드 2대 — 관리 서버(컨트롤 플레인) AWS EC2 t3.large · 서비스 서버(워커) SSAFY Lightsail xlarge. 둘 다 아직 없다 (EC2 미생성 · Lightsail 미수령, `SSOT.md` 6절) |
+| 어디로 | 노드 2대 — 관리 서버(컨트롤 플레인) AWS EC2 t3.large · 서비스 서버(워커) SSAFY Lightsail xlarge. 둘 다 클러스터로 묶였고 Argo CD 가 dev 브랜치를 읽는다 (2026-10-22, `SSOT.md` 6절 「현재 상태」) |
 | 무엇으로 트리거되나 | push → GitLab Runner 가 테스트 · 이미지 빌드 → 배포 설정의 이미지 버전 갱신 → Argo CD 가 반영. 이미지는 dev push 에서 굽는다 (`SSOT.md` 6절 「배포 흐름」) |
 | 배포 명령 | 사람이 치는 명령은 없다 — Argo CD 가 Git 의 배포 설정을 클러스터에 맞춘다(GitOps). 배포 설정은 `infra/k8s/apps/`(앱 목록) 와 그것이 가리키는 `infra/k8s/` 폴더. kind 리허설에서 확인 (`SSOT.md` 6절) |
 | **산출물(이미지 · 패키지 · 앱 번들)을 어디에 두나** | GHCR 비공개 패키지 — SSAFY GitLab 레지스트리는 서버에서 꺼져 있다 (`SSOT.md` 6절 「배포 흐름」) |

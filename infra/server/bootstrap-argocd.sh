@@ -14,7 +14,7 @@ K8S_DIR="$(cd "$SERVER_DIR/../k8s" && pwd)"
 
 REVISION="${1:-dev}"
 REPO_URL=https://lab.ssafy.com/s15-final/S15P31A102.git
-REPO_SECRET=repo-newlearn
+REPO_SECRET=repo-newlearn # secret-scan:allow — 값이 아니라 Secret 이름
 # kind 리허설(infra/kind/up.sh)과 같은 판. 올릴 때는 두 곳을 같이 바꾼다
 ARGOCD_CHART_VERSION=10.10.5 # Argo CD v3.5.5
 # Sealed Secrets 컨트롤러와 같은 판 (infra/k8s/apps/templates/sealed-secrets.yaml)
@@ -64,7 +64,7 @@ stringData:
   type: git
   url: "$REPO_URL"
   username: "$repo_user"
-  password: "$repo_token"
+  password: "$repo_token" # secret-scan:allow — 값이 아니라 변수
 EOF
   unset repo_token
 fi
@@ -93,9 +93,12 @@ sed -e "s#__REPO_URL__#$REPO_URL#g" -e "s#__REVISION__#$REVISION#g" \
   "$K8S_DIR/bootstrap/root-app.yaml" | kubectl apply -f -
 
 log "앱이 모두 Synced · Healthy 가 되길 기다린다"
-# 루트의 건강 상태는 자식 앱의 건강 상태를 모은 것이다 (argocd-values.yaml 의 Application 건강 Lua)
 kubectl -n argocd wait application/root --for=jsonpath='{.status.sync.status}'=Synced --timeout="$WAIT"
-kubectl -n argocd wait application/root --for=jsonpath='{.status.health.status}'=Healthy --timeout="$WAIT"
+# 루트가 Synced · Healthy 여도 마지막 wave 의 앱은 막 만들어진 참이다 — 앱마다 기다린다 (2026-10-22 처음 돌릴 때 hello 가 Missing 으로 찍힘)
+for app in $(kubectl -n argocd get applications -o name); do
+  kubectl -n argocd wait "$app" --for=jsonpath='{.status.sync.status}'=Synced --timeout="$WAIT"
+  kubectl -n argocd wait "$app" --for=jsonpath='{.status.health.status}'=Healthy --timeout="$WAIT"
+done
 kubectl -n argocd get applications
 
 echo
