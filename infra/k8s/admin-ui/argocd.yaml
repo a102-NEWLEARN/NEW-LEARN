@@ -31,6 +31,36 @@ spec:
       timeouts:
         request: 0s
 ---
+# GitLab 이 dev push 를 알리는 길 — 팝업 밖이다 (Jira S15P31A102-106, SSOT 6절 「배포 흐름」)
+# 위 /argocd 접두사보다 정확 경로가 이겨서, 아래 SecurityPolicy(위 라우트만 가리킴)가 이 길에는 안 붙는다
+# 이 경로 · POST · GitLab 머리가 다 맞을 때만 여기로 오고, 하나라도 다르면 위 라우트(팝업)로 간다
+# 토큰은 Argo CD 가 확인한다 — argocd-values.prod.yaml 의 configs.secret.gitlabSecret → sealed-argocd-webhook.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-webhook
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: public
+      namespace: envoy-gateway-system
+      sectionName: https
+  hostnames:
+    - newlearn.io.kr
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /argocd/api/webhook
+          method: POST
+          headers:
+            - name: X-Gitlab-Event
+              type: RegularExpression
+              value: ".+"
+      backendRefs:
+        - name: argocd-server
+          port: 80
+---
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:

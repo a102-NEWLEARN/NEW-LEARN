@@ -237,6 +237,17 @@ kubectl create secret generic <이름> -n <네임스페이스> --from-file=<키>
   read -rp 'Grafana 관리자 아이디 (팝업 아이디와 다르게): ' U && read -rsp 'Grafana 관리자 비밀번호: ' P && echo && printf '%s' "$P" | kubectl -n monitoring create secret generic grafana-admin --from-literal=admin-user="$U" --from-file=admin-password=/dev/stdin --dry-run=client -o yaml | kubectl replace -f - ; unset U P # secret-scan:allow — 값이 아니라 변수 이름
   ```
 
+### GitLab 웹훅 · Mattermost 배포 알림
+
+push 를 바로 반영하는 웹훅과 배포 알림. 설계는 `SSOT.md` 6절 「배포 흐름」.
+
+1. **봉인** (EC2): `bash infra/server/seal-secrets.sh argocd-webhook`(무작위, 묻지 않음) · `ssh -t … "bash infra/server/seal-secrets.sh mattermost"`(「A102 배포알림」 채널의 들어오는 웹훅 주소를 묻고, 채널에 연결 시험 글을 쓴 뒤 봉인) → `~/sealed/` 의 두 파일을 `infra/k8s/admin-ui/` 로 가져와 커밋
+2. **반영**: Argo CD 가 두 Secret 을 푼 뒤(`kubectl -n argocd get secret argocd-webhook --show-labels` 에 `app.kubernetes.io/part-of=argocd`) `bash infra/server/bootstrap-argocd.sh` → `kubectl -n argocd rollout restart deploy/argocd-server`(토큰을 뜰 때 한 번 읽는다)
+3. **GitLab** (Maintainer): Settings › Webhooks — URL `https://newlearn.io.kr/argocd/api/webhook`, Secret token 은 `kubectl -n argocd get secret argocd-webhook -o jsonpath='{.data.gitlab}' | base64 -d` 로 본 값, Push events 하나(Wildcard `dev`), SSL 켬 → Test › Push events 가 200
+
+- 확인: `kubectl -n argocd logs deploy/argocd-server | grep "Received push event"`. 토큰이 틀리면 `X-Gitlab-Token validation failed`
+- 바꿀 때: 웹훅 토큰은 `~/sealed/sealed-argocd-webhook.yaml` 을 지우고 1 ~ 3(GitLab 값도). Mattermost 주소가 샜으면 Mattermost 에서 지우고 새로 만든 뒤 `sealed-argocd-notifications.yaml` 을 지우고 1 · 2. 알림 시험 방법은 `SSOT.md` 10절 2026-10-23
+
 ## 서비스 배포 — Argo CD 가 깐다
 
 PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · ai(`ai`)는 Argo CD 앱이다. 사람이 하는 일은 처음 한 번 Secret 을 봉인하는 것과 태그를 바꾸는 MR 뿐이다. 설계는 `SSOT.md` 6절 「클러스터 구성」 · 「저장소·백업」.
@@ -350,6 +361,18 @@ flowchart LR
 - 값 파일의 `[runners.kubernetes.node_selector]` · `node_tolerations` 표는 맨 끝에 둔다. TOML 은 표 머리 뒤의 키를 다음 머리까지 그 표에 넣어서, 가운데 두면 뒤의 키가 엉뚱한 표로 들어가 러너가 `FATAL: Could not handle configuration merging` 로 등록하지 못한다 (2026-10-20 겪음)
 - 판 올리기: GitLab 이 오르면 같은 major.minor 의 차트로 `--version` 만 바꿔 다시 `helm upgrade` 한다. 차트 판 ↔ 러너 판은 `helm search repo -l gitlab/gitlab-runner`
 - 값을 바꾼 뒤에도 같은 `helm upgrade` 한 줄. 러너 Pod 가 새로 뜨면서 같은 토큰으로 다시 붙는다
+
+### 굽기 러너 — 이미지 굽기(w4)만, 잡은 워커에서
+
+매니저 Pod 는 EC2, 잡 Pod 는 워커(Lightsail). 왜 · 상한 · 격리는 `SSOT.md` 6절 「굽기 러너」.
+
+1. **GitLab** (Maintainer): Settings › CI/CD › Runners › New project runner — Tags `newlearn-build`, Run untagged 끔, Protected 끔(켜면 MR 굽기가 영영 기다린다)
+2. **토큰** (EC2, 값을 물어서 `ssh -t`): `kubectl create namespace gitlab-runner-build && read -rsp "runner token: " T && echo && printf "%s" "$T" | kubectl -n gitlab-runner-build create secret generic gitlab-runner-build-token --from-literal=runner-registration-token= --from-file=runner-token=/dev/stdin; unset T` <!-- secret-scan:allow — 값이 아니라 변수 이름 -->
+3. **정책 먼저, 그다음 러너** (EC2): `kubectl apply -f infra/k8s/bootstrap/build-netpol.yaml` → `helm upgrade --install gitlab-runner-build gitlab/gitlab-runner --version 0.88.4 -n gitlab-runner-build -f infra/k8s/bootstrap/gitlab-runner-build-values.yaml --wait`
+
+- 확인: GitLab Runners 화면에 online. 정책은 같은 노드에서 대조 — 굽기 네임스페이스와 `default` 에 busybox Pod 를 띄워 `nc -w 3 postgres.data.svc 5432` 가 앞은 막히고 뒤는 열리는지(curl `telnet://` 은 열린 곳도 막힌 것처럼 나왔다)
+- 러너가 죽으면 w4 가 기다린다. 급하면 `.gitlab-ci.yml` 의 `.w4` 태그를 빼고 **자원도 CPU 1 · 메모리 2Gi 로 같이** 내린다 — 다른 러너의 상한을 넘으면 잡이 실패한다
+- 내리기: `helm uninstall gitlab-runner-build -n gitlab-runner-build` → `kubectl delete namespace gitlab-runner-build` → GitLab 에서 러너 삭제
 
 ## 모니터링 (EC2)
 
