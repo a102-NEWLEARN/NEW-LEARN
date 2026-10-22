@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# 네임스페이스 · 이름은 바꾸지 않는다 — SealedSecret 은 이름 · 네임스페이스(ai)에 묶여 봉인돼 있다
+resources:
+  - ai.yaml
+  - sealed-ghcr-pull.yaml
+# 배포 태그 — dev 에서 구운 커밋 짧은 SHA 8자. CI 태그 MR 잡이 이 블록의 newTag 만 바꾼다
+images:
+  - name: ghcr.io/kimzoo5676-del/newlearn-ai
+    newTag: 9f436817
