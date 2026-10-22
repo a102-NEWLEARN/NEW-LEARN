@@ -255,7 +255,8 @@ PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · 
 
 3. **저장소로 가져오기** — `~/sealed/sealed-postgres-auth-data.yaml` → `infra/k8s/services/data/sealed-postgres-auth.yaml`, `…-app.yaml` → `services/app/`, `sealed-ghcr-pull-app.yaml` · `-ai.yaml` → `services/app/sealed-ghcr-pull.yaml` · `services/ai/sealed-ghcr-pull.yaml`. 커밋 · MR
 
-- **태그 바꾸기**: `infra/k8s/services/app · ai/kustomization.yaml` 의 `newTag` 를 바꾸는 MR. 태그는 **dev push 파이프라인이 GHCR 에 올린 것만** 쓴다 — MR 파이프라인은 굽기만 하고 올리지 않는다(2026-10-22 MR 의 커밋을 적었다가 ImagePullBackOff). 되돌리기는 그 MR 을 Revert
+- **태그 바꾸기**: 보통은 CI 가 한다 — dev 에서 이미지를 구우면 `w5:deploy-mr` 잡이 `deploy/app` · `deploy/ai` 로 태그 MR 을 연다(`SSOT.md` 6절 「배포 흐름」). 사람은 그 MR 을 확인하고 머지한다. 손으로 바꿀 때는 `infra/k8s/services/app · ai/kustomization.yaml` 의 `newTag` 를 바꾸는 MR — 태그는 **dev push 파이프라인이 GHCR 에 올린 것만** 쓴다(MR 파이프라인은 굽기만 하고 올리지 않는다, 2026-10-22 MR 의 커밋을 적었다가 ImagePullBackOff). 되돌리기는 그 MR 을 Revert
+- **태그 MR 토큰** (Maintainer, GitLab 화면): Settings › Access tokens — 이름 `deploy-mr-bot` · 역할 Developer · 범위 `api` · 만료 2026-11-30 → Settings › CI/CD › Variables 에 `DEPLOY_MR_TOKEN`(Masked and hidden · Protect). 토큰이 만료되면 dev 파이프라인의 `w5:deploy-mr` 가 401 로 빨개진다
 - **떠 있는 판**: `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'`
 - **DB · Redis 데이터 살리기**: PVC 를 지워도 PV 와 워커 폴더(`/var/lib/newlearn/local-path/pvc-…`)는 남는다(Retain) — 새 PVC 는 그것을 쓰지 않고 빈 DB 로 뜬다. 살리려면 PV 의 `spec.claimRef` 를 지워(`kubectl patch pv <이름> --type json -p '[{"op":"remove","path":"/spec/claimRef"}]'`) 새 PVC 가 그 PV 를 잡게 한다(PVC 에 `volumeName: <이름>`)
 - 백업(pg_dump)은 아직 없다 — `SSOT.md` 8절
