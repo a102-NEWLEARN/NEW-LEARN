@@ -135,7 +135,7 @@ sequenceDiagram
 | Cilium | `kubectl -n kube-system exec ds/cilium -- cilium-dbg status --brief` (EC2) | `OK` |
 | Cilium 인터페이스 | `kubectl -n kube-system exec ds/cilium -- cilium-dbg status \| grep KubeProxyReplacement` (EC2) | 공인 쪽(ens5 등)과 wg0 이 보이고 wg0 이 노드 사이 길(Direct Routing) |
 | kube-system | `kubectl -n kube-system get pods -o wide` (EC2) | 전부 Running. CoreDNS · cilium-operator 는 컨트롤 플레인에 있다 |
-| Pod MTU · 노드 사이 Pod | `kubectl run mtu --rm -it --image=busybox:1.37 --restart=Never -- sh -c 'cat /sys/class/net/eth0/mtu; nslookup kubernetes.default'` (EC2, 워커 join 뒤) | `1370`(1420 − VXLAN 50) · 이름이 풀린다 — 워커의 Pod 가 컨트롤 플레인의 CoreDNS 에 닿는다 |
+| Pod MTU · 노드 사이 Pod | `kubectl run mtu --rm -it --image=busybox:1.37 --restart=Never -- sh -c 'cat /sys/class/net/eth0/mtu; nslookup kubernetes.default'` (EC2, 워커 join 뒤) | 이름이 풀린다 — 워커의 Pod 가 컨트롤 플레인의 CoreDNS 에 닿는다. MTU 는 설계가 `1370`(1420 − VXLAN 50)을 기대했지만 실제는 `1420` 이다(2026-10-22, `SSOT.md` 8절) |
 | 재부팅 뒤 | `sudo reboot` 뒤 위 줄 다시 (각 노드) | 같은 결과 |
 
 ## 관리자 PC 에서 kubectl
@@ -335,12 +335,8 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 
 서버 생성 후 확인 — 아직 못 봤다.
 
-- 실제 `kubeadm init` · `join`, 노드 INTERNAL-IP 가 터널 주소인지
-- Cilium 이 `wg0` 위로 VXLAN 을 보내 노드 사이 Pod 가 통하는지, Pod MTU 가 1370 인지 (VXLAN 머리 50바이트를 Cilium 이 빼는 것은 소스로만 확인 — `infra/k8s/bootstrap/cilium-values.prod.yaml` 주석)
-- Cilium 이 `wg0`(이더넷 머리가 없는 인터페이스)에 eBPF 를 붙여도 문제가 없는지
-- systemd 순서 — 재부팅 뒤 kubelet 이 `wg0` 뒤에 뜨는지
-- ufw 를 켠 채로 Pod 가 밖으로 나가고 hostPort 80 이 들어오는지 (Lightsail 의 인터페이스 이름 `ens5` · ufw 기본 상태(22만) · 돌아오는 UDP · 80 · 443 은 2026-10-22 받은 날 확인 — `SSOT.md` 6절 「현재 상태」)
-- `common.sh` 의 swap · 모듈 · sysctl · systemctl 부분 (컨테이너에서는 건너뛰었다)
+- Pod MTU 를 1370 으로 맞추는 법 — 실제 Pod 는 1420 이다(소스로 읽은 「Cilium 이 VXLAN 머리 50바이트를 뺀다」가 맞지 않았다, `SSOT.md` 8절)
+- ufw 를 켠 채로 hostPort 80 이 들어오는지 (Jira 91). 2026-10-22 서버에서 확인한 것 — join · 노드 주소 · Cilium(`wg0` Direct Routing) · 노드 사이 Pod · Pod 가 밖으로 나가기 · 재부팅 뒤 순서 · `common.sh` — 은 `SSOT.md` 6절 「현재 상태」
 
 ## 되돌리기
 

@@ -210,7 +210,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 ### 현재 상태
 
-- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
+- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join은 2026-10-22(아래), Argo CD는 Jira S15P31A102-91
   - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인. 2026-10-21 CI 잡 지표(exporter)와 대시보드 「CI 병목」을 더해 수집 대상 14개(Jira S15P31A102-98)
   - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 2026-10-20 `.gitlab-ci.yml`을 넣어 MR 파이프라인이 돈다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
@@ -218,7 +218,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - WireGuard: 보안 그룹 `worker_cidrs`에 Lightsail 공인 IP(/32)를 넣고 apply → `wg-up.sh` 로 양쪽을 이었다. handshake가 맺히고 `ping 10.200.0.1` 왕복 약 1ms, 1392바이트는 지나가고 1393바이트는 「message too long」(MTU 1420). Lightsail ufw를 따로 열지 않아도 Lightsail이 먼저 보낸 것의 응답은 들어온다
   - 80 · 443: ufw를 잠깐 열고 시험 서버를 띄워 내 PC(SSAFY 망) · EC2(바깥 인터넷)에서 둘 다 200을 받았다 — SSAFY 쪽 방화벽이 열려 있다. 시험 뒤 ufw는 다시 22만
   - 공인 IP: 고정 IP인지는 확인하지 않는다. 서버를 껐다 켜지 않기로 해서(2026-10-22) 바뀔 일이 없다. 지금 IP는 SSAFY 도메인이 가리키는 IP와 같다. SSAFY · AWS 점검으로 꺼졌다 켜져 바뀌면 보안 그룹 `worker_cidrs` apply · DNS · 80/443 입구를 다시 맞춘다(WireGuard는 Lightsail이 먼저 붙어서 EC2가 새 주소를 handshake로 안다)
-  - 아직: kubeadm join(`common.sh` · `ufw-worker.sh` · `join-worker.sh`)
+  - 워커 join(2026-10-22, Jira S15P31A102-90, `docs/plans/2026-10-22-worker-join.md`): `common.sh` → `ufw-worker.sh` → 30분 토큰으로 `join-worker.sh`(토큰은 쓴 뒤 지움). 노드 2개 Ready(INTERNAL-IP 10.200.0.1 · 10.200.0.2), 두 노드 Cilium `OK` · 인터페이스 `ens5` 와 `wg0 (Direct Routing)` · 클러스터 헬스 2/2. 워커에는 DaemonSet 셋(cilium · cilium-envoy · node-exporter)만 있다 — 다른 워크로드는 nodeSelector 로 컨트롤 플레인에 묶여 있다
+  - 확인: 워커 Pod 가 컨트롤 플레인의 CoreDNS · Grafana 에 닿고, 컨트롤 플레인에서 311KB 응답을 받고, ufw 를 켠 채 인터넷으로 나간다. Prometheus 가 워커 kubelet · node-exporter 를 수집한다(up). 재부팅 뒤 wg0 · kubelet 이 부팅 5초에 뜨고(kubelet 은 wg0 뒤) 공인 IP · 노드 주소가 그대로다
+  - Pod MTU 는 1420 이다 — 설계가 기대한 1370(1420 − VXLAN 50)이 아니다. 컨트롤 플레인 Pod 도 같았다(8절)
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
 - 도메인: 구매 완료, DNS 레코드 미설정 (서비스 서버 IP를 받은 뒤 연결)
 
@@ -250,6 +252,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
+| Pod MTU 를 1370 으로 맞출지 — 지금 Pod 가 1420 으로 보내 VXLAN(+50)으로 감싸면 1470 이 되어 wg0(1420) 앞에서 쪼개지는 것으로 보인다(큰 응답은 받힌다, 2026-10-22). Cilium 값(`cilium-values.prod.yaml` 의 `MTU`)을 어떻게 줄지 Jira 91 에서 본다 | Infra | 6절 「노드 사이 — 호스트 WireGuard」 |
 | Envoy hostPort 80 · 443이 Lightsail 공인 IP로 받는지 — SSAFY 쪽 방화벽은 열려 있다(2026-10-22 시험 서버로 확인), Envoy로는 Jira 91에서 본다 (kind에서는 확인) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
@@ -326,5 +329,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-21 | exporter 가 SSAFY GitLab 에 보내는 요청 | 머지된 MR 까지(최근 10개) 읽을 때 초당 0.75번(약 2,700/시간) · 21분에 916번 — 상한 초당 1회에 거의 붙음. 열린 MR 만 읽게 바꾼 뒤 약 290/시간(그때 열린 MR 0개, dev 하나) | exporter 지표 `gcpe_gitlab_api_requests_count` 의 10분 · 20분 `rate` |
 | 2026-10-21 | exporter 자원 · 시계열 | CPU 0.001코어(10분 평균), 메모리 최대 12.3MiB(30분), exporter 시계열 105개 · 잡 Pod 주석 16개 | `container_cpu_usage_seconds_total` · `container_memory_working_set_bytes` · `count({job="gitlab-ci-exporter"})` |
 | 2026-10-21 | exporter 값 ↔ GitLab 잡 API 대조 — MR !66 파이프라인 235615 잡 9개, MR !67 파이프라인 235681 · 235732 잡 4개(열린 MR 로 실시간) | 13개 모두 잡 ID · 러너 · 기다림 · 걸린 시간이 소수점 셋째 자리까지 같음 (예: !66 w3:backend 노트북, 기다림 760.512초 · 걸린 시간 44.094초) | 클러스터 안 일회용 Pod 가 exporter 와 같은 읽기 토큰으로 `/projects/:id/pipelines/235615/jobs` 를 부르고, Prometheus 의 `gitlab_ci_pipeline_job_*` 와 견줌 |
+| 2026-10-22 | Lightsail 워커 join | `common.sh` 39초 · `kubeadm join` 3초 · join 뒤 노드 Ready 11초 | 각 명령 앞뒤 `date +%s`, `kubectl wait --for=condition=Ready` |
+| 2026-10-22 | 노드 사이 터널(wg0) 지연 · MTU | ping 왕복 약 1.0ms(EC2 · Lightsail 같은 서울), 1392바이트 통과 · 1393 「message too long」 | Lightsail 에서 `ping -c 3 10.200.0.1`, `ping -M do -s 1392/1393` |
+| 2026-10-22 | Lightsail 재부팅 회복 | SSH 17초 · wg-quick@wg0 · kubelet 부팅 5초, Cilium 다시 OK 까지 약 1분 안 | `uptime -s` 와 `systemctl show -p ActiveEnterTimestamp`, 노드 `lastHeartbeatTime` 이 새 부팅 뒤인지 |
+| 2026-10-22 | Pod 인터페이스 MTU | 두 노드 모두 1420(lxc · cilium_vxlan · Pod eth0). 기대값 1370 아님 | 워커에 busybox Pod 로 `cat /sys/class/net/eth0/mtu` · `ip route`, 노드에서 `ip -o link` |
 | 2026-10-21 | 12:24 몰림 — dev push 1개 + 반영 MR 셋(!64 · !65 · !66, `.gitlab-ci.yml` 이 달라 MR 마다 w4 굽기 3개까지) | MR 파이프라인 742 · 643 · 568초, 잡 기다림 최대 **760초**(!66 w3:backend) · !65 392초 · !64 50초 | exporter 지표(`gitlab_ci_pipeline_duration_seconds` · `…_job_queued_duration_seconds`), 위 대조로 API 와 같음을 확인 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |
