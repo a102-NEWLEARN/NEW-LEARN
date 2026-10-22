@@ -237,6 +237,30 @@ kubectl create secret generic <이름> -n <네임스페이스> --from-file=<키>
   read -rp 'Grafana 관리자 아이디 (팝업 아이디와 다르게): ' U && read -rsp 'Grafana 관리자 비밀번호: ' P && echo && printf '%s' "$P" | kubectl -n monitoring create secret generic grafana-admin --from-literal=admin-user="$U" --from-file=admin-password=/dev/stdin --dry-run=client -o yaml | kubectl replace -f - ; unset U P # secret-scan:allow — 값이 아니라 변수 이름
   ```
 
+### GitLab 웹훅 · Mattermost 배포 알림
+
+push 를 바로 반영하는 웹훅과 배포 알림이다. 설계는 `SSOT.md` 6절 「배포 흐름」.
+
+1. **봉인** (EC2 에서). 웹훅 토큰은 무작위로 만들어 묻지 않는다. Mattermost 는 「A102 배포알림」 채널에 만든 들어오는 웹훅 주소를 묻고(화면에 안 보임), 그 채널에 연결 시험 글을 하나 쓴 뒤 봉인한다
+
+   ```bash
+   ssh ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh argocd-webhook"
+   ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh mattermost"
+   ```
+
+2. **저장소로 가져와 커밋** — `~/sealed/sealed-argocd-webhook.yaml` · `sealed-argocd-notifications.yaml` → `infra/k8s/admin-ui/`
+3. **Argo CD 값 반영** — Argo CD 가 두 Secret 을 푼 뒤에(`kubectl -n argocd get secret argocd-webhook --show-labels` 에 `app.kubernetes.io/part-of=argocd`) `bash infra/server/bootstrap-argocd.sh` → `kubectl -n argocd rollout restart deploy/argocd-server`(웹훅 토큰을 뜰 때 한 번 읽는다)
+4. **GitLab 웹훅** (Maintainer, 화면): Settings › Webhooks › Add new webhook — URL `https://newlearn.io.kr/argocd/api/webhook`, Secret token 은 아래 명령으로 본 값, Trigger 는 Push events 하나(Wildcard `dev`), SSL verification 켬 → Test › Push events 가 HTTP 200
+
+   ```bash
+   ssh ubuntu@<EC2 탄력적 IP> "kubectl -n argocd get secret argocd-webhook -o jsonpath='{.data.gitlab}' | base64 -d; echo"
+   ```
+
+- 확인: `kubectl -n argocd logs deploy/argocd-server | grep "Received push event"`. 토큰이 틀리면 `X-Gitlab-Token validation failed`
+- 웹훅 토큰을 바꿀 때: `~/sealed/sealed-argocd-webhook.yaml` 을 지우고 1 ~ 4. GitLab 값도 같이 바꾼다
+- Mattermost 주소가 샜으면 Mattermost 에서 그 웹훅을 지우고 새로 만들어 `~/sealed/sealed-argocd-notifications.yaml` 을 지운 뒤 1 · 2
+- 알림 시험: Git 밖에서 잠깐 만든 시험 앱으로 실패 · Degraded 를 일으켜 본다(2026-10-23 한 방법은 `SSOT.md` 10절). 끝나면 앱과 네임스페이스를 지운다
+
 ## 서비스 배포 — Argo CD 가 깐다
 
 PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · ai(`ai`)는 Argo CD 앱이다. 사람이 하는 일은 처음 한 번 Secret 을 봉인하는 것과 태그를 바꾸는 MR 뿐이다. 설계는 `SSOT.md` 6절 「클러스터 구성」 · 「저장소·백업」.

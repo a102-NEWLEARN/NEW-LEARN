@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd
+spec:
+  encryptedData:
+    mattermost-url: AgBhxNSyfisISetD39gYaQ5d/HHi8FRo2Fvlnu3a7FDOGGu9Z8M5uFZauKdjsPsEabM8uwJE5l+ssY3ZYNoLSjNuOjdngUyowZiu/VwAphHxhhKOdEy+o3XczDPtZmbsRT4qINS9YJbPDS4eTpM0dTfL2d9HkE5nkPrA2CjwNTDCNeGAwKPkqTx/iiePd8x88sIHRkWRebOskCiRpExhF/aXYbyB0InECAC8W44m1qVEpAVHnS860FAznbAogLNl+faAB/K15V4bn2VYcOq4kO4Gqxc8l2ow88+7QgblHnkhDFjGC6HqrdokfjOQfWJqYKSQB+zMnDbw84IFku/ql61ZdrhVBIhVOzdqLs8S6N3QtbVFaF7/zO4V/Smw2z0Tx5j8o7M1W3bySclbov7KHkOI79g1NiUxgi0yU3Vpjkp3+Hfnq1cX1AtdicgmuFvBBK7BIhQYw/3+uTCqtD7gGjfsDkXwLoB6kG5jGhf4RqtGp+SqOanCDr0eY5fULe67Oq24M86uZBOFa3NekueRwT2Udih6aKI0Y2wnf/iMQXXlWUzYanV39+FpS68XDGdLFgtkvwOFcxqP2pVPlboR6zstyDUT8aT2KR4n9+YnWFWhJVMDbH3idLO801T257g9jn3WVqiUxnHKKAdiPpRrF9wsAKU0k9VSZpWHvYUeZ3YruyHquAUc/gaAvYRBQArmzRN+Wc5cRI+ELwQTl3L2eRHnQXKeoSC+RA8RYYubSu6kqR7SMb1XJq999MVedLzzeKWawmGmP5wMUAWb
+  template:
+    metadata:
+      name: argocd-notifications-secret
+      namespace: argocd

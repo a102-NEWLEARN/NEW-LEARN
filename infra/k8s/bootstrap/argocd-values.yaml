@@ -3,7 +3,7 @@
 # 로그인은 기본 admin 계정으로 충분하다 (SSO 를 안 쓴다)
 dex:
   enabled: false
-# 알림(Slack 등)은 아직 정하지 않았다
+# 알림은 실제 서버만 켠다 — Mattermost 배포 알림 (argocd-values.prod.yaml)
 notifications:
   enabled: false
 
