@@ -245,7 +245,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
-| API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
+| API 인증을 둘지, 둔다면 어떻게 할지 (2026-10-22 Jira 100: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 열고 나머지는 로그인이 있어야 하게 막았다 — `backend` 의 `SecurityConfig`). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
 | Lightsail(SSAFY 지급) 받는 날 첫 확인 — ① Lightsail이 먼저 보낸 WireGuard UDP의 응답이 Lightsail 방화벽을 지나 돌아오는지(문서에 없다, `wg show`의 최근 handshake로 본다) ② 443이 열려 있는지(Ubuntu 기본 규칙은 22·80뿐, 못 바꾸면 SSAFY에 요청) ③ 고정 IP를 붙일 수 있는지(없으면 껐다 켤 때 공인 IP가 바뀌어 보안 그룹 · DNS를 다시 맞춘다) | Infra | 6절 |
 | 실제 서버에서 hostPort 80이 Lightsail 공인 IP로 열리는지 (kind에서는 확인, Lightsail 방화벽 권한과 같이 본다) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
