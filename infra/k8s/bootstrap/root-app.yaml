@@ -1,12 +1,15 @@
 # 루트 Application (app-of-apps) — 부트스트랩 스크립트가 한 번 걸고, 그 뒤는 Argo CD 가 Git 을 따라간다
 # __REPO_URL__ · __REVISION__ 은 스크립트가 바꾼다
 #   kind 리허설: 로컬 Git 미러 · rehearsal 브랜치 (infra/kind/lib.sh)
-#   실제 서버: 팀 GitLab 저장소 · 배포 브랜치 (SSOT 8절 — 아직 못 정함)
+#   실제 서버: 팀 GitLab 저장소 · dev 브랜치 (infra/server/bootstrap-argocd.sh, SSOT 6절 「배포 설정」)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: root
   namespace: argocd
+  # 루트를 지우면 자식 Application 과 그 자원도 같이 지운다. 없으면 자식이 주인 없이 남는다
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:

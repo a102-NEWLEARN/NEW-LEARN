@@ -4,6 +4,9 @@ kind: Application
 metadata:
   name: hello
   namespace: argocd
+  annotations:
+    # Gateway(0)가 선 뒤에 붙는다
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

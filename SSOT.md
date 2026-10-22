@@ -144,10 +144,15 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 토큰: GitLab CI 변수 `GHCR_USER` · `GHCR_TOKEN`(보호 · 가림) — 보호 브랜치(dev) 파이프라인에만 들어간다. classic 토큰이라 개인 계정의 모든 패키지에 권한이 걸려서 `write:packages` · `read:packages`만, 만료 2026-11-30. 워커가 받을 읽기 토큰은 Jira S15P31A102-91(Sealed Secret)
 - 되돌리기: Git에서 이전 커밋으로 되돌리면 Argo CD가 이전 버전으로 맞춤
 - 배포 설정: Argo CD가 읽는 앱 목록은 `infra/k8s/apps/`(app-of-apps — 이 폴더를 Helm 차트로 그려 앱마다 Application을 만든다). 루트 Application은 부트스트랩 때 한 번 건다(`infra/k8s/bootstrap/root-app.yaml`). Cilium·Argo CD는 Argo CD 밖에서 Helm으로 깐다(`infra/k8s/bootstrap/`)
+  - 실제 서버: `infra/server/bootstrap-argocd.sh`가 Argo CD(차트 10.10.5, v3.5.5)를 깔고 루트 Application을 팀 GitLab 저장소의 **dev 브랜치**로 건다(2026-10-22, Jira S15P31A102-91). 저장소는 읽기 전용 배포 토큰(`read_repository`, 만료 2026-11-30)으로 읽는다
+  - 앱 순서는 sync-wave로 건다 — Sealed Secrets · Envoy Gateway(-1) → Gateway(0) → 앱(1). Argo CD는 자식 Application의 건강 상태를 기본으로 보지 않아서, 건강 Lua를 넣어 앞 wave가 실제로 준비될 때까지 기다리게 했다(`argocd-values.yaml`). 루트에는 finalizer가 있어 루트를 지우면 자식 앱과 그 자원도 지워진다
+  - GitLab Runner · 모니터링(kube-prometheus-stack · CI 잡 exporter)은 Argo CD로 옮기지 않는다 — 지금처럼 Helm · `kubectl apply -k`로 둔다. 잘 돌고 있는 것을 발표 전에 옮길 까닭보다 깨질 위험이 크다(2026-10-22 결정, Jira S15P31A102-91)
   - Argo CD는 기본 120초(+최대 60초 지터)마다 Git을 다시 본다(`timeout.reconciliation`). push 직후 반영하려면 웹훅이나 새로고침이 필요하다
 - 클러스터 네트워크 Cilium. kube-proxy를 깔지 않고 Cilium의 kube-proxy 대체를 쓴다 — hostPort를 따로 설정 없이 처리해서다. Pod 사이 트래픽은 VXLAN이고, 노드 주소(WireGuard 터널 주소) 사이로 가서 터널 안에 담긴다
   - kubeadm: 설정 파일로 init한다 — kube-proxy 단계 건너뛰기(`skipPhases: addon/kube-proxy`), Pod 주소 범위 10.244.0.0/16, 노드 주소는 터널 주소. Cilium이 노드마다 받은 Pod 주소 범위를 쓰는 모드(`ipam.mode: kubernetes`)라 Pod 주소 범위를 꼭 준다. 10.244.0.0/16은 kind 기본값과 같고, 서비스 주소(kubeadm 기본 10.96.0.0/12) · EC2 기본 VPC(172.31.0.0/16) · 터널(10.200.0.0/24)과 겹치지 않는다
 - Secret: Sealed Secrets. 비밀값은 공개키로 잠근 SealedSecret만 Git에 두고, 클러스터 안 컨트롤러가 개인키로 풀어 일반 Secret을 만든다. Argo CD가 GitLab을 읽을 배포 토큰만은 Argo CD가 저장소를 읽기 전에 있어야 해서 처음 한 번 손으로 넣는다
+  - 컨트롤러: 차트 2.20.0(v0.40.0), 네임스페이스 `sealed-secrets`, 이름은 kubeseal 기본값 `sealed-secrets-controller`. 키를 30일마다 더하는 기본값을 꺼서 키는 하나다 — 깐 날 받은 백업이 계속 맞는다. 봉인은 EC2에서 `kubeseal --controller-namespace sealed-secrets`(같은 판)
+  - 개인키는 인프라 담당 PC에 백업한다(저장소 밖). 잃으면 서버를 다시 만들 때 저장소의 SealedSecret을 못 푼다. 백업 · 복구 순서는 `infra/server/README.md` 「Sealed Secrets 키」
 
 ### 노드 사이 — 호스트 WireGuard
 
@@ -177,7 +182,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 외부 입구 — hostPort
 
 - Envoy Pod를 워커 노드의 80에 hostPort로 연다. Envoy Gateway는 권한 없이 뜨려고 80 리스너를 컨테이너 10080으로 옮겨 여는데, 그 포트에 hostPort 80을 붙인다(`infra/k8s/gateway/envoyproxy.yaml`). Envoy의 Service는 ClusterIP로 둔다
-- kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답
+- kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답. 실제 서버에서도 확인했다(2026-10-22, Jira S15P31A102-91) — 관리자 PC → SSAFY 도메인:80 → ufw → Envoy hostPort → hello
 - 한계: 워커가 1대라 80을 잡은 Envoy Pod가 둘일 수 없다. 기본 교체 전략(새 Pod 먼저)이면 새 Pod가 「free ports」 부족으로 Pending에 멈춘다 → 교체 전략을 maxSurge 0 · maxUnavailable 1(옛 Pod 먼저 내리기)로 둔다. 그래서 Envoy를 바꿀 때(Envoy Gateway 업그레이드 · EnvoyProxy 변경) 잠깐 끊긴다(잰 시간은 10절). 앱 배포는 Envoy를 재시작하지 않아 해당하지 않는다
 - 443은 HTTPS 인증서 방식을 정한 뒤 같은 방식(컨테이너 10443)으로 더한다
 
@@ -210,7 +215,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 ### 현재 상태
 
-- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join은 2026-10-22(아래), Argo CD는 Jira S15P31A102-91
+- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join · Argo CD는 2026-10-22(아래)
   - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인. 2026-10-21 CI 잡 지표(exporter)와 대시보드 「CI 병목」을 더해 수집 대상 14개(Jira S15P31A102-98)
   - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 2026-10-20 `.gitlab-ci.yml`을 넣어 MR 파이프라인이 돈다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
@@ -220,9 +225,10 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 공인 IP: 고정 IP인지는 확인하지 않는다. 서버를 껐다 켜지 않기로 해서(2026-10-22) 바뀔 일이 없다. 지금 IP는 SSAFY 도메인이 가리키는 IP와 같다. SSAFY · AWS 점검으로 꺼졌다 켜져 바뀌면 보안 그룹 `worker_cidrs` apply · DNS · 80/443 입구를 다시 맞춘다(WireGuard는 Lightsail이 먼저 붙어서 EC2가 새 주소를 handshake로 안다)
   - 워커 join(2026-10-22, Jira S15P31A102-90, `docs/plans/2026-10-22-worker-join.md`): `common.sh` → `ufw-worker.sh` → 30분 토큰으로 `join-worker.sh`(토큰은 쓴 뒤 지움). 노드 2개 Ready(INTERNAL-IP 10.200.0.1 · 10.200.0.2), 두 노드 Cilium `OK` · 인터페이스 `ens5` 와 `wg0 (Direct Routing)` · 클러스터 헬스 2/2. 워커에는 DaemonSet 셋(cilium · cilium-envoy · node-exporter)만 있다 — 다른 워크로드는 nodeSelector 로 컨트롤 플레인에 묶여 있다
   - 확인: 워커 Pod 가 컨트롤 플레인의 CoreDNS · Grafana 에 닿고, 컨트롤 플레인에서 311KB 응답을 받고, ufw 를 켠 채 인터넷으로 나간다. Prometheus 가 워커 kubelet · node-exporter 를 수집한다(up). 재부팅 뒤 wg0 · kubelet 이 부팅 5초에 뜨고(kubelet 은 wg0 뒤) 공인 IP · 노드 주소가 그대로다
-  - Pod MTU 는 1420 이다 — 설계가 기대한 1370(1420 − VXLAN 50)이 아니다. 컨트롤 플레인 Pod 도 같았다(8절)
+  - Pod MTU: 설계대로다 — Pod 인터페이스 1420, 기본 경로 `mtu 1370`. 노드 사이 Pod끼리 1342바이트(1370 − 28)는 지나가고 1343은 보내기 전에 거절되며, 두 노드 모두 IP 쪼개기 0이다. join 날(2026-10-22) 「1420」이라 적은 것은 busybox `ip route`가 경로 mtu를 찍지 않아 잘못 읽은 것이다(10절)
+  - Argo CD(2026-10-22, Jira S15P31A102-91, `docs/plans/2026-10-22-infra-deploy.md`): `bootstrap-argocd.sh`로 깔았다. 앱 다섯(root · sealed-secrets · envoy-gateway · gateway · hello) Synced · Healthy, Argo CD · Sealed Secrets · Envoy · hello Pod는 모두 워커에 떴다. 관리자 PC에서 SSAFY 도메인의 80으로 hello가 응답한다 — SSAFY 방화벽 → ufw → Envoy hostPort 80이 이어졌다. 봉인한 시험 Secret을 컨트롤러가 풀어 Pod가 읽었다. 워커 요청 합계 CPU 560m · 메모리 1418Mi
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
-- 도메인: 구매 완료, DNS 레코드 미설정 (서비스 서버 IP를 받은 뒤 연결)
+- 도메인: 2026-10-22 가비아 DNS에 A 레코드 `@` · `www` → 워커 공인 IP(TTL 600). 가비아 네임서버 셋과 공개 DNS가 워커 IP로 답한다. HTTPS는 Jira S15P31A102-93
 
 ## 7. 개발 환경
 
@@ -252,8 +258,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
-| Pod MTU 를 1370 으로 맞출지 — 지금 Pod 가 1420 으로 보내 VXLAN(+50)으로 감싸면 1470 이 되어 wg0(1420) 앞에서 쪼개지는 것으로 보인다(큰 응답은 받힌다, 2026-10-22). Cilium 값(`cilium-values.prod.yaml` 의 `MTU`)을 어떻게 줄지 Jira 91 에서 본다 | Infra | 6절 「노드 사이 — 호스트 WireGuard」 |
-| Envoy hostPort 80 · 443이 Lightsail 공인 IP로 받는지 — SSAFY 쪽 방화벽은 열려 있다(2026-10-22 시험 서버로 확인), Envoy로는 Jira 91에서 본다 (kind에서는 확인) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 워커 → API 결과 전달 방식과 작업 큐의 스트림 · consumer group 구성. BE 안(2026-10-21, AI 확인 전): 결과는 HTTP 내부 API W1, 큐는 스트림 3 · 그룹 4, 투입 메시지에 본문 통째 · `ACKED MAXLEN ~` 상한 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
@@ -332,6 +336,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-22 | Lightsail 워커 join | `common.sh` 39초 · `kubeadm join` 3초 · join 뒤 노드 Ready 11초 | 각 명령 앞뒤 `date +%s`, `kubectl wait --for=condition=Ready` |
 | 2026-10-22 | 노드 사이 터널(wg0) 지연 · MTU | ping 왕복 약 1.0ms(EC2 · Lightsail 같은 서울), 1392바이트 통과 · 1393 「message too long」 | Lightsail 에서 `ping -c 3 10.200.0.1`, `ping -M do -s 1392/1393` |
 | 2026-10-22 | Lightsail 재부팅 회복 | SSH 17초 · wg-quick@wg0 · kubelet 부팅 5초, Cilium 다시 OK 까지 약 1분 안 | `uptime -s` 와 `systemctl show -p ActiveEnterTimestamp`, 노드 `lastHeartbeatTime` 이 새 부팅 뒤인지 |
-| 2026-10-22 | Pod 인터페이스 MTU | 두 노드 모두 1420(lxc · cilium_vxlan · Pod eth0). 기대값 1370 아님 | 워커에 busybox Pod 로 `cat /sys/class/net/eth0/mtu` · `ip route`, 노드에서 `ip -o link` |
+| 2026-10-22 | Pod 인터페이스 MTU | 두 노드 모두 1420(lxc · cilium_vxlan · Pod eth0). ~~기대값 1370 아님~~ → 인터페이스만 본 것이다. 경로 MTU는 아래 줄 | 워커에 busybox Pod 로 `cat /sys/class/net/eth0/mtu` · `ip route`(busybox 는 경로 mtu 를 안 찍는다), 노드에서 `ip -o link` |
+| 2026-10-22 | Pod MTU 다시 잼 (Jira S15P31A102-91) | 두 노드 Pod 모두 기본 경로 `mtu 1370`. DF ping 1342바이트 통과 · 1343 · 1392는 보내기 전 거절(두 방향). iperf3 5초 워커→컨트롤 플레인 1360 Mbps(재전송 44) · 반대 1255 Mbps(113), TCP MSS 1318 · pmtu 1370. 두 노드 IP 쪼개기 · 쪼개기 실패 0 → 0 | 노드마다 netshoot v0.16 Pod 하나, `ip route get <상대 Pod IP>` · `ping -M do -s` · `iperf3 -J` · `ss -tin`, 노드 `nstat -az IpFragCreates IpFragFails` 앞뒤 |
+| 2026-10-22 | Argo CD 부트스트랩 (`bootstrap-argocd.sh`, 작업 브랜치) | helm 설치 → 루트 앱 52초(배포 토큰 입력 포함), 루트 앱 → hello Pod Ready 113초. gateway 앱은 앞 wave(sealed-secrets · envoy-gateway)가 건강해진 뒤 89초에 만들어짐 — 건강 Lua 로 wave 가 실제로 기다림 | helm 기록 `updated`, Application · Pod 의 `creationTimestamp` · Ready `lastTransitionTime` |
+| 2026-10-22 | 관리자 PC → SSAFY 도메인:80 (Envoy hostPort) | `hello v1` 3번 모두 200, 30 ~ 56ms | `curl -w "%{http_code} %{time_total}"` |
 | 2026-10-21 | 12:24 몰림 — dev push 1개 + 반영 MR 셋(!64 · !65 · !66, `.gitlab-ci.yml` 이 달라 MR 마다 w4 굽기 3개까지) | MR 파이프라인 742 · 643 · 568초, 잡 기다림 최대 **760초**(!66 w3:backend) · !65 392초 · !64 50초 | exporter 지표(`gitlab_ci_pipeline_duration_seconds` · `…_job_queued_duration_seconds`), 위 대조로 API 와 같음을 확인 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |

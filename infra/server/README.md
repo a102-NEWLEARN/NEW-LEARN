@@ -10,8 +10,9 @@
 | `init-control-plane.sh` | kubeadm init → kubeconfig → Helm · Cilium → CoreDNS Running | EC2 |
 | `ufw-worker.sh` | Lightsail 방화벽 — 22 · 80 · 443 · wg0 들이기, Pod 주소 범위 포워딩 | Lightsail |
 | `join-worker.sh` | 컨트롤 플레인이 찍은 토큰으로 kubeadm join | Lightsail |
+| `bootstrap-argocd.sh` | Argo CD → 저장소 읽기 Secret(배포 토큰) → kubeseal → 루트 Application. 그 뒤는 Argo CD 가 Git 을 따라 깐다 | EC2 (워커 join 뒤) |
 
-설정 값은 스크립트 밖에 있다 — kubeadm 은 `infra/k8s/kubeadm/`, Cilium 은 `infra/k8s/bootstrap/cilium-values.yaml` 위에 `cilium-values.prod.yaml`, GitLab Runner 는 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 모니터링은 `monitoring-values.yaml` · `prometheus-pv.yaml` · `ci-exporter/`.
+설정 값은 스크립트 밖에 있다 — kubeadm 은 `infra/k8s/kubeadm/`, Cilium 은 `infra/k8s/bootstrap/cilium-values.yaml` 위에 `cilium-values.prod.yaml`, Argo CD 는 `argocd-values.yaml` 위에 `argocd-values.prod.yaml`, GitLab Runner 는 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 모니터링은 `monitoring-values.yaml` · `prometheus-pv.yaml` · `ci-exporter/`.
 쿠버네티스 판은 `infra/k8s/kubeadm/init.yaml` 의 `kubernetesVersion` 한 곳에만 적는다. `common.sh` 가 그 값을 읽어 패키지를 고정한다.
 
 모든 스크립트는 다시 돌려도 된다. 이미 된 단계는 건너뛰거나 같은 값으로 다시 쓴다.
@@ -122,7 +123,7 @@ sequenceDiagram
    sudo bash infra/server/join-worker.sh kubeadm join 10.200.0.1:6443 --token <토큰> --discovery-token-ca-cert-hash sha256:<해시>
    ```
 
-8. 「확인」의 Lightsail 줄을 본다. 그 뒤 Argo CD · 루트 Application 을 깐다 — 다음 작업이다 (`infra/k8s/bootstrap/argocd-values.yaml` · `root-app.yaml`)
+8. 「확인」의 Lightsail 줄을 본다. 그 뒤 아래 「Argo CD 깔기」
 
 ## 확인
 
@@ -135,8 +136,77 @@ sequenceDiagram
 | Cilium | `kubectl -n kube-system exec ds/cilium -- cilium-dbg status --brief` (EC2) | `OK` |
 | Cilium 인터페이스 | `kubectl -n kube-system exec ds/cilium -- cilium-dbg status \| grep KubeProxyReplacement` (EC2) | 공인 쪽(ens5 등)과 wg0 이 보이고 wg0 이 노드 사이 길(Direct Routing) |
 | kube-system | `kubectl -n kube-system get pods -o wide` (EC2) | 전부 Running. CoreDNS · cilium-operator 는 컨트롤 플레인에 있다 |
-| Pod MTU · 노드 사이 Pod | `kubectl run mtu --rm -it --image=busybox:1.37 --restart=Never -- sh -c 'cat /sys/class/net/eth0/mtu; nslookup kubernetes.default'` (EC2, 워커 join 뒤) | 이름이 풀린다 — 워커의 Pod 가 컨트롤 플레인의 CoreDNS 에 닿는다. MTU 는 설계가 `1370`(1420 − VXLAN 50)을 기대했지만 실제는 `1420` 이다(2026-10-22, `SSOT.md` 8절) |
+| 노드 사이 Pod | `kubectl run dns --rm -it --image=busybox:1.37 --restart=Never -- nslookup kubernetes.default` (EC2, 워커 join 뒤) | 이름이 풀린다 — 워커의 Pod 가 컨트롤 플레인의 CoreDNS 에 닿는다 |
+| Pod MTU | netshoot Pod 안에서 `ip route` · `ping -M do -s 1342 <상대 노드 Pod IP>` (EC2) | 인터페이스는 1420, 기본 경로에 `mtu 1370`(Cilium 이 VXLAN 50바이트를 뺌). 1342 는 지나가고 1343 은 보내기 전에 거절된다. busybox 의 `ip route` 는 경로 mtu 를 안 찍는다 — 2026-10-22 에 그걸 보고 1420 으로 잘못 읽었다 |
 | 재부팅 뒤 | `sudo reboot` 뒤 위 줄 다시 (각 노드) | 같은 결과 |
+
+## Argo CD 깔기 (EC2) — 워커 join 뒤 한 번
+
+Argo CD 를 helm 으로 깔고 루트 Application 하나만 건다. 그 뒤 Sealed Secrets · Envoy Gateway · Gateway · 앱은 Argo CD 가 Git 의 `infra/k8s/apps/` 를 읽어 순서대로(sync-wave) 깐다. 설계는 `SSOT.md` 6절 「배포 설정」 · 「Secret」.
+
+```mermaid
+flowchart LR
+    A["GitLab 화면<br/>배포 토큰"] --> B["EC2<br/>bootstrap-argocd.sh"] --> C["Argo CD 가 Git 을 읽음<br/>sealed-secrets · envoy-gateway<br/>→ gateway → 앱"] --> D["admin 비밀번호 바꾸기<br/>· 봉인 키 백업"]
+```
+
+1. **배포 토큰** (Maintainer, GitLab 화면) — Settings › Repository › Deploy tokens › Add token
+
+   | 칸 | 값 |
+   |---|---|
+   | Name | `argocd` — `gitlab-deploy-token` 이라는 이름은 피한다. 그 이름이면 모든 CI 잡에 토큰이 들어간다 |
+   | Expiration date | `2026-11-30` |
+   | Username | 비워 둔다 (`gitlab+deploy-token-<번호>`) |
+   | Scopes | `read_repository` 만 |
+
+   「Create deploy token」 뒤 한 번만 보이는 사용자 이름 · 토큰을 다음 단계에서 붙여 넣는다. 저장소 · 채팅에 남기지 않는다.
+
+2. **깔기** (관리자 PC 에서 — 토큰을 물어서 터미널이 붙어 있어야 한다) — 「서버로 보내기」로 `server` · `k8s/bootstrap` 이 가 있어야 한다
+
+   ```bash
+   ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/bootstrap-argocd.sh"
+   ```
+
+   브랜치 인자를 안 주면 `dev` 를 읽는다. 작업 브랜치를 머지 전에 서버에서 확인할 때만 `bash infra/server/bootstrap-argocd.sh <브랜치>`, 머지 뒤 인자 없이 다시 돌려 `dev` 로 돌린다(토큰은 다시 묻지 않는다). 끝에 앱 목록이 모두 `Synced · Healthy` 로 찍힌다
+
+3. **admin 비밀번호 바꾸기** (사람이) — 화면을 열고, 첫 비밀번호로 들어가 User Info › Update Password. 그 뒤 첫 비밀번호 Secret 을 지운다
+
+   ```bash
+   ssh -L 8080:localhost:8080 ubuntu@<EC2 탄력적 IP> "kubectl -n argocd port-forward svc/argocd-server 8080:80"
+   ```
+
+   ```bash
+   ssh ubuntu@<EC2 탄력적 IP> "kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo"
+   ```
+
+   브라우저에서 `http://localhost:8080/argocd`. 바꾼 뒤
+
+   ```bash
+   ssh ubuntu@<EC2 탄력적 IP> "kubectl -n argocd delete secret argocd-initial-admin-secret"
+   ```
+
+4. **확인** — 관리자 PC 에서 워커 공인 주소의 80 으로 시험 앱이 응답한다 (`curl http://<SSAFY 도메인>/` → `hello v1`)
+
+### Sealed Secrets 키 — 백업 · 복구
+
+컨트롤러의 개인키가 클러스터 밖에 없으면, 서버를 다시 만들 때 저장소의 SealedSecret 을 하나도 못 푼다. 깐 날 한 번 관리자 PC 로 받아 둔다 — 저장소 밖, 다른 사람과 나누지 않는다. 키는 하나다(`keyrenewperiod: "0"`, `infra/k8s/apps/templates/sealed-secrets.yaml`).
+
+```bash
+ssh ubuntu@<EC2 탄력적 IP> "kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml" > ~/newlearn-sealed-secrets-key.yaml
+```
+
+복구 — 새 클러스터에서 Argo CD 를 깔기 **전에** 키를 먼저 넣는다. 컨트롤러가 먼저 뜨면 새 키를 만든다 (그때는 넣은 뒤 컨트롤러 Pod 를 지워 다시 띄운다)
+
+```bash
+kubectl create namespace sealed-secrets && kubectl apply -f ~/newlearn-sealed-secrets-key.yaml
+```
+
+봉인하기 (EC2) — Secret 을 파일로 만들지 않고 바로 봉인한다. 평문은 명령 인자로 넘기지 않는다(`ps` 에 보인다)
+
+```bash
+kubectl create secret generic <이름> -n <네임스페이스> --from-file=<키>=/dev/stdin --dry-run=client -o yaml | kubeseal --controller-namespace sealed-secrets --format yaml > sealed-<이름>.yaml
+```
+
+봉인은 이름 · 네임스페이스에 묶인다(기본 strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다.
 
 ## 관리자 PC 에서 kubectl
 
@@ -333,10 +403,9 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 - 컨테이너 두 개(Docker Desktop 커널의 WireGuard)로 `wg-up.sh` 두 역할 — handshake, 터널 안 ping, MTU 1420 경계, 다시 돌려도 키 · 상대 그대로
 - 같은 워커 컨테이너에 `ufw-worker.sh` — 켠 뒤에도 워커가 먼저 연 터널이 새로 붙고, 터널 안 10250 은 열리고 터널 밖 10250 은 막히고 80 은 열린다. 다시 돌리면 규칙 10개를 모두 건너뛴다
 
-서버 생성 후 확인 — 아직 못 봤다.
+서버에서 확인한 것(join · 노드 주소 · Cilium · 노드 사이 Pod · Pod MTU 1370 · 재부팅 뒤 순서 · ufw 를 켠 채 hostPort 80 · Argo CD · 봉인 Secret)은 `SSOT.md` 6절 「현재 상태」 · 10절.
 
-- Pod MTU 를 1370 으로 맞추는 법 — 실제 Pod 는 1420 이다(소스로 읽은 「Cilium 이 VXLAN 머리 50바이트를 뺀다」가 맞지 않았다, `SSOT.md` 8절)
-- ufw 를 켠 채로 hostPort 80 이 들어오는지 (Jira 91). 2026-10-22 서버에서 확인한 것 — join · 노드 주소 · Cilium(`wg0` Direct Routing) · 노드 사이 Pod · Pod 가 밖으로 나가기 · 재부팅 뒤 순서 · `common.sh` — 은 `SSOT.md` 6절 「현재 상태」
+서버에서 아직 못 본 것 — hostPort 443 (Jira S15P31A102-93 에서 Envoy 에 붙일 때)
 
 ## 되돌리기
 
@@ -346,5 +415,6 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 | 터널 내리기 | `sudo systemctl disable --now wg-quick@wg0` |
 | 모니터링 내리기 | `helm uninstall kps -n monitoring` → `kubectl get crd -o name \| grep monitoring.coreos.com \| xargs kubectl delete` → `kubectl delete namespace monitoring` → `kubectl delete -f infra/k8s/bootstrap/prometheus-pv.yaml` → `sudo rm -r /var/lib/newlearn/prometheus`. 러너 지표는 값을 되돌려 `helm upgrade` |
 | CI 잡 지표 내리기 | `kubectl delete -k infra/k8s/bootstrap/ci-exporter` → `kubectl -n monitoring delete secret gitlab-ci-exporter` → GitLab 화면 Settings › Access tokens 에서 토큰 Revoke |
+| Argo CD 와 그 앱 내리기 | `kubectl -n argocd delete application root` (finalizer 가 자식 앱 · 그 자원을 지운다, 끝날 때까지 기다린다) → `helm uninstall argocd -n argocd` → `kubectl delete namespace argocd` → `kubectl get crd -o name \| grep argoproj.io \| xargs kubectl delete`. `sealed-secrets` 네임스페이스(개인키)는 남는다 — 지우기 전에 백업이 있는지 본다. GitLab 배포 토큰은 화면에서 Revoke |
 | 러너 내리기 | `helm uninstall gitlab-runner -n gitlab-runner` → `kubectl delete namespace gitlab-runner` → GitLab 화면에서 러너 삭제. 서버 패키지는 바꾸지 않아서 이걸로 원래대로 |
 | 서버째 | 관리자 PC 에서 `terraform destroy` (EC2). 🔴 서버 안의 클러스터 · WireGuard 키도 같이 사라진다 |

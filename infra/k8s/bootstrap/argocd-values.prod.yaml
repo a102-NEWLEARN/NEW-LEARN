@@ -1,0 +1,48 @@
+# 실제 서버(EC2 컨트롤 플레인 + Lightsail 워커)에서만 덮는 값. 공통 값은 argocd-values.yaml
+# 쓰는 곳: infra/server/bootstrap-argocd.sh. 컨트롤 플레인 taint 때문에 Argo CD 는 워커에 뜬다
+configs:
+  params:
+    # TLS 는 앞단 Envoy 가 끝낸다 (Jira S15P31A102-93). Argo CD 는 클러스터 안에서 http 로만 받는다
+    server.insecure: true
+    # 화면 주소가 https://newlearn.io.kr/argocd 다. Envoy 는 접두사를 떼지 않고 그대로 넘긴다
+    server.rootpath: /argocd
+    server.basehref: /argocd
+  cm:
+    url: https://newlearn.io.kr/argocd
+
+# 워커 한 대(CPU 4 · 16Gi)를 서비스와 같이 쓴다 — 요청은 작게, 메모리는 상한을 둔다
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+server:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+redis:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+applicationSet:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
