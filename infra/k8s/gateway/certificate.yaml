@@ -12,7 +12,8 @@ spec:
     - www.newlearn.io.kr
   issuerRef:
     kind: ClusterIssuer
-    name: letsencrypt-staging
+    # staging 으로 발급 · 넘기기를 확인한 뒤 바꿨다 (2026-10-22)
+    name: letsencrypt-prod
   privateKey:
     algorithm: ECDSA
     size: 256
