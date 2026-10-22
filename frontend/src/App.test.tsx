@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
-import { App } from "./App";
+import { App } from "@/App";
 
-vi.mock("./api/client", () => ({
+vi.mock("@/api/client", () => ({
   api: { get: vi.fn().mockResolvedValue({ data: { status: "UP" } }) },
 }));
 

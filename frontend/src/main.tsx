@@ -3,8 +3,8 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import { App } from "./App";
-import "./style.css";
+import { App } from "@/App";
+import "@/style.css";
 
 const queryClient = new QueryClient();
 const router = createBrowserRouter([{ path: "/", element: <App /> }]);

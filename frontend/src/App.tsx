@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ActionButton } from "seed-design/ui/action-button";
-import { api } from "./api/client";
-import { Logo } from "./components/Logo";
+import { api } from "@/api/client";
+import { Logo } from "@/components/Logo";
 
 type Health = { status: string };
 

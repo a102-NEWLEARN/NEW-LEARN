@@ -1,4 +1,4 @@
-import logoUrl from "../assets/newlearn-logo-horizontal.svg";
+import logoUrl from "@/assets/newlearn-logo-horizontal.svg";
 
 type LogoProps = {
   /** 로고 높이(px). 헤더는 20–32px, 최소 20px (DESIGN.md Brand & Style 로고 표) */
