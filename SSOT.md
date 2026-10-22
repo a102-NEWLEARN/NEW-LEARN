@@ -126,7 +126,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - CPU 예약을 작게 잡는다(모니터링 합 약 200m, exporter 10m 포함) — 노드 예약이 1200m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
   - Prometheus 데이터는 관리 서버 디스크의 정적 PV(`/var/lib/newlearn/prometheus`, 10Gi, 15일 · 8GB 보존)에 둔다 — Pod를 다시 띄워도 남는다. 프로비저너 없이 이름표용 StorageClass(`kubernetes.io/no-provisioner`)만 둔다(Prometheus Operator는 StorageClass가 실제로 있어야 한다)
   - Grafana: 아이디 · 비밀번호 로그인. 계정은 사람이 서버에서 만든 Secret(`grafana-admin`)에서 읽는다. 가입 · 익명 보기는 끈다. 대시보드는 설정으로 그리고 Grafana 자체 디스크는 두지 않는다(다시 뜨면 로그인을 새로 한다)
-  - 여는 길: 지금은 SSH 터널로 `http://localhost:3000/grafana/`. 공개 주소 `newlearn.io.kr/grafana`는 Lightsail · 정문 · HTTPS(Jira 90 · 91 · 93) 뒤에 연다 — 그때 Grafana `root_url`을 바꾼다. Prometheus는 로그인이 없어 공개하지 않는다. Swagger도 공개할 때 브라우저 팝업(HTTP 기본 인증)으로 아이디 · 비밀번호를 묻는다(2026-10-20 결정, 구현은 93 · BE)
+  - 여는 길: 공개 주소 `https://newlearn.io.kr/grafana/`(2026-10-22, Jira S15P31A102-93) — 브라우저 팝업 하나를 지나면 그 아이디로 바로 들어간다(보기 권한). 잠그는 법은 아래 「도메인 · HTTPS」. 관리자(`grafana-admin`)는 SSH 터널로 들어와 로그인 화면에서. Prometheus는 로그인이 없어 공개하지 않는다
   - CloudWatch는 쓰지 않는다(API 호출 요금). CPU 크레딧 잔액은 EC2 콘솔에서 본다
 - 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유)
   - 상태 파일: 팀 계정 S3 버킷(버전 관리 · 퍼블릭 차단)에 두고 S3 잠금 파일로 동시 실행을 막는다(`use_lockfile`, DynamoDB 없이). 버킷 이름은 저장소에 적지 않는다(`infra/terraform/backend.hcl.example`). PC를 반납 · 분실해도 11/18 destroy를 할 수 있게 하려는 것이다(2026-10-20 결정)
@@ -184,7 +184,23 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - Envoy Pod를 워커 노드의 80에 hostPort로 연다. Envoy Gateway는 권한 없이 뜨려고 80 리스너를 컨테이너 10080으로 옮겨 여는데, 그 포트에 hostPort 80을 붙인다(`infra/k8s/gateway/envoyproxy.yaml`). Envoy의 Service는 ClusterIP로 둔다
 - kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답. 실제 서버에서도 확인했다(2026-10-22, Jira S15P31A102-91) — 관리자 PC → SSAFY 도메인:80 → ufw → Envoy hostPort → hello
 - 한계: 워커가 1대라 80을 잡은 Envoy Pod가 둘일 수 없다. 기본 교체 전략(새 Pod 먼저)이면 새 Pod가 「free ports」 부족으로 Pending에 멈춘다 → 교체 전략을 maxSurge 0 · maxUnavailable 1(옛 Pod 먼저 내리기)로 둔다. 그래서 Envoy를 바꿀 때(Envoy Gateway 업그레이드 · EnvoyProxy 변경) 잠깐 끊긴다(잰 시간은 10절). 앱 배포는 Envoy를 재시작하지 않아 해당하지 않는다
-- 443은 HTTPS 인증서 방식을 정한 뒤 같은 방식(컨테이너 10443)으로 더한다
+- 443도 같은 방식이다 — 컨테이너 10443 → hostPort 443 (2026-10-22, Jira S15P31A102-93)
+
+### 도메인 · HTTPS
+
+- `newlearn.io.kr` · `www.newlearn.io.kr` → 워커 공인 IP(가비아 A 레코드, TTL 600). `http://`는 `https://`로, `www`는 `https://newlearn.io.kr`로 301 넘긴다(`infra/k8s/gateway/redirects.yaml`). 앱 · 관리 화면 라우트는 https 리스너에만 붙인다 — http에도 붙으면 넘기기보다 긴 경로가 이겨 평문으로 열린다
+- 인증서: cert-manager(v1.21.2)가 Let's Encrypt에서 받는다. 소유 확인은 HTTP-01 — Let's Encrypt가 `http://<이름>/.well-known/acme-challenge/…`를 부르면 cert-manager가 Gateway에 잠깐 붙인 경로가 답한다. 가비아는 DNS를 프로그램으로 바꾸는 API가 없어 DNS-01은 쓰지 않는다(2026-10-22 결정). 발급자는 staging · prod 둘, 인증서 하나(apex + www, ECDSA P-256). 워커가 자기 공인 IP로 되돌아오는 요청(헤어핀)이 되어서 cert-manager의 자체 확인이 지나간다
+- 갱신: 90일짜리를 만료 30일 전에 cert-manager가 알아서 다시 받는다. Let's Encrypt는 만료 메일을 보내지 않고 Alertmanager는 꺼져 있어서, 사람이 본다
+  - `kubectl -n envoy-gateway-system get certificate newlearn -o wide` — READY가 True, `kubectl … -o jsonpath='{.status.notAfter} {.status.renewalTime}'`로 만료 · 다음 갱신 시각
+  - Prometheus 지표 `certmanager_certificate_expiration_timestamp_seconds`(만료) · `certmanager_certificate_renewal_timestamp_seconds`(다음 갱신) — cert-manager ServiceMonitor로 모은다
+  - 바깥에서: `openssl s_client -connect newlearn.io.kr:443 -servername newlearn.io.kr`의 발급자 · 만료일
+  - 갱신이 실패하면 `kubectl -n envoy-gateway-system describe certificate newlearn`과 `kubectl get order,challenge -A`의 이벤트를 본다
+- 공개 화면: `/argocd` · `/grafana`는 Envoy 앞단의 브라우저 팝업(HTTP 기본 인증, `infra/k8s/admin-ui/`) 하나로 잠근다. 계정은 둘이 같이 쓰는 하나이고, 저장소에는 봉인한 htpasswd만 둔다(`infra/server/seal-secrets.sh basic-auth`, 아이디 · 비밀번호는 사람이 입력해 팀에 따로 알린다)
+  - Grafana: Envoy가 팝업 아이디를 `X-WEBAUTH-USER`로 넘기고 Grafana 프록시 로그인이 그 아이디로 바로 들인다(보기 권한). 손님이 같은 머리를 꾸며 보내면 Envoy가 맨 앞에서 지운다(`infra/k8s/gateway/client-traffic.yaml`). 팝업 아이디는 Grafana 관리자(`grafana-admin`) 아이디와 달라야 한다 — 같으면 그 관리자로 들어간다(2026-10-22 겪고 관리자 아이디를 바꿈)
+  - Argo CD: 팝업 뒤 익명 읽기 전용. 동기화 · 설정 변경은 admin으로 한 번 더 로그인한다. admin 비밀번호는 인프라 담당만 안다
+  - 두 앱 모두 팝업의 `Authorization` 머리는 앱으로 넘기지 않는다 — Grafana가 그것을 자기 로그인으로 읽어 팝업이 되풀이된다
+  - Swagger는 잠그지 않는다 — 개발하는 동안 FE가 편하게(2026-10-22 사용자 결정, 2026-10-20 「Swagger도 팝업」을 바꿈). 다시 잠글지는 8절
+  - Envoy 기본 인증은 htpasswd의 SHA1 형식만 받아서 비밀번호를 16자 이상으로 한다(스크립트가 막는다)
 
 ### kubeadm을 고른 이유
 
@@ -228,7 +244,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Pod MTU: 설계대로다 — Pod 인터페이스 1420, 기본 경로 `mtu 1370`. 노드 사이 Pod끼리 1342바이트(1370 − 28)는 지나가고 1343은 보내기 전에 거절되며, 두 노드 모두 IP 쪼개기 0이다. join 날(2026-10-22) 「1420」이라 적은 것은 busybox `ip route`가 경로 mtu를 찍지 않아 잘못 읽은 것이다(10절)
   - Argo CD(2026-10-22, Jira S15P31A102-91, `docs/plans/2026-10-22-infra-deploy.md`): `bootstrap-argocd.sh`로 깔았다. 앱 다섯(root · sealed-secrets · envoy-gateway · gateway · hello) Synced · Healthy, Argo CD · Sealed Secrets · Envoy · hello Pod는 모두 워커에 떴다. 관리자 PC에서 SSAFY 도메인의 80으로 hello가 응답한다 — SSAFY 방화벽 → ufw → Envoy hostPort 80이 이어졌다. 봉인한 시험 Secret을 컨트롤러가 풀어 Pod가 읽었다. 워커 요청 합계 CPU 560m · 메모리 1418Mi
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
-- 도메인: 2026-10-22 가비아 DNS에 A 레코드 `@` · `www` → 워커 공인 IP(TTL 600). 가비아 네임서버 셋과 공개 DNS가 워커 IP로 답한다. HTTPS는 Jira S15P31A102-93
+- 도메인: 2026-10-22 가비아 DNS에 A 레코드 `@` · `www` → 워커 공인 IP(TTL 600). 가비아 네임서버 셋과 공개 DNS가 워커 IP로 답한다
+  - HTTPS(2026-10-22, Jira S15P31A102-93): `https://newlearn.io.kr`이 Let's Encrypt 인증서로 열린다(첫 발급 만료 2027-01-20, 갱신 예정 2026-12-21). `/`는 서비스 첫 배포 전까지 시험 응답. `/argocd` · `/grafana`는 팝업 하나로 열린다 — 계정 없이 · 틀린 비밀번호 · 꾸민 머리만으로는 401. 앱 일곱(admin-ui · cert-manager 더함) Synced · Healthy
 
 ## 7. 개발 환경
 
@@ -250,7 +267,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 |---|---|---|
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
 | 개인 외부 계정(GHCR)에 프로젝트 이미지를 두는 것이 SSAFY 규칙에 맞는지 — 막혀 있으면 저장소를 다시 고른다(바꿀 곳은 `.gitlab-ci.yml`의 이미지 주소와 CI 변수) | Infra | 6절 「배포 흐름」 |
-| HTTPS 인증서 발급 방식 | Infra | — |
+| Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다. Jira 35 시작 전까지 정한다. 고를 때 볼 것: 한국어 기사 품질, Lightsail CPU 에서 기사 한 건 임베딩 시간, 워커 메모리, 차원 2,000 이하(pgvector HNSW 한도), 한 번에 받는 입력 길이(`EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다 — 제목 · 본문 앞부분 중 무엇을 넣을지). BE 안: 칸은 `vector(N)`, 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
@@ -340,5 +357,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-22 | Pod MTU 다시 잼 (Jira S15P31A102-91) | 두 노드 Pod 모두 기본 경로 `mtu 1370`. DF ping 1342바이트 통과 · 1343 · 1392는 보내기 전 거절(두 방향). iperf3 5초 워커→컨트롤 플레인 1360 Mbps(재전송 44) · 반대 1255 Mbps(113), TCP MSS 1318 · pmtu 1370. 두 노드 IP 쪼개기 · 쪼개기 실패 0 → 0 | 노드마다 netshoot v0.16 Pod 하나, `ip route get <상대 Pod IP>` · `ping -M do -s` · `iperf3 -J` · `ss -tin`, 노드 `nstat -az IpFragCreates IpFragFails` 앞뒤 |
 | 2026-10-22 | Argo CD 부트스트랩 (`bootstrap-argocd.sh`, 작업 브랜치) | helm 설치 → 루트 앱 52초(배포 토큰 입력 포함), 루트 앱 → hello Pod Ready 113초. gateway 앱은 앞 wave(sealed-secrets · envoy-gateway)가 건강해진 뒤 89초에 만들어짐 — 건강 Lua 로 wave 가 실제로 기다림 | helm 기록 `updated`, Application · Pod 의 `creationTimestamp` · Ready `lastTransitionTime` |
 | 2026-10-22 | 관리자 PC → SSAFY 도메인:80 (Envoy hostPort) | `hello v1` 3번 모두 200, 30 ~ 56ms | `curl -w "%{http_code} %{time_total}"` |
+| 2026-10-22 | 헤어핀 — 워커 Pod → `newlearn.io.kr` · `www` (워커 자기 공인 IP) | 둘 다 `hello v1` | 워커에 묶은 busybox 의 `wget` |
+| 2026-10-22 | HTTPS 첫 발급 (Jira S15P31A102-93) | cert-manager · 443 리스너가 담긴 브랜치로 루트를 돌리고 앱 여섯 Healthy 까지 162초(Envoy 교체 포함). staging 인증서 64일짜리 · prod 로 바꾼 뒤 새 발급 42초, prod 90일짜리(만료 2027-01-20, 갱신 예정 2026-12-21). 브라우저처럼 검증해도 통과 — ISRG Root X2 → YE2 | `kubectl get certificate · order`, push 부터 `status.revision` 2 까지, `curl`(검증 결과 0) · `openssl s_client` |
+| 2026-10-22 | 넘기기 · 잠금 | `http://` 의 `/` · `/api/x` · `/argocd` · `/grafana/` 와 www(http · https) 모두 301 → `https://newlearn.io.kr/…`. `/argocd/` · `/argocd/api/v1/applications` · `/grafana/` · `/grafana/api/user` 계정 없이 401 + `WWW-Authenticate: Basic`, 틀린 비밀번호 401, `X-WEBAUTH-USER: admin` 만 꾸며 보내도 401. 맞는 계정으로 Grafana 는 바로 대시보드(기록에 `uname` 은 팝업 아이디뿐) · Argo CD 는 읽기 전용 앱 목록. 맞는 계정 + `X-WEBAUTH-USER: admin` 이면 `login` 은 팝업 아이디(꾸민 머리가 지워짐). 처음엔 `isGrafanaAdmin: true` — 팝업 아이디가 관리자 아이디와 같았음 → 관리자 아이디를 바꾸고 Grafana 를 다시 띄운 뒤 `false` · 조직 역할 `Viewer` | 관리자 PC `curl -D -` · `Invoke-RestMethod -Credential`(사람이 비밀번호 입력), 사람이 Chrome 으로 확인한 화면, Grafana 로그의 `uname` |
 | 2026-10-21 | 12:24 몰림 — dev push 1개 + 반영 MR 셋(!64 · !65 · !66, `.gitlab-ci.yml` 이 달라 MR 마다 w4 굽기 3개까지) | MR 파이프라인 742 · 643 · 568초, 잡 기다림 최대 **760초**(!66 w3:backend) · !65 392초 · !64 50초 | exporter 지표(`gitlab_ci_pipeline_duration_seconds` · `…_job_queued_duration_seconds`), 위 대조로 API 와 같음을 확인 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |

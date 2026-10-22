@@ -1,0 +1,47 @@
+# https://newlearn.io.kr/grafana — 브라우저 팝업(기본 인증) 하나로 끝. 팝업 아이디로 Grafana 에 바로 들어간다 (보기 권한)
+# Envoy 가 확인한 아이디를 X-WEBAUTH-USER 머리로 넘기고 Grafana 프록시 로그인이 그 머리를 읽는다 (monitoring-values.yaml 의 auth.proxy)
+# 손님이 같은 머리를 꾸며 보내도 Envoy 가 맨 앞에서 지운다 (gateway/client-traffic.yaml)
+# Grafana 와 Prometheus 는 Helm 그대로(Argo CD 밖)이고, 여기는 입구만 둔다. Prometheus 는 열지 않는다
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: public
+      namespace: envoy-gateway-system
+      sectionName: https
+  hostnames:
+    - newlearn.io.kr
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /grafana
+      filters:
+        # 팝업의 Authorization 을 넘기면 Grafana 가 자기 계정 로그인으로 읽고 실패해 팝업이 되풀이된다 — 지운다
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - Authorization
+      # Grafana 는 serve_from_sub_path 라 /grafana 를 떼지 않고 그대로 넘긴다
+      backendRefs:
+        - name: kps-grafana
+          port: 80
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: grafana-basic-auth
+  namespace: monitoring
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: grafana
+  basicAuth:
+    # sealed-basic-auth-monitoring.yaml 이 풀린 Secret — 아이디 · 비밀번호는 argocd 쪽과 같다
+    users:
+      name: basic-auth
+    forwardUsernameHeader: X-WEBAUTH-USER
