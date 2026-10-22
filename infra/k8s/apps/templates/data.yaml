@@ -1,12 +1,12 @@
-# 리허설용 hello 앱 (infra/k8s/hello) — 무중단 교체 · 되돌리기를 재는 데만 쓴다
+# PostgreSQL(pgvector) · Redis — 서비스가 쓰는 저장소 (infra/k8s/services/data)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: hello
+  name: data
   namespace: argocd
   annotations:
-    # Gateway(1)가 선 뒤에 붙는다
-    argocd.argoproj.io/sync-wave: "2"
+    # local-path(0) · Sealed Secrets(-1) 뒤, 앱(4) 앞
+    argocd.argoproj.io/sync-wave: "3"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -14,17 +14,16 @@ spec:
   source:
     repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
     targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
-    path: infra/k8s/hello
+    path: infra/k8s/services/data
   destination:
     server: https://kubernetes.default.svc
-    namespace: hello
+    namespace: data
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - SkipDryRunOnMissingResource=true
     retry:
       limit: 10
       backoff:

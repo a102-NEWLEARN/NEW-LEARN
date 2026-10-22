@@ -1,0 +1,94 @@
+# backend (Spring Boot) — https://newlearn.io.kr/api · /actuator/health · Swagger 로 열린다 (routes.yaml)
+# 무중단 교체 조건은 SSOT 6절 「무중단 배포 조건」: 새 Pod 먼저 · 준비 확인 · 끝낼 때 10초 기다림
+# 이미지 태그는 kustomization.yaml 한 곳 (CI 태그 MR 이 바꾼다)
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: backend
+          image: ghcr.io/kimzoo5676-del/newlearn-backend
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DB_HOST
+              value: postgres.data.svc
+            - name: DB_PORT
+              value: "5432"
+            - name: REDIS_HOST
+              value: redis.data.svc
+            - name: REDIS_PORT
+              value: "6379"
+            # 컨테이너 상한(1Gi)의 70% 를 힙으로 — 자바 기본은 25% 다
+            - name: JAVA_TOOL_OPTIONS
+              value: -XX:MaxRAMPercentage=70
+          # POSTGRES_DB · POSTGRES_USER · POSTGRES_PASSWORD (sealed-postgres-auth.yaml — data 의 DB 와 같은 값)
+          envFrom:
+            - secretRef:
+                name: postgres-auth
+          # 처음 뜰 때 Flyway 마이그레이션까지 3분 안
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          # DB · Redis 가 안 되면 요청을 받지 않는다 (health 에 둘 다 들어 있다)
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          # 프로세스가 멈췄을 때만 다시 띄운다 — DB 가 잠깐 끊겼다고 재시작하지 않게 포트만 본다
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]

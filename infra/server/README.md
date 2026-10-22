@@ -11,7 +11,7 @@
 | `ufw-worker.sh` | Lightsail 방화벽 — 22 · 80 · 443 · wg0 들이기, Pod 주소 범위 포워딩 | Lightsail |
 | `join-worker.sh` | 컨트롤 플레인이 찍은 토큰으로 kubeadm join | Lightsail |
 | `bootstrap-argocd.sh` | Argo CD → 저장소 읽기 Secret(배포 토큰) → kubeseal → 루트 Application. 그 뒤는 Argo CD 가 Git 을 따라 깐다 | EC2 (워커 join 뒤) |
-| `seal-secrets.sh` | 사람이 입력한 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) | EC2 |
+| `seal-secrets.sh` | 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) · `db`(DB 계정, 무작위) · `ghcr`(이미지 받기 토큰) | EC2 |
 
 설정 값은 스크립트 밖에 있다 — kubeadm 은 `infra/k8s/kubeadm/`, Cilium 은 `infra/k8s/bootstrap/cilium-values.yaml` 위에 `cilium-values.prod.yaml`, Argo CD 는 `argocd-values.yaml` 위에 `argocd-values.prod.yaml`, GitLab Runner 는 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 모니터링은 `monitoring-values.yaml` · `prometheus-pv.yaml` · `ci-exporter/`.
 쿠버네티스 판은 `infra/k8s/kubeadm/init.yaml` 의 `kubernetesVersion` 한 곳에만 적는다. `common.sh` 가 그 값을 읽어 패키지를 고정한다.
@@ -237,6 +237,29 @@ kubectl create secret generic <이름> -n <네임스페이스> --from-file=<키>
   read -rp 'Grafana 관리자 아이디 (팝업 아이디와 다르게): ' U && read -rsp 'Grafana 관리자 비밀번호: ' P && echo && printf '%s' "$P" | kubectl -n monitoring create secret generic grafana-admin --from-literal=admin-user="$U" --from-file=admin-password=/dev/stdin --dry-run=client -o yaml | kubectl replace -f - ; unset U P # secret-scan:allow — 값이 아니라 변수 이름
   ```
 
+## 서비스 배포 — Argo CD 가 깐다
+
+PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · ai(`ai`)는 Argo CD 앱이다. 사람이 하는 일은 처음 한 번 Secret 을 봉인하는 것과 태그를 바꾸는 MR 뿐이다. 설계는 `SSOT.md` 6절 「클러스터 구성」 · 「저장소·백업」.
+
+1. **DB 계정** (EC2, 묻지 않음) — 무작위 비밀번호로 `data` · `app` 에 봉인한다. 봉인 파일이 이미 있으면 건너뛴다(PostgreSQL 은 처음 초기화 때만 읽는다)
+
+   ```bash
+   bash infra/server/seal-secrets.sh db
+   ```
+
+2. **이미지 받기 토큰** (관리자 PC 에서 — 값을 묻는다). GitHub › Settings › Developer settings › Personal access tokens › **Tokens (classic)** — `read:packages` 하나, 만료 2026-11-30. 사용자 이름은 이미지 창고 주인(`.gitlab-ci.yml` 의 `IMAGE_PREFIX`). 스크립트가 그 토큰으로 GHCR 에서 받을 수 있는지 먼저 본 뒤 `app` · `ai` 에 봉인한다. fine-grained 토큰은 GHCR 이 받지 않는다
+
+   ```bash
+   ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh ghcr"
+   ```
+
+3. **저장소로 가져오기** — `~/sealed/sealed-postgres-auth-data.yaml` → `infra/k8s/services/data/sealed-postgres-auth.yaml`, `…-app.yaml` → `services/app/`, `sealed-ghcr-pull-app.yaml` · `-ai.yaml` → `services/app/sealed-ghcr-pull.yaml` · `services/ai/sealed-ghcr-pull.yaml`. 커밋 · MR
+
+- **태그 바꾸기**: `infra/k8s/services/app · ai/kustomization.yaml` 의 `newTag` 를 바꾸는 MR. 태그는 **dev push 파이프라인이 GHCR 에 올린 것만** 쓴다 — MR 파이프라인은 굽기만 하고 올리지 않는다(2026-10-22 MR 의 커밋을 적었다가 ImagePullBackOff). 되돌리기는 그 MR 을 Revert
+- **떠 있는 판**: `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'`
+- **DB · Redis 데이터 살리기**: PVC 를 지워도 PV 와 워커 폴더(`/var/lib/newlearn/local-path/pvc-…`)는 남는다(Retain) — 새 PVC 는 그것을 쓰지 않고 빈 DB 로 뜬다. 살리려면 PV 의 `spec.claimRef` 를 지워(`kubectl patch pv <이름> --type json -p '[{"op":"remove","path":"/spec/claimRef"}]'`) 새 PVC 가 그 PV 를 잡게 한다(PVC 에 `volumeName: <이름>`)
+- 백업(pg_dump)은 아직 없다 — `SSOT.md` 8절
+
 ## 관리자 PC 에서 kubectl
 
 6443 은 밖에 열지 않는다. SSH 터널로 붙는다. kubeconfig 는 내 `~/.kube/config`(다른 클러스터가 있다)와 섞지 않고 따로 둔다.
@@ -444,6 +467,7 @@ hostPort 443 · HTTPS · 관리 화면 잠금도 서버에서 확인했다(2026-
 | 터널 내리기 | `sudo systemctl disable --now wg-quick@wg0` |
 | 모니터링 내리기 | `helm uninstall kps -n monitoring` → `kubectl get crd -o name \| grep monitoring.coreos.com \| xargs kubectl delete` → `kubectl delete namespace monitoring` → `kubectl delete -f infra/k8s/bootstrap/prometheus-pv.yaml` → `sudo rm -r /var/lib/newlearn/prometheus`. 러너 지표는 값을 되돌려 `helm upgrade` |
 | CI 잡 지표 내리기 | `kubectl delete -k infra/k8s/bootstrap/ci-exporter` → `kubectl -n monitoring delete secret gitlab-ci-exporter` → GitLab 화면 Settings › Access tokens 에서 토큰 Revoke |
+| 서비스만 내리기 | `infra/k8s/apps/templates/` 의 `app.yaml` · `ai.yaml` 을 지우는 MR — Argo CD 가 Deployment · 길을 지운다. `data.yaml` 을 지워도 PostgreSQL · Redis 는 남는다(`Delete=false`) — 정말 지울 때는 `kubectl -n data delete statefulset,pvc --all` 뒤 PV · 워커 폴더를 손으로 |
 | 관리 화면만 닫기 | `infra/k8s/apps/templates/admin-ui.yaml` 을 지우는 MR — Argo CD 가 `/argocd` · `/grafana` 라우트 · 잠금 · 계정 Secret 을 지운다. Grafana 값은 그대로여도 공개 입구가 없어진다 |
 | HTTPS 되돌리기 | `cert-manager` 앱 · `infra/k8s/gateway/` 의 443 리스너 · 넘기기 · 발급자 · 인증서를 되돌리는 MR. 발급된 인증서는 그대로 둬도 해가 없다. 가비아 레코드는 사람이 지운다 |
 | Argo CD 와 그 앱 내리기 | `kubectl -n argocd delete application root` (finalizer 가 자식 앱 · 그 자원을 지운다, 끝날 때까지 기다린다) → `helm uninstall argocd -n argocd` → `kubectl delete namespace argocd` → `kubectl get crd -o name \| grep argoproj.io \| xargs kubectl delete`. `sealed-secrets` 네임스페이스(개인키)는 남는다 — 지우기 전에 백업이 있는지 본다. GitLab 배포 토큰은 화면에서 Revoke |
