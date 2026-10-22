@@ -15,11 +15,13 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
+import kr.io.newlearn.common.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,7 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 // 아직 화면 API 가 없어서, 이 테스트 안에만 있는 시험용 컨트롤러(/probe)로 오류를 일부러 낸다
 // @WithMockUser: 로그인 규칙(④ 보안)과 떼어 놓고 오류 모양만 본다
 @WebMvcTest(controllers = ErrorResponseTest.ProbeController.class)
-@Import(ErrorResponseTest.ProbeController.class)
+@Import({SecurityConfig.class, ErrorResponseTest.ProbeController.class})
 @WithMockUser
 class ErrorResponseTest {
 
@@ -163,6 +165,13 @@ class ErrorResponseTest {
 
     // 예상 못 한 오류는 500 INTERNAL_ERROR. 원인(DB 정보 같은 내부 사정)은 응답에 싣지 않고 서버 로그에만 남긴다
     @Test
+    void deniedInControllerBecomes403() throws Exception {
+        mockMvc.perform(get("/probe/denied"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void unexpectedErrorHidesInternals() throws Exception {
         mockMvc.perform(get("/probe/boom"))
                 .andExpect(status().isInternalServerError())
@@ -197,6 +206,12 @@ class ErrorResponseTest {
         @GetMapping("/ok")
         Map<String, String> ok() {
             return Map.of("ok", "yes");
+        }
+
+        // 권한 오류는 오류 처리기가 삼키지 않고 Security 에 넘겨 403 이 된다
+        @GetMapping("/denied")
+        String denied() {
+            throw new AccessDeniedException("관리자만");
         }
 
         @GetMapping("/boom")

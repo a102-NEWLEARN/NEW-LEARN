@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import kr.io.newlearn.common.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -27,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 // 시각 규칙 (docs/api.md 1절 「시간」, Jira 100) — Spring Boot 4 · Jackson 3 기본값에서 확인한다
 // 보낼 때는 +09:00, 받을 때는 Z 를 포함해 어떤 오프셋도 읽고, 오프셋이 없으면 400
 @WebMvcTest(controllers = TimeFormatTest.TimeProbeController.class)
-@Import(TimeFormatTest.TimeProbeController.class)
+@Import({SecurityConfig.class, TimeFormatTest.TimeProbeController.class})
 @WithMockUser
 class TimeFormatTest {
 

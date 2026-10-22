@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.stream.IntStream;
+import kr.io.newlearn.common.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 // 목록 요청 · 응답 (docs/api.md 1절 「목록 응답」 · 「목록 요청」, Jira 100)
 // page 0부터 · size 기본 20 · 최대 100. 범위를 벗어나면 잘라 주지 않고 400
 @WebMvcTest(controllers = PageResponseTest.PageProbeController.class)
-@Import(PageResponseTest.PageProbeController.class)
+@Import({SecurityConfig.class, PageResponseTest.PageProbeController.class})
 @WithMockUser
 class PageResponseTest {
 
