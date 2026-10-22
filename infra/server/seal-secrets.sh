@@ -112,7 +112,7 @@ case "${1:-}" in
       echo "이미 있다 — 건너뛴다: $f"
       exit 0
     fi
-    token="$(openssl rand -hex 32)"
+    token="$(openssl rand -hex 32)"  # secret-scan:allow — 값이 아니라 무작위로 만드는 명령
     [ "${#token}" -eq 64 ] || { echo "❌ 토큰을 만들지 못했다" >&2; exit 1; }
     # Argo CD 는 이름표 app.kubernetes.io/part-of=argocd 가 있는 Secret 만 참조로 읽는다
     # 이름표가 없으면 참조 글자 「$argocd-webhook:gitlab」 그대로가 토큰이 된다 — 봉인 전에 붙인다 (Argo CD util/settings)
