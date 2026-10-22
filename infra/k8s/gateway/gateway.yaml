@@ -19,10 +19,23 @@ metadata:
 spec:
   gatewayClassName: envoy
   listeners:
+    # 80 에는 http → https 넘기기와 인증서 소유 확인(HTTP-01)만 붙는다 (redirects.yaml). SSAFY 도메인의 hello 는 예외
     - name: http
       protocol: HTTP
       port: 80
       # 지금은 어느 네임스페이스든 붙을 수 있다. 앱 네임스페이스가 정해지면 Selector 로 좁힌다
+      allowedRoutes:
+        namespaces:
+          from: All
+    # 앱 · 관리 화면 라우트는 모두 sectionName: https 로 여기에만 붙는다 — http 에도 붙으면 넘기기보다 긴 경로가 이겨 평문으로 열린다
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        # cert-manager 가 만드는 Secret (certificate.yaml)
+        certificateRefs:
+          - name: newlearn-tls
       allowedRoutes:
         namespaces:
           from: All
