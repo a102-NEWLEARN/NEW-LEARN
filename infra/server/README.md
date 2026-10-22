@@ -230,6 +230,12 @@ kubectl create secret generic <이름> -n <네임스페이스> --from-file=<키>
 - 계정을 바꿀 때도 같은 1 ~ 3. 바꾸면 브라우저가 기억한 옛 계정으로 401 이 나서 팝업이 다시 뜬다
 - 내장 브라우저(앱 미리보기 창)에는 팝업이 안 뜰 수 있다 — Chrome · Edge 로 연다 (2026-10-22 Claude 데스크톱 앱의 브라우저 창에서 401 본문만 보임)
 - Grafana 관리자(`grafana-admin`)로 들어갈 일이 있으면 SSH 터널(`kubectl -n monitoring port-forward svc/kps-grafana 3000:80`)로 — 팝업 머리가 없어 로그인 화면이 나온다. 로그인 뒤 공개 주소로 넘어간다(`root_url`)
+- 🔴 **팝업 아이디는 Grafana 관리자 아이디와 달라야 한다.** 같으면 프록시 로그인이 그 관리자 계정으로 들여보내 팝업 계정을 아는 사람이 모두 Grafana 서버 관리자가 된다 (2026-10-22 겪음 — 관리자 아이디를 바꾸고 Grafana 를 다시 띄워 고침). 확인: 팝업 계정으로 `/grafana/api/user` 의 `isGrafanaAdmin` 이 `false`, `/grafana/api/user/orgs` 의 `role` 이 `Viewer`
+- Grafana 관리자 아이디 · 비밀번호를 바꿀 때 (EC2 에 접속해서) — 비밀번호는 표준 입력으로 넘긴다. 그 뒤 `kubectl -n monitoring rollout restart deploy/kps-grafana`(Grafana 는 디스크가 없어 다시 뜰 때 관리자를 새로 만든다)
+
+  ```bash
+  read -rp 'Grafana 관리자 아이디 (팝업 아이디와 다르게): ' U && read -rsp 'Grafana 관리자 비밀번호: ' P && echo && printf '%s' "$P" | kubectl -n monitoring create secret generic grafana-admin --from-literal=admin-user="$U" --from-file=admin-password=/dev/stdin --dry-run=client -o yaml | kubectl replace -f - ; unset U P # secret-scan:allow — 값이 아니라 변수 이름
+  ```
 
 ## 관리자 PC 에서 kubectl
 
