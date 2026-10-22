@@ -1,0 +1,16 @@
+# 손님이 보낸 X-WEBAUTH-USER 는 라우팅 · 인증보다 먼저 지운다
+# 이 머리는 팝업(기본 인증)을 지난 사용자 이름을 Envoy 가 Grafana 에 넘기는 자리다 (admin-ui/grafana.yaml) — 꾸며 보내면 다른 사람으로 들어갈 수 있다
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: public
+  namespace: envoy-gateway-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  headers:
+    earlyRequestHeaders:
+      remove:
+        - X-WEBAUTH-USER

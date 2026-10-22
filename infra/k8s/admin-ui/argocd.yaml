@@ -1,0 +1,47 @@
+# https://newlearn.io.kr/argocd — 브라우저 팝업(기본 인증) 하나를 지나면 읽기 전용으로 바로 보인다 (SSOT 6절 「공개 화면」)
+# 동기화 · 설정 변경은 화면에서 admin 으로 한 번 더 로그인해야 한다 (argocd-values.prod.yaml 의 익명 읽기 전용)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: public
+      namespace: envoy-gateway-system
+      sectionName: https
+  hostnames:
+    - newlearn.io.kr
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /argocd
+      filters:
+        # 팝업이 보낸 Authorization 은 Envoy 가 확인한 뒤 Argo CD 로는 넘기지 않는다 — Argo CD 는 자기 로그인 쿠키만 본다
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - Authorization
+      # Argo CD 는 rootpath /argocd 로 뜬다 — 접두사를 떼지 않고 그대로 넘긴다
+      backendRefs:
+        - name: argocd-server
+          port: 80
+      # 화면이 앱 상태를 스트림으로 받는다. 기본 요청 시간 제한(15초)에 끊기지 않게 끈다
+      timeouts:
+        request: 0s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: argocd-basic-auth
+  namespace: argocd
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: argocd
+  basicAuth:
+    # sealed-basic-auth-argocd.yaml 이 풀린 Secret (키 .htpasswd) — infra/server/seal-secrets.sh basic-auth
+    users:
+      name: basic-auth

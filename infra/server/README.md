@@ -11,6 +11,7 @@
 | `ufw-worker.sh` | Lightsail 방화벽 — 22 · 80 · 443 · wg0 들이기, Pod 주소 범위 포워딩 | Lightsail |
 | `join-worker.sh` | 컨트롤 플레인이 찍은 토큰으로 kubeadm join | Lightsail |
 | `bootstrap-argocd.sh` | Argo CD → 저장소 읽기 Secret(배포 토큰) → kubeseal → 루트 Application. 그 뒤는 Argo CD 가 Git 을 따라 깐다 | EC2 (워커 join 뒤) |
+| `seal-secrets.sh` | 사람이 입력한 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) | EC2 |
 
 설정 값은 스크립트 밖에 있다 — kubeadm 은 `infra/k8s/kubeadm/`, Cilium 은 `infra/k8s/bootstrap/cilium-values.yaml` 위에 `cilium-values.prod.yaml`, Argo CD 는 `argocd-values.yaml` 위에 `argocd-values.prod.yaml`, GitLab Runner 는 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 모니터링은 `monitoring-values.yaml` · `prometheus-pv.yaml` · `ci-exporter/`.
 쿠버네티스 판은 `infra/k8s/kubeadm/init.yaml` 의 `kubernetesVersion` 한 곳에만 적는다. `common.sh` 가 그 값을 읽어 패키지를 고정한다.
@@ -208,6 +209,34 @@ kubectl create secret generic <이름> -n <네임스페이스> --from-file=<키>
 
 봉인은 이름 · 네임스페이스에 묶인다(기본 strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다.
 
+### 관리 화면 팝업 계정 — `/argocd` · `/grafana`
+
+두 화면은 Envoy 앞단의 브라우저 팝업(HTTP 기본 인증) 하나로 잠근다. 계정은 둘이 같이 쓰는 하나다. 설계는 `SSOT.md` 6절 「도메인 · HTTPS」.
+
+1. **계정 봉인** (관리자 PC 에서 — 값을 물어서 터미널이 붙어 있어야 한다). 아이디는 영문 소문자로 시작하는 3~32자, 비밀번호는 16자 이상(Envoy 기본 인증이 SHA1 해시만 받는다). 무작위 값이 필요하면 관리자 PC PowerShell 에서 `$b = New-Object byte[] 15; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) | Set-Clipboard` (화면에 안 찍히고 클립보드로)
+
+   ```bash
+   ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh basic-auth"
+   ```
+
+2. **저장소로 가져오기** — 봉인 파일은 컨트롤러만 풀 수 있어 저장소에 둬도 된다
+
+   ```bash
+   for ns in argocd monitoring; do ssh ubuntu@<EC2 탄력적 IP> "cat ~/sealed/sealed-basic-auth-$ns.yaml" > infra/k8s/admin-ui/sealed-basic-auth-$ns.yaml; done
+   ```
+
+3. 커밋 · MR. Argo CD 가 풀어 `basic-auth` Secret 을 만들고, Envoy 가 바뀐 계정을 바로 쓴다. 아이디 · 비밀번호는 팀에 저장소 · 채팅이 아닌 곳으로 알린다
+
+- 계정을 바꿀 때도 같은 1 ~ 3. 바꾸면 브라우저가 기억한 옛 계정으로 401 이 나서 팝업이 다시 뜬다
+- 내장 브라우저(앱 미리보기 창)에는 팝업이 안 뜰 수 있다 — Chrome · Edge 로 연다 (2026-10-22 Claude 데스크톱 앱의 브라우저 창에서 401 본문만 보임)
+- Grafana 관리자(`grafana-admin`)로 들어갈 일이 있으면 SSH 터널(`kubectl -n monitoring port-forward svc/kps-grafana 3000:80`)로 — 팝업 머리가 없어 로그인 화면이 나온다. 로그인 뒤 공개 주소로 넘어간다(`root_url`)
+- 🔴 **팝업 아이디는 Grafana 관리자 아이디와 달라야 한다.** 같으면 프록시 로그인이 그 관리자 계정으로 들여보내 팝업 계정을 아는 사람이 모두 Grafana 서버 관리자가 된다 (2026-10-22 겪음 — 관리자 아이디를 바꾸고 Grafana 를 다시 띄워 고침). 확인: 팝업 계정으로 `/grafana/api/user` 의 `isGrafanaAdmin` 이 `false`, `/grafana/api/user/orgs` 의 `role` 이 `Viewer`
+- Grafana 관리자 아이디 · 비밀번호를 바꿀 때 (EC2 에 접속해서) — 비밀번호는 표준 입력으로 넘긴다. 그 뒤 `kubectl -n monitoring rollout restart deploy/kps-grafana`(Grafana 는 디스크가 없어 다시 뜰 때 관리자를 새로 만든다)
+
+  ```bash
+  read -rp 'Grafana 관리자 아이디 (팝업 아이디와 다르게): ' U && read -rsp 'Grafana 관리자 비밀번호: ' P && echo && printf '%s' "$P" | kubectl -n monitoring create secret generic grafana-admin --from-literal=admin-user="$U" --from-file=admin-password=/dev/stdin --dry-run=client -o yaml | kubectl replace -f - ; unset U P # secret-scan:allow — 값이 아니라 변수 이름
+  ```
+
 ## 관리자 PC 에서 kubectl
 
 6443 은 밖에 열지 않는다. SSH 터널로 붙는다. kubeconfig 는 내 `~/.kube/config`(다른 클러스터가 있다)와 섞지 않고 따로 둔다.
@@ -390,7 +419,7 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 
 - StorageClass 를 이름으로만 적고 만들지 않으면 Prometheus 가 「storage class … does not exist」로 뜨지 않는다 — `prometheus-pv.yaml` 이 StorageClass 와 PV 를 같이 만든다 (2026-10-20 겪음)
 - Grafana 를 `/grafana` 하위 경로로 두면 Grafana 자기 지표도 `/grafana/metrics` 에 있다 — 값 파일의 `grafana.serviceMonitor.path` (2026-10-20 겪음)
-- 공개할 때(Jira 93): `grafana.ini` 의 `root_url` 을 `https://newlearn.io.kr/grafana/` 로 바꾸고 정문에 경로 규칙을 더한다. Prometheus 는 공개하지 않는다
+- 2026-10-22 공개했다(Jira 93): `grafana.ini` 의 `root_url` 을 `https://newlearn.io.kr/grafana/` 로, 프록시 로그인(`auth.proxy`)을 켜고 위 「설치」의 `helm upgrade` 를 같은 판으로 한 번 더. 입구 · 잠금은 Argo CD 의 admin-ui 앱(`infra/k8s/admin-ui/grafana.yaml`). Prometheus 는 공개하지 않는다
 
 ## 서버 없이 확인한 것 · 서버에서 확인할 것
 
@@ -405,7 +434,7 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 
 서버에서 확인한 것(join · 노드 주소 · Cilium · 노드 사이 Pod · Pod MTU 1370 · 재부팅 뒤 순서 · ufw 를 켠 채 hostPort 80 · Argo CD · 봉인 Secret)은 `SSOT.md` 6절 「현재 상태」 · 10절.
 
-서버에서 아직 못 본 것 — hostPort 443 (Jira S15P31A102-93 에서 Envoy 에 붙일 때)
+hostPort 443 · HTTPS · 관리 화면 잠금도 서버에서 확인했다(2026-10-22, `SSOT.md` 6절 「도메인 · HTTPS」 · 10절).
 
 ## 되돌리기
 
@@ -415,6 +444,8 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 | 터널 내리기 | `sudo systemctl disable --now wg-quick@wg0` |
 | 모니터링 내리기 | `helm uninstall kps -n monitoring` → `kubectl get crd -o name \| grep monitoring.coreos.com \| xargs kubectl delete` → `kubectl delete namespace monitoring` → `kubectl delete -f infra/k8s/bootstrap/prometheus-pv.yaml` → `sudo rm -r /var/lib/newlearn/prometheus`. 러너 지표는 값을 되돌려 `helm upgrade` |
 | CI 잡 지표 내리기 | `kubectl delete -k infra/k8s/bootstrap/ci-exporter` → `kubectl -n monitoring delete secret gitlab-ci-exporter` → GitLab 화면 Settings › Access tokens 에서 토큰 Revoke |
+| 관리 화면만 닫기 | `infra/k8s/apps/templates/admin-ui.yaml` 을 지우는 MR — Argo CD 가 `/argocd` · `/grafana` 라우트 · 잠금 · 계정 Secret 을 지운다. Grafana 값은 그대로여도 공개 입구가 없어진다 |
+| HTTPS 되돌리기 | `cert-manager` 앱 · `infra/k8s/gateway/` 의 443 리스너 · 넘기기 · 발급자 · 인증서를 되돌리는 MR. 발급된 인증서는 그대로 둬도 해가 없다. 가비아 레코드는 사람이 지운다 |
 | Argo CD 와 그 앱 내리기 | `kubectl -n argocd delete application root` (finalizer 가 자식 앱 · 그 자원을 지운다, 끝날 때까지 기다린다) → `helm uninstall argocd -n argocd` → `kubectl delete namespace argocd` → `kubectl get crd -o name \| grep argoproj.io \| xargs kubectl delete`. `sealed-secrets` 네임스페이스(개인키)는 남는다 — 지우기 전에 백업이 있는지 본다. GitLab 배포 토큰은 화면에서 Revoke |
 | 러너 내리기 | `helm uninstall gitlab-runner -n gitlab-runner` → `kubectl delete namespace gitlab-runner` → GitLab 화면에서 러너 삭제. 서버 패키지는 바꾸지 않아서 이걸로 원래대로 |
 | 서버째 | 관리자 PC 에서 `terraform destroy` (EC2). 🔴 서버 안의 클러스터 · WireGuard 키도 같이 사라진다 |

@@ -9,6 +9,11 @@ configs:
     server.basehref: /argocd
   cm:
     url: https://newlearn.io.kr/argocd
+    # 공개 주소는 앞단 팝업(기본 인증) 뒤에 있다 — 팝업을 지나면 로그인 없이 읽기만 된다 (infra/k8s/admin-ui/argocd.yaml)
+    # 동기화 · 설정 변경은 admin 으로 로그인한 뒤에만
+    users.anonymous.enabled: "true"
+  rbac:
+    policy.default: role:readonly
 
 # 워커 한 대(CPU 4 · 16Gi)를 서비스와 같이 쓴다 — 요청은 작게, 메모리는 상한을 둔다
 controller:
