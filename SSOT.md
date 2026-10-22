@@ -136,7 +136,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
   - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
   - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」
-  - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다. dev 머지 뒤 사이트에 바로 반영할지 사람이 버튼을 누를지는 Jira S15P31A102-91에서 정한다
+  - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다 — 그래서 배포 태그는 dev push가 올린 것만 쓴다
+  - 반영: **CI가 배포 태그 MR을 열고 사람이 머지한다**(2026-10-22 결정, Jira S15P31A102-105). 굽기(w4)가 올리기에 성공한 영역만 `w5:deploy-mr` 잡이 GHCR에 그 태그가 있는지 확인한 뒤 `infra/k8s/services/app · ai/kustomization.yaml`의 태그를 바꾸는 MR을 `deploy/app` · `deploy/ai` 브랜치로 `dev`에 연다. 같은 브랜치를 dev 위에 덮어써서 열린 MR이 있으면 그것을 갱신한다(MR이 쌓여 부딪히지 않게). 지금 태그가 더 새 커밋이면 건너뛴다. 바꾼 파일이 `infra/`뿐이라 그 MR을 머지해도 굽기가 다시 돌지 않는다. 토큰 `DEPLOY_MR_TOKEN`(프로젝트 액세스 토큰, Developer · `api`, 만료 2026-11-30)은 보호 · 가림 CI 변수. 코드는 `infra/ci/deploy_mr.py`
+  - Image Updater(새 태그를 보고 자동 반영)는 쓰지 않는다 — 바뀐 태그가 Git에 남지 않아 아래 「되돌리기」와 어긋난다
   - 굽는 도구: Kaniko 후속판(osscontainertools, digest 고정) — Docker 데몬 · 특권 없이 잡 컨테이너 안에서 Dockerfile을 돈다. BuildKit rootless는 두 러너의 보안 설정(seccomp · AppArmor · user namespace)을 풀어야 해서 뺐다. 두 러너 모두 설정을 바꾸지 않고 세 이미지를 굽는 것을 확인했다(MR !60, 10절)
     - EC2 잡 메모리 상한(2Gi)에서는 `--use-new-run` · `--compressed-caching=false`를 줘야 ai(가상환경 약 1 GB)가 굽힌다. 없으면 의존성 설치 뒤 스냅샷에서 OOMKilled(두 번 재현). 옵션을 줘도 최대 메모리가 상한에 닿는다(디스크 캐시 포함) — 의존성이 크게 늘면 다시 잰다
     - Kaniko는 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아 EC2 러너에서는 after_script가 실패한다. 굽기 잡은 CPU · 메모리 기록을 script 끝에서 찍는다
