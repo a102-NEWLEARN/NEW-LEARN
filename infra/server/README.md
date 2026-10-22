@@ -375,6 +375,29 @@ flowchart LR
 - 판 올리기: GitLab 이 오르면 같은 major.minor 의 차트로 `--version` 만 바꿔 다시 `helm upgrade` 한다. 차트 판 ↔ 러너 판은 `helm search repo -l gitlab/gitlab-runner`
 - 값을 바꾼 뒤에도 같은 `helm upgrade` 한 줄. 러너 Pod 가 새로 뜨면서 같은 토큰으로 다시 붙는다
 
+### 굽기 러너 — 이미지 굽기(w4)만, 잡은 워커에서
+
+매니저 Pod 는 EC2, 잡 Pod 는 워커(Lightsail)에 뜬다. 왜 · 상한 · 격리는 `SSOT.md` 6절 「굽기 러너」.
+
+1. **GitLab 에 러너 만들기** (Maintainer, 화면): Settings › CI/CD › Runners › New project runner — Tags `newlearn-build`, Run untagged jobs 끔, Protected 끔(켜면 MR 굽기가 영영 기다린다)
+2. **토큰 넣기** (EC2 — 값을 물어서 `ssh -t`). 토큰은 표준 입력으로 넘긴다
+
+   ```bash
+   ssh -t ubuntu@<EC2 탄력적 IP> 'kubectl create namespace gitlab-runner-build && read -rsp "runner token: " T && echo && printf "%s" "$T" | kubectl -n gitlab-runner-build create secret generic gitlab-runner-build-token --from-literal=runner-registration-token= --from-file=runner-token=/dev/stdin; unset T'
+   ```
+
+3. **정책 먼저, 그다음 러너** (EC2)
+
+   ```bash
+   kubectl apply -f infra/k8s/bootstrap/build-netpol.yaml
+   helm upgrade --install gitlab-runner-build gitlab/gitlab-runner --version 0.88.4 -n gitlab-runner-build \
+     -f infra/k8s/bootstrap/gitlab-runner-build-values.yaml --wait
+   ```
+
+- 확인: GitLab Runners 화면에 「newlearn-build」 online. 정책은 같은 노드에서 대조한다 — 굽기 네임스페이스와 `default` 에 busybox Pod 를 하나씩 띄워 `nc -w 3 postgres.data.svc 5432` 가 앞은 막히고 뒤는 열리는지(2026-10-23 결과는 `SSOT.md` 10절). curl 의 `telnet://` 은 이 확인에 쓰지 않는다 — 열린 곳도 막힌 것처럼 나왔다
+- 러너가 죽으면 w4 가 태그 때문에 기다린다. 급히 다른 러너로 보내려면 `.gitlab-ci.yml` 의 `.w4` 에서 태그를 빼고 **자원도 CPU 1 · 메모리 2Gi 로 같이 내린다** — 다른 러너의 덮어쓰기 상한을 넘으면 잡이 실패한다
+- 내리기: `helm uninstall gitlab-runner-build -n gitlab-runner-build` → `kubectl delete namespace gitlab-runner-build`(정책도 같이) → GitLab 에서 러너 삭제
+
 ## 모니터링 (EC2)
 
 kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metrics)을 관리 서버에 올린다. 왜 · 무엇을 보나는 `SSOT.md` 6절 「모니터링」, 계획은 `docs/plans/2026-10-20-monitoring.md`.
