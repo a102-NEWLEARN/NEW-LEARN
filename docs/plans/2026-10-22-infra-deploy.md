@@ -55,21 +55,21 @@ DB 비밀번호는 서버 스크립트가 무작위로 만들어 바로 봉인�
 - [x] `infra/k8s/apps/templates/sealed-secrets.yaml` 새로 — 네임스페이스 `sealed-secrets`(CreateNamespace 로만), `fullnameOverride: sealed-secrets-controller`, `keyrenewperiod: "0"`(키가 30일마다 늘어 첫 백업에서 빠지는 것을 막음). 서버의 kubeseal 은 `--controller-namespace sealed-secrets`. 개인키 백업은 이름표 `sealedsecrets.bitnami.com/sealed-secrets-key` 로 전부, 복구 절차를 README 에
 - [x] 시험: hello 네임스페이스에 봉인한 Secret 하나 → Pod 가 읽는지(값 길이만) → 시험 Secret 은 지움
 - [x] Envoy 가 워커 80 hostPort 로 뜨는지 — 내 PC 에서 `curl http://k15a102.p.ssafy.io/` → `hello v1`
-- [ ] Argo CD admin 비밀번호 — 사람이 port-forward 로 들어가 바꾸고 첫 비밀번호 Secret 을 지움 (B 에서 공개하기 전에)
+- [x] Argo CD admin 비밀번호 — 사람이 port-forward 로 들어가 바꾸고 첫 비밀번호 Secret 을 지움 (B 에서 공개하기 전에)
 - [x] Pod MTU — **고치기 전에 다시 잰다.** 10-22 의 「1420」은 busybox `ip route` 가 mtu 를 안 찍어서 생긴 착오일 가능성이 큼. 새 Pod 의 netns 에서 `nsenter … ip route get <상대 노드 Pod IP>`, netshoot 로 `ping -M do -s 1342`(통과) · `-s 1343`(로컬 mtu=1370 오류면 정상), 큰 전송을 두 방향 모두. 정상이면 문서만 고치고(SSOT 6 · 8 · 10절), 경로 MTU 가 정말 비어 있으면 그때 Cilium agent 재시작 · Pod 재생성부터 — 커밋을 따로
-- [ ] 문서: `SSOT.md` 6절(Argo CD 가 dev 를 읽음 · 부트스트랩 · Sealed Secrets 키 백업) · 8절(hostPort · MTU 줄 지움) · 10절(잰 것), `infra/server/README.md` 「Argo CD 깔기」, `.claude/stack.md` §6 「어디로」 줄을 지금 상태로, 이 계획 → `docs/plans/2026-10-22-infra-deploy.md`
-- [ ] MR → infra → infra → dev, 머지 뒤 루트 앱을 `dev` 로 바꿈. Jira 91 완료
+- [x] 문서: `SSOT.md` 6절(Argo CD 가 dev 를 읽음 · 부트스트랩 · Sealed Secrets 키 백업) · 8절(hostPort · MTU 줄 지움) · 10절(잰 것), `infra/server/README.md` 「Argo CD 깔기」, `.claude/stack.md` §6 「어디로」 줄을 지금 상태로, 이 계획 → `docs/plans/2026-10-22-infra-deploy.md`
+- [x] MR → infra → infra → dev, 머지 뒤 루트 앱을 `dev` 로 바꿈. Jira 91 완료
 
 ### B. Jira 93 — 브랜치 `chore/infra/S15P31A102-93-domain-https`
-- [ ] 가비아 레코드 다시 확인(1.1.1.1 포함) + **헤어핀 시험**: 워커 Pod 에서 `curl -I http://newlearn.io.kr/` 가 Envoy 에 닿는지. cert-manager 가 발급 전에 이렇게 스스로 확인하는데, Lightsail 이 자기 공인 IP 로 되돌아오는 요청을 안 받으면 발급이 멈춤 → 그때는 CoreDNS rewrite 로 이 이름을 Envoy Service 로
-- [ ] `infra/k8s/apps/templates/cert-manager.yaml` — `crds.enabled: true`, `config.apiVersion: controller.config.cert-manager.io/v1alpha1` · `kind: ControllerConfiguration` · `enableGatewayAPI: true`. Gateway CRD 를 시작할 때 한 번만 보므로 envoy-gateway 앱 뒤 sync-wave(건강 Lua 로 실제로 기다림), 서버를 다시 만들 때 순서가 어긋나면 재시작한다고 README 에
-- [ ] `infra/k8s/gateway/` — ClusterIssuer 둘(staging · prod, HTTP-01 solver 는 Gateway `public` 의 `http` 리스너), Certificate(apex + www), Gateway 에 `https` 443 리스너, EnvoyProxy patch 에 `10443 → hostPort 443` — **리스너와 같은 커밋**이라 Envoy 교체는 한 번(약 2초 끊김, 서비스 올리기 전)
-- [ ] 라우트 규칙: 앱 · `/argocd` · `/grafana` 라우트는 모두 `parentRefs[].sectionName: https`. `http` 리스너에는 apex · www 이름을 적은 「→ https 넘기기」 라우트 하나만(ACME 경로는 solver 의 Exact 경로가 이김). hello 는 이름 `k15a102.p.ssafy.io` 로 묶어 겹치지 않게
-- [ ] staging 인증서로 먼저 발급 확인 → prod 로 바꿈 (Let's Encrypt 발급 한도 보호)
-- [ ] 팝업 잠금: `infra/server/seal-secrets.sh` 의 첫 기능으로 팝업 계정(htpasswd) 봉인 → `argocd` · `monitoring` 에 SecurityPolicy `basicAuth`. 두 라우트는 앱으로 보낼 때 `Authorization` 머리를 지움(Grafana 가 그 머리를 자기 로그인으로 읽어 팝업이 되풀이되는 것을 막음)
-- [ ] `/argocd` HTTPRoute(argocd 네임스페이스, 접두사를 떼지 않음, `timeouts.request: 0s` — 화면의 실시간 스트림이 15초에 끊기지 않게). Argo CD 값에 익명 읽기 전용(`users.anonymous.enabled` · `policy.default: role:readonly`). CLI 는 팝업 밖 port-forward 로
-- [ ] `/grafana` HTTPRoute + `monitoring-values.yaml`: `root_url` · `domain` → `https://newlearn.io.kr/grafana/`, 프록시 로그인(`auth.proxy` — Envoy 가 넘긴 팝업 아이디 머리로 자동 로그인 · 보기 권한, 바깥에서 같은 머리를 꾸며 보내도 Envoy 가 덮어쓰는지 확인). kps helm upgrade, 같은 판. 기존 `grafana-admin` 로그인은 남김. 그 뒤 SSH 터널 접속은 공개 주소로 넘어감
-- [ ] Envoy Gateway v1.9.2 가 팝업 아이디를 머리로 넘기는 설정을 지원하는지 먼저 확인 — 안 되면 Grafana 는 익명 보기(팝업 뒤)로 바꾸고 계획 차이를 알림
+- [x] 가비아 레코드 다시 확인(1.1.1.1 포함) + **헤어핀 시험**(워커 Pod → 두 이름 모두 hello — CoreDNS rewrite 필요 없음): 워커 Pod 에서 `curl -I http://newlearn.io.kr/` 가 Envoy 에 닿는지. cert-manager 가 발급 전에 이렇게 스스로 확인하는데, Lightsail 이 자기 공인 IP 로 되돌아오는 요청을 안 받으면 발급이 멈춤 → 그때는 CoreDNS rewrite 로 이 이름을 Envoy Service 로
+- [x] `infra/k8s/apps/templates/cert-manager.yaml` — `crds.enabled: true`, `config.apiVersion: controller.config.cert-manager.io/v1alpha1` · `kind: ControllerConfiguration` · `gatewayAPI.enabled: true`(v1.21 에서 `enableGatewayAPI` 는 낡은 이름 — 소스로 확인). Gateway CRD 를 시작할 때 한 번만 보므로 envoy-gateway 앱 뒤 sync-wave(건강 Lua 로 실제로 기다림), 서버를 다시 만들 때 순서가 어긋나면 재시작한다고 README 에
+- [x] `infra/k8s/gateway/` — ClusterIssuer 둘(staging · prod, HTTP-01 solver 는 Gateway `public` 의 `http` 리스너), Certificate(apex + www), Gateway 에 `https` 443 리스너, EnvoyProxy patch 에 `10443 → hostPort 443` — **리스너와 같은 커밋**이라 Envoy 교체는 한 번(약 2초 끊김, 서비스 올리기 전)
+- [x] 라우트 규칙: 앱 · `/argocd` · `/grafana` 라우트는 모두 `parentRefs[].sectionName: https`. `http` 리스너에는 apex · www 이름을 적은 「→ https 넘기기」 라우트 하나만(ACME 경로는 solver 의 Exact 경로가 이김). hello 는 이름 `k15a102.p.ssafy.io` 로 묶어 겹치지 않게
+- [x] staging 인증서로 먼저 발급 확인 → prod 로 바꿈 (Let's Encrypt 발급 한도 보호)
+- [x] 팝업 잠금: `infra/server/seal-secrets.sh` 의 첫 기능으로 팝업 계정(htpasswd) 봉인 → `argocd` · `monitoring` 에 SecurityPolicy `basicAuth`. 두 라우트는 앱으로 보낼 때 `Authorization` 머리를 지움(Grafana 가 그 머리를 자기 로그인으로 읽어 팝업이 되풀이되는 것을 막음)
+- [x] `/argocd` HTTPRoute(argocd 네임스페이스, 접두사를 떼지 않음, `timeouts.request: 0s` — 화면의 실시간 스트림이 15초에 끊기지 않게). Argo CD 값에 익명 읽기 전용(`users.anonymous.enabled` · `policy.default: role:readonly`). CLI 는 팝업 밖 port-forward 로
+- [x] `/grafana` HTTPRoute + `monitoring-values.yaml`: `root_url` · `domain` → `https://newlearn.io.kr/grafana/`, 프록시 로그인(`auth.proxy` — Envoy 가 넘긴 팝업 아이디 머리로 자동 로그인 · 보기 권한, 바깥에서 같은 머리를 꾸며 보내도 Envoy 가 덮어쓰는지 확인). kps helm upgrade, 같은 판. 기존 `grafana-admin` 로그인은 남김. 그 뒤 SSH 터널 접속은 공개 주소로 넘어감
+- [x] Envoy Gateway v1.9.2 가 팝업 아이디를 머리로 넘기는 설정을 지원하는지 먼저 확인 — 안 되면 Grafana 는 익명 보기(팝업 뒤)로 바꾸고 계획 차이를 알림
 - [ ] 문서: `SSOT.md` 6절(도메인 · 인증서 · 공개 경로 · 갱신 확인법) · 8절(인증서 방식 줄 지움), README
 - [ ] MR → infra → dev. Jira 93 완료
 
