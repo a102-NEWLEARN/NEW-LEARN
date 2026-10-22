@@ -339,7 +339,7 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
 - Cilium 이 `wg0` 위로 VXLAN 을 보내 노드 사이 Pod 가 통하는지, Pod MTU 가 1370 인지 (VXLAN 머리 50바이트를 Cilium 이 빼는 것은 소스로만 확인 — `infra/k8s/bootstrap/cilium-values.prod.yaml` 주석)
 - Cilium 이 `wg0`(이더넷 머리가 없는 인터페이스)에 eBPF 를 붙여도 문제가 없는지
 - systemd 순서 — 재부팅 뒤 kubelet 이 `wg0` 뒤에 뜨는지
-- Lightsail 의 인터페이스 이름 · ufw 기본 상태 · 돌아오는 UDP · 443, ufw 를 켠 채로 Pod 가 밖으로 나가고 hostPort 80 이 들어오는지
+- ufw 를 켠 채로 Pod 가 밖으로 나가고 hostPort 80 이 들어오는지 (Lightsail 의 인터페이스 이름 `ens5` · ufw 기본 상태(22만) · 돌아오는 UDP · 80 · 443 은 2026-10-22 받은 날 확인 — `SSOT.md` 6절 「현재 상태」)
 - `common.sh` 의 swap · 모듈 · sysctl · systemctl 부분 (컨테이너에서는 건너뛰었다)
 
 ## 되돌리기
