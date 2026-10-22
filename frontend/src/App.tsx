@@ -1,5 +1,8 @@
+import { IconArrowClockwiseCircularLine } from "@karrotmarket/react-monochrome-icon";
+import { PrefixIcon } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
 import { ActionButton } from "seed-design/ui/action-button";
+import { categoriesQuery } from "@/api/categories";
 import { api } from "@/api/client";
 import { Logo } from "@/components/Logo";
 
@@ -16,10 +19,19 @@ export function App() {
         .then((res) => res.data),
     retry: false,
   });
+  // `npm run dev:mock` 이면 가짜 API 가 답한다
+  const categories = useQuery(categoriesQuery);
 
   let apiStatus = "확인 중";
   if (health.isError) apiStatus = "연결 안 됨";
   if (health.isSuccess) apiStatus = health.data.status;
+
+  let categoryNames = "확인 중";
+  if (categories.isError) categoryNames = "받지 못함";
+  if (categories.isSuccess)
+    categoryNames = categories.data
+      .map((category) => category.name)
+      .join(" · ");
 
   return (
     <>
@@ -30,12 +42,14 @@ export function App() {
       </header>
       <main className="flex flex-col gap-x3 p-x6">
         <p className="t4-regular text-fg-neutral">API 상태: {apiStatus}</p>
+        <p className="t4-regular text-fg-neutral">카테고리: {categoryNames}</p>
         <div>
           <ActionButton
             variant="brandSolid"
             loading={health.isFetching}
             onClick={() => health.refetch()}
           >
+            <PrefixIcon svg={<IconArrowClockwiseCircularLine />} />
             다시 확인
           </ActionButton>
         </div>
