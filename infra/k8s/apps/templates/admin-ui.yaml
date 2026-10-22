@@ -1,0 +1,33 @@
+# 관리 화면 입구 — /argocd · /grafana 라우트와 팝업 잠금(기본 인증), 그 계정의 SealedSecret (infra/k8s/admin-ui)
+# 자원마다 네임스페이스(argocd · monitoring)를 적어 두었다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: admin-ui
+  namespace: argocd
+  annotations:
+    # Gateway · 인증서(1)와 Sealed Secrets(-1) 뒤
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/admin-ui
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
