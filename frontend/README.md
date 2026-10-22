@@ -1,6 +1,7 @@
 # frontend
 
-NEW:LEARN 화면(React)이다. 쓰는 기술은 `.claude/stack.md` §2, 설치 · 개발 서버 · 포맷 · 린트 · 테스트 · 빌드 명령은 §3 에 있다.
+NEW:LEARN 화면(React)이다. **백엔드 API 가 아직 없어서 개발 서버는 `npm run dev:mock` 으로 띄운다** (아래 「가짜 API」).
+쓰는 기술은 `.claude/stack.md` §2, 설치 · 개발 서버 · 포맷 · 린트 · 테스트 · 빌드 명령은 §3 에 있다.
 화면이 어떻게 동작하는지는 EXPERIENCE.md, 어떻게 보이는지는 DESIGN.md 가 정한다 (`.claude/stack.md` §7 「화면 · 이동」 · 「디자인」).
 
 ## 폴더
@@ -20,3 +21,16 @@ NEW:LEARN 화면(React)이다. 쓰는 기술은 `.claude/stack.md` §2, 설치 �
 ## import
 
 `src/` 아래 파일은 `@/` 로 부른다 (`import { api } from "@/api/client"`). SEED CLI 컴포넌트는 `seed-design/ui/…` 다.
+
+## 가짜 API
+
+화면은 가짜 API(MSW — 브라우저와 테스트에서 요청을 가로채 정해 둔 응답을 돌려주는 도구)로 만든다.
+
+| 무엇                     | 어떻게                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 가짜 API 를 켠 개발 서버 | `npm run dev:mock`. `npm run dev` 는 가짜 API 없이 진짜 API(백엔드)로 보낸다                                                        |
+| 응답                     | `src/mocks/handlers.ts`. 모양은 `docs/api-screen.md` 예시를 따르고 값은 지어낸다                                                    |
+| 테스트                   | 같은 핸들러를 쓴다 (`src/mocks/node.ts`). 핸들러가 없는 요청은 테스트를 실패시킨다. 한 테스트에서만 응답을 바꾸려면 `server.use(…)` |
+| 빌드                     | 가짜 API 는 빌드 결과에 들어가지 않는다                                                                                             |
+
+백엔드 API 가 생기면 그 화면은 `npm run dev` 로 진짜 응답을 확인한다. 핸들러는 테스트가 계속 쓴다.
