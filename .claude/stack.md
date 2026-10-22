@@ -101,7 +101,7 @@ ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jir
 infra_PATH="infra"   # 인프라 코드 (Terraform · 쿠버네티스 매니페스트 · kind 리허설). 검사는 AWS 자격 증명 없이 돈다
 infra_ALSO_PATHS=""   # 검사가 terraform -chdir 와 infra/kind/ 만 본다
 infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # provider 를 받는다. 상태 파일은 만들지 않는다
-infra_RUN="bash kind/up.sh"   # 내 PC 의 kind 리허설 클러스터 (Docker Desktop · kind · Helm 필요). Terraform plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
+infra_RUN="ssh newlearn 'kubectl -n argocd get applications' && curl -fsS https://newlearn.io.kr/actuator/health"   # 실제 클러스터의 앱 상태와 사이트 헬스. newlearn 은 EC2(컨트롤 플레인) SSH 별칭 — 없으면 ubuntu@<EC2 탄력적 IP> (infra/server/README.md). kind 리허설(kind/up.sh)은 2026-10-22 은퇴. Terraform plan 은 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
 infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done'   # 셸 스크립트(kind 리허설 · 서버 설정)는 문법만 본다. 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
@@ -219,10 +219,10 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | 항목 | 값 |
 |---|---|
 | 헬스 엔드포인트 | API `GET /actuator/health` (DB · Redis 연결 포함) · 워커 `GET /health` (Redis 연결 포함). 정상이면 200, 아니면 503 |
-| 🔴 **배포 판정용** 엔드포인트 | `<채워넣기>` |
-| 배포 판정에 **포함**할 것 | `<채워넣기>` (없으면 앱이 아무 일도 못 하는 것만 — 후보: PostgreSQL · Redis 연결) |
-| 배포 판정에서 **뺄 것** | `<채워넣기>` (후보: SSAFY GMS · NewsData.io 같은 외부 API) |
-| 외부 노출 여부 | `<채워넣기>` (Envoy Gateway 에서 헬스 주소를 막을지) |
+| 🔴 **배포 판정용** 엔드포인트 | 쿠버네티스 준비 확인(readinessProbe) — backend `GET /actuator/health` · ai `GET /health`. 안 되면 새 Pod 가 요청을 받지 않고 옛 Pod 가 남는다. 살아 있는지(livenessProbe)는 포트만 본다 — DB 가 잠깐 끊겼다고 재시작하지 않게 (`infra/k8s/services/`) |
+| 배포 판정에 **포함**할 것 | PostgreSQL · Redis 연결 (Spring 기본 health 표시기, 워커는 Redis ping) |
+| 배포 판정에서 **뺄 것** | SSAFY GMS · NewsData.io 같은 외부 API — 지금 health 에 없고 넣지 않는다 |
+| 외부 노출 여부 | `/actuator/health` 한 경로만 연다(화면이 상태를 부른다, 세부는 안 보임). 다른 actuator 경로와 `/internal` 은 Envoy 길에 없다 (`infra/k8s/services/app/routes.yaml`) |
 
 > 🔴 **"서비스가 건강한가"와 "배포해도 되는가"는 다른 질문이다.** 이유는 `docs/health-check.md` §2.
 
@@ -230,9 +230,9 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 
 | 항목 | 값 |
 |---|---|
-| 확인 명령 | `<채워넣기>` (서버가 아직 없다. 헬스 주소 말고 **실제 API** 를 부른다) |
-| 정상 판정 기준 | `<채워넣기>` |
-| 떠 있는 버전 확인 | `<채워넣기>` (방금 올린 커밋 · 태그와 같은가. 앱이 버전을 안 내보내면 그 응답부터 만든다) |
+| 확인 명령 | `ssh newlearn 'kubectl -n argocd get applications'` · `curl -fsS https://newlearn.io.kr/actuator/health` · 화면 첫 장. 실제 API 는 첫 공개 API 가 dev 에 들어오면 그 주소를 더한다 (2026-10-22 dev 의 backend 는 SecurityConfig 전이라 `/api` 가 401) |
+| 정상 판정 기준 | Argo CD 앱 전부 Synced · Healthy, health 200 `UP`, 화면에 「API 상태: UP」 |
+| 떠 있는 버전 확인 | `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'` 의 태그 = `infra/k8s/services/<영역>/kustomization.yaml` 의 `newTag` = 구운 커밋 짧은 SHA 8자. 앱이 버전을 내보내지는 않는다 |
 | 확인 실패 시 | 6절의 되돌리는 법 — Git 에서 배포 설정을 이전 커밋으로 되돌린다 |
 
 ---
@@ -249,7 +249,7 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | 태그 규칙 | 커밋 짧은 SHA 8자, `latest` 는 안 쓴다. 정리 정책은 없다 — 옛 태그가 남아 되돌릴 수 있다 (`SSOT.md` 6절 「배포 흐름」) |
 | 🔴 되돌리는 법 | Git 에서 배포 설정을 이전 커밋으로 되돌리면 Argo CD 가 이전 버전으로 맞춘다 (`SSOT.md` 6절) |
 | 되돌려도 **안 돌아오는 것** | DB 구조 변경(마이그레이션) — 되돌리기 전에 스키마가 이전 버전과 맞는지 본다. 이미 호출한 GMS 토큰 비용 |
-| 새 환경변수를 추가했을 때 | `<채워넣기>` (쿠버네티스 Secret · ConfigMap 을 어디에 두는지 정해진 뒤 적는다) |
+| 새 환경변수를 추가했을 때 | 비밀이 아니면 `infra/k8s/services/<영역>/` 의 Deployment `env` 에 · 비밀이면 `infra/server/seal-secrets.sh` 에 기능을 더해 사람이 값을 넣고 SealedSecret 을 같은 폴더에 둔다(`envFrom` · `secretKeyRef`). 로컬은 `.env.example` 에 이름을 더한다 |
 
 **이미지로 배포한다면 CI 가 굽고 레지스트리에 올린다.** 서버는 받아서 띄우기만 하고 되돌리기는 옛 태그를
 다시 받는 일이 된다. GitLab·GitHub 모두 저장소에 딸린 레지스트리를 무료로 준다.

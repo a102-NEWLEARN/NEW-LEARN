@@ -166,6 +166,8 @@ w4 잡이 `error checking push permissions ... DENIED: requested access to the r
 
 ## kind 리허설
 
+> **2026-10-22 은퇴 — 지금은 돌지 않는다.** 실제 클러스터가 생겨 앱 목록에 cert-manager · 운영 키로 봉인한 Secret · 서비스가 들어갔고, 시험 앱 hello 는 지웠다(Jira S15P31A102-105). 아래는 Jira S15P31A102-77 때의 기록이다. 확인은 실제 서버에서 한다 — `infra/server/README.md`, 결과는 `SSOT.md` 6 · 10절
+
 서버가 오기 전에 내 PC 의 kind(Docker 컨테이너를 노드로 쓰는 쿠버네티스)로 배포 흐름(`SSOT.md` 6절)을 돌려 본다.
 노드 2개(컨트롤 플레인 1 · 워커 1)에 Cilium → Argo CD 를 깔고, Argo CD 가 Git 에서 Envoy Gateway · Gateway · hello 앱을 가져가 깐다.
 
