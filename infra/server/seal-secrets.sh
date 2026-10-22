@@ -6,6 +6,8 @@
 #   bash infra/server/seal-secrets.sh basic-auth    관리 화면(/argocd · /grafana) 팝업 계정 하나 → argocd · monitoring 두 곳
 #   bash infra/server/seal-secrets.sh db            PostgreSQL 계정 — 비밀번호는 무작위로 만든다(묻지 않음) → data · app 두 곳
 #   bash infra/server/seal-secrets.sh ghcr          워커가 GHCR 비공개 이미지를 받을 읽기 토큰 → app · ai 두 곳
+#   bash infra/server/seal-secrets.sh argocd-webhook  GitLab 웹훅 토큰 — 무작위로 만들어 봉인한다(묻지 않음) → argocd
+#   bash infra/server/seal-secrets.sh mattermost    Argo CD 배포 알림을 받을 Mattermost 들어오는 웹훅 주소 → argocd
 # 만든 파일은 관리자 PC 로 가져와 저장소의 자리에 넣고 커밋한다 (봉인 파일은 저장소에 둬도 된다)
 #   ssh <EC2> 'cat ~/sealed/sealed-basic-auth-argocd.yaml' > infra/k8s/admin-ui/sealed-basic-auth-argocd.yaml
 # 봉인은 Secret 이름 · 네임스페이스에 묶인다(strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다
@@ -14,7 +16,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,8p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,10p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -101,6 +103,45 @@ case "${1:-}" in
       echo "봉인: $OUT/sealed-ghcr-pull-$ns.yaml"
     done
     unset config
+    ;;
+  argocd-webhook)
+    # GitLab 웹훅의 Secret token — Argo CD 는 X-Gitlab-Token 머리가 이 값과 같은 요청만 받는다 (Argo CD 문서 「Git Webhook Configuration」)
+    # 봉인 파일이 있으면 건너뛴다 — 새로 만들면 GitLab 에 넣은 값과 어긋난다. 바꿀 때는 파일을 지우고 돌린 뒤 GitLab 값도 바꾼다
+    f="$OUT/sealed-argocd-webhook.yaml"
+    if [ -e "$f" ]; then
+      echo "이미 있다 — 건너뛴다: $f"
+      exit 0
+    fi
+    token="$(openssl rand -hex 32)"
+    [ "${#token}" -eq 64 ] || { echo "❌ 토큰을 만들지 못했다" >&2; exit 1; }
+    # Argo CD 는 이름표 app.kubernetes.io/part-of=argocd 가 있는 Secret 만 참조로 읽는다
+    # 이름표가 없으면 참조 글자 「$argocd-webhook:gitlab」 그대로가 토큰이 된다 — 봉인 전에 붙인다 (Argo CD util/settings)
+    printf '%s' "$token" \
+      | kubectl create secret generic argocd-webhook -n argocd --from-file=gitlab=/dev/stdin --dry-run=client -o yaml \
+      | kubectl label --local -f - app.kubernetes.io/part-of=argocd -o yaml \
+      | kubeseal --controller-namespace "$CONTROLLER_NS" --format yaml >"$f"
+    unset token
+    echo "봉인: $f"
+    # GitLab 에 넣을 값은 봉인 파일이 클러스터에 풀린 뒤 사람 터미널에서 본다 — 저장소 · 채팅에 붙이지 않는다
+    echo "GitLab 웹훅을 만들 때: kubectl -n argocd get secret argocd-webhook -o jsonpath='{.data.gitlab}' | base64 -d; echo"
+    ;;
+  mattermost)
+    need_tty
+    # Argo CD 배포 알림이 갈 Mattermost 채널의 들어오는 웹훅 주소 — 주소만 있으면 누구나 그 채널에 글을 쓸 수 있다
+    # 알림 컨트롤러가 이 이름 · 키를 읽는다 (argocd-values.prod.yaml 의 notifications.notifiers 「$mattermost-url」)
+    echo "Mattermost › 통합 › 들어오는 웹훅 — 배포 알림 전용 채널에 만든 주소"
+    read -rsp "웹훅 주소 (https://…/hooks/…, 화면에 안 보인다): " url
+    echo
+    url="$(printf '%s' "$url" | LC_ALL=C tr -cd 'A-Za-z0-9:/._-')"
+    [[ "$url" =~ ^https://[A-Za-z0-9.-]+/hooks/[A-Za-z0-9]+$ ]] || { echo "❌ https://<서버>/hooks/<키> 모양이 아니다" >&2; exit 2; }
+    # 봉인하기 전에 이 주소로 채널에 연결 시험 글을 하나 쓴다 — 주소는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임)
+    code="$(printf 'url = "%s"\n' "$url" \
+      | curl -s -o /dev/null -w '%{http_code}' -K - -H 'Content-Type: application/json' \
+          --data '{"text": "Argo CD 배포 알림을 이 채널로 보냅니다 (연결 시험)"}')"
+    [ "$code" = 200 ] || { unset url; echo "❌ 이 주소로 글을 못 썼다 (HTTP $code) — 주소 · 채널 확인" >&2; exit 1; }
+    echo "채널에 연결 시험 글을 썼다 (HTTP 200)"
+    printf '%s' "$url" | seal argocd-notifications-secret argocd mattermost-url "$OUT/sealed-argocd-notifications.yaml"
+    unset url
     ;;
   *)
     usage

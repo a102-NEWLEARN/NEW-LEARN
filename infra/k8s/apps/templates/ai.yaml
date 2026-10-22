@@ -7,6 +7,8 @@ metadata:
   annotations:
     # data(3) 뒤 — /health 가 Redis 에 닿아야 준비가 된다
     argocd.argoproj.io/sync-wave: "4"
+    # 새 이미지로 배포가 끝나면 Mattermost 배포 알림 채널로 (infra/k8s/bootstrap/argocd-values.prod.yaml 의 notifications)
+    notifications.argoproj.io/subscribe.on-deployed.mattermost: ""
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
