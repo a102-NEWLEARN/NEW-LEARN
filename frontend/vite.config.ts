@@ -62,6 +62,8 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: "jsdom",
       setupFiles: ["./src/test/setup.ts"],
+      // 테스트는 UTC 로 돈다. 한국 PC 에서도 한국 시간 처리(src/lib/date.ts)가 빠지면 잡히게
+      env: { TZ: "UTC" },
       // @seed-design/react 가 CSS 를 import 해서 Node 가 그대로 못 읽는다 — Vite 가 처리하게 한다
       server: { deps: { inline: [/@seed-design\//] } },
     },
