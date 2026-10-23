@@ -1,0 +1,48 @@
+# https://newlearn.io.kr 의 길 — https 리스너에만 붙는다(http 는 넘기기, gateway/redirects.yaml)
+# /internal/v1 은 일부러 없다 — 워커 · 배치가 부르는 내부 API 는 밖에 열지 않는다 (docs/api.md)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app
+spec:
+  parentRefs:
+    - name: public
+      namespace: envoy-gateway-system
+      sectionName: https
+  hostnames:
+    - newlearn.io.kr
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: backend
+          port: 8080
+    # 헬스는 이 한 경로만 연다 — 다른 actuator 경로는 밖에 안 연다
+    - matches:
+        - path:
+            type: Exact
+            value: /actuator/health
+      backendRefs:
+        - name: backend
+          port: 8080
+    # Swagger — 개발하는 동안 FE 가 편하게 잠그지 않는다 (SSOT 6절 「도메인 · HTTPS」, 다시 잠글지는 8절)
+    # backend 에 springdoc 이 들어오면 바로 열린다 (기본 경로 /swagger-ui · /v3/api-docs)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /swagger-ui
+        - path:
+            type: PathPrefix
+            value: /v3/api-docs
+      backendRefs:
+        - name: backend
+          port: 8080
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend
+          port: 8080

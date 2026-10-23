@@ -1,10 +1,13 @@
-# 외부 입구 — EnvoyProxy · GatewayClass · Gateway (infra/k8s/gateway)
-# envoy-gateway 앱이 CRD 를 깔기 전에는 실패한다. 그래서 dry-run 을 건너뛰고 다시 시도한다
+# 외부 입구 — EnvoyProxy · GatewayClass · Gateway · 인증서 발급자 · 인증서 · http→https 넘기기 (infra/k8s/gateway)
+# envoy-gateway · cert-manager 앱이 CRD 를 깔기 전에는 실패한다. 그래서 dry-run 을 건너뛰고 다시 시도한다
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: gateway
   namespace: argocd
+  annotations:
+    # envoy-gateway(-1) · cert-manager(0) 뒤
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
