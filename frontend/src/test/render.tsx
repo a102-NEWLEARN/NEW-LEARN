@@ -2,13 +2,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, type RenderOptions } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
+import { SnackbarProvider } from "seed-design/ui/snackbar";
 
 type Options = Omit<RenderOptions, "wrapper"> & {
   /** 처음 열 주소. 기본은 "/" */
   route?: string;
 };
 
-// 화면 테스트용 render — 테스트마다 새 QueryClient(실패해도 다시 부르지 않음)와 주소를 가진 라우터로 감싼다
+// 화면 테스트용 render — 테스트마다 새 QueryClient(실패해도 다시 부르지 않음), 스낵바,
+// 주소를 가진 라우터로 감싼다. main.tsx 와 같은 순서다
 export function renderWithProviders(
   ui: ReactElement,
   { route = "/", ...options }: Options = {},
@@ -22,7 +24,9 @@ export function renderWithProviders(
     ...render(ui, {
       wrapper: ({ children }) => (
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+          <SnackbarProvider>
+            <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+          </SnackbarProvider>
         </QueryClientProvider>
       ),
       ...options,
