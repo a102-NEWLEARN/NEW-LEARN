@@ -93,6 +93,14 @@
   }
 }
 
+/* 동작 줄이기를 켜면 스켈레톤의 반짝임(옆으로 흐르는 그라디언트)을 멈춘다. 회색 바탕은 남는다.
+   SEED 스켈레톤 레시피는 이 경우를 처리하지 않는다 (EXPERIENCE.md Interaction Primitives 「모션」) */
+@media (prefers-reduced-motion: reduce) {
+  .seed-skeleton::after {
+    animation: none;
+  }
+}
+
 body {
   font-family: var(--seed-font-family);
   color: var(--seed-color-fg-neutral);
