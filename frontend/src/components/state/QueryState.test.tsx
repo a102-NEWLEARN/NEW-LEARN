@@ -88,6 +88,16 @@ test("서버에 닿지 못하면 네트워크 안내를 보여 준다", async ()
 });
 
 test("다시 시도를 누르면 다시 불러와 내용을 보여 준다", async () => {
+  // 다시 부른 요청은 테스트가 풀어 줄 때까지 붙잡는다. 응답이 빠른 환경(CI 의 Node 26)에서도
+  // 불러오는 중이 그려지기 전에 지나가 버리지 않게 한다. 아무것도 돌려주지 않으면 다음 핸들러(가짜 A1)가 답한다
+  let respond!: () => void;
+  const held = new Promise<void>((resolve) => (respond = resolve));
+  server.use(
+    http.get("/api/v1/categories", async () => {
+      await held;
+    }),
+  );
+  // 나중에 넣은 핸들러가 먼저 받는다 — 첫 요청은 500, 다시 부른 요청은 위에서 붙잡힌다
   server.use(http.get("/api/v1/categories", internalError, { once: true }));
   renderWithProviders(<Categories />);
 
@@ -97,5 +107,6 @@ test("다시 시도를 누르면 다시 불러와 내용을 보여 준다", asyn
   expect(
     await screen.findByRole("status", { name: "카테고리 불러오는 중" }),
   ).toBeDefined();
+  respond();
   expect(await screen.findByText(names)).toBeDefined();
 });
