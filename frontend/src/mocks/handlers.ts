@@ -45,7 +45,9 @@ function issue(
   return {
     id,
     title,
-    summary: null,
+    // 12번은 docs/api-screen.md A2 예시 요약. 나머지는 요약이 없다
+    summary:
+      id === 12 ? "한빛반도체가 텍사스 공장 투자를 늘리고 착공했다" : null,
     categories: [{ code: category.code, name: category.name }],
     eventCount: 4,
     articleCount: 12,
@@ -220,7 +222,7 @@ function search(q: string): SearchResult {
     word.length > 0 && texts.some((text) => text?.toLowerCase().includes(word));
   return {
     issues: issues
-      .filter((issue) => has(issue.title, issue.summary))
+      .filter((issue) => has(issue.title))
       .map(({ id, title }) => ({ id, title })),
     events: issues
       .filter((issue) => has(issue.lastEvent.title))
