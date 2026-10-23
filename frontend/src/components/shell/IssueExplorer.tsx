@@ -16,7 +16,7 @@ import { useSnackbar } from "@/components/useSnackbar";
 const ISSUES_PER_CATEGORY = 50;
 
 const rowClass =
-  "t4-medium flex h-x8 w-full items-center gap-x1 rounded-r2 px-x2 text-left text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring";
+  "t4-medium flex h-x8 w-full items-center gap-x1 rounded-r2 px-x2 text-left text-fg-neutral hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
 
 // 사이드바 이슈 탐색 — 분야 → 연도 → 이슈 (EXPERIENCE.md 앱 셸, PRD FR-3).
 // 한 번에 한 분야만 연다 (프로토타입 v21). 사건까지 내려가는 칸은 이슈 화면(S15P31A102-50)이 생길 때 붙인다
@@ -141,7 +141,7 @@ function CategoryIssues({ category }: { category: Category }) {
                       <Link
                         to={to}
                         aria-current={pathname === to ? "page" : undefined}
-                        className="t3-regular block truncate rounded-r1 px-x2 py-x1_5 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:t3-bold aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-brand-contrast"
+                        className="t3-regular block truncate rounded-r1 px-x2 py-x1_5 text-fg-neutral-muted hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:t3-bold aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-neutral"
                       >
                         {issue.title}
                       </Link>

@@ -3,6 +3,7 @@ import {
   IconChevronLeftLine,
   IconChevronRightLine,
   IconGridLine,
+  IconHouseFill,
   IconHouseLine,
   IconMagnifyingglassLine,
   IconStarLine,
@@ -90,7 +91,7 @@ function RailButton({
 
 function SidebarRail({ onExpand }: { onExpand: () => void }) {
   const comingSoon = useComingSoon();
-  const { pathname } = useLocation();
+  const atHome = useLocation().pathname === "/home";
 
   return (
     <div className="flex flex-col items-center gap-x1 py-x2_5">
@@ -113,10 +114,15 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
         to="/home"
         aria-label="홈"
         title="홈"
-        aria-current={pathname === "/home" ? "page" : undefined}
+        aria-current={atHome ? "page" : undefined}
         className={railItemClass}
       >
-        <IconHouseLine size={20} aria-hidden />
+        {/* 선택 상태는 Fill 형 아이콘 (DESIGN.md 아이콘) */}
+        {atHome ? (
+          <IconHouseFill size={20} aria-hidden />
+        ) : (
+          <IconHouseLine size={20} aria-hidden />
+        )}
       </Link>
       <RailButton
         label="관심 이슈"
