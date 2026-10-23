@@ -34,10 +34,22 @@ test("분야를 누르면 그 분야 이슈를 연도별로 보여 준다", asyn
   expect(economy.getAttribute("aria-expanded")).toBe("true");
 
   const list = await screen.findByRole("list", { name: "경제 이슈" });
+  // 해는 최근부터. 가짜 API 가 맨 앞에 주는 「환율」은 2025년에 시작해서 아래 묶음으로 간다
   const years = within(list)
     .getAllByRole("heading")
     .map((heading) => heading.textContent);
   expect(years).toEqual(["2026", "2025"]);
+  // 경제 이슈만, 해 안에서는 API 순서(마지막 사건 최신순) 그대로
+  expect(
+    within(list)
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toEqual([
+    "기준금리 동결 행진",
+    "한빛반도체 미국 공장 건설",
+    "원/달러 환율 1,500원 돌파",
+    "가계부채 관리 강화",
+  ]);
   expect(
     within(list)
       .getByRole("link", { name: "한빛반도체 미국 공장 건설" })

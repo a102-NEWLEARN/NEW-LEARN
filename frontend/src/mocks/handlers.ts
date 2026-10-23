@@ -11,7 +11,7 @@ import type { ItemList, Page } from "@/api/types";
 const categories: Category[] = [
   { code: "politics", name: "정치", issueCount: 2, articleCount: 840 },
   { code: "society", name: "사회", issueCount: 2, articleCount: 910 },
-  { code: "economy", name: "경제", issueCount: 3, articleCount: 1520 },
+  { code: "economy", name: "경제", issueCount: 4, articleCount: 1520 },
   { code: "world", name: "국제", issueCount: 1, articleCount: 620 },
   { code: "it_science", name: "IT·과학", issueCount: 2, articleCount: 730 },
 ];
@@ -94,6 +94,14 @@ const issues: IssueSummary[] = [
     "가계부채 관리 강화",
     "2025-09-02T09:00:00+09:00",
     "2026-01-20T10:00:00+09:00",
+  ),
+  // 시작은 2025년인데 마지막 사건이 가장 최근이다 — API 순서(마지막 사건 최신순)와 연도 순서가 엇갈리는 경우
+  issue(
+    15,
+    "economy",
+    "원/달러 환율 1,500원 돌파",
+    "2025-12-01T09:00:00+09:00",
+    "2026-10-23T08:00:00+09:00",
   ),
   issue(
     41,
