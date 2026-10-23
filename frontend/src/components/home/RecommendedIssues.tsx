@@ -69,6 +69,31 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
 
   const hasInterests = (member?.categories.length ?? 0) > 0;
 
+  // A17 을 받는 동안에는 제목(「OO님을 위한」)도 탭 순서도 정해지지 않아 자리만 둔다.
+  // 인사 줄(HomeGreeting)처럼, 글자가 눈앞에서 바뀌지 않게 한다
+  if (pending) {
+    return (
+      <LoadingState label="추천 이슈 불러오는 중">
+        <Skeleton
+          radius="8"
+          width="full"
+          height="lineHeight.t7"
+          className="max-w-[240px]"
+        />
+        <Skeleton
+          radius="8"
+          width="full"
+          height="lineHeight.t4"
+          className="mt-x1 max-w-[360px]"
+        />
+        <div className="mt-x2_5">
+          <TabsSkeleton />
+          <CardsSkeleton />
+        </div>
+      </LoadingState>
+    );
+  }
+
   return (
     <section aria-labelledby={headingId}>
       <div className="flex items-end justify-between gap-x3">
@@ -104,51 +129,44 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
         </ActionButton>
       </div>
       <div className="mt-x2_5">
-        {pending ? (
-          <LoadingState label="추천 이슈 불러오는 중">
-            <TabsSkeleton />
-            <CardsSkeleton />
-          </LoadingState>
-        ) : (
-          <QueryState
-            query={categories}
-            loadingLabel="분야 불러오는 중"
-            skeleton={<TabsSkeleton />}
-            errorTitle="분야를 불러오지 못했어요"
-          >
-            {() =>
-              selected !== undefined && (
-                <CategoryTabs
-                  label="분야"
-                  tabs={tabs}
-                  value={selected}
-                  onValueChange={selectCategory}
+        <QueryState
+          query={categories}
+          loadingLabel="분야 불러오는 중"
+          skeleton={<TabsSkeleton />}
+          errorTitle="분야를 불러오지 못했어요"
+        >
+          {() =>
+            selected !== undefined && (
+              <CategoryTabs
+                label="분야"
+                tabs={tabs}
+                value={selected}
+                onValueChange={selectCategory}
+              >
+                <QueryState
+                  query={issues}
+                  loadingLabel="추천 이슈 불러오는 중"
+                  skeleton={<CardsSkeleton />}
+                  errorTitle="추천 이슈를 불러오지 못했어요"
+                  empty={{
+                    when: (page) => page.items.length === 0,
+                    message: "이 분야의 이슈가 아직 없어요",
+                  }}
                 >
-                  <QueryState
-                    query={issues}
-                    loadingLabel="추천 이슈 불러오는 중"
-                    skeleton={<CardsSkeleton />}
-                    errorTitle="추천 이슈를 불러오지 못했어요"
-                    empty={{
-                      when: (page) => page.items.length === 0,
-                      message: "이 분야의 이슈가 아직 없어요",
-                    }}
-                  >
-                    {(page) => (
-                      <ul className="mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4">
-                        {page.items.map((issue) => (
-                          <li key={issue.id}>
-                            <IssueCard issue={issue} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </QueryState>
-                </CategoryTabs>
-              )
-            }
-          </QueryState>
-        )}
+                  {(page) => (
+                    <ul className="mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4">
+                      {page.items.map((issue) => (
+                        <li key={issue.id}>
+                          <IssueCard issue={issue} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </QueryState>
+              </CategoryTabs>
+            )
+          }
+        </QueryState>
       </div>
     </section>
   );

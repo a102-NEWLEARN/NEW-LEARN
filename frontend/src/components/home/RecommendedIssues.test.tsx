@@ -141,6 +141,22 @@ test("추천 이슈만 못 불러오면 탭은 두고 그 자리에 다시 시�
   expect(await cardHrefs()).toEqual(["/issues/15", "/issues/13", "/issues/12"]);
 });
 
+test("A17 을 받는 동안에는 제목도 탭도 그리지 않고 자리만 둔다", () => {
+  renderRoute("/home", [
+    {
+      path: "/home",
+      element: <RecommendedIssues member={null} pending />,
+    },
+  ]);
+
+  expect(
+    screen.getByRole("status", { name: "추천 이슈 불러오는 중" }),
+  ).toBeDefined();
+  // 제목이 「추천 이슈」였다가 「김뉴런님을 위한 추천 이슈」로 바뀌지 않게
+  expect(screen.queryByRole("heading")).toBeNull();
+  expect(screen.queryByRole("tablist")).toBeNull();
+});
+
 test("관심사 편집은 마이페이지로 간다", () => {
   renderSection();
 
