@@ -1,8 +1,14 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { beforeEach, expect, test } from "vitest";
 import { server } from "@/mocks/node";
-import { stubScreen } from "@/test/media";
+import { resizeScreen, stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 767px 이하 — 사이드바가 서랍이 된다 (EXPERIENCE.md 앱 셸 · Responsive & Platform)
@@ -65,6 +71,22 @@ test("이슈를 고르면 그 화면으로 가며 서랍이 닫힌다", async ()
 
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(router.state.location.pathname).toBe("/issues/12");
+});
+
+// 창 폭 조절 · 태블릿 회전으로 768px 을 넘나들 때
+test("서랍을 연 채 넓어졌다 다시 좁아져도 서랍이 저절로 열리지 않는다", async () => {
+  renderRoute("/home");
+  await openMenu();
+  await screen.findByRole("dialog", { name: "메뉴" });
+
+  act(() => resizeScreen("wide"));
+  expect(
+    await screen.findByRole("navigation", { name: "사이드바" }),
+  ).toBeDefined();
+
+  act(() => resizeScreen("narrow"));
+  await screen.findByRole("button", { name: "메뉴 열기" });
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 test("Ctrl+\\ 로 서랍을 연다", async () => {

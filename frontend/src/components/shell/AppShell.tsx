@@ -14,6 +14,8 @@ export function AppShell() {
   // 사이드바는 처음에 접혀 있다
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // 넓은 화면이 되면 서랍은 사라진다. 열림 상태를 남기면 다시 좁아질 때 저절로 열려서 닫아 둔다
+  if (!narrow && drawerOpen) setDrawerOpen(false);
 
   // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다
   useEffect(() => {
