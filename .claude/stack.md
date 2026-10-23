@@ -231,7 +231,7 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | 항목 | 값 |
 |---|---|
 | 확인 명령 | `ssh newlearn 'kubectl -n argocd get applications'` · `curl -fsS https://newlearn.io.kr/actuator/health` · 화면 첫 장. 실제 API 는 첫 공개 API 가 dev 에 들어오면 그 주소를 더한다 (2026-10-22 dev 의 backend 는 SecurityConfig 전이라 `/api` 가 401) |
-| 정상 판정 기준 | Argo CD 앱 전부 Synced · Healthy, health 200 `UP`, 화면에 「API 상태: UP」 |
+| 정상 판정 기준 | Argo CD 앱 전부 Synced · Healthy, health 200 `UP`, 화면 첫 장에 홈 제목 「오늘의 이슈를 탐색해 보세요」 |
 | 떠 있는 버전 확인 | `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'` 의 태그 = `infra/k8s/services/<영역>/kustomization.yaml` 의 `newTag` = 구운 커밋 짧은 SHA 8자. 앱이 버전을 내보내지는 않는다 |
 | 확인 실패 시 | 6절의 되돌리는 법 — Git 에서 배포 설정을 이전 커밋으로 되돌린다 |
 
