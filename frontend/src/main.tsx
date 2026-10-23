@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { SnackbarProvider } from "seed-design/ui/snackbar";
 import { createQueryClient } from "@/api/query-client";
-import { App } from "@/App";
+import { routes } from "@/routes";
 import "@/style.css";
 
 // 가짜 API 는 `npm run dev:mock`(Vite mode "mock") 에서만 켠다. 켜질 때까지 기다린 뒤 화면을 그려야
@@ -19,7 +19,7 @@ async function enableMocking() {
 }
 
 const queryClient = createQueryClient();
-const router = createBrowserRouter([{ path: "/", element: <App /> }]);
+const router = createBrowserRouter(routes);
 
 void enableMocking().then(() => {
   createRoot(document.getElementById("root")!).render(
