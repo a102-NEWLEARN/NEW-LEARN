@@ -125,6 +125,20 @@ test.each([
   },
 );
 
+test.each([
+  ["Ctrl+Shift+K", { key: "K", code: "KeyK", ctrlKey: true, shiftKey: true }],
+  ["Ctrl+Alt+K", { key: "k", code: "KeyK", ctrlKey: true, altKey: true }],
+  // Dvorak 자판은 K 자리에 T 가 있다 — 라틴 글자가 오면 키 자리로 보지 않는다
+  ["Dvorak 의 Ctrl+T", { key: "t", code: "KeyK", ctrlKey: true }],
+])("%s 는 빠른 이동이 아니다", async (_, keys) => {
+  const { router } = renderRoute("/nope");
+  await screen.findByRole("heading", { level: 1 });
+
+  fireEvent.keyDown(window, keys);
+
+  expect(router.state.location.pathname).toBe("/nope");
+});
+
 test("홈에서 Ctrl+K 를 누르면 고른 분야를 둔 채 검색창에 포커스한다", async () => {
   const { router } = renderRoute("/home?category=world");
   await screen.findByRole("tablist", { name: "분야" });

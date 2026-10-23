@@ -36,7 +36,12 @@ export function AppShell() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       const backslash = event.key === "\\" || event.code === "Backslash";
-      const k = event.key.toLowerCase() === "k" || event.code === "KeyK";
+      // K 는 Shift · Alt 없이만. 라틴 글자가 왔으면 그 글자로만 본다 — Dvorak 의 Ctrl+T(K 자리)가 걸리지 않게
+      const latin = /^[a-z]$/i.test(event.key);
+      const k =
+        !event.shiftKey &&
+        !event.altKey &&
+        (event.key.toLowerCase() === "k" || (!latin && event.code === "KeyK"));
       if (backslash) {
         event.preventDefault();
         if (narrow) setDrawerOpen((open) => !open);
