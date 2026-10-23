@@ -49,7 +49,7 @@ export function NewIssues() {
                     {/* 누르는 높이 27px — 줄 18 + 위아래 4 + 밑줄 1. 24px 아래로 내리지 않는다 (EXPERIENCE.md Accessibility Floor) */}
                     <Link
                       to={`/issues/${issue.id}`}
-                      className="border-b border-transparent py-x1text-fg-neutral-muted transition-colors hover:border-stroke-brand-weak hover:text-fg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                      className="border-b border-transparent py-x1 text-fg-neutral-muted transition-colors hover:border-stroke-brand-weak hover:text-fg-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                     >
                       {issue.title}
                     </Link>
