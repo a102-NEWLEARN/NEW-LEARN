@@ -16,8 +16,7 @@ function greetingFor(hour: number) {
   return "오늘 하루도 수고했어요";
 }
 
-// 홈 맨 위 — 인사 줄 · 제목 · 안내 한 줄 (프로토타입 v21).
-// 검색창은 통합 검색(S15P31A102-46)이 MVP 미정이라 두지 않고, 안내 문장의 「검색하거나,」도 뺐다
+// 홈 맨 위 — 인사 줄 · 제목 · 안내 한 줄 (프로토타입 v21). 검색창은 그 아래 SearchBox
 export function HomeGreeting({ member, pending }: HomeGreetingProps) {
   const now = new Date();
   const today = formatLongDate(now);
@@ -46,7 +45,7 @@ export function HomeGreeting({ member, pending }: HomeGreetingProps) {
         오늘의 이슈를 탐색해 보세요
       </h1>
       <p className="t5-regular mt-x2_5 text-fg-neutral-muted">
-        아래 추천 이슈에서 사건의 흐름을 따라가 보세요.
+        검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.
       </p>
     </>
   );

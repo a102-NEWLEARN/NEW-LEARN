@@ -37,7 +37,7 @@ function guestWith(status: number, code: string) {
   );
 }
 
-test("제목과 안내 한 줄을 보인다 — 검색창은 없다", async () => {
+test("제목 · 안내 한 줄 · 검색창을 보인다", async () => {
   renderHome();
 
   expect(
@@ -47,9 +47,13 @@ test("제목과 안내 한 줄을 보인다 — 검색창은 없다", async () =
     }),
   ).toBeDefined();
   expect(
-    screen.getByText("아래 추천 이슈에서 사건의 흐름을 따라가 보세요."),
+    screen.getByText(
+      "검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.",
+    ),
   ).toBeDefined();
-  expect(screen.queryByRole("searchbox")).toBeNull();
+  expect(
+    screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
+  ).toBeDefined();
 });
 
 test.each([
