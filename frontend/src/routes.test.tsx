@@ -147,6 +147,34 @@ test("나중에 링크로 홈에 오면 검색창에 저절로 포커스하지 �
   expect(document.activeElement?.tagName).toBe("H1");
 });
 
+test("빠른 이동으로 연 홈에 뒤로 가기로 돌아오면 검색창이 아니라 제목에 포커스한다", async () => {
+  const { router } = renderRoute("/nope");
+  await screen.findByRole("heading", { level: 1 });
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  await waitFor(() => expect(document.activeElement).toBe(searchBox()));
+
+  await act(() => router.navigate("/issues/12"));
+  await act(() => router.navigate(-1));
+
+  expect(router.state.location.pathname).toBe("/home");
+  await waitFor(() => expect(document.activeElement?.tagName).toBe("H1"));
+  expect(searchBox().getAttribute("aria-expanded")).toBe("false");
+});
+
+test("검색창에 포커스가 있는 채 Esc 로 닫아도 Ctrl+K 를 누르면 다시 연다", async () => {
+  renderRoute("/home");
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  await waitFor(() => expect(document.activeElement).toBe(searchBox()));
+  fireEvent.keyDown(searchBox(), { key: "Escape" });
+  expect(searchBox().getAttribute("aria-expanded")).toBe("false");
+
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+  await waitFor(() =>
+    expect(searchBox().getAttribute("aria-expanded")).toBe("true"),
+  );
+});
+
 test("화면이 넘긴 제목을 보여 준다", () => {
   renderWithProviders(<NotFoundPage title="이슈를 찾을 수 없어요" />);
 

@@ -201,7 +201,13 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
   const optionId = (index: number) => `${listId}-option-${index}`;
   const activeId = open && activeIndex >= 0 ? optionId(activeIndex) : undefined;
 
-  // 셸이 포커스를 부탁하면 입력 칸으로 (포커스하면 onFocus 가 목록을 연다)
+  // 셸이 포커스를 부탁하면 목록을 열고(그리는 중에 새 부탁을 알아챈다) 입력 칸에 포커스한다.
+  // 이미 포커스가 있으면 onFocus 가 안 불려서 여는 일을 따로 한다
+  const [seenRequest, setSeenRequest] = useState<unknown>(undefined);
+  if (focusRequest !== seenRequest) {
+    setSeenRequest(focusRequest);
+    if (focusRequest) setOpen(true);
+  }
   useEffect(() => {
     if (focusRequest) inputRef.current?.focus();
   }, [focusRequest]);

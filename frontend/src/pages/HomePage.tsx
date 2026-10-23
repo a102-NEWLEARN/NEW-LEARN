@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "react-router";
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { meQuery } from "@/api/members";
 import { HomeGreeting } from "@/components/home/HomeGreeting";
 import { NewIssues } from "@/components/home/NewIssues";
@@ -16,7 +17,15 @@ export function HomePage() {
   const me = useQuery(meQuery);
   const member = me.data ?? null;
   // ⌘/Ctrl+K · 빠른 이동으로 왔으면 검색창에 포커스 (useQuickSearch)
-  const { state } = useLocation();
+  const navigate = useNavigate();
+  const { pathname, search, state } = useLocation();
+  const focusRequest = focusSearchRequest(state);
+  // 검색창이 포커스한 뒤(자식 효과가 먼저 돈다) 부탁을 기록에서 지운다 —
+  // 뒤로 · 앞으로 가기나 새로 고침으로 이 기록에 돌아와도 검색창을 다시 열지 않고 제목에 포커스하게
+  useEffect(() => {
+    if (focusRequest !== undefined)
+      navigate({ pathname, search }, { replace: true, state: null });
+  }, [focusRequest, navigate, pathname, search]);
 
   return (
     <>
@@ -26,7 +35,7 @@ export function HomePage() {
       >
         <div className="mx-auto max-w-[780px] px-x4 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
           <HomeGreeting member={member} pending={me.isPending} />
-          <SearchBox focusRequest={focusSearchRequest(state)} />
+          <SearchBox focusRequest={focusRequest} />
           <NewIssues />
         </div>
       </section>

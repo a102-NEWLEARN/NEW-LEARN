@@ -2,7 +2,8 @@ import { useCallback } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 // 「홈 검색창에 포커스」 부탁은 주소 기록의 state 에 실어 보낸다. 그 기록에만 붙어서
-// 나중에 링크로 홈에 오면 저절로 포커스하지 않는다. 값이 바뀌어야 검색창이 다시 포커스해서 번호를 늘린다
+// 나중에 링크로 홈에 오면 저절로 포커스하지 않고, 홈이 쓰고 나면 지운다(HomePage).
+// 값이 바뀌어야 검색창이 다시 포커스해서 번호를 늘린다
 type QuickSearchState = { focusSearch: number };
 let requests = 0;
 

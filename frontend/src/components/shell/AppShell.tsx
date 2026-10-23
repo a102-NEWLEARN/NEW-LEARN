@@ -3,7 +3,10 @@ import { Outlet, useLocation } from "react-router";
 import { Header } from "@/components/shell/Header";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { SidebarDrawer } from "@/components/shell/SidebarDrawer";
-import { useQuickSearch } from "@/components/shell/useQuickSearch";
+import {
+  focusSearchRequest,
+  useQuickSearch,
+} from "@/components/shell/useQuickSearch";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
@@ -52,16 +55,15 @@ export function AppShell() {
   // 처음 열 때와 같은 화면에서 쿼리(?category= 등)만 바뀔 때는 옮기지 않는다.
   // 화면의 h1 에는 tabIndex={-1} 을 줘야 포커스를 받는다. 또 h1 은 데이터를 기다리지 않고 첫 렌더에 그려야 한다 —
   // 데이터를 받은 뒤에야 h1 을 그리면 그때는 이미 이 효과가 지나가서 포커스가 body 에 남는다
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
   const shownPath = useRef(pathname);
   useEffect(() => {
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
-    const main = mainRef.current;
-    // 새 화면이 스스로 포커스를 정했으면(빠른 이동으로 연 홈 검색창 등) 그대로 둔다
-    if (main?.contains(document.activeElement)) return;
-    main?.querySelector<HTMLElement>("h1")?.focus();
-  }, [pathname]);
+    // 빠른 이동으로 왔으면 검색창이 포커스를 가져갔다 (useQuickSearch)
+    if (focusSearchRequest(state) !== undefined) return;
+    mainRef.current?.querySelector<HTMLElement>("h1")?.focus();
+  }, [pathname, state]);
 
   // 로고를 누르면 홈으로 가면서 맨 위로 올린다. 이미 홈이면 스크롤만 올라간다
   const scrollToTop = () => mainRef.current?.scrollTo?.({ top: 0 });
