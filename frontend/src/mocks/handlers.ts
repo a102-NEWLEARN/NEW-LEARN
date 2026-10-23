@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw/http";
 import type { Category } from "@/api/categories";
 import type { IssueSummary } from "@/api/issues";
 import type { Member } from "@/api/members";
+import type { SearchResult } from "@/api/search";
 import type { ItemList, Page } from "@/api/types";
 
 // 가짜 API — 백엔드 API 가 생길 때까지 화면 개발 · 테스트에 쓴다 (frontend/README.md 「가짜 API」)
@@ -165,6 +166,75 @@ function problem(
 // A2 정렬 기준. 같으면 id 내림차순 (docs/api-screen.md A2)
 const ISSUE_SORTS = ["lastEventAt", "createdAt"] as const;
 
+// A13 검색용 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 기사 목록(A7) 가짜가 생기면 그쪽과 합친다
+const articles = [
+  {
+    id: 401,
+    title: "한빛반도체, 텍사스 공장 착공식 열어",
+    summary:
+      "한빛반도체가 텍사스주에서 반도체 공장 착공식을 열고 투자 규모를 밝혔다",
+  },
+  {
+    id: 402,
+    title: "美 공장 인력난에 국내 엔지니어 파견 검토",
+    summary: "현지 숙련 인력이 모자라 국내 엔지니어를 보내는 방안을 검토한다",
+  },
+  {
+    id: 403,
+    title: "한국은행, 기준금리 연 2.50% 동결",
+    summary: "물가와 가계부채를 함께 고려해 금리를 묶었다",
+  },
+  {
+    id: 404,
+    title: "원/달러 환율 1,500원 넘어… 외환당국 구두 개입",
+    summary: "외환당국이 시장 쏠림을 경계한다며 구두 개입에 나섰다",
+  },
+  {
+    id: 405,
+    title: "여야, 내년 예산안 수정 협의 재개",
+    summary: "법정 처리 시한을 앞두고 여야가 다시 마주 앉았다",
+  },
+  {
+    id: 406,
+    title: "의대 증원 재조정안 공개… 의료계 반발",
+    summary: "정부가 내년도 의대 정원 조정안을 내놓자 의료계가 반발했다",
+  },
+  {
+    id: 407,
+    title: "중동 휴전 연장 합의안 초안 공개",
+    summary: "중재국이 휴전을 연장하는 합의안 초안을 공개했다",
+  },
+  {
+    id: 408,
+    title: "국산 거대 언어 모델 AI 공개 시연",
+    summary: "국내 기업이 직접 만든 거대 언어 모델을 처음 공개 시연했다",
+  },
+];
+
+// A13 — 우리가 가진 뉴스 데이터 가운데 검색어가 들어간 것 (2026-10-23 사용자가 정한 규칙).
+// 이슈 · 사건은 이름, 기사는 제목이나 요약에 들어 있으면 준다. 영문은 대소문자를 가리지 않는다.
+// 진짜 검색 규칙은 백엔드 A13(Jira 43, 보류)이 정한다
+function search(q: string): SearchResult {
+  const word = q.trim().toLowerCase();
+  const has = (...texts: (string | null)[]) =>
+    word.length > 0 && texts.some((text) => text?.toLowerCase().includes(word));
+  return {
+    issues: issues
+      .filter((issue) => has(issue.title, issue.summary))
+      .map(({ id, title }) => ({ id, title })),
+    events: issues
+      .filter((issue) => has(issue.lastEvent.title))
+      .map(({ id, lastEvent }) => ({
+        id: lastEvent.id,
+        title: lastEvent.title,
+        issueId: id,
+      })),
+    articles: articles
+      .filter((article) => has(article.title, article.summary))
+      .map(({ id, title }) => ({ id, title })),
+  };
+}
+
 export const handlers = [
   http.get("/api/v1/categories", () =>
     HttpResponse.json({ items: categories } satisfies ItemList<Category>),
@@ -206,4 +276,7 @@ export const handlers = [
     } satisfies Page<IssueSummary>);
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
+  http.get("/api/v1/search", ({ request }) =>
+    HttpResponse.json(search(new URL(request.url).searchParams.get("q") ?? "")),
+  ),
 ];
