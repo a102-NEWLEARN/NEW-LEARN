@@ -9,6 +9,7 @@ import {
 } from "@karrotmarket/react-monochrome-icon";
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
+import { IssueExplorer } from "@/components/shell/IssueExplorer";
 import { useComingSoon } from "@/components/useSnackbar";
 
 type SidebarProps = {
@@ -136,7 +137,10 @@ function ExpandedSidebar({ onCollapse }: { onCollapse: () => void }) {
           aria-keyshortcuts={SHORTCUT}
         />
       </div>
-      <h2 className="t2-bold px-x2_5 text-fg-neutral-muted">이슈 탐색</h2>
+      <section className="flex flex-col gap-x1">
+        <h2 className="t2-bold px-x2 text-fg-neutral-muted">이슈 탐색</h2>
+        <IssueExplorer />
+      </section>
     </div>
   );
 }

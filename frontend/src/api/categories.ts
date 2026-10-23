@@ -20,3 +20,12 @@ export const categoriesQuery = queryOptions({
   queryKey: ["categories"],
   queryFn: fetchCategories,
 });
+
+/**
+ * A1 에는 없지만 화면이 A1 분야 뒤에 덧붙이는 준비 중 분야 두 개 (프로토타입 v21).
+ * 누르면 「…는 준비 중이에요」를 안내한다 (EXPERIENCE.md State Patterns). 팀 확인이 남았다 (EXPERIENCE.md 아직 정하지 않은 것)
+ */
+export const UPCOMING_CATEGORIES = [
+  { code: "sports", name: "스포츠" },
+  { code: "culture", name: "문화/연예" },
+] as const;
