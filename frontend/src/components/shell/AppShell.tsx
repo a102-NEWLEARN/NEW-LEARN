@@ -23,10 +23,12 @@ export function AppShell() {
     onOpenCodeChange: setOpenCategory,
   };
 
-  // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다
+  // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다.
+  // macOS 한글 입력기는 그 키를 「₩」로 내기도 해서 글자 대신 키 자리(Backslash)로도 본다
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "\\") {
+      const backslash = event.key === "\\" || event.code === "Backslash";
+      if ((event.ctrlKey || event.metaKey) && backslash) {
         event.preventDefault();
         if (narrow) setDrawerOpen((open) => !open);
         else setSidebarExpanded((expanded) => !expanded);

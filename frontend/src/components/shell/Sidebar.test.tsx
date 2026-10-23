@@ -105,6 +105,18 @@ test("Ctrl+\\ 로 폈다 접는다", async () => {
   ).toBeDefined();
 });
 
+// macOS 한글 입력기는 그 자리 키를 「₩」로 낼 수 있다. 글자 대신 키 자리(Backslash)로도 본다
+test("한글 입력기에서 ₩ 로 들어와도 단축키가 먹는다", async () => {
+  renderRoute("/home");
+  await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" });
+
+  fireEvent.keyDown(window, { key: "₩", code: "Backslash", metaKey: true });
+
+  expect(
+    within(sidebar()).getByRole("button", { name: "사이드바 접기" }),
+  ).toBeDefined();
+});
+
 test("접힌 레일에서 지금 화면(홈)을 표시한다", async () => {
   renderRoute("/home");
 
