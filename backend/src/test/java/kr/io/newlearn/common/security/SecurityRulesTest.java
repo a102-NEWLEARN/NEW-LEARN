@@ -19,13 +19,17 @@ import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.bind.annotation.RestController;
 
 // 로그인 없이 여는 주소와 막는 주소 (docs/api.md 1절 「인증」, Jira 100). 로그인하지 않은 손님으로 부른다
-// 아직 화면 API 가 없어서 열린 주소는 401 이 아니라 404 NOT_FOUND 가 나와야 한다 — 보안은 통과하고 주소만 없는 것
+// 실제 API 컨트롤러를 가져오지 않고 보안 규칙만 본다. 열린 주소는 보안을 통과해 404 NOT_FOUND다.
 // @WebMvcTest 는 SecurityFilterChain 을 스스로 가져오지 않아 SecurityConfig 를 꼭 넣는다
-@WebMvcTest
+@WebMvcTest(controllers = SecurityRulesTest.NoEndpoints.class)
 @Import(SecurityConfig.class)
 class SecurityRulesTest {
+
+    @RestController
+    static class NoEndpoints {}
 
     @Autowired
     MockMvc mockMvc;

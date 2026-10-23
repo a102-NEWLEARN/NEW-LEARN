@@ -102,13 +102,13 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 |---|---|---|---|
 | `id` · `title` | 이슈 참조 | 카드를 누르면 이슈 화면, 카드 제목 | `issue` |
 | `summary` | string · null | 카드의 한두 문장(AI 생성) | `issue.summary` |
-| `categories` | array(카테고리 참조) | 카드의 분야 표시. 여러 개일 수 있다 | `issue_category` → `category` |
+| `categories` | array(카테고리 참조) | 카드의 분야 표시. 여러 개일 수 있다 | `issue_category` → `category`, `sort_order` 순서(`data-model.md` 2절) |
 | `eventCount` | number | 「사건 8개」 | 계산 — 이 이슈의 사건 수 |
 | `articleCount` | number | 「기사 23개」 | 계산 — 이 이슈 사건들에 묶인 투입 기사 수 (`article_event`) |
 | `publisherCount` | number | 「언론사 5곳」 | 계산 — 그 기사들의 언론사(`press_code`) 수 |
 | `firstEventAt` · `lastEventAt` | 시각 | 기간 「08.04 ~ 10.09」, 정렬 | 계산 — 사건 `occurred_at` 의 가장 이른 값 · 늦은 값 |
 | `createdAt` | 시각 | 「새로 생성된 이슈」 정렬 · 표시 | `issue.created_at` |
-| `lastEvent` | 사건 참조 | 카드의 「최근 · 인력 수급 우려」(`label`) | 계산 — `occurred_at` 이 가장 늦은 사건 |
+| `lastEvent` | 사건 참조 | 카드의 「최근 · 인력 수급 우려」(`label`) | 계산 — `occurred_at` 내림차순, 같으면 사건 `id` 내림차순으로 하나 선택(2026-10-23 팀장 승인) |
 
 ```json
 {
