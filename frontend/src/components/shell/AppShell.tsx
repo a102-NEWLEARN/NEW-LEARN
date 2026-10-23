@@ -40,7 +40,8 @@ export function AppShell() {
 
   // 다른 화면으로 가면 포커스를 본문 맨 위 제목(h1)으로 옮긴다 (EXPERIENCE.md Accessibility Floor).
   // 처음 열 때와 같은 화면에서 쿼리(?category= 등)만 바뀔 때는 옮기지 않는다.
-  // 화면의 h1 에는 tabIndex={-1} 을 줘야 포커스를 받는다
+  // 화면의 h1 에는 tabIndex={-1} 을 줘야 포커스를 받는다. 또 h1 은 데이터를 기다리지 않고 첫 렌더에 그려야 한다 —
+  // 데이터를 받은 뒤에야 h1 을 그리면 그때는 이미 이 효과가 지나가서 포커스가 body 에 남는다
   const { pathname } = useLocation();
   const shownPath = useRef(pathname);
   useEffect(() => {
