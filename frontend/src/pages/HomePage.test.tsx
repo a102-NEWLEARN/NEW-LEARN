@@ -1,0 +1,86 @@
+import { screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw/http";
+import { afterEach, expect, test, vi } from "vitest";
+import { server } from "@/mocks/node";
+import { HomePage } from "@/pages/HomePage";
+import { renderRoute } from "@/test/render";
+
+// 셸 없이 홈만 연다. 주소(?category=)를 보려고 라우터를 쓴다
+function renderHome(path = "/home") {
+  return renderRoute(path, [{ path: "/home", element: <HomePage /> }]);
+}
+
+// 인사는 지금 시각을 본다. Date 만 고정하고 MSW · React Query 타이머는 그대로 둔다
+function setNow(iso: string) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(iso));
+}
+
+afterEach(() => vi.useRealTimers());
+
+function guestWith(status: number, code: string) {
+  server.use(
+    http.get("/api/v1/members/me", () =>
+      HttpResponse.json(
+        {
+          type: "about:blank",
+          title: code,
+          status,
+          detail: code,
+          instance: "/api/v1/members/me",
+          code,
+        },
+        { status },
+      ),
+    ),
+  );
+}
+
+test("제목과 안내 한 줄을 보인다 — 검색창은 없다", async () => {
+  renderHome();
+
+  expect(
+    screen.getByRole("heading", {
+      level: 1,
+      name: "오늘의 이슈를 탐색해 보세요",
+    }),
+  ).toBeDefined();
+  expect(
+    screen.getByText("아래 추천 이슈에서 사건의 흐름을 따라가 보세요."),
+  ).toBeDefined();
+  expect(screen.queryByRole("searchbox")).toBeNull();
+});
+
+test.each([
+  ["2026-10-23T10:59:00+09:00", "김뉴런님, 좋은 아침이에요 · 10월 23일 금요일"],
+  ["2026-10-23T11:00:00+09:00", "김뉴런님, 좋은 오후예요 · 10월 23일 금요일"],
+  [
+    "2026-10-23T18:00:00+09:00",
+    "김뉴런님, 오늘 하루도 수고했어요 · 10월 23일 금요일",
+  ],
+])("회원이면 이름과 한국 시간대 인사를 붙인다 (%s)", async (now, text) => {
+  setNow(now);
+  renderHome();
+
+  expect(await screen.findByText(text)).toBeDefined();
+});
+
+test("손님(A17 401)이면 날짜만 보인다", async () => {
+  setNow("2026-10-23T09:00:00+09:00");
+  guestWith(401, "UNAUTHORIZED");
+  renderHome();
+
+  expect(await screen.findByText("10월 23일 금요일")).toBeDefined();
+  expect(screen.queryByText(/님,/)).toBeNull();
+});
+
+test("A17 이 다른 오류로 실패해도 홈을 막지 않고 손님 문구로 보인다", async () => {
+  setNow("2026-10-23T09:00:00+09:00");
+  guestWith(500, "INTERNAL_ERROR");
+  renderHome();
+
+  expect(await screen.findByText("10월 23일 금요일")).toBeDefined();
+  expect(
+    await screen.findByRole("list", { name: "새로운 이슈" }),
+  ).toBeDefined();
+});

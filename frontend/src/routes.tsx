@@ -1,6 +1,6 @@
 import { Navigate, type RouteObject } from "react-router";
-import { App } from "@/App";
 import { AppShell } from "@/components/shell/AppShell";
+import { HomePage } from "@/pages/HomePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorPage } from "@/pages/RouteErrorPage";
 
@@ -20,8 +20,7 @@ export const routes: RouteObject[] = [
   // 랜딩(`/`)은 S15P31A102-44 에서 넣는다. 그전에는 홈으로 보낸다
   { path: "/", element: <Navigate to="/home" replace /> },
   shellRoute([
-    // 지금 홈 자리는 개발 확인 화면이다. 홈은 S15P31A102-44 에서 넣는다
-    { path: "/home", element: <App /> },
+    { path: "/home", element: <HomePage /> },
     // 그 밖의 주소
     { path: "*", element: <NotFoundPage /> },
   ]),

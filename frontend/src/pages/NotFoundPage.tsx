@@ -15,7 +15,6 @@ export function NotFoundPage({
   return (
     <div className="flex flex-col items-center gap-x6 px-x4 py-x16 text-center">
       <h1 className="screen-title text-fg-neutral">{title}</h1>
-      {/* 지금 /home 에는 개발 확인 화면이 뜬다. 홈 화면은 S15P31A102-44 에서 넣는다 */}
       <ActionButton asChild variant="brandSolid">
         <Link to="/home">홈으로</Link>
       </ActionButton>

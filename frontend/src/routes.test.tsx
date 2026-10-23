@@ -1,20 +1,11 @@
 import { screen, within } from "@testing-library/react";
-import { http, HttpResponse } from "msw/http";
-import { beforeEach, expect, test, vi } from "vitest";
-import { server } from "@/mocks/node";
+import { expect, test, vi } from "vitest";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { shellRoute } from "@/routes";
 import { renderRoute, renderWithProviders } from "@/test/render";
 
-// 헬스는 화면용 API 가 아니라 가짜 API 핸들러에 없다 (App.test.tsx 와 같다)
-beforeEach(() => {
-  server.use(
-    http.get("/actuator/health", () => HttpResponse.json({ status: "UP" })),
-  );
-});
-
 // 앱과 같은 provider · 라우트 목록으로 연다. provider 를 빼먹으면 첫 화면이 깨지는 것을 여기서 잡는다
-test("/ 를 열면 셸 안의 /home(개발 확인 화면)으로 간다", async () => {
+test("/ 를 열면 셸 안의 /home 홈으로 간다", async () => {
   const { router } = renderRoute("/");
 
   const header = await screen.findByRole("banner");
@@ -24,7 +15,10 @@ test("/ 를 열면 셸 안의 /home(개발 확인 화면)으로 간다", async (
       .getAttribute("href"),
   ).toBe("/home");
   expect(
-    await screen.findByText("카테고리: 정치 · 사회 · 경제 · 국제 · IT·과학"),
+    within(screen.getByRole("main")).getByRole("heading", {
+      level: 1,
+      name: "오늘의 이슈를 탐색해 보세요",
+    }),
   ).toBeDefined();
   expect(router.state.location.pathname).toBe("/home");
 });
