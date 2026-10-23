@@ -3,7 +3,11 @@ import {
   IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { Skeleton } from "@seed-design/react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -119,6 +123,7 @@ type SearchBoxProps = {
 // 포커스는 입력 칸에 둔 채 ↑↓ 로 고른 줄만 바꾼다(combobox · aria-activedescendant)
 export function SearchBox({ focusRequest }: SearchBoxProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -139,6 +144,14 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
     placeholderData: keepPreviousData,
   });
 
+  // 보이는 결과가 지금 친 검색어의 것인가. 200ms 기다림과 응답 사이에는 앞 검색어의 결과가 남아 있는데,
+  // 그때는 줄을 고를 수 없게 하고 강조도 칠하지 않는다
+  const current =
+    word === "" ||
+    (searched === word &&
+      results.data !== undefined &&
+      !results.isPlaceholderData);
+
   let groups: Group[] = [];
   let message: ReactNode = null;
   if (word === "") {
@@ -155,10 +168,12 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
   } else if (results.data) {
     groups = searchGroups(results.data);
     if (groups.length === 0)
-      message = (
+      message = current ? (
         <p className="t4-regular px-x4 pt-x3 pb-x4 text-fg-neutral-muted">
           {`'${searched}'에 맞는 이슈·사건·기사가 없어요`}
         </p>
+      ) : (
+        <RowsSkeleton label="검색하는 중" />
       );
   } else if (results.isError) {
     message = (
@@ -182,7 +197,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
       at: options.indexOf(option),
     })),
   }));
-  const activeIndex = Math.min(active, options.length - 1);
+  const activeIndex = current ? Math.min(active, options.length - 1) : -1;
   const optionId = (index: number) => `${listId}-option-${index}`;
   const activeId = open && activeIndex >= 0 ? optionId(activeIndex) : undefined;
 
@@ -216,17 +231,37 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
     navigate(option.href);
   };
 
+  // 앞 검색어의 결과가 보이는 동안 Enter 를 누르면 지금 검색어의 결과를 받아 맨 앞 줄을 연다.
+  // 받는 사이에 검색어를 고쳤으면 열지 않는다. 실패 안내는 목록이 보여 준다
+  const openFirst = (asked: string) => {
+    queryClient.fetchQuery(searchQuery(asked)).then(
+      (result) => {
+        if (inputRef.current?.value.trim() !== asked) return;
+        const first = searchGroups(result)[0]?.options[0];
+        if (first) pick(first);
+      },
+      () => {},
+    );
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (!open) setOpen(true);
-      else setActive(Math.min(options.length - 1, activeIndex + 1));
+      else if (current)
+        setActive(Math.max(0, Math.min(options.length - 1, activeIndex + 1)));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActive(Math.max(0, activeIndex - 1));
-    } else if (event.key === "Enter" && open && options[activeIndex]) {
-      event.preventDefault();
-      pick(options[activeIndex]);
+      if (current) setActive(Math.max(0, activeIndex - 1));
+    } else if (event.key === "Enter" && open) {
+      // 한글 조합 중에 누른 Enter 도 받는다 — 칸에는 이미 그 글자가 들어 있다
+      if (current && options[activeIndex]) {
+        event.preventDefault();
+        pick(options[activeIndex]);
+      } else if (!current && word !== "") {
+        event.preventDefault();
+        openFirst(word);
+      }
     } else if (event.key === "Escape" && open) {
       // 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
       event.preventDefault();
@@ -292,7 +327,13 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
         // 화면 위에 뜨는 요소라 그림자를 쓴다 (DESIGN.md Elevation & Depth)
         <div className="absolute inset-x-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3">
           <div className="max-h-[420px] overflow-y-auto pt-x1_5">
-            <div role="listbox" id={listId} aria-label="검색 결과">
+            <div
+              role="listbox"
+              id={listId}
+              aria-label="검색 결과"
+              aria-busy={!current}
+              className={current ? undefined : "opacity-60"}
+            >
               {numbered.map((group) => (
                 <div
                   key={group.label}
@@ -323,7 +364,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
                         className={`flex cursor-pointer flex-col gap-x0_5 px-x4 py-x2 transition-colors ${selected ? "bg-bg-layer-default-pressed" : ""}`}
                       >
                         <span className="truncate text-[0.875rem] leading-[1.25rem] font-medium text-fg-neutral">
-                          {highlight(option.title, searched)}
+                          {highlight(option.title, current ? searched : "")}
                         </span>
                         {option.sub && (
                           <span className="t2-regular truncate text-fg-neutral-muted">

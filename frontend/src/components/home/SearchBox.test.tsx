@@ -1,4 +1,10 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import { SearchBox } from "@/components/home/SearchBox";
@@ -108,6 +114,45 @@ test("이슈 · 기사를 누르면 그 화면으로 간다", async () => {
   );
 
   expect(router.state.location.pathname).toBe("/articles/401");
+});
+
+// 앞 검색어의 결과가 아직 보이는 동안(200ms 기다림 + 응답) — 그 결과를 고르면 안 된다
+test("검색어를 바꾸고 바로 Enter 를 누르면 새 검색어의 맨 앞 결과를 연다", async () => {
+  const { router } = renderSearch();
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+
+  fireEvent.change(input(), { target: { value: "금리" } });
+  fireEvent.keyDown(input(), { key: "Enter" });
+
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/issues/13"),
+  );
+});
+
+test("새 결과를 기다리는 동안에는 앞 결과를 고를 수 없고 앞 안내도 보이지 않는다", async () => {
+  renderSearch();
+  await openWith("없는말");
+  await screen.findByText("'없는말'에 맞는 이슈·사건·기사가 없어요");
+
+  fireEvent.change(input(), { target: { value: "공" } });
+
+  expect(
+    screen.queryByText("'없는말'에 맞는 이슈·사건·기사가 없어요"),
+  ).toBeNull();
+  expect(input().getAttribute("aria-activedescendant")).toBeNull();
+});
+
+test("결과가 오기 전에 ↓ 를 눌러도 결과가 오면 맨 앞 줄이 골라져 있다", async () => {
+  renderSearch();
+  await openWith("공장");
+
+  fireEvent.keyDown(input(), { key: "ArrowDown" });
+  const first = (await screen.findAllByRole("option"))[0];
+
+  await waitFor(() =>
+    expect(input().getAttribute("aria-activedescendant")).toBe(first.id),
+  );
 });
 
 test("맞는 것이 없으면 그렇다고 안내한다", async () => {
