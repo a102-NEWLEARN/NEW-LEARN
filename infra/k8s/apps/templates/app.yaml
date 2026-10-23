@@ -1,0 +1,34 @@
+# backend · frontend 와 https://newlearn.io.kr 의 길 (infra/k8s/services/app, kustomize — 이미지 태그는 kustomization.yaml)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app
+  namespace: argocd
+  annotations:
+    # data(3) 뒤 — backend 가 뜰 때 DB · Redis 가 있어야 준비 확인이 지나간다
+    argocd.argoproj.io/sync-wave: "4"
+    # 새 이미지로 배포가 끝나면 Mattermost 배포 알림 채널로 (infra/k8s/bootstrap/argocd-values.prod.yaml 의 notifications)
+    notifications.argoproj.io/subscribe.on-deployed.mattermost: ""
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/services/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

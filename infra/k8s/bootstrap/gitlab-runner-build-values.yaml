@@ -1,0 +1,100 @@
+# 굽기 전용 GitLab Runner — .gitlab-ci.yml 의 w4(운영 이미지 굽기) 잡만 받는다 (Jira S15P31A102-106)
+# 쓰는 곳: infra/server/README.md 「굽기 러너」. 왜 운영 노드(Lightsail)에서 굽나는 SSOT.md 6절 「CI」 · 9절
+# 차트 · 러너 판은 검사 러너(gitlab-runner-values.yaml)와 같다 — 0.88.4(러너 18.11.4). 값의 뜻도 그 파일의 주석과 같다
+# GitLab 에는 태그 newlearn-build · 태그 없는 잡 안 받음 · Protected 아님(MR 굽기도 받게)으로 등록한다
+
+gitlabUrl: https://lab.ssafy.com/
+
+# w4 는 영역마다 하나(dev 에서 최대 셋)라 둘씩 굽는다. 워커 CPU 4 중 서비스 예약은 약 1 이다
+concurrent: 2
+
+# 러너 Pod(매니저)는 관리 서버에 둔다 — 잡 Pod 만 워커로 보낸다(아래 config 의 affinity)
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+service:
+  enabled: true
+
+serviceAccount:
+  create: true
+
+rbac:
+  create: true
+  rules:
+    - resources: ["pods"]
+      verbs: ["create", "delete", "get", "list", "watch"]
+    - resources: ["pods/attach", "pods/exec"]
+      verbs: ["create", "delete", "get", "patch"]
+    - resources: ["pods/log"]
+      verbs: ["get", "list"]
+    - resources: ["secrets"]
+      verbs: ["create", "delete", "get", "update"]
+    - resources: ["serviceaccounts"]
+      verbs: ["get"]
+    - resources: ["services"]
+      verbs: ["create", "get"]
+    - resources: ["events"]
+      verbs: ["list", "watch"]
+
+runners:
+  # 토큰은 이 파일에 쓰지 않는다. 서버에서 사람이 만든 Secret 을 읽는다 — 키 runner-token(값) · runner-registration-token(빈 값)
+  secret: gitlab-runner-build-token
+  config: |
+    [[runners]]
+      # concurrent 2 와 맞춘다 — 1 이면 GitLab 에 잡을 묻는 긴 대기(long polling) 동안 두 번째 잡을 늦게 받는다 (러너 시작 로그의 권고, 2026-10-23)
+      request_concurrency = 2
+      [runners.kubernetes]
+        # 잡이 이 네임스페이스를 바꿀 수 없다(namespace_overwrite_allowed 를 안 둔다) — 네트워크 정책이 네임스페이스에 걸려 있다
+        namespace = "{{ default .Release.Namespace .Values.runners.jobNamespace }}"
+        image = "alpine:3.24.2"
+
+        # 굽기 컨테이너 상한 CPU 2 · 메모리 3Gi — 워커(CPU 4 · 16Gi)를 서비스와 나눈다
+        # 둘이 같이 돌면 CPU 4 까지 쓰지만 서비스는 요청한 만큼(합 약 1)은 늘 받는다
+        # ai 는 압축을 끈 캐시로도 2Gi 상한에 닿았다(SSOT.md 6절 「굽는 도구」) — 그래서 3Gi
+        cpu_request = "500m"
+        cpu_limit = "2"
+        memory_request = "1Gi"
+        memory_limit = "3Gi"
+        helper_cpu_request = "50m"
+        helper_cpu_limit = "500m"
+        helper_memory_request = "64Mi"
+        helper_memory_limit = "256Mi"
+
+        # 잡의 KUBERNETES_* 변수는 이 상한까지. 넘게 요청하면 잡이 실패한다(무시되지 않는다, gitlab-runner#38958)
+        cpu_request_overwrite_max_allowed = "500m"
+        cpu_limit_overwrite_max_allowed = "2"
+        memory_request_overwrite_max_allowed = "1Gi"
+        memory_limit_overwrite_max_allowed = "3Gi"
+
+        # 팀원 MR 의 Dockerfile · 의존성 설치가 운영 노드에서 돈다 — 권한 없는 컨테이너, 쿠버네티스 API 토큰도 안 넣는다
+        privileged = false
+        allow_privilege_escalation = false
+        automount_service_account_token = false
+
+        # 🔴 아래 표들은 맨 끝에 둔다. TOML 은 [표] 머리 뒤의 키를 다음 머리까지 그 표에 넣는다 (gitlab-runner-values.yaml 과 같은 함정)
+        # 갈래 이름표는 고정 — 잡이 바꿀 수 없다(pod_labels_overwrite_allowed 를 안 둔다). 대시보드가 이 이름표로 갈래를 나눈다
+        [runners.kubernetes.pod_labels]
+          "newlearn.io/workload" = "w4"
+        # 잡 Pod 는 control-plane 이 아닌 노드(워커)에만
+        [runners.kubernetes.affinity]
+          [runners.kubernetes.affinity.node_affinity]
+            [runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution]
+              [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms]]
+                [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.match_expressions]]
+                  key = "node-role.kubernetes.io/control-plane"
+                  operator = "DoesNotExist"

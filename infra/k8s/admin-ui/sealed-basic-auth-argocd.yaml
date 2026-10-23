@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: basic-auth
+  namespace: argocd
+spec:
+  encryptedData:
+    .htpasswd: AgAWYp0aS2tb2dsRdwdSFlr/E0cnXo31cxiDtM331XiTHNAgQyz/l+Y9f7awUDTJx+C/J+YRuJgyFfLZFiYszMdGaVb/CK3ZnIVoupRW/0JsA9R9vnoUthvuMoOHFqmGoxo0rFadHu5dQIS9aV6fZQAr3iza20sqDNkk5tvpMn+XIdPPFP405KfwD1YFEB/gnpV/4pD/3K7WH9pV7KbUltB3KtYVMs9/Qta/uNgQfLhLrtWBysBR6Df2oXJVXo9tj4jpwtlZB3nH9zWJ57CP67OVUYgpKer+cETUx1m/CD68B+7Y5CHSLQp4bQhI3E6lRQFEQKTIrnql9P2SVhlamDBQ2aH9SnLR2ay6R1zuTviOTyGg2clXMiOGniAajMT+4mRaZj+BBRgzokoDQcglp+2f5n897HRZstmlbqcRp1OMS3aakJyO5583MnYD8OA1RCnAG7l1dOUMvumSHW8Md+jsoYY/+GcYZb7xzULZsJvvIXzlVOv1T+d9vvLPe+pdArh/2SauxkSZag6lqU30wXb9Oie4cUtJFF4ohcGgLbtyNQlhwPwesmcXNAuVvTWgen2vwK5D15IOJzqWZD0rAUR+I0nOhTy0T02KvqrvJqxclMr/QRyVjiKzWG4BNagAYRhh7KpsMhEBYu6DcFAU041Ru4PrP2SZarViwpK5TKFBYWGE1B2D4FViA5i0d18ePybkOqBKEBtDTLObXcDckVU9/KhgE3HS5jPom9qEnb/WyCw9eTI2jgaOx8yMNQ==
+  template:
+    metadata:
+      name: basic-auth
+      namespace: argocd
