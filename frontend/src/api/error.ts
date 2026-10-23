@@ -75,3 +75,9 @@ export function toApiError(error: unknown): ApiError {
   const message = error instanceof Error ? error.message : String(error);
   return new ApiError({ status: null, code: null, message, cause: error });
 }
+
+/** 요청이 서버에 닿지 못했나 — 응답 없는 axios 오류만. 화면 코드가 터진 오류는 아니다 */
+export function isNetworkError(error: unknown): boolean {
+  const cause = error instanceof ApiError ? error.cause : error;
+  return axios.isAxiosError(cause) && !cause.response;
+}
