@@ -74,6 +74,30 @@ test("손님(A17 401)이면 날짜만 보인다", async () => {
   expect(screen.queryByText(/님,/)).toBeNull();
 });
 
+test("A17 회원 정보로 추천 이슈 제목과 관심 분야 탭을 정한다", async () => {
+  renderHome();
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 2,
+      name: "김뉴런님을 위한 추천 이슈",
+    }),
+  ).toBeDefined();
+  expect(
+    (await screen.findAllByRole("tab"))[0].getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(screen.getAllByRole("tab")[0].textContent).toBe("경제, 관심 분야");
+});
+
+test("손님이면 추천 이슈 제목에 이름이 없다", async () => {
+  guestWith(401, "UNAUTHORIZED");
+  renderHome();
+
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "추천 이슈" }),
+  ).toBeDefined();
+});
+
 test("A17 이 다른 오류로 실패해도 홈을 막지 않고 손님 문구로 보인다", async () => {
   setNow("2026-10-23T09:00:00+09:00");
   guestWith(500, "INTERNAL_ERROR");
