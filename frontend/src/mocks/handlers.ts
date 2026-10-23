@@ -130,21 +130,34 @@ export const handlers = [
   http.get("/api/v1/categories", () =>
     HttpResponse.json({ items: categories } satisfies ItemList<Category>),
   ),
-  // 분야(category)로 거르고 마지막 사건 최신순으로 준다. 쪽은 하나뿐이다
+  // 분야(category)로 거르고 마지막 사건 최신순으로 준다. 없는 분야는 404 (docs/api-screen.md A2)
   http.get("/api/v1/issues", ({ request }) => {
     const params = new URL(request.url).searchParams;
     const code = params.get("category");
+    const page = Number(params.get("page") ?? 0);
     const size = Number(params.get("size") ?? 20);
-    const items = issues
+    if (code && !categories.some((category) => category.code === code)) {
+      return HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: `카테고리를 찾을 수 없다: ${code}`,
+          instance: "/api/v1/issues",
+          code: "CATEGORY_NOT_FOUND",
+        },
+        { status: 404 },
+      );
+    }
+    const matched = issues
       .filter((item) => !code || item.categories.some((c) => c.code === code))
-      .sort((a, b) => b.lastEventAt.localeCompare(a.lastEventAt))
-      .slice(0, size);
+      .sort((a, b) => b.lastEventAt.localeCompare(a.lastEventAt));
     return HttpResponse.json({
-      items,
-      page: 0,
+      items: matched.slice(page * size, (page + 1) * size),
+      page,
       size,
-      totalElements: items.length,
-      totalPages: 1,
+      totalElements: matched.length,
+      totalPages: Math.ceil(matched.length / size),
     } satisfies Page<IssueSummary>);
   }),
 ];
