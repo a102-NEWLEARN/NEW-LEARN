@@ -126,7 +126,7 @@ test("분야별 이슈 아이콘을 누르면 사이드바를 편다", async () 
   expect(within(sidebar()).getByText("이슈 탐색")).toBeDefined();
 });
 
-test.each(["빠른 이동", "관심 이슈", "나의 뉴스함"])(
+test.each(["관심 이슈", "나의 뉴스함"])(
   "%s — 곧 제공 안내를 띄운다",
   async (name) => {
     renderRoute("/home");
@@ -138,3 +138,35 @@ test.each(["빠른 이동", "관심 이슈", "나의 뉴스함"])(
     ).toBeDefined();
   },
 );
+
+// 빠른 이동 — 어느 화면에서든 홈으로 가서 검색창에 포커스한다 (EXPERIENCE.md IA 통합 검색)
+test("레일의 빠른 이동을 누르면 홈 검색창으로 간다", async () => {
+  const { router } = renderRoute("/issues/12");
+
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "빠른 이동" }),
+  );
+
+  const search = await screen.findByRole("combobox", {
+    name: "이슈, 사건, 기사 검색",
+  });
+  expect(router.state.location.pathname).toBe("/home");
+  expect(document.activeElement).toBe(search);
+});
+
+test("펼친 사이드바의 빠른 이동도 홈 검색창으로 간다", async () => {
+  const { router } = renderRoute("/issues/12");
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" }),
+  );
+
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "빠른 이동" }),
+  );
+
+  const search = await screen.findByRole("combobox", {
+    name: "이슈, 사건, 기사 검색",
+  });
+  expect(router.state.location.pathname).toBe("/home");
+  expect(document.activeElement).toBe(search);
+});

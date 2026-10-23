@@ -1,4 +1,10 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { shellRoute } from "@/routes";
@@ -95,6 +101,50 @@ test("같은 화면에서 ?category= 만 바뀌면 포커스를 옮기지 않는
 
   await expect.poll(() => router.state.location.search).toBe("?category=world");
   expect(document.activeElement).toBe(tab);
+});
+
+const searchBox = () =>
+  screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" });
+
+test.each([
+  ["Ctrl+K", { key: "k", ctrlKey: true }],
+  ["⌘K", { key: "k", metaKey: true }],
+  // 한글 입력기가 켜져 있으면 글자가 「ㅏ」로 온다 — 키 자리로도 본다
+  ["한글 입력기 Ctrl+K", { key: "ㅏ", code: "KeyK", ctrlKey: true }],
+])(
+  "다른 화면에서 %s 를 누르면 홈 검색창으로 가 포커스한다",
+  async (_, keys) => {
+    const { router } = renderRoute("/nope");
+    await screen.findByRole("heading", { level: 1 });
+
+    fireEvent.keyDown(window, keys);
+
+    await waitFor(() => expect(document.activeElement).toBe(searchBox()));
+    expect(router.state.location.pathname).toBe("/home");
+    expect(searchBox().getAttribute("aria-expanded")).toBe("true");
+  },
+);
+
+test("홈에서 Ctrl+K 를 누르면 고른 분야를 둔 채 검색창에 포커스한다", async () => {
+  const { router } = renderRoute("/home?category=world");
+  await screen.findByRole("tablist", { name: "분야" });
+
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+  await waitFor(() => expect(document.activeElement).toBe(searchBox()));
+  expect(router.state.location.search).toBe("?category=world");
+});
+
+test("나중에 링크로 홈에 오면 검색창에 저절로 포커스하지 않는다", async () => {
+  const { router } = renderRoute("/home");
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  await waitFor(() => expect(document.activeElement).toBe(searchBox()));
+
+  await act(() => router.navigate("/nope"));
+  await act(() => router.navigate("/home"));
+
+  expect(document.activeElement).not.toBe(searchBox());
+  expect(document.activeElement?.tagName).toBe("H1");
 });
 
 test("화면이 넘긴 제목을 보여 준다", () => {

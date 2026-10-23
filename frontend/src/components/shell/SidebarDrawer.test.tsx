@@ -90,6 +90,22 @@ test("서랍에서 이슈를 고르면 서랍이 닫힌 뒤에도 포커스가 �
   expect(document.activeElement).toBe(heading);
 });
 
+test("서랍에서 빠른 이동을 누르면 서랍이 닫히고 홈 검색창에 포커스가 남는다", async () => {
+  const { router } = renderRoute("/issues/12");
+
+  await openMenu();
+  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  fireEvent.click(within(drawer).getByRole("button", { name: "빠른 이동" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(router.state.location.pathname).toBe("/home");
+  // 서랍이 닫히며 포커스를 메뉴 버튼으로 돌려놓지 않는지 조금 기다려 본다
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(
+    screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
+  );
+});
+
 // 좁은 화면에서는 이슈를 고를 때마다 서랍이 닫힌다. 다시 열 때 분야를 또 펼치지 않게 한다
 test("서랍을 닫았다 열어도 열어 둔 분야가 그대로 열려 있다", async () => {
   renderRoute("/home");

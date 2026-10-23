@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "react-router";
 import { meQuery } from "@/api/members";
 import { HomeGreeting } from "@/components/home/HomeGreeting";
 import { NewIssues } from "@/components/home/NewIssues";
 import { RecommendedIssues } from "@/components/home/RecommendedIssues";
 import { SearchBox } from "@/components/home/SearchBox";
+import { focusSearchRequest } from "@/components/shell/useQuickSearch";
 import { usePageTitle } from "@/components/usePageTitle";
 
 // 홈 — 인사 · 검색창 · 「새로운 이슈」 · 추천 이슈 (EXPERIENCE.md Information Architecture, 프로토타입 v21).
@@ -13,6 +15,8 @@ export function HomePage() {
   // A17 — 200 이면 회원, 401 이면 손님(null). 다른 오류로 실패해도 홈 전체를 막지 않고 손님 문구로 보인다
   const me = useQuery(meQuery);
   const member = me.data ?? null;
+  // ⌘/Ctrl+K · 빠른 이동으로 왔으면 검색창에 포커스 (useQuickSearch)
+  const { state } = useLocation();
 
   return (
     <>
@@ -22,7 +26,7 @@ export function HomePage() {
       >
         <div className="mx-auto max-w-[780px] px-x4 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
           <HomeGreeting member={member} pending={me.isPending} />
-          <SearchBox />
+          <SearchBox focusRequest={focusSearchRequest(state)} />
           <NewIssues />
         </div>
       </section>
