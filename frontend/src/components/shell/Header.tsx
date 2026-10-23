@@ -12,19 +12,24 @@ import { useComingSoon } from "@/components/useSnackbar";
 type HeaderProps = {
   /** 로고를 눌렀을 때 — 셸이 본문을 맨 위로 올린다 */
   onLogoClick: () => void;
-  /** 좁은 화면에서 사이드바 서랍을 연다. 넘기면 메뉴 버튼이 생긴다 */
+  /** 좁은 화면인가 — 셸이 사이드바를 서랍으로 바꾸는 판정(useMediaQuery)을 그대로 받는다 */
+  narrow?: boolean;
+  /** 좁은 화면에서 사이드바 서랍을 연다 */
   onMenuClick?: () => void;
 };
 
 // 셸 헤더 — 스크롤해도 위에 붙어 있다 (EXPERIENCE.md 앱 셸).
 // 높이 60px · 로고 26px 는 프로토타입 v21 값이다 (DESIGN.md 헤더 로고 20–32px).
-// 767px 이하에서는 오른쪽 버튼의 글자를 숨기고 아이콘만 둔다. 이름은 스크린 리더에 남는다
-export function Header({ onLogoClick, onMenuClick }: HeaderProps) {
+// 좁은 화면에서는 메뉴 버튼을 두고, 오른쪽 버튼은 글자를 숨긴 40px 아이콘 버튼이 된다.
+// 이름은 스크린 리더에 남는다 (EXPERIENCE.md Responsive & Platform · Accessibility Floor)
+export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
   const comingSoon = useComingSoon();
+  const label = narrow ? "sr-only" : undefined;
+  const iconButton = narrow ? "size-x10 px-0" : undefined;
 
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak bg-bg-layer-default px-x4">
-      {onMenuClick && (
+      {narrow && onMenuClick && (
         <button
           type="button"
           aria-label="메뉴 열기"
@@ -45,16 +50,26 @@ export function Header({ onLogoClick, onMenuClick }: HeaderProps) {
       </Link>
       <div className="ml-auto flex items-center gap-x1">
         {/* 나의 뉴스함은 범위 미정이라 곧 제공 항목이다 (EXPERIENCE.md Component Patterns) */}
-        <ActionButton variant="ghost" size="small" onClick={comingSoon}>
+        <ActionButton
+          variant="ghost"
+          size="small"
+          className={iconButton}
+          onClick={comingSoon}
+        >
           <PrefixIcon svg={<IconBookmarkLine />} />
-          <span className="max-md:sr-only">나의 뉴스함</span>
+          <span className={label}>나의 뉴스함</span>
         </ActionButton>
         <span aria-hidden className="h-[14px] w-px bg-stroke-neutral-weak" />
         {/* /me 는 S15P31A102-66 에서 생긴다. 그전에는 찾을 수 없음 화면이 뜬다 */}
-        <ActionButton asChild variant="ghost" size="small">
+        <ActionButton
+          asChild
+          variant="ghost"
+          size="small"
+          className={iconButton}
+        >
           <Link to="/me">
             <PrefixIcon svg={<IconPersonLine />} />
-            <span className="max-md:sr-only">마이페이지</span>
+            <span className={label}>마이페이지</span>
           </Link>
         </ActionButton>
       </div>

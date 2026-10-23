@@ -36,8 +36,9 @@ export function AppShell() {
   return (
     <div className="flex h-dvh flex-col">
       <Header
+        narrow={narrow}
         onLogoClick={scrollToTop}
-        onMenuClick={narrow ? () => setDrawerOpen(true) : undefined}
+        onMenuClick={() => setDrawerOpen(true)}
       />
       <div className="flex min-h-0 flex-1">
         {narrow ? (
