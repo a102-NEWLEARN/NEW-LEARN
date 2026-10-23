@@ -21,7 +21,7 @@ def load_settings(env: Mapping[str, str] = os.environ) -> Settings:
     return Settings(
         redis_url=f"redis://{host}:{port}/0",
         llm_mode=env.get("LLM_MODE") or "mock",
-        gms_model=env.get("GMS_MODEL") or "gpt-5-mini",
+        gms_model=env.get("GMS_MODEL") or "gpt-6-luna",
         gms_api_key=env.get("GMS_API_KEY", ""),
         gms_base_url=env.get("GMS_BASE_URL", ""),
     )
