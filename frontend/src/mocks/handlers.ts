@@ -17,6 +17,21 @@ const categories: Category[] = [
   { code: "it_science", name: "IT·과학", issueCount: 2, articleCount: 730 },
 ];
 
+// 이슈마다 가장 최근 사건의 이름 · 키워드 (지어낸 것). 12번은 docs/api-screen.md A2 예시다
+const lastEvents: Record<number, { title: string; label: string }> = {
+  21: { title: "여야, 예산안 수정 협의 재개", label: "협의 재개" },
+  22: { title: "공천 심사 결과 발표 연기", label: "발표 연기" },
+  31: { title: "의대 증원 규모 재조정안 공개", label: "재조정안" },
+  32: { title: "피해 지원 특별법 개정안 통과", label: "개정안 통과" },
+  12: { title: "텍사스 공장 엔지니어 수급 우려 보도", label: "인력 수급 우려" },
+  13: { title: "한국은행, 기준금리 연 2.50% 유지", label: "금리 유지" },
+  14: { title: "스트레스 DSR 2단계 시행", label: "DSR 시행" },
+  15: { title: "외환당국 구두 개입 시사", label: "구두 개입" },
+  41: { title: "휴전 연장 합의안 초안 공개", label: "합의안 초안" },
+  51: { title: "국산 거대 언어 모델 공개 시연", label: "공개 시연" },
+  52: { title: "저궤도 위성 서비스 요금제 발표", label: "요금제 발표" },
+};
+
 // A2 — 분야마다 이슈 개수를 위 issueCount 와 맞췄다. 12번은 docs/api-screen.md A2 예시다
 function issue(
   id: number,
@@ -37,12 +52,7 @@ function issue(
     firstEventAt,
     lastEventAt,
     createdAt: firstEventAt,
-    lastEvent: {
-      id: id * 10,
-      title: `${title} 최근 사건`,
-      label: "최근 사건",
-      occurredAt: lastEventAt,
-    },
+    lastEvent: { id: id * 10, ...lastEvents[id], occurredAt: lastEventAt },
   };
 }
 
