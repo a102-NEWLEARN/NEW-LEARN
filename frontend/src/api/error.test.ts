@@ -4,7 +4,7 @@ import {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { describe, expect, test } from "vitest";
-import { ApiError, toApiError } from "@/api/error";
+import { ApiError, isNetworkError, toApiError } from "@/api/error";
 
 const config: InternalAxiosRequestConfig = { headers: new AxiosHeaders() };
 
@@ -84,5 +84,27 @@ describe("toApiError — 오류 응답을 ApiError 로 바꾼다", () => {
     const original = new ApiError({ status: 500, code: "INTERNAL_ERROR" });
 
     expect(toApiError(original)).toBe(original);
+  });
+});
+
+// 실패 안내의 「네트워크 상태를 확인…」은 요청이 서버에 닿지 못했을 때만 맞는 말이다
+describe("isNetworkError — 요청이 서버에 닿지 못했나", () => {
+  test("응답 없는 axios 오류는 그렇다 (가로챈 뒤 ApiError 여도)", () => {
+    const network = new AxiosError("Network Error", "ERR_NETWORK");
+
+    expect(isNetworkError(network)).toBe(true);
+    expect(isNetworkError(toApiError(network))).toBe(true);
+  });
+
+  test("서버가 답한 오류는 아니다", () => {
+    expect(isNetworkError(responseError(500, null))).toBe(false);
+    expect(isNetworkError(toApiError(responseError(404, null)))).toBe(false);
+  });
+
+  test("요청과 상관없는 오류(화면 렌더 중 터짐 등)는 아니다", () => {
+    expect(isNetworkError(new Error("boom"))).toBe(false);
+    expect(isNetworkError(toApiError(new TypeError("x is undefined")))).toBe(
+      false,
+    );
   });
 });
