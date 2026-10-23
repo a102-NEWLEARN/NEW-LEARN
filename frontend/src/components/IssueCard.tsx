@@ -4,7 +4,7 @@ import {
 } from "@karrotmarket/react-monochrome-icon";
 import { Link } from "react-router";
 import type { IssueSummary } from "@/api/issues";
-import { formatMonthDay } from "@/lib/date";
+import { formatEventDate } from "@/lib/date";
 
 type IssueCardProps = {
   issue: IssueSummary;
@@ -12,7 +12,7 @@ type IssueCardProps = {
 
 // 이슈 카드 — 카드 전체가 누르는 면 하나이고 누르면 이슈 화면으로 간다 (EXPERIENCE.md Component Patterns).
 // 모양은 v2 IssueCard README: 흰 카드 · 1px 테두리 · 16px 모서리 · 그림자 없음, 분야는 청록 글자만,
-// 제목 2줄, 최근 사건 앞에 8px 민트 점, 맨 아래 사건 · 기사 수. 최근 사건 날짜는 프로토타입 v21 에서 가져왔다
+// 제목 2줄, 최근 사건 앞에 8px 민트 점, 맨 아래 사건 · 기사 수. 최근 사건 날짜는 프로토타입 v21 에서 가져왔고 올해가 아니면 연도를 붙인다
 export function IssueCard({ issue }: IssueCardProps) {
   const { lastEvent } = issue;
   // 0이면 「0개」로 쓰지 않고 그 항목을 뺀다 (v2 IssueCard)
@@ -38,7 +38,7 @@ export function IssueCard({ issue }: IssueCardProps) {
           className="row-span-2 mt-[5px] size-x2 rounded-[2px] bg-bg-brand-accent"
         />
         <span className="t2-medium text-fg-neutral-muted">
-          최근 사건 · {formatMonthDay(lastEvent.occurredAt)}
+          최근 사건 · {formatEventDate(lastEvent.occurredAt)}
         </span>
         <span className="line-clamp-2 text-[0.875rem] leading-[1.25rem] text-fg-neutral">
           {lastEvent.title}

@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { IssueSummary } from "@/api/issues";
 import { IssueCard } from "@/components/IssueCard";
 import { renderWithProviders } from "@/test/render";
@@ -24,6 +24,13 @@ const issue: IssueSummary = {
   },
 };
 
+// 최근 사건 날짜는 올해인지에 따라 연도를 붙인다. Date 만 고정한다
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-23T09:00:00+09:00"));
+});
+afterEach(() => vi.useRealTimers());
+
 test("카드 전체가 이슈 화면으로 가는 링크 하나다", () => {
   renderWithProviders(<IssueCard issue={issue} />);
 
@@ -41,6 +48,22 @@ test("분야 · 최근 사건 · 사건과 기사 수를 보인다", () => {
   expect(screen.getByText("텍사스 공장 엔지니어 수급 우려 보도")).toBeDefined();
   expect(link.textContent).toContain("사건 8");
   expect(link.textContent).toContain("기사 23");
+});
+
+test("최근 사건이 올해가 아니면 연도를 붙인다", () => {
+  renderWithProviders(
+    <IssueCard
+      issue={{
+        ...issue,
+        lastEvent: {
+          ...issue.lastEvent,
+          occurredAt: "2025-12-01T10:00:00+09:00",
+        },
+      }}
+    />,
+  );
+
+  expect(screen.getByText("최근 사건 · 2025.12.01")).toBeDefined();
 });
 
 test("분야가 여럿이면 모두 적는다", () => {
