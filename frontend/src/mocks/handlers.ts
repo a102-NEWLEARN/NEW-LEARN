@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw/http";
 import type { Category } from "@/api/categories";
 import type { IssueSummary } from "@/api/issues";
+import type { Member } from "@/api/members";
 import type { ItemList, Page } from "@/api/types";
 
 // 가짜 API — 백엔드 API 가 생길 때까지 화면 개발 · 테스트에 쓴다 (frontend/README.md 「가짜 API」)
@@ -126,6 +127,18 @@ const issues: IssueSummary[] = [
   ),
 ];
 
+// A17 — docs/api-screen.md A17 예시. 가짜 API 에서는 늘 로그인한 회원이다.
+// 손님 화면은 테스트에서 401 로 바꿔 본다
+const me: Member = {
+  id: 7,
+  loginId: "newlearn01",
+  name: "김뉴런",
+  categories: [
+    { code: "economy", name: "경제" },
+    { code: "it_science", name: "IT·과학" },
+  ],
+};
+
 export const handlers = [
   http.get("/api/v1/categories", () =>
     HttpResponse.json({ items: categories } satisfies ItemList<Category>),
@@ -160,4 +173,5 @@ export const handlers = [
       totalPages: Math.ceil(matched.length / size),
     } satisfies Page<IssueSummary>);
   }),
+  http.get("/api/v1/members/me", () => HttpResponse.json(me)),
 ];
