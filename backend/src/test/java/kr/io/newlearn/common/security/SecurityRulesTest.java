@@ -52,6 +52,18 @@ class SecurityRulesTest {
         }
     }
 
+    // Swagger(springdoc)는 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
+    // 이 슬라이스 테스트에는 springdoc 이 안 떠 응답이 404 일 수 있다 — 보안을 지났는지(401 · 403 이 아닌지)만 본다
+    // 화면 · 문서가 실제로 나오는지는 BackendApplicationTests 가 본다
+    @Test
+    void swaggerPathsPassSecurity() throws Exception {
+        String[] paths = {"/swagger-ui.html", "/swagger-ui/index.html", "/v3/api-docs", "/v3/api-docs/swagger-config"};
+        for (String path : paths) {
+            MvcResult result = mockMvc.perform(get(path)).andReturn();
+            assertThat(result.getResponse().getStatus()).as(path).isNotIn(401, 403);
+        }
+    }
+
     // 내 정보 · 관심 분야(A16 ~ A18)는 로그인이 필요하다. 오류 모양은 컨트롤러 오류와 같다
     @Test
     void memberApisNeedLogin() throws Exception {

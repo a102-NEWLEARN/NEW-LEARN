@@ -35,6 +35,11 @@ public class SecurityConfig {
                                 "/api/v1/search/**",
                                 "/api/v1/dictionary")
                         .permitAll()
+                        // Swagger(springdoc) — 개발하는 동안 FE 가 로그인 없이 본다 (SSOT.md 6절 「공개 화면」, Jira 107)
+                        // 다시 잠글지는 SSOT.md 8절. 잠글 때는 이 줄과 인프라 길(infra/k8s/services/app/routes.yaml)을 같이 뺀다
+                        .requestMatchers(
+                                HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
+                        .permitAll()
                         // 가입(A14) · 로그인(A15)
                         .requestMatchers(HttpMethod.POST, "/api/v1/members", "/api/v1/auth/login")
                         .permitAll()
