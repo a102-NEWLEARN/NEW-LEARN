@@ -139,32 +139,54 @@ const me: Member = {
   ],
 };
 
+// 오류 응답 — Problem Details + code (docs/api.md 2절)
+function problem(
+  status: number,
+  code: string,
+  detail: string,
+  instance: string,
+) {
+  return HttpResponse.json(
+    { type: "about:blank", title: code, status, detail, instance, code },
+    { status },
+  );
+}
+
+// A2 정렬 기준. 같으면 id 내림차순 (docs/api-screen.md A2)
+const ISSUE_SORTS = ["lastEventAt", "createdAt"] as const;
+
 export const handlers = [
   http.get("/api/v1/categories", () =>
     HttpResponse.json({ items: categories } satisfies ItemList<Category>),
   ),
-  // 분야(category)로 거르고 마지막 사건 최신순으로 준다. 없는 분야는 404 (docs/api-screen.md A2)
+  // 분야(category)로 거르고 sort 순서로 준다. 기본은 마지막 사건 최신순.
+  // 없는 분야는 404, 모르는 sort 값은 400 (docs/api-screen.md A2)
   http.get("/api/v1/issues", ({ request }) => {
     const params = new URL(request.url).searchParams;
     const code = params.get("category");
+    const sort = params.get("sort") ?? "lastEventAt";
     const page = Number(params.get("page") ?? 0);
     const size = Number(params.get("size") ?? 20);
     if (code && !categories.some((category) => category.code === code)) {
-      return HttpResponse.json(
-        {
-          type: "about:blank",
-          title: "Not Found",
-          status: 404,
-          detail: `카테고리를 찾을 수 없다: ${code}`,
-          instance: "/api/v1/issues",
-          code: "CATEGORY_NOT_FOUND",
-        },
-        { status: 404 },
+      return problem(
+        404,
+        "CATEGORY_NOT_FOUND",
+        `카테고리를 찾을 수 없다: ${code}`,
+        "/api/v1/issues",
+      );
+    }
+    const key = ISSUE_SORTS.find((item) => item === sort);
+    if (!key) {
+      return problem(
+        400,
+        "VALIDATION_FAILED",
+        `모르는 정렬 기준: ${sort}`,
+        "/api/v1/issues",
       );
     }
     const matched = issues
       .filter((item) => !code || item.categories.some((c) => c.code === code))
-      .sort((a, b) => b.lastEventAt.localeCompare(a.lastEventAt));
+      .sort((a, b) => b[key].localeCompare(a[key]) || b.id - a.id);
     return HttpResponse.json({
       items: matched.slice(page * size, (page + 1) * size),
       page,

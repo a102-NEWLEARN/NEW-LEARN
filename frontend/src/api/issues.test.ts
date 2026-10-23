@@ -22,6 +22,18 @@ test("쪽 정보는 자르기 전 전체 개수로 준다", async () => {
   expect(page.totalPages).toBe(2);
 });
 
+test("sort=createdAt 이면 새로 생긴 이슈부터 받는다", async () => {
+  const page = await fetchIssues({ sort: "createdAt", size: 3 });
+
+  expect(page.items.map((issue) => issue.id)).toEqual([21, 12, 41]);
+});
+
+test("모르는 sort 값은 400 VALIDATION_FAILED 다", async () => {
+  await expect(
+    fetchIssues({ sort: "title" as "createdAt" }),
+  ).rejects.toMatchObject({ status: 400, code: "VALIDATION_FAILED" });
+});
+
 test("없는 분야 코드는 404 CATEGORY_NOT_FOUND 다", async () => {
   await expect(fetchIssues({ category: "nope" })).rejects.toMatchObject({
     status: 404,
