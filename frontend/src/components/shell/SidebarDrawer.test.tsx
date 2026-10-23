@@ -67,6 +67,29 @@ test("이슈를 고르면 그 화면으로 가며 서랍이 닫힌다", async ()
   expect(router.state.location.pathname).toBe("/issues/12");
 });
 
+// 서랍(SEED SidePanel)은 닫힐 때 포커스를 메뉴 버튼으로 돌려놓을 수 있다. 그래도 새 화면 제목에 남아야 한다
+test("서랍에서 이슈를 고르면 서랍이 닫힌 뒤에도 포커스가 새 화면 제목에 있다", async () => {
+  renderRoute("/home");
+
+  await openMenu();
+  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  fireEvent.click(await within(drawer).findByRole("button", { name: "경제" }));
+  fireEvent.click(
+    await within(drawer).findByRole("link", {
+      name: "한빛반도체 미국 공장 건설",
+    }),
+  );
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const heading = await screen.findByRole("heading", {
+    level: 1,
+    name: "페이지를 찾을 수 없어요",
+  });
+  // 서랍이 닫히고 조금 지나도 그대로인지
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(heading);
+});
+
 // 좁은 화면에서는 이슈를 고를 때마다 서랍이 닫힌다. 다시 열 때 분야를 또 펼치지 않게 한다
 test("서랍을 닫았다 열어도 열어 둔 분야가 그대로 열려 있다", async () => {
   renderRoute("/home");
