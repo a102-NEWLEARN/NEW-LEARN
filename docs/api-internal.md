@@ -230,5 +230,5 @@ stateDiagram-v2
 
 | 화면 필드 | 어떻게 정하나 | 쓰는 곳 |
 |---|---|---|
-| `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업의 상태(`QUEUED` · `FAILED`). 작업도 없으면 `NONE` | A6 · A7 · A8 |
+| `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업 상태를 그대로 반환한다(`QUEUED` · `SUCCEEDED` · `FAILED`). 결과 없이 작업만 성공이어도 `SUCCEEDED`이며 별도 저장 금지 규칙은 추가하지 않는다(2026-10-23 팀장 확인). 작업도 없으면 `NONE` | A6 · A7 · A8 |
 | `eventMatchStatus` | `MATCH_EVENT` 작업의 상태. 작업이 없으면 `NONE` | A8 |
