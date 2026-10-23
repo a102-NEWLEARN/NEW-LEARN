@@ -22,17 +22,25 @@ afterEach(() => vi.useRealTimers());
 
 const pass = (ms: number) => act(() => vi.advanceTimersByTime(ms));
 
+// 닫히는 중인 스낵바는 사라지는 모션 동안 DOM 에 aria-hidden 으로 남는다.
+// role 로 찾으면 그것을 빼고 지금 보이는 스낵바만 센다
+const shownSnackbars = () =>
+  screen
+    .queryAllByRole("status")
+    .filter((snackbar) => snackbar.textContent?.includes(message));
+
 test("곧 제공 항목을 누르면 안내가 뜨고 2.4초 뒤 사라진다", () => {
   renderWithProviders(<ComingSoonButton />);
 
   fireEvent.click(screen.getByRole("button", { name: "나의 뉴스함" }));
-  expect(screen.getByText(message)).toBeDefined();
+  expect(shownSnackbars()).toHaveLength(1);
 
   pass(2399);
-  expect(screen.getByText(message)).toBeDefined();
+  expect(shownSnackbars()).toHaveLength(1);
 
-  // 2.4초에 닫히기 시작하고, 사라지는 모션(0.2초) 뒤에 화면에서 빠진다
+  // 2.4초에 닫히기 시작하고, 사라지는 모션(0.2초) 뒤에 DOM 에서도 빠진다
   pass(1);
+  expect(shownSnackbars()).toHaveLength(0);
   pass(200);
   expect(screen.queryByText(message)).toBeNull();
 });
@@ -43,12 +51,14 @@ test("연달아 누르면 앞 스낵바를 바로 바꾸고 하나만 보인다"
 
   fireEvent.click(button);
   fireEvent.click(button);
-  expect(screen.getAllByText(message)).toHaveLength(1);
-
-  // 앞 것이 0.2초 만에 빠지고 새 것이 2.4초 뜬다. 줄 세우면(queued) 이때도 남아 있다
+  // 앞 것은 바로 닫히기 시작하고 0.2초 뒤 새 것이 뜬다
+  expect(shownSnackbars()).toHaveLength(0);
   pass(200);
-  expect(screen.getAllByText(message)).toHaveLength(1);
+  expect(shownSnackbars()).toHaveLength(1);
+
+  // 새 것도 2.4초 뒤 닫힌다. 줄 세우면(queued) 이때 아직 보인다
   pass(2400);
+  expect(shownSnackbars()).toHaveLength(0);
   pass(200);
   expect(screen.queryByText(message)).toBeNull();
 });
