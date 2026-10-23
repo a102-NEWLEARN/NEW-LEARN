@@ -169,7 +169,10 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
     groups = searchGroups(results.data);
     if (groups.length === 0)
       message = current ? (
-        <p className="t4-regular px-x4 pt-x3 pb-x4 text-fg-neutral-muted">
+        <p
+          role="status"
+          className="t4-regular px-x4 pt-x3 pb-x4 text-fg-neutral-muted"
+        >
           {`'${searched}'에 맞는 이슈·사건·기사가 없어요`}
         </p>
       ) : (
@@ -192,14 +195,19 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
   const numbered = groups.map((group, groupIndex) => ({
     ...group,
     labelId: `${listId}-group-${groupIndex}`,
+    countId: `${listId}-count-${groupIndex}`,
     options: group.options.map((option) => ({
       ...option,
       at: options.indexOf(option),
     })),
   }));
   const activeIndex = current ? Math.min(active, options.length - 1) : -1;
-  const optionId = (index: number) => `${listId}-option-${index}`;
-  const activeId = open && activeIndex >= 0 ? optionId(activeIndex) : undefined;
+  // 줄 id 는 순번이 아니라 그 줄의 이슈 · 사건 · 기사로 짓는다. 결과가 바뀌면 id 도 바뀌어야
+  // aria-activedescendant 가 바뀌고 스크린 리더가 새로 골라진 줄을 읽는다
+  const optionId = (option: Option) => `${listId}-${option.key}`;
+  const activeOption =
+    open && activeIndex >= 0 ? options[activeIndex] : undefined;
+  const activeId = activeOption ? optionId(activeOption) : undefined;
 
   // 셸이 포커스를 부탁하면 목록을 열고(그리는 중에 새 부탁을 알아챈다) 입력 칸에 포커스한다.
   // 이미 포커스가 있으면 onFocus 가 안 불려서 여는 일을 따로 한다
@@ -344,7 +352,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
             <div
               role="listbox"
               id={listId}
-              aria-label="검색 결과"
+              aria-label={word === "" ? "최근 업데이트된 이슈" : "검색 결과"}
               aria-busy={!current}
               className={current ? undefined : "opacity-60"}
             >
@@ -352,13 +360,17 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
                 <div
                   key={group.label}
                   role="group"
-                  aria-labelledby={group.labelId}
+                  aria-labelledby={
+                    group.total > group.options.length
+                      ? `${group.labelId} ${group.countId}`
+                      : group.labelId
+                  }
                   className="pb-x1_5"
                 >
                   <div className="t2-bold flex items-center justify-between px-x4 pt-x1_5 pb-x1 text-fg-neutral-muted">
                     <span id={group.labelId}>{group.label}</span>
                     {group.total > group.options.length && (
-                      <span className="font-medium">
+                      <span id={group.countId} className="font-medium">
                         {group.options.length} / {group.total}개
                       </span>
                     )}
@@ -368,7 +380,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
                     return (
                       <div
                         key={option.key}
-                        id={optionId(at)}
+                        id={optionId(option)}
                         role="option"
                         aria-selected={selected}
                         onMouseEnter={() => setActive(at)}

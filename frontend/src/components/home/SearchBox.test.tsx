@@ -155,14 +155,53 @@ test("결과가 오기 전에 ↓ 를 눌러도 결과가 오면 맨 앞 줄이 
   );
 });
 
+test("목록 이름은 비었을 때 「최근 업데이트된 이슈」, 글자를 치면 「검색 결과」다", async () => {
+  renderSearch();
+  act(() => input().focus());
+  expect(
+    screen.getByRole("listbox", { name: "최근 업데이트된 이슈" }),
+  ).toBeDefined();
+
+  fireEvent.change(input(), { target: { value: "공장" } });
+
+  expect(screen.getByRole("listbox", { name: "검색 결과" })).toBeDefined();
+});
+
+test("묶음마다 보일 수를 넘으면 잘라 보이고 묶음 이름에 「4 / 5개」를 붙인다", async () => {
+  renderSearch();
+
+  await openWith("공");
+
+  const events = await screen.findByRole("group", { name: "사건 4 / 5개" });
+  expect(within(events).getAllByRole("option")).toHaveLength(4);
+});
+
+// 줄 id 가 순번이면 결과가 바뀌어도 aria-activedescendant 가 그대로라 스크린 리더가 새 줄을 읽지 않는다
+test("결과가 바뀌면 골라진 줄의 id 도 바뀐다", async () => {
+  renderSearch();
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+  const before = input().getAttribute("aria-activedescendant");
+
+  fireEvent.change(input(), { target: { value: "금리" } });
+  await screen.findByRole("option", { name: "기준금리 동결 행진" });
+
+  await waitFor(() =>
+    expect(input().getAttribute("aria-activedescendant")).not.toBeNull(),
+  );
+  expect(input().getAttribute("aria-activedescendant")).not.toBe(before);
+});
+
 test("맞는 것이 없으면 그렇다고 안내한다", async () => {
   renderSearch();
 
   await openWith("없는말");
 
-  expect(
-    await screen.findByText("'없는말'에 맞는 이슈·사건·기사가 없어요"),
-  ).toBeDefined();
+  const message = await screen.findByText(
+    "'없는말'에 맞는 이슈·사건·기사가 없어요",
+  );
+  // 스크린 리더가 읽어 주게
+  expect(message.getAttribute("role")).toBe("status");
 });
 
 test("Esc 로 닫고 ↓ 로 다시 연다", async () => {
