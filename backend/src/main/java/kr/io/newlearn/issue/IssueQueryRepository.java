@@ -1,9 +1,12 @@
 package kr.io.newlearn.issue;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +16,17 @@ import org.springframework.stereotype.Repository;
 // 복잡한 집계는 네이티브 SQL로 읽는다. 카테고리 조인 대신 EXISTS로 필터해 행이 늘어나지 않게 한다.
 @Repository
 public class IssueQueryRepository {
+    // A2 목록과 A3 단건이 같은 계산과 행 매핑을 공유한다.
+    private static final String AGGREGATE = """
+            select i.id, i.title, i.summary, i.created_at,
+                count(distinct e.id) as event_count, count(distinct a.id) as article_count,
+                count(distinct a.press_code) as publisher_count,
+                min(e.occurred_at) as first_event_at, max(e.occurred_at) as last_event_at
+            from issue i
+            left join event e on e.issue_id = i.id
+            left join article_event ae on ae.event_id = e.id
+            left join article a on a.id = ae.article_id and a.released_at is not null
+            """;
     private static final String FILTER = """
             where (:category is null or exists (
                 select 1 from issue_category ic where ic.issue_id = i.id and ic.category_code = :category))
@@ -28,16 +42,7 @@ public class IssueQueryRepository {
                 .param("category", category, Types.VARCHAR)
                 .query(Long.class)
                 .single();
-        List<CardRow> rows = jdbc.sql("""
-                select i.id, i.title, i.summary, i.created_at,
-                    count(distinct e.id) as event_count, count(distinct a.id) as article_count,
-                    count(distinct a.press_code) as publisher_count,
-                    min(e.occurred_at) as first_event_at, max(e.occurred_at) as last_event_at
-                from issue i
-                left join event e on e.issue_id = i.id
-                left join article_event ae on ae.event_id = e.id
-                left join article a on a.id = ae.article_id and a.released_at is not null
-                """ + FILTER + """
+        List<CardRow> rows = jdbc.sql(AGGREGATE + FILTER + """
                 group by i.id
                 order by case when :sort = 'createdAt' then i.created_at else max(e.occurred_at) end desc nulls last,
                     i.id desc
@@ -47,18 +52,45 @@ public class IssueQueryRepository {
                 .param("sort", sort)
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset())
-                .query((rs, n) -> new CardRow(
-                        rs.getLong("id"),
-                        rs.getString("title"),
-                        rs.getString("summary"),
-                        rs.getLong("event_count"),
-                        rs.getLong("article_count"),
-                        rs.getLong("publisher_count"),
-                        toInstant(rs.getObject("first_event_at", OffsetDateTime.class)),
-                        toInstant(rs.getObject("last_event_at", OffsetDateTime.class)),
-                        toInstant(rs.getObject("created_at", OffsetDateTime.class))))
+                .query(IssueQueryRepository::mapCard)
                 .list();
         return new PageImpl<>(rows, pageable, total);
+    }
+
+    public Optional<CardRow> findHeader(long issueId) {
+        return jdbc.sql(AGGREGATE + " where i.id = :id group by i.id")
+                .param("id", issueId)
+                .query(IssueQueryRepository::mapCard)
+                .optional();
+    }
+
+    public List<EventCountRow> findEventCounts(List<Long> eventIds) {
+        if (eventIds.isEmpty()) return List.of();
+        return jdbc.sql("""
+                select e.id, count(distinct a.id) as article_count,
+                    count(distinct a.press_code) as publisher_count
+                from event e
+                left join article_event ae on ae.event_id = e.id
+                left join article a on a.id = ae.article_id and a.released_at is not null
+                where e.id in (:ids) group by e.id
+                """)
+                .param("ids", eventIds)
+                .query((rs, n) ->
+                        new EventCountRow(rs.getLong("id"), rs.getLong("article_count"), rs.getLong("publisher_count")))
+                .list();
+    }
+
+    private static CardRow mapCard(ResultSet rs, int rowNum) throws SQLException {
+        return new CardRow(
+                rs.getLong("id"),
+                rs.getString("title"),
+                rs.getString("summary"),
+                rs.getLong("event_count"),
+                rs.getLong("article_count"),
+                rs.getLong("publisher_count"),
+                toInstant(rs.getObject("first_event_at", OffsetDateTime.class)),
+                toInstant(rs.getObject("last_event_at", OffsetDateTime.class)),
+                toInstant(rs.getObject("created_at", OffsetDateTime.class)));
     }
 
     public List<CategoryRow> findCategories(List<Long> issueIds) {
@@ -107,4 +139,6 @@ public class IssueQueryRepository {
     public record CategoryRow(long issueId, String code, String name) {}
 
     public record EventRow(long issueId, long id, String title, String label, Instant occurredAt) {}
+
+    public record EventCountRow(long eventId, long articleCount, long publisherCount) {}
 }
