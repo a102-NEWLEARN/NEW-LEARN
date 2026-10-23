@@ -130,6 +130,18 @@ test("검색어를 바꾸고 바로 Enter 를 누르면 새 검색어의 맨 앞
   );
 });
 
+test("앞 검색어의 결과가 남아 있는 동안에는 그 줄을 고를 수 없고 칠하지도 않는다", async () => {
+  renderSearch();
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+
+  fireEvent.change(input(), { target: { value: "금리" } });
+
+  expect(screen.getAllByRole("option").length).toBeGreaterThan(0);
+  expect(input().getAttribute("aria-activedescendant")).toBeNull();
+  expect(screen.getByRole("listbox").querySelectorAll("mark")).toHaveLength(0);
+});
+
 test("새 결과를 기다리는 동안에는 앞 결과를 고를 수 없고 앞 안내도 보이지 않는다", async () => {
   renderSearch();
   await openWith("없는말");
