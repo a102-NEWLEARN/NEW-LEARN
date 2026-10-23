@@ -28,8 +28,13 @@ spec:
         - name: backend
           port: 8080
     # Swagger — 개발하는 동안 FE 가 편하게 잠그지 않는다 (SSOT 6절 「도메인 · HTTPS」, 다시 잠글지는 8절)
-    # backend 에 springdoc 이 들어오면 바로 열린다 (기본 경로 /swagger-ui · /v3/api-docs)
+    # backend 의 springdoc(Jira 107) — 첫 주소 /swagger-ui.html 은 화면 /swagger-ui/index.html 로 넘긴다
+    # /swagger-ui.html 은 접두사 /swagger-ui 에 걸리지 않아(경로 조각 단위) 정확 경로로 따로 둔다 — 없으면 아래 / 규칙으로 frontend 가 받는다
+    # 다시 잠글 때는 이 규칙과 backend 의 SecurityConfig 허용 줄을 같이 뺀다
     - matches:
+        - path:
+            type: Exact
+            value: /swagger-ui.html
         - path:
             type: PathPrefix
             value: /swagger-ui
