@@ -130,6 +130,8 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  // Enter 를 누르고 결과를 기다리는 검색어. 목록을 닫으면 지워서 그 사이의 Esc · Tab · 바깥 누르기가 이동을 취소한다
+  const waiting = useRef<string | null>(null);
   const word = text.trim();
   const searched = useDebounced(word, SEARCH_DELAY);
 
@@ -224,7 +226,9 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
   useEffect(() => {
     if (!open) return;
     const onMouseDown = (event: MouseEvent) => {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+      if (wrapRef.current?.contains(event.target as Node)) return;
+      waiting.current = null;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
@@ -238,23 +242,34 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
       });
   }, [activeId]);
 
-  const pick = (option: Option) => {
+  const close = () => {
+    waiting.current = null;
     setOpen(false);
+  };
+
+  const pick = (option: Option) => {
+    close();
     setText("");
     inputRef.current?.blur();
     navigate(option.href);
   };
 
   // 앞 검색어의 결과가 보이는 동안 Enter 를 누르면 지금 검색어의 결과를 받아 맨 앞 줄을 연다.
-  // 받는 사이에 검색어를 고쳤으면 열지 않는다. 실패 안내는 목록이 보여 준다
+  // 받는 사이에 검색어를 고쳤거나 목록을 닫았으면 열지 않는다. 실패 안내는 목록이 보여 준다.
+  // Enter 를 누른 채로 두거나 한글 입력기가 keydown 을 두 번 보내도 한 번만 연다 — 두 번 열면 같은 주소가 기록에 두 번 쌓인다
   const openFirst = (asked: string) => {
+    waiting.current = asked;
     queryClient.fetchQuery(searchQuery(asked)).then(
       (result) => {
+        if (waiting.current !== asked) return;
+        waiting.current = null;
         if (inputRef.current?.value.trim() !== asked) return;
         const first = searchGroups(result)[0]?.options[0];
         if (first) pick(first);
       },
-      () => {},
+      () => {
+        if (waiting.current === asked) waiting.current = null;
+      },
     );
   };
 
@@ -280,7 +295,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
       // 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
       event.preventDefault();
       event.stopPropagation();
-      setOpen(false);
+      close();
     }
   };
 
@@ -289,8 +304,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
       ref={wrapRef}
       // Tab 으로 검색창 밖으로 나가면 닫는다. 검색어 지우기 버튼은 안이다
       onBlur={(event) => {
-        if (!wrapRef.current?.contains(event.relatedTarget as Node))
-          setOpen(false);
+        if (!wrapRef.current?.contains(event.relatedTarget as Node)) close();
       }}
       className="relative mx-auto mt-x7 w-full max-w-[680px] text-left"
     >

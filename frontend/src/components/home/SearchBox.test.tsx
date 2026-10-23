@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test, vi } from "vitest";
+import { searchQuery } from "@/api/search";
 import { SearchBox } from "@/components/home/SearchBox";
 import { server } from "@/mocks/node";
 import { renderRoute } from "@/test/render";
@@ -128,6 +129,41 @@ test("검색어를 바꾸고 바로 Enter 를 누르면 새 검색어의 맨 앞
   await waitFor(() =>
     expect(router.state.location.pathname).toBe("/issues/13"),
   );
+});
+
+// Enter 를 누른 채로 두거나 한글 입력기가 keydown 을 두 번 보낼 때 — 같은 주소가 두 번 쌓이면 뒤로 가기를 두 번 눌러야 한다
+test("결과가 오기 전에 Enter 를 두 번 눌러도 한 번만 연다", async () => {
+  const { router } = renderSearch();
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+
+  fireEvent.change(input(), { target: { value: "금리" } });
+  fireEvent.keyDown(input(), { key: "Enter" });
+  fireEvent.keyDown(input(), { key: "Enter" });
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/issues/13"),
+  );
+
+  await act(() => router.navigate(-1));
+  expect(router.state.location.pathname).toBe("/home");
+});
+
+test("결과가 오기 전에 Esc 로 닫으면 결과가 와도 옮기지 않는다", async () => {
+  const { router, queryClient } = renderSearch();
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+
+  fireEvent.change(input(), { target: { value: "금리" } });
+  fireEvent.keyDown(input(), { key: "Enter" });
+  fireEvent.keyDown(input(), { key: "Escape" });
+  await waitFor(() =>
+    expect(
+      queryClient.getQueryData(searchQuery("금리").queryKey),
+    ).toBeDefined(),
+  );
+  await act(async () => {});
+
+  expect(router.state.location.pathname).toBe("/home");
 });
 
 test("앞 검색어의 결과가 남아 있는 동안에는 그 줄을 고를 수 없고 칠하지도 않는다", async () => {
