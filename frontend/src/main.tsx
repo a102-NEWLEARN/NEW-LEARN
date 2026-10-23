@@ -1,10 +1,9 @@
-import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import { SnackbarProvider } from "seed-design/ui/snackbar";
 import { createQueryClient } from "@/api/query-client";
+import { AppProviders } from "@/providers";
 import { routes } from "@/routes";
 import "@/style.css";
 
@@ -24,13 +23,10 @@ const router = createBrowserRouter(routes);
 void enableMocking().then(() => {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        {/* 화면 어디서든 useSnackbar 로 알림을 띄운다 (src/components/useSnackbar.tsx) */}
-        <SnackbarProvider>
-          <RouterProvider router={router} />
-        </SnackbarProvider>
+      <AppProviders queryClient={queryClient}>
+        <RouterProvider router={router} />
         <ReactQueryDevtools />
-      </QueryClientProvider>
+      </AppProviders>
     </StrictMode>,
   );
 });
