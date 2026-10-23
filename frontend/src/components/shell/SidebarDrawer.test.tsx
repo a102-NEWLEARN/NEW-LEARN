@@ -5,19 +5,13 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { http, HttpResponse } from "msw/http";
 import { beforeEach, expect, test } from "vitest";
-import { server } from "@/mocks/node";
 import { resizeScreen, stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 767px 이하 — 사이드바가 서랍이 된다 (EXPERIENCE.md 앱 셸 · Responsive & Platform)
 beforeEach(() => {
   stubScreen("narrow");
-  // /home 은 개발 확인 화면이라 헬스를 부른다
-  server.use(
-    http.get("/actuator/health", () => HttpResponse.json({ status: "UP" })),
-  );
 });
 
 const openMenu = async () =>
