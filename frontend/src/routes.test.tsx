@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { shellRoute } from "@/routes";
@@ -59,6 +59,42 @@ test("화면이 렌더 중 터지면 셸은 두고 본문 자리에 오류 안�
     ),
   ).toBeDefined();
   expect(screen.getByRole("banner")).toBeDefined();
+});
+
+test("화면마다 탭 제목을 그 화면 이름으로 바꾼다", async () => {
+  const { router } = renderRoute("/home");
+
+  await expect.poll(() => document.title).toBe("홈 | NEW:LEARN");
+  await act(() => router.navigate("/nope"));
+  await expect
+    .poll(() => document.title)
+    .toBe("페이지를 찾을 수 없어요 | NEW:LEARN");
+});
+
+test("다른 화면으로 가면 포커스를 본문 맨 위 제목으로 옮긴다", async () => {
+  renderRoute("/home");
+  // 처음 열 때는 옮기지 않는다
+  expect(document.activeElement).toBe(document.body);
+
+  const newIssues = await screen.findByRole("list", { name: "새로운 이슈" });
+  fireEvent.click(within(newIssues).getAllByRole("link")[0]);
+
+  const heading = await screen.findByRole("heading", {
+    level: 1,
+    name: "페이지를 찾을 수 없어요",
+  });
+  expect(document.activeElement).toBe(heading);
+});
+
+test("같은 화면에서 ?category= 만 바뀌면 포커스를 옮기지 않는다", async () => {
+  const { router } = renderRoute("/home");
+  const tab = await screen.findByRole("tab", { name: "국제" });
+
+  act(() => tab.focus());
+  fireEvent.click(tab);
+
+  await expect.poll(() => router.state.location.search).toBe("?category=world");
+  expect(document.activeElement).toBe(tab);
 });
 
 test("화면이 넘긴 제목을 보여 준다", () => {

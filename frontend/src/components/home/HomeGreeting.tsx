@@ -38,7 +38,11 @@ export function HomeGreeting({ member, pending }: HomeGreetingProps) {
             : today}
         </p>
       )}
-      <h1 className="t10-bold md:t13-bold mt-x2_5 text-fg-neutral">
+      {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell) */}
+      <h1
+        tabIndex={-1}
+        className="t10-bold md:t13-bold mt-x2_5 text-fg-neutral outline-none"
+      >
         오늘의 이슈를 탐색해 보세요
       </h1>
       <p className="t5-regular mt-x2_5 text-fg-neutral-muted">
