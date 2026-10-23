@@ -41,6 +41,32 @@ test("펼치기 · 접기 버튼으로 폈다 접는다", async () => {
   ).toBeDefined();
 });
 
+// 누른 버튼이 접힘 · 펼침에 따라 바뀌어도 키보드 포커스가 사라지지 않는다 (EXPERIENCE.md 「포커스는 늘 보인다」)
+test("접고 펴도 포커스가 접기 · 펼치기 버튼에 남는다", async () => {
+  renderRoute("/home");
+
+  const expand = await within(sidebar()).findByRole("button", {
+    name: "사이드바 펼치기",
+  });
+  expand.focus();
+  fireEvent.click(expand);
+  expect(document.activeElement).toBe(
+    within(sidebar()).getByRole("button", { name: "사이드바 접기" }),
+  );
+
+  fireEvent.click(document.activeElement!);
+  expect(document.activeElement).toBe(
+    within(sidebar()).getByRole("button", { name: "사이드바 펼치기" }),
+  );
+});
+
+test("처음 화면을 열 때는 포커스를 가져가지 않는다", async () => {
+  renderRoute("/home");
+  await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" });
+
+  expect(document.activeElement).toBe(document.body);
+});
+
 test("Ctrl+\\ 로 폈다 접는다", async () => {
   renderRoute("/home");
   await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" });
