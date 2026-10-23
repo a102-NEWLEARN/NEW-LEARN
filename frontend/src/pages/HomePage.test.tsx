@@ -1,6 +1,7 @@
-import { screen } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
+import { act, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { server } from "@/mocks/node";
 import { HomePage } from "@/pages/HomePage";
 import { renderRoute } from "@/test/render";
@@ -107,4 +108,27 @@ test("A17 이 다른 오류로 실패해도 홈을 막지 않고 손님 문구�
   expect(
     await screen.findByRole("list", { name: "새로운 이슈" }),
   ).toBeDefined();
+});
+
+test("창에 돌아와도 A17 을 다시 부르지 않아 탭 순서가 그대로다", async () => {
+  // SEED Tabs 는 방향키 순서를 탭을 처음 그릴 때만 읽는다. 순서가 바뀌면 방향키가 엇나간다
+  let calls = 0;
+  const count = ({ request }: { request: Request }) => {
+    if (new URL(request.url).pathname === "/api/v1/members/me") calls += 1;
+  };
+  server.events.on("request:start", count);
+  onTestFinished(() => {
+    server.events.removeListener("request:start", count);
+    focusManager.setFocused(undefined);
+  });
+  renderHome();
+  await screen.findByRole("tablist", { name: "분야" });
+
+  act(() => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  expect(calls).toBe(1);
 });
