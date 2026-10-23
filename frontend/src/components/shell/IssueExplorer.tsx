@@ -10,7 +10,7 @@ import {
 } from "@/api/categories";
 import { type IssueSummary, issuesQuery } from "@/api/issues";
 import { QueryState } from "@/components/state/QueryState";
-import { useSnackbar } from "@/components/useSnackbar";
+import { useUpcomingCategory } from "@/components/useSnackbar";
 
 // 한 분야에서 불러올 이슈 수. 사이드바는 쪽을 넘기지 않는다 (A2 size 상한 100)
 const ISSUES_PER_CATEGORY = 50;
@@ -32,7 +32,7 @@ export function IssueExplorer({
   onOpenCodeChange,
 }: IssueExplorerProps) {
   const categories = useQuery(categoriesQuery);
-  const snackbar = useSnackbar();
+  const notifyUpcoming = useUpcomingCategory();
 
   return (
     <QueryState
@@ -61,9 +61,7 @@ export function IssueExplorer({
               <button
                 type="button"
                 className={`${rowClass} text-fg-neutral-muted`}
-                onClick={() =>
-                  snackbar.show(`${category.name}는 준비 중이에요`)
-                }
+                onClick={() => notifyUpcoming(category.name)}
               >
                 <span className="truncate pl-x5">{category.name}</span>
                 <span className="t1-medium ml-auto shrink-0 text-fg-neutral-muted">
