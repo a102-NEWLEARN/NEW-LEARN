@@ -1015,7 +1015,7 @@
     {
       "type": "timeseries",
       "title": "CPU 예약 (요청 합, 코어)",
-      "description": "네임스페이스별 CPU 요청 합. gitlab-runner 가 잡 Pod 몫이다. 빨간 점선(노드 전체)에 닿으면 새 잡 Pod 가 Pending",
+      "description": "네임스페이스별 CPU 요청 합. gitlab-runner · gitlab-runner-build(Lightsail 굽기) 가 잡 Pod 몫이다. 빨간 점선(노드 전체)에 닿으면 새 잡 Pod 가 Pending",
       "gridPos": {
         "x": 12,
         "y": 36,
@@ -1138,7 +1138,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", pod=~\"runner-.*\", container!=\"\", container!=\"POD\"}[$__rate_interval])) * on (pod) group_left (annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) max by (pod, annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) (kube_pod_annotations{namespace=\"gitlab-runner\", annotation_job_runner_gitlab_com_name!=\"\"})",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"gitlab-runner(-build)?\", pod=~\"runner-.*\", container!=\"\", container!=\"POD\"}[$__rate_interval])) * on (pod) group_left (annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) max by (pod, annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) (kube_pod_annotations{namespace=~\"gitlab-runner(-build)?\", annotation_job_runner_gitlab_com_name!=\"\"})",
           "refId": "A",
           "legendFormat": "{{annotation_job_runner_gitlab_com_name}} #{{annotation_job_runner_gitlab_com_id}}",
           "range": true,
@@ -1200,7 +1200,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=\"gitlab-runner\", container=\"build\"}[$__rate_interval])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=\"gitlab-runner\", container=\"build\"}[$__rate_interval]))) * on (pod) group_left (annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) max by (pod, annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) (kube_pod_annotations{namespace=\"gitlab-runner\", annotation_job_runner_gitlab_com_name!=\"\"})",
+          "expr": "(sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=~\"gitlab-runner(-build)?\", container=\"build\"}[$__rate_interval])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=~\"gitlab-runner(-build)?\", container=\"build\"}[$__rate_interval]))) * on (pod) group_left (annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) max by (pod, annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) (kube_pod_annotations{namespace=~\"gitlab-runner(-build)?\", annotation_job_runner_gitlab_com_name!=\"\"})",
           "refId": "A",
           "legendFormat": "{{annotation_job_runner_gitlab_com_name}} #{{annotation_job_runner_gitlab_com_id}}",
           "range": true,

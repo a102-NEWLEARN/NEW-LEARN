@@ -3,6 +3,11 @@
 # hello v1 → v2 를 Git(로컬 미러)에 커밋해 Argo CD 로 반영하고, git revert 로 v1 에 돌아온다
 # 그동안 요청을 계속 보내 실패 수와 걸린 시간을 잰다. up.sh 뒤에 돌린다
 set -euo pipefail
+
+# 2026-10-22 은퇴 — 실제 클러스터가 생겨 앱 목록(infra/k8s/apps)에 cert-manager · 운영 키로 봉인한 Secret · 서비스가 들어갔고
+# 시험 앱 hello 는 지웠다(Jira S15P31A102-105). 이 스크립트는 Jira S15P31A102-77 때의 기록으로만 남긴다 (infra/README.md 「kind 리허설」)
+echo "❌ kind 리허설은 은퇴했다 (2026-10-22) — 실제 서버에서 확인한다: infra/server/README.md" >&2
+exit 1
 . "$(dirname "$0")/lib.sh"
 
 need kubectl git curl

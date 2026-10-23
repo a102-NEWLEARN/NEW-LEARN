@@ -1,0 +1,124 @@
+# 실제 서버(EC2 컨트롤 플레인 + Lightsail 워커)에서만 덮는 값. 공통 값은 argocd-values.yaml
+# 쓰는 곳: infra/server/bootstrap-argocd.sh. 컨트롤 플레인 taint 때문에 Argo CD 는 워커에 뜬다
+configs:
+  params:
+    # TLS 는 앞단 Envoy 가 끝낸다 (Jira S15P31A102-93). Argo CD 는 클러스터 안에서 http 로만 받는다
+    server.insecure: true
+    # 화면 주소가 https://newlearn.io.kr/argocd 다. Envoy 는 접두사를 떼지 않고 그대로 넘긴다
+    server.rootpath: /argocd
+    server.basehref: /argocd
+  cm:
+    url: https://newlearn.io.kr/argocd
+    # 공개 주소는 앞단 팝업(기본 인증) 뒤에 있다 — 팝업을 지나면 로그인 없이 읽기만 된다 (infra/k8s/admin-ui/argocd.yaml)
+    # 동기화 · 설정 변경은 admin 으로 로그인한 뒤에만
+    users.anonymous.enabled: "true"
+    # GitLab 웹훅 본문 상한 — push 알림은 수 KB 다(기본 50MB). 웹훅 길은 팝업 밖이라 작게 둔다
+    webhook.maxPayloadSizeMB: "1"
+  rbac:
+    policy.default: role:readonly
+  secret:
+    # GitLab 웹훅 토큰 — 값은 저장소의 봉인 Secret(infra/k8s/admin-ui/sealed-argocd-webhook.yaml)에 있고 여기는 그것을 가리키는 글자뿐이다
+    # 가리킨 Secret 에 이름표 app.kubernetes.io/part-of=argocd 가 있어야 읽힌다 (Argo CD 문서 「Git Webhook Configuration」)
+    # argocd-server 는 이 값을 뜰 때 한 번 읽는다 — 토큰을 바꾸면 kubectl -n argocd rollout restart deploy/argocd-server
+    gitlabSecret: "$argocd-webhook:gitlab"
+
+# 배포 알림 — Mattermost 배포 알림 전용 채널의 들어오는 웹훅으로 보낸다 (Jira S15P31A102-106, SSOT 6절 「배포 흐름」)
+# 받는 일: 배포 완료(app · ai 앱의 주석으로 구독) · 동기화 실패 · 건강 나빠짐(앱 전부, 아래 subscriptions)
+notifications:
+  enabled: true
+  argocdUrl: https://newlearn.io.kr/argocd
+  # 웹훅 주소는 저장소의 봉인 Secret(infra/k8s/admin-ui/sealed-argocd-notifications.yaml)에 있다 — 차트가 빈 Secret 을 만들지 않게
+  secret:
+    create: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  notifiers:
+    service.webhook.mattermost: |
+      url: $mattermost-url
+      headers:
+        - name: Content-Type
+          value: application/json
+  # 본문은 Mattermost 들어오는 웹훅의 JSON 이다. 앱 이름 · 이미지에는 따옴표가 없어 그대로 넣는다
+  templates:
+    template.app-deployed: |
+      webhook:
+        mattermost:
+          method: POST
+          body: |
+            {"text": ":white_check_mark: **배포 완료** `{{.app.metadata.name}}` — {{range $i, $img := .app.status.summary.images}}{{if $i}} · {{end}}`{{$img}}`{{end}}\n[Argo CD 에서 보기]({{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}})"}
+    template.app-sync-failed: |
+      webhook:
+        mattermost:
+          method: POST
+          body: |
+            {"text": ":x: **동기화 실패** `{{.app.metadata.name}}` — Git 리비전 `{{.app.status.sync.revision}}`\n[Argo CD 에서 보기]({{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}})"}
+    template.app-health-degraded: |
+      webhook:
+        mattermost:
+          method: POST
+          body: |
+            {"text": ":warning: **건강 나빠짐** `{{.app.metadata.name}}` — 상태 {{.app.status.health.status}}\n[Argo CD 에서 보기]({{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}})"}
+  triggers:
+    # 앱 10개가 모두 dev 를 읽어 「커밋마다 한 번」이면 문서 머지에도 울린다 — 이미지 목록이 바뀔 때만 한 번
+    # 교체 끝 직후엔 종료 중인 옛 Pod 의 이미지가 목록에 같이 있어 두 번 울렸다(2026-10-23) —
+    # 이미지 수가 Deployment 수와 같을 때(옛 Pod 가 사라진 뒤)만 본다. 우리 Deployment 는 컨테이너가 하나씩이다
+    trigger.on-deployed: |
+      - description: 이미지가 바뀐 뒤 동기화가 끝나고 건강하고 옛 Pod 가 다 사라졌을 때 한 번
+        oncePer: app.status.summary.images
+        send: [app-deployed]
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy' and len(app.status.summary.images) == len(filter(app.status.resources, {.kind == 'Deployment'}))
+    trigger.on-sync-failed: |
+      - description: 동기화가 실패했을 때
+        send: [app-sync-failed]
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - description: 건강이 Degraded 가 됐을 때
+        send: [app-health-degraded]
+        when: app.status.health.status == 'Degraded'
+  subscriptions:
+    - recipients:
+        - mattermost
+      triggers:
+        - on-sync-failed
+        - on-health-degraded
+
+# 워커 한 대(CPU 4 · 16Gi)를 서비스와 같이 쓴다 — 요청은 작게, 메모리는 상한을 둔다
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+server:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+redis:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+applicationSet:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
