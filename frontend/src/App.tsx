@@ -1,10 +1,12 @@
 import { IconArrowClockwiseCircularLine } from "@karrotmarket/react-monochrome-icon";
-import { PrefixIcon } from "@seed-design/react";
+import { PrefixIcon, Skeleton } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
 import { ActionButton } from "seed-design/ui/action-button";
 import { categoriesQuery } from "@/api/categories";
 import { api } from "@/api/client";
 import { Logo } from "@/components/Logo";
+import { QueryState } from "@/components/state/QueryState";
+import { useComingSoon } from "@/components/useSnackbar";
 
 type Health = { status: string };
 
@@ -19,19 +21,13 @@ export function App() {
         .then((res) => res.data),
     retry: false,
   });
-  // `npm run dev:mock` 이면 가짜 API 가 답한다
+  // `npm run dev:mock` 이면 가짜 API 가 답한다. 백엔드 없이 `npm run dev` 면 실패 상태를 볼 수 있다
   const categories = useQuery(categoriesQuery);
+  const comingSoon = useComingSoon();
 
   let apiStatus = "확인 중";
   if (health.isError) apiStatus = "연결 안 됨";
   if (health.isSuccess) apiStatus = health.data.status;
-
-  let categoryNames = "확인 중";
-  if (categories.isError) categoryNames = "받지 못함";
-  if (categories.isSuccess)
-    categoryNames = categories.data
-      .map((category) => category.name)
-      .join(" · ");
 
   return (
     <>
@@ -42,8 +38,25 @@ export function App() {
       </header>
       <main className="flex flex-col gap-x3 p-x6">
         <p className="t4-regular text-fg-neutral">API 상태: {apiStatus}</p>
-        <p className="t4-regular text-fg-neutral">카테고리: {categoryNames}</p>
-        <div>
+        <QueryState
+          query={categories}
+          loadingLabel="카테고리 불러오는 중"
+          skeleton={
+            <Skeleton radius="8" width="250px" height="lineHeight.t4" />
+          }
+          errorTitle="카테고리를 불러오지 못했어요"
+          empty={{
+            when: (data) => data.length === 0,
+            message: "카테고리가 아직 없어요",
+          }}
+        >
+          {(data) => (
+            <p className="t4-regular text-fg-neutral">
+              카테고리: {data.map((category) => category.name).join(" · ")}
+            </p>
+          )}
+        </QueryState>
+        <div className="flex gap-x2">
           <ActionButton
             variant="brandSolid"
             loading={health.isFetching}
@@ -51,6 +64,9 @@ export function App() {
           >
             <PrefixIcon svg={<IconArrowClockwiseCircularLine />} />
             다시 확인
+          </ActionButton>
+          <ActionButton variant="neutralOutline" onClick={comingSoon}>
+            곧 제공 알림 확인
           </ActionButton>
         </div>
       </main>
