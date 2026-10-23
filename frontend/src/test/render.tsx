@@ -1,7 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
 import { render, type RenderOptions } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  type RouteObject,
+  RouterProvider,
+} from "react-router";
 import { AppProviders } from "@/providers";
 import { routes } from "@/routes";
 
@@ -35,13 +40,15 @@ export function renderWithProviders(
   };
 }
 
-// 라우트 테스트용 render — 앱과 같은 provider 와 라우트 목록(src/routes.tsx)으로 path 를 연다
-export function renderRoute(path: string) {
+// 라우트 테스트용 render — 앱과 같은 provider 와 라우트 목록(src/routes.tsx)으로 path 를 연다.
+// 셸 안에 시험용 화면을 끼우려면 routeList 를 넘긴다
+export function renderRoute(path: string, routeList: RouteObject[] = routes) {
   const queryClient = createTestQueryClient();
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
+  const router = createMemoryRouter(routeList, { initialEntries: [path] });
 
   return {
     queryClient,
+    router,
     ...render(
       <AppProviders queryClient={queryClient}>
         <RouterProvider router={router} />

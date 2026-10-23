@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { beforeEach, expect, test } from "vitest";
 import { App } from "@/App";
@@ -15,7 +15,7 @@ beforeEach(() => {
 test("API 헬스 응답을 화면에 보여 준다", async () => {
   renderWithProviders(<App />);
 
-  expect(screen.getByRole("heading", { name: "NEW:LEARN" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "개발 확인" })).toBeDefined();
   expect(await screen.findByText("API 상태: UP")).toBeDefined();
 });
 
@@ -35,9 +35,4 @@ test("다시 확인 버튼에 아이콘을 붙인다", async () => {
   expect(button.querySelector("svg")).not.toBeNull();
 });
 
-test("헤더에 NEW:LEARN 로고를 보여 준다", () => {
-  renderWithProviders(<App />);
-
-  const header = screen.getByRole("banner");
-  expect(within(header).getByRole("img", { name: "NEW:LEARN" })).toBeDefined();
-});
+// 헤더 · 로고는 셸로 옮겼다 — src/routes.test.tsx 「/ 를 열면 …」 이 본다
