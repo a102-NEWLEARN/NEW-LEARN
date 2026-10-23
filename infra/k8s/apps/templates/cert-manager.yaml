@@ -1,0 +1,74 @@
+# cert-manager — Let's Encrypt 에서 newlearn.io.kr 인증서를 받고 만료 30일 전에 알아서 갱신한다 (SSOT 6절 「도메인 · HTTPS」)
+# 소유 확인은 HTTP-01: Let's Encrypt 가 http://<이름>/.well-known/acme-challenge/… 를 부르면 cert-manager 가 만든 HTTPRoute 가 답한다
+# 발급자 · 인증서는 infra/k8s/gateway (gateway 앱)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    # Gateway API CRD(envoy-gateway, -1) 뒤, 발급자 · 인증서(gateway, 1) 앞
+    # cert-manager 는 Gateway CRD 가 있는지를 시작할 때 한 번만 본다 — CRD 보다 먼저 뜨면 Gateway 기능이 꺼진 채 돈다 (그때는 Pod 를 다시 띄운다)
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.21.2
+    helm:
+      valuesObject:
+        crds:
+          enabled: true
+        config:
+          apiVersion: controller.config.cert-manager.io/v1alpha1
+          kind: ControllerConfiguration
+          # HTTP-01 을 Gateway(HTTPRoute)로 푼다. v1.21 부터 enableGatewayAPI 대신 이 이름 (cert-manager 소스 config/controller/v1alpha1)
+          gatewayAPI:
+            enabled: true
+        # 인증서 만료 시각을 Prometheus 가 모은다 — Let's Encrypt 는 만료 메일을 보내지 않는다
+        prometheus:
+          servicemonitor:
+            enabled: true
+        # 설치 확인용 helm hook Job — Argo CD 가 앱 건강으로 대신 본다
+        startupapicheck:
+          enabled: false
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        webhook:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+        cainjector:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CRD 가 커서 일반 apply 의 주석 크기 제한에 걸릴 수 있다
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
