@@ -26,7 +26,7 @@ export function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
       className={`shrink-0 overflow-y-auto border-r border-stroke-neutral-weak bg-bg-neutral-muted transition-[width] duration-200 motion-reduce:transition-none ${expanded ? "w-[216px]" : "w-[64px]"}`}
     >
       {expanded ? (
-        <ExpandedSidebar onCollapse={() => onExpandedChange(false)} />
+        <SidebarMenu onCollapse={() => onExpandedChange(false)} />
       ) : (
         <SidebarRail onExpand={() => onExpandedChange(true)} />
       )}
@@ -115,7 +115,9 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
   );
 }
 
-function ExpandedSidebar({ onCollapse }: { onCollapse: () => void }) {
+// 펼친 사이드바의 내용 — 빠른 이동과 이슈 탐색. 좁은 화면 서랍(SidebarDrawer)도 같은 내용을 쓴다.
+// 서랍에는 접기 버튼이 없어서 onCollapse 를 넘기지 않는다
+export function SidebarMenu({ onCollapse }: { onCollapse?: () => void }) {
   const comingSoon = useComingSoon();
 
   return (
@@ -129,13 +131,15 @@ function ExpandedSidebar({ onCollapse }: { onCollapse: () => void }) {
           <IconMagnifyingglassLine size={16} aria-hidden />
           빠른 이동
         </button>
-        <RailButton
-          label="사이드바 접기"
-          icon={<IconChevronLeftLine size={20} aria-hidden />}
-          onClick={onCollapse}
-          aria-expanded
-          aria-keyshortcuts={SHORTCUT}
-        />
+        {onCollapse && (
+          <RailButton
+            label="사이드바 접기"
+            icon={<IconChevronLeftLine size={20} aria-hidden />}
+            onClick={onCollapse}
+            aria-expanded
+            aria-keyshortcuts={SHORTCUT}
+          />
+        )}
       </div>
       <section className="flex flex-col gap-x1">
         <h2 className="t2-bold px-x2 text-fg-neutral-muted">이슈 탐색</h2>

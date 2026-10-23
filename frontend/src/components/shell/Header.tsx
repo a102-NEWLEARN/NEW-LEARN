@@ -1,5 +1,6 @@
 import {
   IconBookmarkLine,
+  IconHorizline3VerticalLine,
   IconPersonLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { PrefixIcon } from "@seed-design/react";
@@ -11,16 +12,29 @@ import { useComingSoon } from "@/components/useSnackbar";
 type HeaderProps = {
   /** 로고를 눌렀을 때 — 셸이 본문을 맨 위로 올린다 */
   onLogoClick: () => void;
+  /** 좁은 화면에서 사이드바 서랍을 연다. 넘기면 메뉴 버튼이 생긴다 */
+  onMenuClick?: () => void;
 };
 
 // 셸 헤더 — 스크롤해도 위에 붙어 있다 (EXPERIENCE.md 앱 셸).
 // 높이 60px · 로고 26px 는 프로토타입 v21 값이다 (DESIGN.md 헤더 로고 20–32px).
 // 767px 이하에서는 오른쪽 버튼의 글자를 숨기고 아이콘만 둔다. 이름은 스크린 리더에 남는다
-export function Header({ onLogoClick }: HeaderProps) {
+export function Header({ onLogoClick, onMenuClick }: HeaderProps) {
   const comingSoon = useComingSoon();
 
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak bg-bg-layer-default px-x4">
+      {onMenuClick && (
+        <button
+          type="button"
+          aria-label="메뉴 열기"
+          aria-haspopup="dialog"
+          onClick={onMenuClick}
+          className="flex size-x10 items-center justify-center rounded-r2 text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+        >
+          <IconHorizline3VerticalLine size={20} aria-hidden />
+        </button>
+      )}
       <Link
         to="/home"
         aria-label="NEW:LEARN 홈으로"
