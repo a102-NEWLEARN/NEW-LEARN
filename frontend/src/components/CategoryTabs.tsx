@@ -6,7 +6,7 @@ import {
   TabsRoot,
   TabsTrigger,
 } from "@seed-design/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { UPCOMING_CATEGORIES } from "@/api/categories";
 import { useUpcomingCategory } from "@/components/useSnackbar";
 
@@ -27,7 +27,8 @@ type CategoryTabsProps = {
   children: ReactNode;
 };
 
-// 분야 탭 — 하나만 고른다 (EXPERIENCE.md Component Patterns). 가로 스크롤 · ←→ · Home/End 는 SEED Tabs 가 한다.
+// 분야 탭 — 하나만 고른다 (EXPERIENCE.md Component Patterns). ←→ · Home/End 는 SEED Tabs 가 한다.
+// 탭이 넘치면 탭 줄이 가로로 스크롤한다.
 // 모양은 DESIGN.md · v2 CategoryTabs: 기본 fg-neutral-muted Medium, 고르면 fg-neutral Bold + 2px 청록 밑줄, 밑선 1px.
 // 준비 중 분야는 고를 수 없어서 탭이 아니라 탭 줄 끝의 버튼이다. SEED 의 disabled 탭은
 // 누를 수도 키보드로 닿을 수도 없어 안내를 못 띄운다
@@ -39,6 +40,20 @@ export function CategoryTabs({
   children,
 }: CategoryTabsProps) {
   const notifyUpcoming = useUpcomingCategory();
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // 고른 탭이 탭 줄 밖에 있으면(?category= 로 열었을 때 등) 그쪽으로 가로 스크롤한다.
+  // SEED Tabs 도 이 일을 하지만 스크롤하는 것이 TabsList 가 아니라 아래 탭 줄이라 여기서 한다
+  useEffect(() => {
+    const row = rowRef.current;
+    const tab = row?.querySelector('[role="tab"][aria-selected="true"]');
+    if (!row || !tab) return;
+    const rowBox = row.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left < rowBox.left) row.scrollLeft -= rowBox.left - tabBox.left;
+    else if (tabBox.right > rowBox.right)
+      row.scrollLeft += tabBox.right - rowBox.right;
+  }, [value]);
 
   return (
     <TabsRoot
@@ -48,7 +63,10 @@ export function CategoryTabs({
       size="medium"
     >
       {/* 탭과 준비 중 버튼이 한 줄로 가로 스크롤한다. 밑선은 이 줄 전체에 긋는다 */}
-      <div className="flex gap-x6 overflow-x-auto shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] [scrollbar-width:none]">
+      <div
+        ref={rowRef}
+        className="flex gap-x6 overflow-x-auto shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] [scrollbar-width:none]"
+      >
         <TabsList
           aria-label={label}
           className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none"

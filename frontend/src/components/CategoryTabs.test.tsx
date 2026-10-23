@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { useState } from "react";
-import { expect, test, vi } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { type CategoryTab, CategoryTabs } from "@/components/CategoryTabs";
 import { renderWithProviders } from "@/test/render";
 
@@ -83,4 +83,39 @@ test("준비 중 분야는 탭이 아닌 버튼이고, 누르면 안내만 하�
   expect(await screen.findByText("스포츠는 준비 중이에요")).toBeDefined();
   expect(onChange).not.toHaveBeenCalled();
   expect(selectedTab()?.textContent).toContain("경제");
+});
+
+// jsdom 에는 배치가 없어서 탭 줄과 고른 탭의 위치를 정해 준다 — 탭 줄 폭 300px, 고른 탭은 400 ~ 440px
+function stubBoxes() {
+  const box = (left: number, width: number) =>
+    ({ left, right: left + width, width }) as DOMRect;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      if (this.firstElementChild?.getAttribute("role") === "tablist")
+        return box(0, 300);
+      if (this.getAttribute("aria-selected") === "true") return box(400, 40);
+      return box(0, 0);
+    },
+  );
+  onTestFinished(() => {
+    vi.restoreAllMocks();
+  });
+}
+
+test("고른 탭이 탭 줄 밖에 있으면 탭 줄을 그쪽으로 가로 스크롤한다", () => {
+  stubBoxes();
+  renderWithProviders(
+    <CategoryTabs
+      label="분야"
+      tabs={tabs}
+      value="society"
+      onValueChange={() => {}}
+    >
+      <p>내용</p>
+    </CategoryTabs>,
+  );
+
+  const row = screen.getByRole("tablist").parentElement!;
+  // 고른 탭의 오른쪽 끝(440)이 탭 줄 오른쪽 끝(300)에 오도록
+  expect(row.scrollLeft).toBe(140);
 });
