@@ -1,7 +1,7 @@
 import { IconChevronRightSmallLine } from "@karrotmarket/react-monochrome-icon";
 import { Skeleton } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { Link, useLocation } from "react-router";
 import {
   type Category,
@@ -18,12 +18,21 @@ const ISSUES_PER_CATEGORY = 50;
 const rowClass =
   "t4-medium flex h-x8 w-full items-center gap-x1 rounded-r2 px-x2 text-left text-fg-neutral hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
 
+export type IssueExplorerProps = {
+  /** 펼친 분야 코드. 한 번에 한 분야만 연다 (프로토타입 v21) */
+  openCode: string | null;
+  onOpenCodeChange: (code: string | null) => void;
+};
+
 // 사이드바 이슈 탐색 — 분야 → 연도 → 이슈 (EXPERIENCE.md 앱 셸, PRD FR-3).
-// 한 번에 한 분야만 연다 (프로토타입 v21). 사건까지 내려가는 칸은 이슈 화면(S15P31A102-50)이 생길 때 붙인다
-export function IssueExplorer() {
+// 펼친 분야는 셸이 기억한다 — 사이드바를 접거나 서랍을 닫았다 열어도 그대로다.
+// 사건까지 내려가는 칸은 이슈 화면(S15P31A102-50)이 생길 때 붙인다
+export function IssueExplorer({
+  openCode,
+  onOpenCodeChange,
+}: IssueExplorerProps) {
   const categories = useQuery(categoriesQuery);
   const snackbar = useSnackbar();
-  const [openCode, setOpenCode] = useState<string | null>(null);
 
   return (
     <QueryState
@@ -40,8 +49,8 @@ export function IssueExplorer() {
               category={category}
               open={openCode === category.code}
               onToggle={() =>
-                setOpenCode((code) =>
-                  code === category.code ? null : category.code,
+                onOpenCodeChange(
+                  openCode === category.code ? null : category.code,
                 )
               }
             />

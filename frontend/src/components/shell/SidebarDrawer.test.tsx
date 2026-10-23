@@ -73,6 +73,29 @@ test("이슈를 고르면 그 화면으로 가며 서랍이 닫힌다", async ()
   expect(router.state.location.pathname).toBe("/issues/12");
 });
 
+// 좁은 화면에서는 이슈를 고를 때마다 서랍이 닫힌다. 다시 열 때 분야를 또 펼치지 않게 한다
+test("서랍을 닫았다 열어도 열어 둔 분야가 그대로 열려 있다", async () => {
+  renderRoute("/home");
+
+  await openMenu();
+  let drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  fireEvent.click(await within(drawer).findByRole("button", { name: "경제" }));
+  fireEvent.click(
+    await within(drawer).findByRole("link", {
+      name: "한빛반도체 미국 공장 건설",
+    }),
+  );
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+  await openMenu();
+  drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  expect(
+    (await within(drawer).findByRole("button", { name: "경제" })).getAttribute(
+      "aria-expanded",
+    ),
+  ).toBe("true");
+});
+
 // 창 폭 조절 · 태블릿 회전으로 768px 을 넘나들 때
 test("서랍을 연 채 넓어졌다 다시 좁아져도 서랍이 저절로 열리지 않는다", async () => {
   renderRoute("/home");

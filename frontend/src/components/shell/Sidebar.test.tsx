@@ -60,6 +60,29 @@ test("접고 펴도 포커스가 접기 · 펼치기 버튼에 남는다", async
   );
 });
 
+test("접었다 펴도 열어 둔 분야가 그대로 열려 있다", async () => {
+  renderRoute("/home");
+
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" }),
+  );
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "경제" }),
+  );
+  fireEvent.click(
+    within(sidebar()).getByRole("button", { name: "사이드바 접기" }),
+  );
+  fireEvent.click(
+    within(sidebar()).getByRole("button", { name: "사이드바 펼치기" }),
+  );
+
+  expect(
+    (
+      await within(sidebar()).findByRole("button", { name: "경제" })
+    ).getAttribute("aria-expanded"),
+  ).toBe("true");
+});
+
 test("처음 화면을 열 때는 포커스를 가져가지 않는다", async () => {
   renderRoute("/home");
   await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" });

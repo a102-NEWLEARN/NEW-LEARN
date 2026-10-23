@@ -1,14 +1,21 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
+import { useState } from "react";
 import { expect, test } from "vitest";
 import { IssueExplorer } from "@/components/shell/IssueExplorer";
 import { server } from "@/mocks/node";
 import { renderWithProviders } from "@/test/render";
 
+// 셸처럼 펼친 분야를 들고 있는 껍데기 (src/components/shell/AppShell.tsx)
+function Explorer() {
+  const [openCode, setOpenCode] = useState<string | null>(null);
+  return <IssueExplorer openCode={openCode} onOpenCodeChange={setOpenCode} />;
+}
+
 const category = (name: string) => screen.findByRole("button", { name });
 
 test("A1 분야 뒤에 준비 중인 분야 두 개를 붙인다", async () => {
-  renderWithProviders(<IssueExplorer />);
+  renderWithProviders(<Explorer />);
 
   await category("정치");
   const names = screen
@@ -26,7 +33,7 @@ test("A1 분야 뒤에 준비 중인 분야 두 개를 붙인다", async () => {
 });
 
 test("분야를 누르면 그 분야 이슈를 연도별로 보여 준다", async () => {
-  renderWithProviders(<IssueExplorer />);
+  renderWithProviders(<Explorer />);
 
   const economy = await category("경제");
   expect(economy.getAttribute("aria-expanded")).toBe("false");
@@ -58,7 +65,7 @@ test("분야를 누르면 그 분야 이슈를 연도별로 보여 준다", asyn
 });
 
 test("한 번에 한 분야만 열린다", async () => {
-  renderWithProviders(<IssueExplorer />);
+  renderWithProviders(<Explorer />);
 
   fireEvent.click(await category("경제"));
   fireEvent.click(await category("정치"));
@@ -68,7 +75,7 @@ test("한 번에 한 분야만 열린다", async () => {
 });
 
 test("준비 중인 분야를 누르면 안내한다", async () => {
-  renderWithProviders(<IssueExplorer />);
+  renderWithProviders(<Explorer />);
 
   fireEvent.click(await screen.findByRole("button", { name: /스포츠/ }));
 
@@ -76,7 +83,7 @@ test("준비 중인 분야를 누르면 안내한다", async () => {
 });
 
 test("지금 보는 이슈를 표시한다", async () => {
-  renderWithProviders(<IssueExplorer />, { route: "/issues/12" });
+  renderWithProviders(<Explorer />, { route: "/issues/12" });
 
   fireEvent.click(await category("경제"));
 
@@ -98,7 +105,7 @@ test("이슈가 없는 분야는 빈 문구를 보여 준다", async () => {
       }),
     ),
   );
-  renderWithProviders(<IssueExplorer />);
+  renderWithProviders(<Explorer />);
 
   fireEvent.click(await category("국제"));
 
@@ -114,7 +121,7 @@ test("이슈를 못 불러오면 그 자리에 다시 시도를 둔다", async (
       ),
     ),
   );
-  renderWithProviders(<IssueExplorer />);
+  renderWithProviders(<Explorer />);
 
   fireEvent.click(await category("사회"));
 

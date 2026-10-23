@@ -16,6 +16,12 @@ export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // 넓은 화면이 되면 서랍은 사라진다. 열림 상태를 남기면 다시 좁아질 때 저절로 열려서 닫아 둔다
   if (!narrow && drawerOpen) setDrawerOpen(false);
+  // 이슈 탐색에서 펼친 분야 — 사이드바를 접거나 서랍을 닫았다 열어도 그대로 둔다
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const explorer = {
+    openCode: openCategory,
+    onOpenCodeChange: setOpenCategory,
+  };
 
   // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다
   useEffect(() => {
@@ -42,11 +48,16 @@ export function AppShell() {
       />
       <div className="flex min-h-0 flex-1">
         {narrow ? (
-          <SidebarDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
+          <SidebarDrawer
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            {...explorer}
+          />
         ) : (
           <Sidebar
             expanded={sidebarExpanded}
             onExpandedChange={setSidebarExpanded}
+            {...explorer}
           />
         )}
         <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">

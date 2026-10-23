@@ -10,17 +10,24 @@ import {
 } from "@karrotmarket/react-monochrome-icon";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
-import { IssueExplorer } from "@/components/shell/IssueExplorer";
+import {
+  IssueExplorer,
+  type IssueExplorerProps,
+} from "@/components/shell/IssueExplorer";
 import { useComingSoon } from "@/components/useSnackbar";
 
-type SidebarProps = {
+type SidebarProps = IssueExplorerProps & {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 };
 
 // 사이드바 — 접으면 아이콘만 있는 64px 레일, 펴면 216px 이슈 탐색이다 (EXPERIENCE.md 앱 셸).
 // 끌어서 폭을 바꾸지 않는다. 항목과 아이콘 순서는 프로토타입 v21 을 따른다
-export function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
+export function Sidebar({
+  expanded,
+  onExpandedChange,
+  ...explorer
+}: SidebarProps) {
   const navRef = useRef<HTMLElement>(null);
   const previousExpanded = useRef(expanded);
 
@@ -44,7 +51,7 @@ export function Sidebar({ expanded, onExpandedChange }: SidebarProps) {
       className={`shrink-0 overflow-y-auto border-r border-stroke-neutral-weak bg-bg-neutral-muted transition-[width] duration-200 motion-reduce:transition-none ${expanded ? "w-[216px]" : "w-[64px]"}`}
     >
       {expanded ? (
-        <SidebarMenu onCollapse={() => onExpandedChange(false)} />
+        <SidebarMenu onCollapse={() => onExpandedChange(false)} {...explorer} />
       ) : (
         <SidebarRail onExpand={() => onExpandedChange(true)} />
       )}
@@ -145,7 +152,10 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
 
 // 펼친 사이드바의 내용 — 빠른 이동과 이슈 탐색. 좁은 화면 서랍(SidebarDrawer)도 같은 내용을 쓴다.
 // 서랍에는 접기 버튼이 없어서 onCollapse 를 넘기지 않는다
-export function SidebarMenu({ onCollapse }: { onCollapse?: () => void }) {
+export function SidebarMenu({
+  onCollapse,
+  ...explorer
+}: IssueExplorerProps & { onCollapse?: () => void }) {
   const comingSoon = useComingSoon();
 
   return (
@@ -172,7 +182,7 @@ export function SidebarMenu({ onCollapse }: { onCollapse?: () => void }) {
       </div>
       <section className="flex flex-col gap-x1">
         <h2 className="t2-bold px-x2 text-fg-neutral-muted">이슈 탐색</h2>
-        <IssueExplorer />
+        <IssueExplorer {...explorer} />
       </section>
     </div>
   );
