@@ -286,34 +286,37 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
       }}
       className="relative mx-auto mt-x7 w-full max-w-[680px] text-left"
     >
-      <label className="flex h-[58px] cursor-text items-center gap-x3 rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default pr-x2 pl-x5 transition-colors hover:border-palette-gray-500 focus-within:outline-2 focus-within:outline-stroke-focus-ring">
-        <IconMagnifyingglassLine
-          aria-hidden
-          size={20}
-          className="shrink-0 text-fg-neutral-muted"
-        />
-        <input
-          ref={inputRef}
-          type="text"
-          role="combobox"
-          aria-label="이슈, 사건, 기사 검색"
-          placeholder="이슈, 사건, 기사 검색"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={activeId}
-          autoComplete="off"
-          enterKeyHint="search"
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setActive(0);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKeyDown}
-          className="t6-regular h-full min-w-0 flex-1 bg-transparent text-fg-neutral outline-none placeholder:text-fg-placeholder"
-        />
+      {/* 지우기 버튼은 label 안에 둘 수 없어서(label 안의 다른 입력 요소) 테두리를 바깥 상자가 그린다 */}
+      <div className="flex h-[58px] items-center rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default pr-x2 transition-colors hover:border-palette-gray-500 focus-within:outline-2 focus-within:outline-stroke-focus-ring">
+        <label className="flex h-full min-w-0 flex-1 cursor-text items-center gap-x3 pl-x5">
+          <IconMagnifyingglassLine
+            aria-hidden
+            size={20}
+            className="shrink-0 text-fg-neutral-muted"
+          />
+          <input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-label="이슈, 사건, 기사 검색"
+            placeholder="이슈, 사건, 기사 검색"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeId}
+            autoComplete="off"
+            enterKeyHint="search"
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setActive(0);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={onKeyDown}
+            className="t6-regular h-full min-w-0 flex-1 bg-transparent text-fg-neutral outline-none placeholder:text-fg-placeholder"
+          />
+        </label>
         {text && (
           <button
             type="button"
@@ -328,10 +331,15 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
             <IconXmarkLine aria-hidden size={16} />
           </button>
         )}
-      </label>
+      </div>
       {open && (
-        // 화면 위에 뜨는 요소라 그림자를 쓴다 (DESIGN.md Elevation & Depth)
-        <div className="absolute inset-x-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3">
+        // 화면 위에 뜨는 요소라 그림자를 쓴다 (DESIGN.md Elevation & Depth).
+        // 목록 안 어디를 눌러도(묶음 이름 · 안내 · 다시 시도) 입력 칸이 포커스를 잃지 않게 한다 —
+        // 잃으면 목록이 닫히고 ↑↓ · Enter 가 듣지 않는다
+        <div
+          onMouseDown={(event) => event.preventDefault()}
+          className="absolute inset-x-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3"
+        >
           <div className="max-h-[420px] overflow-y-auto pt-x1_5">
             <div
               role="listbox"
@@ -364,8 +372,6 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
                         role="option"
                         aria-selected={selected}
                         onMouseEnter={() => setActive(at)}
-                        // 누르는 동안 입력 칸이 포커스를 잃지 않게
-                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => pick(option)}
                         className={`flex cursor-pointer flex-col gap-x0_5 px-x4 py-x2 transition-colors ${selected ? "bg-bg-layer-default-pressed" : ""}`}
                       >

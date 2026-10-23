@@ -178,6 +178,27 @@ test("Esc 로 닫고 ↓ 로 다시 연다", async () => {
   expect(input().getAttribute("aria-expanded")).toBe("true");
 });
 
+test("목록 안의 줄이 아닌 곳을 눌러도 입력 칸이 포커스를 잃지 않는다", async () => {
+  renderSearch();
+  await openWith("공장");
+  const label = await screen.findByText("이슈");
+
+  // 기본 동작(포커스 옮기기)을 막았으면 dispatchEvent 가 false 를 돌려준다
+  expect(fireEvent.mouseDown(label)).toBe(false);
+  expect(
+    fireEvent.mouseDown(screen.getByText("↑↓ 이동 · Enter 열기 · Esc 닫기")),
+  ).toBe(false);
+});
+
+test("검색어 지우기 버튼은 입력 칸의 label 밖에 있다", async () => {
+  renderSearch();
+  await openWith("공장");
+
+  expect(
+    screen.getByRole("button", { name: "검색어 지우기" }).closest("label"),
+  ).toBeNull();
+});
+
 test("바깥을 누르면 닫힌다", async () => {
   renderSearch();
   act(() => input().focus());
