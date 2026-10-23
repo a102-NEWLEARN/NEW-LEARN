@@ -106,6 +106,21 @@ test("서랍에서 빠른 이동을 누르면 서랍이 닫히고 홈 검색창�
   );
 });
 
+test("서랍이 열린 채 Ctrl+K 를 누르면 서랍을 닫고 홈 검색창에 포커스한다", async () => {
+  const { router } = renderRoute("/issues/12");
+  await openMenu();
+  await screen.findByRole("dialog", { name: "메뉴" });
+
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(router.state.location.pathname).toBe("/home");
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(
+    screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
+  );
+});
+
 // 좁은 화면에서는 이슈를 고를 때마다 서랍이 닫힌다. 다시 열 때 분야를 또 펼치지 않게 한다
 test("서랍을 닫았다 열어도 열어 둔 분야가 그대로 열려 있다", async () => {
   renderRoute("/home");

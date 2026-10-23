@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { SearchBox } from "@/components/home/SearchBox";
 import { server } from "@/mocks/node";
 import { renderRoute } from "@/test/render";
@@ -284,4 +284,69 @@ test("포커스 요청을 받으면 입력 칸에 포커스하고 목록을 연�
 
   expect(document.activeElement).toBe(input());
   expect(input().getAttribute("aria-expanded")).toBe("true");
+});
+
+test("Tab 으로 검색창 밖에 나가면 닫힌다", async () => {
+  renderSearch();
+  act(() => input().focus());
+  await screen.findByRole("group", { name: "최근 업데이트된 이슈" });
+
+  act(() => screen.getByRole("button", { name: "바깥" }).focus());
+
+  expect(input().getAttribute("aria-expanded")).toBe("false");
+});
+
+test("글자를 칠 때마다 부르지 않고 멈춘 뒤 한 번만 A13 을 부른다", async () => {
+  const asked: string[] = [];
+  const count = ({ request }: { request: Request }) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/api/v1/search")
+      asked.push(url.searchParams.get("q") ?? "");
+  };
+  server.events.on("request:start", count);
+  onTestFinished(() => {
+    server.events.removeListener("request:start", count);
+  });
+  renderSearch();
+
+  // 사람이 치는 속도처럼 글자 사이에 50ms — 200ms 를 기다리지 않으면 「공」도 부른다
+  await openWith("공");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  fireEvent.change(input(), { target: { value: "공장" } });
+  await screen.findByRole("group", { name: "기사" });
+
+  expect(asked).toEqual(["공장"]);
+});
+
+test("Esc 는 목록만 닫고 바깥(서랍 같은 것)으로 넘기지 않는다", async () => {
+  const outer = vi.fn();
+  window.addEventListener("keydown", outer);
+  onTestFinished(() => window.removeEventListener("keydown", outer));
+  renderSearch();
+  act(() => input().focus());
+  await screen.findByRole("group", { name: "최근 업데이트된 이슈" });
+
+  fireEvent.keyDown(input(), { key: "Escape" });
+
+  expect(input().getAttribute("aria-expanded")).toBe("false");
+  expect(outer).not.toHaveBeenCalled();
+});
+
+test("최근 이슈를 못 불러오면 목록 안에 안내와 다시 시도를 둔다", async () => {
+  server.use(
+    http.get("/api/v1/issues", () => HttpResponse.json(null, { status: 400 }), {
+      once: true,
+    }),
+  );
+  renderSearch();
+  act(() => input().focus());
+
+  expect(
+    await screen.findByText("최근 이슈를 불러오지 못했어요"),
+  ).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+
+  expect(
+    await screen.findByRole("group", { name: "최근 업데이트된 이슈" }),
+  ).toBeDefined();
 });
