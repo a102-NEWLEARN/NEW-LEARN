@@ -105,6 +105,13 @@ describe("NEW:LEARN 테마 — 글꼴", () => {
   });
 });
 
+// SEED 스켈레톤 레시피는 동작 줄이기를 처리하지 않는다 (EXPERIENCE.md Interaction Primitives 「모션」)
+test("동작 줄이기를 켜면 스켈레톤 반짝임을 멈춘다", () => {
+  expect(themeCss).toMatch(
+    /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.seed-skeleton::after\s*\{\s*animation:\s*none;/,
+  );
+});
+
 test("브라우저 탭 아이콘이 NEW:LEARN 심볼이다", () => {
   expect(indexHtml).toMatch(/<link[^>]*rel="icon"[^>]*href="\/favicon\.svg"/);
   expect(readText("../public/favicon.svg")).toContain('aria-label="NEW:LEARN"');
