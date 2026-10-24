@@ -50,7 +50,7 @@ flowchart LR
 | 없는 값 | 필드를 빼지 않고 `null` 로 보낸다 |
 | 투입 전 기사 | `released_at` 이 빈 기사(`data-model.md` 2절)는 모든 조회 · 집계 · 검색에서 없는 것으로 본다. 단건 조회도 404 다 |
 | 오류 | RFC 9457 Problem Details(`application/problem+json`) + `code`. Spring 의 `ProblemDetail` 타입을 쓴다. 컨트롤러 예외는 `@RestControllerAdvice`, 인증 · 권한 오류는 Security 진입점에서 같은 모양으로 만든다 — 그래야 모든 오류에 `code` 가 붙는다 |
-| 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 쿠키 이름 · 수명, 첫 POST 전에 번호표 쿠키를 받는 법은 인증 티켓(Jira 62)에서 정하고 사람이 최종 확인한다. 로그인 없이 부르는 A14 · A15 · A19 의 요청 수 상한과 로그인 실패 잠금, 내부 API 를 막는 법은 `SSOT.md` 8절 「API 인증」 |
+| 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 쿠키 이름 · 수명, 첫 POST 전에 번호표 쿠키를 받는 법은 인증 티켓(Jira 62)에서 정하고 사람이 최종 확인한다. 62 전까지는 번호표 쿠키가 없고 스프링 기본값(번호표를 세션에 둔다)이라 화면이 POST · PUT · DELETE 를 보낼 수 없다 — 그 API 들도 62 · 65 에서 생긴다. 어느 주소를 로그인 없이 여는지는 `backend` 의 `SecurityConfig` 한 곳에 있다(Jira 100). Swagger 화면(`/swagger-ui.html`)과 OpenAPI 문서(`/v3/api-docs`)도 개발하는 동안 로그인 없이 연다 — 코드에서 만든 사본이라 계약의 원본은 이 문서다. 내부 API 는 문서에서도 뺀다. 다시 잠글지는 `SSOT.md` 8절(Jira 107). 로그인 없이 부르는 A14 · A15 · A19 의 요청 수 상한과 로그인 실패 잠금, 내부 API 를 막는 법은 `SSOT.md` 8절 「API 인증」 |
 
 목록 응답
 
@@ -72,7 +72,7 @@ HTTP 상태는 「어떤 종류의 실패인가」를, `code` 는 「정확히 �
 
 | 필드 | 타입 | 용도 |
 |---|---|---|
-| `type` | string | 오류 종류를 가리키는 주소. 문서 주소를 아직 두지 않아 늘 `about:blank` |
+| `type` | string · 없을 수 있음 | 오류 종류를 가리키는 주소. 문서 주소를 아직 두지 않아 칸을 빼고 보낸다. RFC 9457 은 `type` 이 없으면 `about:blank` 로 보므로 받는 쪽도 둘을 같게 다룬다(2026-10-22 실제 응답으로 확인) |
 | `title` | string | 상태 코드의 이름(`Not Found`). Spring 이 채운다 |
 | `status` | number | HTTP 상태 코드. 본문만 받아도 알 수 있게 다시 적는다 |
 | `detail` | string | 개발자용 설명. 내부 사정이 들어갈 수 있어 화면에 그대로 보이지 않는다 |
@@ -82,7 +82,7 @@ HTTP 상태는 「어떤 종류의 실패인가」를, `code` 는 「정확히 �
 
 ```json
 {
-  "type": "about:blank", "title": "Not Found", "status": 404,
+  "title": "Not Found", "status": 404,
   "detail": "기사를 찾을 수 없다: 456", "instance": "/api/v1/articles/456",
   "code": "ARTICLE_NOT_FOUND"
 }
@@ -116,6 +116,9 @@ flowchart TD
 | `UNAUTHORIZED` · `FORBIDDEN` | 401 · 403 | 로그인이 필요한 API(A16 ~ A18)를 세션 없이 불렀거나, 내부 API 를 인증 없이(401) · 권한 없이(403) 불렀다. 화면의 POST · PUT · DELETE 에 CSRF 번호표가 없거나 틀려도 403 이다(1절 「인증」). 내부 API 인증 방식은 `SSOT.md` 8절 | 401 은 「누구인지 모른다」, 403 은 「누군지는 알지만 허락되지 않았다」는 뜻이다 | 화면: 401 이면 로그인 화면으로 보내고, 로그인하면 보던 화면으로 돌아온다. 다만 앱이 뜰 때 부른 A17 의 401 은 「손님」이라는 뜻이라 보내지 않는다. 배치 · 워커: 설정한 키를 확인한다 |
 | `DICTIONARY_UNAVAILABLE` | 502 | 용어사전(A19)이 부른 표준국어대사전 Open API 가 답하지 않거나, 오류 · 하루 한도 초과를 돌려줬다 | 502 Bad Gateway 는 「우리 서버가 다른 서버에 부탁했는데 제대로 된 답을 못 받았다」는 뜻이다. 사용자 잘못도 우리 서버 고장도 아니다 | 화면: 사전 창에 「지금은 찾을 수 없어요」 |
 | `INTERNAL_ERROR` | 500 | 그 밖의 서버 오류 | 500 은 서버 쪽 잘못이다. 받는 쪽이 고칠 것이 없다 | 화면: 일반 오류 안내와 *다시 시도*. 서버는 로그를 남긴다 |
+| `NOT_FOUND` · `METHOD_NOT_ALLOWED` · `NOT_ACCEPTABLE` · `UNSUPPORTED_MEDIA_TYPE` | 404 · 405 · 406 · 415 | 우리 코드에 닿기 전에 스프링이 막은 요청이다. 그런 주소가 없음 · 주소는 있는데 HTTP 메서드가 다름 · `Accept` 가 JSON 을 받지 않음 · 본문 형식(`Content-Type`)이 JSON 이 아님. code 는 상태 이름 그대로 붙인다(2026-10-22) | 각 상태의 표준 뜻 그대로다. `NOT_FOUND` 는 「주소 자체가 없다」는 뜻이라 자원 코드(`ISSUE_NOT_FOUND` 등 — 주소는 있는데 그 ID 가 없음)와 나눈다 | 화면: 대개 화면 코드의 버그라 일반 오류 안내를 띄우고 로그를 남긴다 |
+
+스프링이 내는 그 밖의 4xx 는 `VALIDATION_FAILED`, 5xx 는 `INTERNAL_ERROR` 를 붙인다. 그래서 모든 오류 응답에 `code` 가 있다. 다만 보안 필터 단계에서 터진 오류가 스프링 기본 `/error` 로 가면 `code` 가 없다(`docs/backend-convention.md` 4절).
 
 ### 내부 API 전용 (B1 · W1)
 
@@ -220,7 +223,7 @@ flowchart TD
 
 FE
 
-1. 1절 공통 규칙 — 봉투 없음 · Problem Details 와 `code` · 숫자 ID · `+09:00` · `page` 0부터 — 과 카테고리 코드 5개 · 탭 순서(`data-model.md` 2절)를 그대로 써도 되나
+1. 1절 공통 규칙 — 봉투 없음 · Problem Details 와 `code` · 숫자 ID · `+09:00` · `page` 0부터 — 를 그대로 써도 되나. 카테고리 코드·순서는 `data-model.md` 2절로 확정했다(2026-10-23)
 2. 타임라인(A4)을 페이지 없이 한 번에 받아도 되나. 이슈 하나에 사건이 몇 개까지 그려지나. 레인 기준이 정해지기 전 `lane` 이 `null` 이면 어떻게 그리나
 3. 홈에서 관심 분야를 먼저 보여 주는 방식(생각 중, 2026-10-20)을 A2 의 `category` 여러 번 부르기로 할지, 한 번에 받는 인자를 둘지
 4. 통합 검색(A13)을 MVP 에 넣나. 검색창 아래 「새로 생성된 이슈」는 A2 `sort=createdAt&size=…` 로 정했다. 몇 개 보일지는 미정
@@ -271,5 +274,5 @@ AI
 - 응답에 필드를 더하는 것은 언제든 된다. 화면은 모르는 필드를 무시한다
 - 필드 이름 · 뜻을 바꾸거나 지우는 것은 FE 와 같은 MR 에서 고친다. 배포 중에는 옛 화면과 새 API 가 같이 돌 수 있다(SSOT 6절 「무중단 배포 조건」)
 - 1절 공통 규칙을 바꾸면 `SSOT.md` 9절 「뒤집은 것」에 한 줄 남긴다
-- 첫 API 티켓은 `+09:00` 직렬화와 `ProblemDetail` 의 `code` 를 테스트로 확인한다. Spring Boot 4 · Jackson 3 에서 기본값으로 나오는지는 아직 돌려 보지 않았다
+- 1 · 2절 규칙은 Jira 100 이 코드와 테스트로 옮겼다(2026-10-22). Spring Boot 4 · Jackson 3 기본값으로 `+09:00` 이 그대로 나가고 오프셋 없는 요청 시각은 400 이다(`TimeFormatTest`). `code` 는 컨트롤러 오류는 `GlobalExceptionHandler`, 로그인 · 권한 오류는 `SecurityErrorHandler` 가 붙인다(`ErrorResponseTest` · `SecurityRulesTest`). 코드로 옮기는 법은 `docs/backend-convention.md`
 - md 를 고치면 FigJam 보기용 사본에서 같은 그림만 다시 만든다
