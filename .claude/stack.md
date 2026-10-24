@@ -105,7 +105,7 @@ infra_RUN="ssh newlearn 'kubectl -n argocd get applications' && curl -fsS https:
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
 infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done'   # 셸 스크립트(kind 리허설 · 서버 설정)는 문법만 본다. 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
-infra_TEST="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test"   # 가짜 provider 로 보안 그룹 규칙을 검사한다
+infra_TEST='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test && for py in python3 python; do "$py" -c "" 2>/dev/null && break; py=""; done && "${py:?python 이 없다}" -B -m unittest discover -s ci'   # 가짜 provider 로 보안 그룹 규칙을, unittest 로 태그 MR 스크립트(ci/)를 검사한다. python3 가 안 되면 python — Windows 의 python3 는 Store 안내용 가짜일 수 있다. -B 는 __pycache__ 를 안 남긴다. 작은따옴표 이유는 infra_LINT 와 같다
 infra_BUILD=""   # 산출물이 없다 — 실제 생성(apply)은 사람이 plan 을 읽고 한다 (.claude/docs/deploy.md 3절)
 
 # 진실 문서는 쪼갤 곳이 없어 크기 상한에서 뺀다 (HARNESS.md 5절). 저장소 루트 기준 경로를 글자 그대로 맞춘다 (* 는 안 펼친다).
