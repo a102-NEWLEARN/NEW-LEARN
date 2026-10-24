@@ -211,6 +211,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Argo CD: 팝업 뒤 익명 읽기 전용. 동기화 · 설정 변경은 admin으로 한 번 더 로그인한다. admin 비밀번호는 인프라 담당만 안다. GitLab 웹훅 길(`/argocd/api/webhook` POST, GitLab 머리)만 팝업 밖이다 — 위 「배포 흐름」
   - 두 앱 모두 팝업의 `Authorization` 머리는 앱으로 넘기지 않는다 — Grafana가 그것을 자기 로그인으로 읽어 팝업이 되풀이된다
   - Swagger는 잠그지 않는다 — 개발하는 동안 FE가 편하게(2026-10-22 사용자 결정, 2026-10-20 「Swagger도 팝업」을 바꿈). 다시 잠글지는 8절
+    - 주소: `https://newlearn.io.kr/swagger-ui.html`(→ `/swagger-ui/index.html`) · `/v3/api-docs`. backend 의 springdoc 3.1.1이 만들고, `SecurityConfig`가 이 주소들만 GET으로 로그인 없이 연다. 내부 API는 문서에서 뺀다(2026-10-23, Jira S15P31A102-107). 잠글 때는 `infra/k8s/services/app/routes.yaml`의 Swagger 규칙과 `SecurityConfig`의 그 줄을 같이 뺀다
   - Envoy 기본 인증은 htpasswd의 SHA1 형식만 받아서 비밀번호를 16자 이상으로 한다(스크립트가 막는다)
 
 ### kubeadm을 고른 이유
