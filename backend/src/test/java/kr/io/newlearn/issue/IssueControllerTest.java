@@ -10,6 +10,8 @@ import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.security.SecurityConfig;
 import kr.io.newlearn.common.web.PageResponse;
+import kr.io.newlearn.issue.dto.IssueHeaderResponse;
+import kr.io.newlearn.issue.dto.TimelineResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -20,6 +22,32 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(IssueController.class)
 @Import(SecurityConfig.class)
 class IssueControllerTest {
+    @Test
+    void headerAndEmptyTimelineFollowJsonContract() throws Exception {
+        when(service.get(48))
+                .thenReturn(new IssueHeaderResponse(48, "빈 이슈", null, List.of(), 0, 0, 0, null, null, null));
+        when(service.timeline(48)).thenReturn(new TimelineResponse(48, List.of()));
+        mvc.perform(get("/api/v1/issues/48"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(48))
+                .andExpect(jsonPath("$.firstEventAt").hasJsonPath())
+                .andExpect(jsonPath("$.firstEventAt").isEmpty())
+                .andExpect(jsonPath("$.lastEvent").doesNotExist());
+        mvc.perform(get("/api/v1/issues/48/timeline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.issueId").value(48))
+                .andExpect(jsonPath("$.events").isEmpty())
+                .andExpect(jsonPath("$.relations").doesNotExist());
+    }
+
+    @Test
+    void badDetailIdFailsBeforeService() throws Exception {
+        mvc.perform(get("/api/v1/issues/invalid/timeline"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(service);
+    }
+
     @Autowired
     MockMvc mvc;
 
