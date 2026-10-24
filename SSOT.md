@@ -44,6 +44,9 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 분석 상태 계산은 `docs/api-internal.md` 6절을 따른다. 구현 성공 기준은
 `docs/specs/F01-F11-article-api.md`에 둔다.
 
+이슈 헤더·타임라인(A3·A4)의 조회 계약과 빈 이슈 처리는 `docs/api-screen.md` 2절,
+구현 성공 기준은 `docs/specs/F07-issue-timeline-api.md`를 따른다.
+
 ## 3. 분석 파이프라인
 
 > 이 절은 전부 초안이다. AI 담당(강유진, 황도경) 확인 필요.

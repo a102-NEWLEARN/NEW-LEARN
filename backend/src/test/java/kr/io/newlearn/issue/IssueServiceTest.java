@@ -9,6 +9,7 @@ import java.util.List;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.PageQuery;
+import kr.io.newlearn.event.EventRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -16,7 +17,26 @@ import org.springframework.data.domain.PageRequest;
 class IssueServiceTest {
     CategoryRepository categories = mock(CategoryRepository.class);
     IssueQueryRepository queries = mock(IssueQueryRepository.class);
-    IssueService service = new IssueService(categories, queries);
+    IssueRepository issues = mock(IssueRepository.class);
+    EventRepository events = mock(EventRepository.class);
+    IssueService service = new IssueService(categories, queries, issues, events);
+
+    @Test
+    void missingIssueDoesNotReadTimelineOrReferences() {
+        assertThatThrownBy(() -> service.get(999)).isInstanceOf(NotFoundException.class);
+        verify(queries, never()).findCategories(any());
+        assertThatThrownBy(() -> service.timeline(999)).isInstanceOf(NotFoundException.class);
+        verifyNoInteractions(events);
+        verify(queries, never()).findEventCounts(any());
+    }
+
+    @Test
+    void emptyTimelineSkipsAggregateLookup() {
+        when(issues.existsById(1L)).thenReturn(true);
+        when(events.findByIssue_IdOrderByOccurredAtAscIdAsc(1L)).thenReturn(List.of());
+        assertThat(service.timeline(1).events()).isEmpty();
+        verify(queries, never()).findEventCounts(any());
+    }
 
     @Test
     void unknownCategoryStopsBeforeAggregate() {
