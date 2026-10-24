@@ -19,7 +19,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | 화면 | React | 이슈 에볼루션 맵, 기사 마인드맵, 변화 카드 화면 |
 | API 서버 | Spring Boot | 조회 API, 분석 작업 등록, 분석 결과 저장 |
 | AI 분석 워커 | FastAPI (Python) | 작업 큐 소비, 임베딩, LLM 호출(LangChain) |
-| LLM | SSAFY GMS (GPT-5-mini) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
+| LLM | SSAFY GMS (gpt-6-luna) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
 | DB | PostgreSQL + pgvector | 기사 원본, 분석 결과, 임베딩 저장·유사도 검색 |
 | 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐, 로그인 세션 |
 | 뉴스 수집 배치 | 운영 시 쿠버네티스 CronJob (구현 언어 미정) | NewsData.io 수집(하루 두 번 00 · 12시), 데이터셋 적재(검증용) |
@@ -40,6 +40,10 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 5. AI 분석 워커가 작업을 가져가 분석 단계를 수행 (3절)
 6. 워커가 결과를 Spring Boot에 전달해 저장
 
+기사 조회(A7·A8)의 계약과 요약 대체 규칙은 `docs/api-screen.md` 1·2절,
+분석 상태 계산은 `docs/api-internal.md` 6절을 따른다. 구현 성공 기준은
+`docs/specs/F01-F11-article-api.md`에 둔다.
+
 이슈 헤더·타임라인(A3·A4)의 조회 계약과 빈 이슈 처리는 `docs/api-screen.md` 2절,
 구현 성공 기준은 `docs/specs/F07-issue-timeline-api.md`를 따른다.
 
@@ -52,7 +56,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | 단계 | MVP 개요 기능 | 무엇으로 | 상태 |
 |---|---|---|---|
 | 핵심 정보 추출 — 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망) | F03 → F04(흐름지도 · 마인드맵) | GMS. 출력 모양은 `docs/api-screen.md` 3절. 근거 문장은 데이터로만 남긴다(F05 화면 표시는 추후, 2026-10-21) | 켬 |
-| 같은 사건 후보 찾기 | F06 | 임베딩(sentence-transformers, CPU) + pgvector, 후보 최대 5개 | 켬 |
+| 같은 사건 후보 찾기 | F06 | 임베딩(sentence-transformers, CPU, BGE-m3-ko 1024차원) + pgvector, 후보 최대 5개 | 켬 |
 | 동일 사건 판정 | F06 → F07(이슈맵) | GMS. 새 사건이면 이름 · 키워드 · 요약도 짓는다. 판단 기준은 Q34 | 켬 |
 | 이슈 판단 — 새 사건을 이슈에 붙이거나, 사건 3개 이상으로 새 이슈를 만들고 이름 · 요약을 짓는다 | F07 | GMS. 단계 모양은 `docs/api-internal.md`(제안). 어떤 사건을 묶을지는 실험 | 켬(제안) |
 | 주장 추출 · 관계 판정 | F09 → F10(변화 카드) | GMS | 추후 논의. 자리만 두고 꺼 둠 |
@@ -62,7 +66,8 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 
 ### 예산
 
-- GMS 토큰 총 $168.30 (후불). 기사당 약 $0.01 기준 약 1만 7천 건 분석 가능
+- GMS 토큰 총 $168.30 (후불) = 팀 공용 1,683,000 크레딧(2026-10-21 ~ 12-11). 처음 짐작은 기사당 약 $0.01 → 약 1만 7천 건이었다
+- 실측(2026-10-23, 10절): gpt-6-luna 로 핵심 정보 추출 + 동일 사건 판정을 하면 기사당 약 7.4 크레딧(약 $0.0007). 이 두 단계에만 쓰면 이론상 약 22만 건이다. 이슈 판단과 v1 마인드맵(가지 4개) 모양의 출력은 아직 재지 않았다
 - 개발 중에는 모의 응답을 기본으로 하고, 실제 GMS 호출은 명시적으로 켤 때만
 
 ## 4. 작업 큐
@@ -98,13 +103,17 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 관리 서버(컨트롤 플레인): AWS EC2 t3.large. 팀 AWS 계정. Terraform으로 생성·삭제
     - Ubuntu 24.04 LTS · gp3 30 GiB(암호화) · IMDSv2 · 탄력적 IP(컨트롤 플레인 주소가 클러스터 인증서에 들어가서) · CPU 크레딧 standard 고정(T3 기본 unlimited는 초과 요금) · 서울 리전. 코드는 `infra/terraform/`
     - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. Lightsail 공인 IP에서 오는 WireGuard 51820/udp 하나만 더 연다. 쿠버네티스 포트(6443·10250·Cilium)는 WireGuard 터널 안으로만 다녀서 밖에 열지 않는다(아래 「노드 사이 — 호스트 WireGuard」). kubectl은 SSH 터널로 6443에 붙는다
-    - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다 — Ubuntu 기본 규칙은 22·80뿐이라 443은 받는 날 확인한다(8절)
+    - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다. 2026-10-22 받은 날 확인: 돌아오는 WireGuard UDP가 지나가고, SSAFY 쪽 방화벽에서 80 · 443이 열려 있다(아래 「현재 상태」). 서버 안 방화벽(ufw)은 지급 때 22만 열려 있다
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
 - 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버의 클러스터 안 Pod — Kubernetes executor)
   - SSAFY GitLab은 Community Edition 18.11.5다(2026-10-18 API, 2026-10-20 Help 화면으로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서(인스턴스 · 그룹 러너 0개) CI는 러너를 직접 둬야 돈다
   - 러너는 서버에 Docker를 깔지 않고 Pod로 띄운다 — Docker를 깔면 kubelet과 containerd를 같이 쓰고, Docker의 iptables 규칙이 Cilium(호스트 라우팅 Legacy · iptables 마스커레이드)과 같은 표를 만진다. 잡도 잡마다 Pod로 떴다 사라진다(2026-10-20 결정, Jira S15P31A102-89)
   - 러너 · 잡 Pod 모두 관리 서버에만 둔다(control-plane taint를 견디고 그 노드를 고른다). 한 번에 잡 1개, 잡 CPU 요청 500m · 상한 1, 메모리 1Gi · 2Gi — 잡이 바빠도 1 vCPU는 apiserver · etcd 몫으로 남는다. 실제 CI 잡 시간을 재서 조정한다(Jira S15P31A102-92). 값은 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 까는 법은 `infra/server/README.md` 「GitLab Runner」
   - 러너 판은 GitLab과 major.minor를 맞춘다 — 차트 0.88.4(러너 18.11.4). 토큰은 저장소에 두지 않고 서버의 Secret(`gitlab-runner-token`)에만 있다
+  - 굽기 러너 `newlearn-build`(2026-10-23, Jira S15P31A102-106): 이미지 굽기(w4) 잡만 받는다(태그 `newlearn-build`, 태그 없는 잡 안 받음, Protected 아님). 매니저 Pod는 관리 서버, 잡 Pod는 워커(Lightsail)에서 돈다 — 위 「관리 서버에만」의 예외다(9절). 관리 서버는 잡 하나가 한계이고 노트북은 GHCR 받기가 초당 약 5MB였다(10절)
+    - 동시 2, 잡 요청 500m · 1Gi, 상한 CPU 2 · 메모리 3Gi(덮어쓰기 상한도 같다 — 넘게 요청하면 잡이 실패한다). 서비스는 CPU 요청만큼 늘 받는다. 갈래 이름표 `w4`는 러너가 고정으로 붙인다
+    - 네임스페이스 `gitlab-runner-build` 전체에 CiliumNetworkPolicy — 나가는 길은 바깥 인터넷 · kube-dns · API 서버(매니저용)뿐이라 같은 노드의 postgres · redis · Argo CD · 앱에 못 붙는다(10절). 잡은 네임스페이스와 이름표를 바꿀 수 없어 MR이 CI 파일을 고쳐도 정책을 벗어나지 못한다. 특권 없음 · 서비스 계정 토큰 없음은 검사 러너와 같다
+    - 값은 `infra/k8s/bootstrap/gitlab-runner-build-values.yaml` · `build-netpol.yaml`, 까는 법은 `infra/server/README.md` 「굽기 러너」. 토큰은 서버의 Secret(`gitlab-runner-build-token`)에만
   - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
 - CI 파이프라인: `.gitlab-ci.yml`(2026-10-20, Jira S15P31A102-92). MR과 dev push에서 돈다. 계획은 `docs/plans/2026-10-20-ci-pipeline.md`
   - 잡을 「무엇에 막히나」로 나눈 갈래로 둔다 — w0 규칙(시크릿 스캔 · MR 규칙 · 하네스 자체 검사) → w12 영역 검사(frontend · ai · infra) · w3 backend(DB · Redis가 필요한 테스트). 영역 잡은 `pre-commit --ci <영역>`으로 `.claude/stack.md` 3절 명령을 그대로 돈다. MR은 바뀐 영역만, dev는 전부 돈다. 하네스 자체 검사는 `.claude/`가 바뀔 때와 dev에서만
@@ -129,7 +138,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - CPU 예약을 작게 잡는다(모니터링 합 약 200m, exporter 10m 포함) — 노드 예약이 1200m라 CI 잡(550m)이 들어갈 자리가 남는다. Alertmanager는 끈다(알림 받을 곳이 정해지면). kubeadm은 etcd · controller-manager · scheduler를 127.0.0.1에만 열고 kube-proxy는 없어서(Cilium 대체) 그 수집과 규칙은 끈다
   - Prometheus 데이터는 관리 서버 디스크의 정적 PV(`/var/lib/newlearn/prometheus`, 10Gi, 15일 · 8GB 보존)에 둔다 — Pod를 다시 띄워도 남는다. 프로비저너 없이 이름표용 StorageClass(`kubernetes.io/no-provisioner`)만 둔다(Prometheus Operator는 StorageClass가 실제로 있어야 한다)
   - Grafana: 아이디 · 비밀번호 로그인. 계정은 사람이 서버에서 만든 Secret(`grafana-admin`)에서 읽는다. 가입 · 익명 보기는 끈다. 대시보드는 설정으로 그리고 Grafana 자체 디스크는 두지 않는다(다시 뜨면 로그인을 새로 한다)
-  - 여는 길: 지금은 SSH 터널로 `http://localhost:3000/grafana/`. 공개 주소 `newlearn.io.kr/grafana`는 Lightsail · 정문 · HTTPS(Jira 90 · 91 · 93) 뒤에 연다 — 그때 Grafana `root_url`을 바꾼다. Prometheus는 로그인이 없어 공개하지 않는다. Swagger도 공개할 때 브라우저 팝업(HTTP 기본 인증)으로 아이디 · 비밀번호를 묻는다(2026-10-20 결정, 구현은 93 · BE)
+  - 여는 길: 공개 주소 `https://newlearn.io.kr/grafana/`(2026-10-22, Jira S15P31A102-93) — 브라우저 팝업 하나를 지나면 그 아이디로 바로 들어간다(보기 권한). 잠그는 법은 아래 「도메인 · HTTPS」. 관리자(`grafana-admin`)는 SSH 터널로 들어와 로그인 화면에서. Prometheus는 로그인이 없어 공개하지 않는다
   - CloudWatch는 쓰지 않는다(API 호출 요금). CPU 크레딧 잔액은 EC2 콘솔에서 본다
 - 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유)
   - 상태 파일: 팀 계정 S3 버킷(버전 관리 · 퍼블릭 차단)에 두고 S3 잠금 파일로 동시 실행을 막는다(`use_lockfile`, DynamoDB 없이). 버킷 이름은 저장소에 적지 않는다(`infra/terraform/backend.hcl.example`). PC를 반납 · 분실해도 11/18 destroy를 할 수 있게 하려는 것이다(2026-10-20 결정)
@@ -139,18 +148,26 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
   - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
   - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」
-  - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다. dev 머지 뒤 사이트에 바로 반영할지 사람이 버튼을 누를지는 Jira S15P31A102-91에서 정한다
-  - 굽는 도구: Kaniko 후속판(osscontainertools, digest 고정) — Docker 데몬 · 특권 없이 잡 컨테이너 안에서 Dockerfile을 돈다. BuildKit rootless는 두 러너의 보안 설정(seccomp · AppArmor · user namespace)을 풀어야 해서 뺐다. 두 러너 모두 설정을 바꾸지 않고 세 이미지를 굽는 것을 확인했다(MR !60, 10절)
+  - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다 — 그래서 배포 태그는 dev push가 올린 것만 쓴다
+  - 반영: **CI가 배포 태그 MR을 열고 사람이 머지한다**(2026-10-22 결정, Jira S15P31A102-105). 굽기(w4)가 올리기에 성공한 영역만 `w5:deploy-mr` 잡이 GHCR에 그 태그가 있는지 확인한 뒤 `infra/k8s/services/app · ai/kustomization.yaml`의 태그를 바꾸는 MR을 `deploy/app` · `deploy/ai` 브랜치로 `dev`에 연다. 같은 브랜치를 dev 위에 덮어써서 열린 MR이 있으면 그것을 갱신한다(MR이 쌓여 부딪히지 않게). 지금 태그가 더 새 커밋이면 건너뛴다. 바꾼 파일이 `infra/`뿐이라 그 MR을 머지해도 굽기가 다시 돌지 않는다. 토큰 `DEPLOY_MR_TOKEN`(프로젝트 액세스 토큰, Developer · `api`, 만료 2026-11-30)은 보호 · 가림 CI 변수. 코드는 `infra/ci/deploy_mr.py`
+  - Image Updater(새 태그를 보고 자동 반영)는 쓰지 않는다 — 바뀐 태그가 Git에 남지 않아 아래 「되돌리기」와 어긋난다
+  - 굽는 도구: Kaniko 후속판(osscontainertools, digest 고정) — Docker 데몬 · 특권 없이 잡 컨테이너 안에서 Dockerfile을 돈다. BuildKit rootless는 두 러너의 보안 설정(seccomp · AppArmor · user namespace)을 풀어야 해서 뺐다. 두 러너 모두 설정을 바꾸지 않고 세 이미지를 굽는 것을 확인했다(MR !60, 10절). 2026-10-23부터는 굽기 러너에서만 굽는다(위 「굽기 러너」). Docker(DinD)는 특권 컨테이너가 필요해 운영 노드에서는 노드 root가 되므로 쓰지 않는다
     - EC2 잡 메모리 상한(2Gi)에서는 `--use-new-run` · `--compressed-caching=false`를 줘야 ai(가상환경 약 1 GB)가 굽힌다. 없으면 의존성 설치 뒤 스냅샷에서 OOMKilled(두 번 재현). 옵션을 줘도 최대 메모리가 상한에 닿는다(디스크 캐시 포함) — 의존성이 크게 늘면 다시 잰다
     - Kaniko는 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아 EC2 러너에서는 after_script가 실패한다. 굽기 잡은 CPU · 메모리 기록을 script 끝에서 찍는다
   - Dockerfile은 영역 폴더마다 하나(`backend/` · `frontend/` · `ai/`). 베이스 이미지는 digest로 고정하고 root가 아닌 사용자로 돈다
   - 토큰: GitLab CI 변수 `GHCR_USER` · `GHCR_TOKEN`(보호 · 가림) — 보호 브랜치(dev) 파이프라인에만 들어간다. classic 토큰이라 개인 계정의 모든 패키지에 권한이 걸려서 `write:packages` · `read:packages`만, 만료 2026-11-30. 워커가 받을 읽기 토큰은 Jira S15P31A102-91(Sealed Secret)
 - 되돌리기: Git에서 이전 커밋으로 되돌리면 Argo CD가 이전 버전으로 맞춤
 - 배포 설정: Argo CD가 읽는 앱 목록은 `infra/k8s/apps/`(app-of-apps — 이 폴더를 Helm 차트로 그려 앱마다 Application을 만든다). 루트 Application은 부트스트랩 때 한 번 건다(`infra/k8s/bootstrap/root-app.yaml`). Cilium·Argo CD는 Argo CD 밖에서 Helm으로 깐다(`infra/k8s/bootstrap/`)
-  - Argo CD는 기본 120초(+최대 60초 지터)마다 Git을 다시 본다(`timeout.reconciliation`). push 직후 반영하려면 웹훅이나 새로고침이 필요하다
+  - 실제 서버: `infra/server/bootstrap-argocd.sh`가 Argo CD(차트 10.10.5, v3.5.5)를 깔고 루트 Application을 팀 GitLab 저장소의 **dev 브랜치**로 건다(2026-10-22, Jira S15P31A102-91). 저장소는 읽기 전용 배포 토큰(`read_repository`, 만료 2026-11-30)으로 읽는다
+  - 앱 순서는 sync-wave로 건다 — Sealed Secrets · Envoy Gateway(-1) → Gateway(0) → 앱(1). Argo CD는 자식 Application의 건강 상태를 기본으로 보지 않아서, 건강 Lua를 넣어 앞 wave가 실제로 준비될 때까지 기다리게 했다(`argocd-values.yaml`). 루트에는 finalizer가 있어 루트를 지우면 자식 앱과 그 자원도 지워진다
+  - GitLab Runner · 모니터링(kube-prometheus-stack · CI 잡 exporter)은 Argo CD로 옮기지 않는다 — 지금처럼 Helm · `kubectl apply -k`로 둔다. 잘 돌고 있는 것을 발표 전에 옮길 까닭보다 깨질 위험이 크다(2026-10-22 결정, Jira S15P31A102-91)
+  - Argo CD는 기본 120초(+최대 60초 지터)마다 Git을 다시 본다(`timeout.reconciliation`). 그래서 GitLab 프로젝트 웹훅(Push events, `dev`)이 `https://newlearn.io.kr/argocd/api/webhook`으로 push를 바로 알린다(2026-10-23, Jira S15P31A102-106). 이 정확한 경로 · POST · `X-Gitlab-Event` 머리일 때만 팝업 밖이고, 토큰은 Argo CD가 확인한다 — 봉인 Secret `argocd-webhook`(이름표 `app.kubernetes.io/part-of: argocd`가 있어야 참조로 읽힌다)을 Argo CD 값이 가리킨다(`configs.secret.gitlabSecret`). argocd-server는 토큰을 뜰 때 한 번 읽어서, 바꾸면 다시 띄운다. 폴링은 웹훅이 빠졌을 때의 안전망으로 남긴다
+  - 배포 알림: Argo CD Notifications가 Mattermost 비공개 채널 「A102 배포알림」의 들어오는 웹훅으로 보낸다(2026-10-23, Jira S15P31A102-106). 배포 완료는 `app` · `ai` 앱만 이미지 목록이 바뀔 때 한 번(앱 10개가 모두 `dev`를 읽어 커밋마다로 두면 문서 머지에도 울린다). 교체 직후엔 종료 중인 옛 Pod 의 이미지도 목록에 있어서, 이미지 수가 Deployment 수와 같아진 뒤에만 울린다(2026-10-23 두 번 울려 고침), 동기화 실패 · 건강 나빠짐(Degraded)은 앱 전부. 설정은 `argocd-values.prod.yaml`의 `notifications`, 웹훅 주소는 봉인 Secret `argocd-notifications-secret`(`seal-secrets.sh mattermost`). Mattermost 봇은 관리자 설정이 필요할 수 있어 쓰지 않는다. 글쓴이는 웹훅을 만든 사람 이름에 BOT 표시로 나온다(SSAFY Mattermost가 이름 바꾸기를 막음)
 - 클러스터 네트워크 Cilium. kube-proxy를 깔지 않고 Cilium의 kube-proxy 대체를 쓴다 — hostPort를 따로 설정 없이 처리해서다. Pod 사이 트래픽은 VXLAN이고, 노드 주소(WireGuard 터널 주소) 사이로 가서 터널 안에 담긴다
   - kubeadm: 설정 파일로 init한다 — kube-proxy 단계 건너뛰기(`skipPhases: addon/kube-proxy`), Pod 주소 범위 10.244.0.0/16, 노드 주소는 터널 주소. Cilium이 노드마다 받은 Pod 주소 범위를 쓰는 모드(`ipam.mode: kubernetes`)라 Pod 주소 범위를 꼭 준다. 10.244.0.0/16은 kind 기본값과 같고, 서비스 주소(kubeadm 기본 10.96.0.0/12) · EC2 기본 VPC(172.31.0.0/16) · 터널(10.200.0.0/24)과 겹치지 않는다
 - Secret: Sealed Secrets. 비밀값은 공개키로 잠근 SealedSecret만 Git에 두고, 클러스터 안 컨트롤러가 개인키로 풀어 일반 Secret을 만든다. Argo CD가 GitLab을 읽을 배포 토큰만은 Argo CD가 저장소를 읽기 전에 있어야 해서 처음 한 번 손으로 넣는다
+  - 컨트롤러: 차트 2.20.0(v0.40.0), 네임스페이스 `sealed-secrets`, 이름은 kubeseal 기본값 `sealed-secrets-controller`. 키를 30일마다 더하는 기본값을 꺼서 키는 하나다 — 깐 날 받은 백업이 계속 맞는다. 봉인은 EC2에서 `kubeseal --controller-namespace sealed-secrets`(같은 판)
+  - 개인키는 인프라 담당 PC에 백업한다(저장소 밖). 잃으면 서버를 다시 만들 때 저장소의 SealedSecret을 못 푼다. 백업 · 복구 순서는 `infra/server/README.md` 「Sealed Secrets 키」
 
 ### 노드 사이 — 호스트 WireGuard
 
@@ -173,6 +190,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 클러스터 구성
 
 - 서비스 Pod는 전부 워커에서 돈다. 네임스페이스: ai, ingress·web, app, data·batch, monitoring(Prometheus·Grafana), argocd (+kube-system)
+  - 실제 이름(2026-10-22, Jira S15P31A102-105): `app`(backend · frontend) · `ai` · `data`(PostgreSQL · Redis) · `envoy-gateway-system`(입구) · `argocd` · `sealed-secrets` · `cert-manager` · `local-path-storage` · `monitoring`. 배치는 아직 없다(만들 때 `data`나 따로)
+  - 배포 설정: `infra/k8s/services/<네임스페이스>/`, Argo CD 앱 하나씩(`infra/k8s/apps/templates/`). 이미지 태그는 `infra/k8s/services/app · ai/kustomization.yaml`의 `images` 한 곳 — 바꾸는 길은 아래 「배포 흐름」의 태그 MR
+  - 무중단 교체 조건(아래)을 backend · frontend · ai에 넣었다 — 새 Pod 먼저, 준비 확인(backend는 DB · Redis까지), 끝낼 때 10초. 살아 있는지는 포트만 본다(DB가 잠깐 끊겼다고 재시작하지 않게)
   - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
 - 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
@@ -180,9 +200,25 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 외부 입구 — hostPort
 
 - Envoy Pod를 워커 노드의 80에 hostPort로 연다. Envoy Gateway는 권한 없이 뜨려고 80 리스너를 컨테이너 10080으로 옮겨 여는데, 그 포트에 hostPort 80을 붙인다(`infra/k8s/gateway/envoyproxy.yaml`). Envoy의 Service는 ClusterIP로 둔다
-- kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답
+- kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답. 실제 서버에서도 확인했다(2026-10-22, Jira S15P31A102-91) — 관리자 PC → SSAFY 도메인:80 → ufw → Envoy hostPort → hello
 - 한계: 워커가 1대라 80을 잡은 Envoy Pod가 둘일 수 없다. 기본 교체 전략(새 Pod 먼저)이면 새 Pod가 「free ports」 부족으로 Pending에 멈춘다 → 교체 전략을 maxSurge 0 · maxUnavailable 1(옛 Pod 먼저 내리기)로 둔다. 그래서 Envoy를 바꿀 때(Envoy Gateway 업그레이드 · EnvoyProxy 변경) 잠깐 끊긴다(잰 시간은 10절). 앱 배포는 Envoy를 재시작하지 않아 해당하지 않는다
-- 443은 HTTPS 인증서 방식을 정한 뒤 같은 방식(컨테이너 10443)으로 더한다
+- 443도 같은 방식이다 — 컨테이너 10443 → hostPort 443 (2026-10-22, Jira S15P31A102-93)
+
+### 도메인 · HTTPS
+
+- `newlearn.io.kr` · `www.newlearn.io.kr` → 워커 공인 IP(가비아 A 레코드, TTL 600). `http://`는 `https://`로, `www`는 `https://newlearn.io.kr`로 301 넘긴다(`infra/k8s/gateway/redirects.yaml`). 앱 · 관리 화면 라우트는 https 리스너에만 붙인다 — http에도 붙으면 넘기기보다 긴 경로가 이겨 평문으로 열린다
+- 인증서: cert-manager(v1.21.2)가 Let's Encrypt에서 받는다. 소유 확인은 HTTP-01 — Let's Encrypt가 `http://<이름>/.well-known/acme-challenge/…`를 부르면 cert-manager가 Gateway에 잠깐 붙인 경로가 답한다. 가비아는 DNS를 프로그램으로 바꾸는 API가 없어 DNS-01은 쓰지 않는다(2026-10-22 결정). 발급자는 staging · prod 둘, 인증서 하나(apex + www, ECDSA P-256). 워커가 자기 공인 IP로 되돌아오는 요청(헤어핀)이 되어서 cert-manager의 자체 확인이 지나간다
+- 갱신: 90일짜리를 만료 30일 전에 cert-manager가 알아서 다시 받는다. Let's Encrypt는 만료 메일을 보내지 않고 Alertmanager는 꺼져 있어서, 사람이 본다
+  - `kubectl -n envoy-gateway-system get certificate newlearn -o wide` — READY가 True, `kubectl … -o jsonpath='{.status.notAfter} {.status.renewalTime}'`로 만료 · 다음 갱신 시각
+  - Prometheus 지표 `certmanager_certificate_expiration_timestamp_seconds`(만료) · `certmanager_certificate_renewal_timestamp_seconds`(다음 갱신) — cert-manager ServiceMonitor로 모은다
+  - 바깥에서: `openssl s_client -connect newlearn.io.kr:443 -servername newlearn.io.kr`의 발급자 · 만료일
+  - 갱신이 실패하면 `kubectl -n envoy-gateway-system describe certificate newlearn`과 `kubectl get order,challenge -A`의 이벤트를 본다
+- 공개 화면: `/argocd` · `/grafana`는 Envoy 앞단의 브라우저 팝업(HTTP 기본 인증, `infra/k8s/admin-ui/`) 하나로 잠근다. 계정은 둘이 같이 쓰는 하나이고, 저장소에는 봉인한 htpasswd만 둔다(`infra/server/seal-secrets.sh basic-auth`, 아이디 · 비밀번호는 사람이 입력해 팀에 따로 알린다)
+  - Grafana: Envoy가 팝업 아이디를 `X-WEBAUTH-USER`로 넘기고 Grafana 프록시 로그인이 그 아이디로 바로 들인다(보기 권한). 손님이 같은 머리를 꾸며 보내면 Envoy가 맨 앞에서 지운다(`infra/k8s/gateway/client-traffic.yaml`). 팝업 아이디는 Grafana 관리자(`grafana-admin`) 아이디와 달라야 한다 — 같으면 그 관리자로 들어간다(2026-10-22 겪고 관리자 아이디를 바꿈)
+  - Argo CD: 팝업 뒤 익명 읽기 전용. 동기화 · 설정 변경은 admin으로 한 번 더 로그인한다. admin 비밀번호는 인프라 담당만 안다. GitLab 웹훅 길(`/argocd/api/webhook` POST, GitLab 머리)만 팝업 밖이다 — 위 「배포 흐름」
+  - 두 앱 모두 팝업의 `Authorization` 머리는 앱으로 넘기지 않는다 — Grafana가 그것을 자기 로그인으로 읽어 팝업이 되풀이된다
+  - Swagger는 잠그지 않는다 — 개발하는 동안 FE가 편하게(2026-10-22 사용자 결정, 2026-10-20 「Swagger도 팝업」을 바꿈). 다시 잠글지는 8절
+  - Envoy 기본 인증은 htpasswd의 SHA1 형식만 받아서 비밀번호를 16자 이상으로 한다(스크립트가 막는다)
 
 ### kubeadm을 고른 이유
 
@@ -195,6 +231,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 ### 저장소·백업
 
 - kubeadm에는 기본 StorageClass가 없다 → local-path-provisioner를 설치한다
+  - 2026-10-22 깔았다(v0.0.37, Argo CD 앱 `local-path`). StorageClass `newlearn-local` — PVC를 지워도 PV · 폴더를 남기고(Retain), Pod가 뜬 노드(워커)의 `/var/lib/newlearn/local-path`에 만든다. 기본 StorageClass로 두지 않아 PVC마다 이름을 적는다
+  - PostgreSQL(pgvector 0.8.7-pg18, 20Gi) · Redis(8.10.2, AOF, `maxmemory 1gb` · `noeviction`, 5Gi)는 StatefulSet. Argo CD가 지우지 않게 막고(`Delete=false,Prune=false`), StatefulSet을 지워도 PVC를 남긴다. 크기 · StorageClass는 나중에 못 바꾼다
+  - DB 계정은 `infra/server/seal-secrets.sh db`가 무작위 비밀번호로 `data` · `app`에 봉인한다. PostgreSQL은 처음 초기화 때만 읽어서 봉인 파일이 있으면 다시 만들지 않는다
 - PostgreSQL 백업은 pg_dump CronJob. 같은 서버 안에만 두면 서버를 잃을 때 같이 사라진다 — 서버 밖 보관은 8절
 
 ### 무중단 배포 조건
@@ -213,13 +252,22 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 ### 현재 상태
 
-- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join과 Argo CD는 받는 날
+- EC2: 2026-10-20 만들었다(Jira S15P31A102-88). t3.large · 서울(ap-northeast-2b) · Ubuntu 24.04.5 · 탄력적 IP(주소는 `terraform -chdir=infra/terraform output`). 상태 파일은 S3, apply 전용 키로 apply했다. 같은 날 `infra/server/` 스크립트로 WireGuard(`wg0` 10.200.0.1) → kubeadm init → Cilium까지 올렸다 — 컨트롤 플레인 노드 1대 Ready, kube-system Pod 9개 Running, 재부팅 뒤에도 같다. 워커(Lightsail) join · Argo CD는 2026-10-22(아래)
   - 모니터링: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-95). 수집 대상 13개 모두 up(러너 포함), SSH 터널로 Grafana 로그인 확인. 2026-10-21 CI 잡 지표(exporter)와 대시보드 「CI 병목」을 더해 수집 대상 14개(Jira S15P31A102-98)
   - GitLab Runner: 2026-10-20 관리 서버에 올렸다(Jira S15P31A102-89). 프로젝트 러너 `newlearn-ec2-k8s` 1개가 online이고 태그 없는 잡도 받는다. 시험 잡 1번이 성공했다. 2026-10-20 `.gitlab-ci.yml`을 넣어 MR 파이프라인이 돈다(Jira S15P31A102-92)
   - 2026-10-20 결정: Lightsail을 기다리지 않고 준비(설계 반영 · 상태 파일 · apply 키 · 서버 스크립트)가 끝나는 대로 만든다. EC2만 있는 동안은 kubeadm init · Cilium까지 하고, Argo CD는 Lightsail이 join한 뒤 깐다(컨트롤 플레인에는 서비스 Pod를 올리지 않는다)
-- Lightsail: 미수령 (pem 키로 받을 예정)
-- kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다
-- 도메인: 구매 완료, DNS 레코드 미설정 (서비스 서버 IP를 받은 뒤 연결)
+- Lightsail: 2026-10-22 받았다(SSAFY 도메인 + pem 키, 콘솔 없음). Ubuntu 24.04.4 · CPU 4 · 메모리 15GiB · 디스크 309GB · 공인 쪽 인터페이스 `ens5` · `sudo` 비밀번호 없음, ufw 켜짐(22만). 같은 날 첫 확인(Jira S15P31A102-90, `docs/plans/2026-10-22-lightsail-first-check.md`)
+  - WireGuard: 보안 그룹 `worker_cidrs`에 Lightsail 공인 IP(/32)를 넣고 apply → `wg-up.sh` 로 양쪽을 이었다. handshake가 맺히고 `ping 10.200.0.1` 왕복 약 1ms, 1392바이트는 지나가고 1393바이트는 「message too long」(MTU 1420). Lightsail ufw를 따로 열지 않아도 Lightsail이 먼저 보낸 것의 응답은 들어온다
+  - 80 · 443: ufw를 잠깐 열고 시험 서버를 띄워 내 PC(SSAFY 망) · EC2(바깥 인터넷)에서 둘 다 200을 받았다 — SSAFY 쪽 방화벽이 열려 있다. 시험 뒤 ufw는 다시 22만
+  - 공인 IP: 고정 IP인지는 확인하지 않는다. 서버를 껐다 켜지 않기로 해서(2026-10-22) 바뀔 일이 없다. 지금 IP는 SSAFY 도메인이 가리키는 IP와 같다. SSAFY · AWS 점검으로 꺼졌다 켜져 바뀌면 보안 그룹 `worker_cidrs` apply · DNS · 80/443 입구를 다시 맞춘다(WireGuard는 Lightsail이 먼저 붙어서 EC2가 새 주소를 handshake로 안다)
+  - 워커 join(2026-10-22, Jira S15P31A102-90, `docs/plans/2026-10-22-worker-join.md`): `common.sh` → `ufw-worker.sh` → 30분 토큰으로 `join-worker.sh`(토큰은 쓴 뒤 지움). 노드 2개 Ready(INTERNAL-IP 10.200.0.1 · 10.200.0.2), 두 노드 Cilium `OK` · 인터페이스 `ens5` 와 `wg0 (Direct Routing)` · 클러스터 헬스 2/2. 워커에는 DaemonSet 셋(cilium · cilium-envoy · node-exporter)만 있다 — 다른 워크로드는 nodeSelector 로 컨트롤 플레인에 묶여 있다
+  - 확인: 워커 Pod 가 컨트롤 플레인의 CoreDNS · Grafana 에 닿고, 컨트롤 플레인에서 311KB 응답을 받고, ufw 를 켠 채 인터넷으로 나간다. Prometheus 가 워커 kubelet · node-exporter 를 수집한다(up). 재부팅 뒤 wg0 · kubelet 이 부팅 5초에 뜨고(kubelet 은 wg0 뒤) 공인 IP · 노드 주소가 그대로다
+  - Pod MTU: 설계대로다 — Pod 인터페이스 1420, 기본 경로 `mtu 1370`. 노드 사이 Pod끼리 1342바이트(1370 − 28)는 지나가고 1343은 보내기 전에 거절되며, 두 노드 모두 IP 쪼개기 0이다. join 날(2026-10-22) 「1420」이라 적은 것은 busybox `ip route`가 경로 mtu를 찍지 않아 잘못 읽은 것이다(10절)
+  - Argo CD(2026-10-22, Jira S15P31A102-91, `docs/plans/2026-10-22-infra-deploy.md`): `bootstrap-argocd.sh`로 깔았다. 앱 다섯(root · sealed-secrets · envoy-gateway · gateway · hello) Synced · Healthy, Argo CD · Sealed Secrets · Envoy · hello Pod는 모두 워커에 떴다. 관리자 PC에서 SSAFY 도메인의 80으로 hello가 응답한다 — SSAFY 방화벽 → ufw → Envoy hostPort 80이 이어졌다. 봉인한 시험 Secret을 컨트롤러가 풀어 Pod가 읽었다. 워커 요청 합계 CPU 560m · 메모리 1418Mi
+- kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다. 2026-10-22 은퇴 — 실제 클러스터의 앱 목록과 맞지 않게 되어(cert-manager · 운영 키로 봉인한 Secret · 서비스) 시험 앱 hello를 지우고 확인은 실제 서버에서 한다(Jira S15P31A102-105)
+- 도메인: 2026-10-22 가비아 DNS에 A 레코드 `@` · `www` → 워커 공인 IP(TTL 600). 가비아 네임서버 셋과 공개 DNS가 워커 IP로 답한다
+  - HTTPS(2026-10-22, Jira S15P31A102-93): `https://newlearn.io.kr`이 Let's Encrypt 인증서로 열린다(첫 발급 만료 2027-01-20, 갱신 예정 2026-12-21). `/argocd` · `/grafana`는 팝업 하나로 열린다 — 계정 없이 · 틀린 비밀번호 · 꾸민 머리만으로는 401
+  - 서비스 첫 배포(2026-10-22, Jira S15P31A102-105): `https://newlearn.io.kr/`에 화면이 뜨고 「API 상태: UP」(화면 → `/actuator/health` → backend → DB · Redis). backend `a0a8a571` · frontend · ai `4abd39a2`(dev에서 구워 GHCR에 올라간 마지막 태그), ai는 `mock`. 앱 열(local-path · data · app · ai 더하고 hello 뺌) Synced · Healthy. 워커 요청 합계 CPU 990m(24%) · 메모리 2762Mi(17%), 메모리 상한 합 10304Mi(65%). dev의 backend는 아직 SecurityConfig(!83) 전이라 `/api` · Swagger는 401
 
 ## 7. 개발 환경
 
@@ -241,16 +289,15 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 |---|---|---|
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
 | 개인 외부 계정(GHCR)에 프로젝트 이미지를 두는 것이 SSAFY 규칙에 맞는지 — 막혀 있으면 저장소를 다시 고른다(바꿀 곳은 `.gitlab-ci.yml`의 이미지 주소와 CI 변수) | Infra | 6절 「배포 흐름」 |
-| HTTPS 인증서 발급 방식 | Infra | — |
+| 배포 속도 줄이기 — 2026-10-23 ① 굽기 자리 ② 웹훅 ③ 태그 MR 머지 때 검사 ④ 굽기 재시도를 고쳤다(Jira S15P31A102-106, 6절 「굽기 러너」 · 「배포 흐름」, 10절). 남은 것: ai 굽기가 메모리 상한 3Gi 에 닿는다(oom 0, 커널이 캐시를 비운 횟수 382 ~ 16919) — 의존성이 늘면 상한 · Kaniko 캐시 압축을 다시 정한다 | Infra | 6절 「배포 흐름」 |
+| 바깥에서 부른 요청이 가끔 몇 초 멈춤 — 2026-10-22 한 번 3초 넘김, 10-23 한 번 5초 끊김(그 요청은 Envoy 접근 로그에 없음 = Envoy 에 닿기 전, 그 순간 워커 CPU 18% 이하 · 디스크 · IO 기다림 거의 0). 관리자 PC 회선 · TLS 연결 단계 중 어디인지 미확인. 다른 곳(서버 안 · 다른 회선)에서 같이 재 보면 가려진다 | Infra | 10절 2026-10-23 |
+| Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
-| 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다. Jira 35 시작 전까지 정한다. 고를 때 볼 것: 한국어 기사 품질, Lightsail CPU 에서 기사 한 건 임베딩 시간, 워커 메모리, 차원 2,000 이하(pgvector HNSW 한도), 한 번에 받는 입력 길이(`EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다 — 제목 · 본문 앞부분 중 무엇을 넣을지). BE 안: 칸은 `vector(N)`, 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
+| 임베딩 입력 길이 — 모델은 BGE-m3-ko · 1024차원으로 정했다(2026-10-23, 3절). 남은 것은 제목 · 본문 앞부분 중 무엇을 넣을지다. CPU 2스레드에서 리드(제목 + 앞 두 문장)는 기사당 약 1.2초, 본문 앞 800자는 약 4.3초다(10절). `EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다. BE 안: 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
-| GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (2026-10-22 Jira 100: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 열고 나머지는 로그인이 있어야 하게 막았다 — `backend` 의 `SecurityConfig`). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
-| Lightsail(SSAFY 지급) 받는 날 첫 확인 — ① Lightsail이 먼저 보낸 WireGuard UDP의 응답이 Lightsail 방화벽을 지나 돌아오는지(문서에 없다, `wg show`의 최근 handshake로 본다) ② 443이 열려 있는지(Ubuntu 기본 규칙은 22·80뿐, 못 바꾸면 SSAFY에 요청) ③ 고정 IP를 붙일 수 있는지(없으면 껐다 켤 때 공인 IP가 바뀌어 보안 그룹 · DNS를 다시 맞춘다) | Infra | 6절 |
-| 실제 서버에서 hostPort 80이 Lightsail 공인 IP로 열리는지 (kind에서는 확인, Lightsail 방화벽 권한과 같이 본다) | Infra | 6절 |
 | PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 워커 → API 결과 전달 방식과 작업 큐의 스트림 · consumer group 구성. BE 안(2026-10-21, AI 확인 전): 결과는 HTTP 내부 API W1, 큐는 스트림 3 · 그룹 4, 투입 메시지에 본문 통째 · `ACKED MAXLEN ~` 상한 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
@@ -277,6 +324,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-21 | 마인드맵 1차 가지 6하원칙 → 핵심 내용 · 원인·배경 · 반응 · 전망 4개, 노드 근거 화면 표시(F05) → 추후 | 마인드맵 회의. 같은 결과를 흐름지도 · 마인드맵 두 보기로 보인다. 근거는 데이터로만 남긴다 |
 | 2026-10-20 | 회원 · 관심 분야: MVP 이후 → MVP(가입 · 로그인 · 관심 분야) | 팀 회의. 북마크 · 관심 이슈는 아직 미정 |
 | 2026-10-21 | 「어려운 용어 자동 설명」(MVP 개요 P2) → 용어사전(표준국어대사전 Open API) MVP | 마인드맵 회의 |
+| 2026-10-23 | 러너 · 잡 Pod는 관리 서버에만(운영 서버와 같은 기계에 두지 않는다, `.claude/stack.md` 4절) → 이미지 굽기(w4) 잡만 워커(Lightsail)의 굽기 러너에서 | 여유가 있는 기계가 워커뿐이다 — 관리 서버는 잡 하나가 한계, 노트북은 GHCR 받기가 느리다(10절). 서비스와 다투는 것은 잡 상한 · 동시 2로 줄이고 굽는 동안 사이트 health를 잰다. 같은 노드의 DB · Redis · Argo CD는 네임스페이스 네트워크 정책으로 막는다(6절 「굽기 러너」, Jira S15P31A102-106) |
+| 2026-10-23 | LLM GPT-5-mini → gpt-6-luna | AI 파트 비교(Jira S15P31A102-71). 같은 흐름(추출 1번 + 판정 최대 1번)에서 30건은 잘못 합친 쌍 23 → 0, 크레딧 약 1/6. 117건은 쌍 F1 0.79 · B³ 0.93(DeepSeek 0.69 · 0.88) |
 
 ## 10. 잰 것
 
@@ -284,6 +333,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 숫자 | 어떻게 |
 |---|---|---|---|
+| 2026-10-23 | GMS 가 OpenAI 호환 `/chat/completions` 를 그대로 받는지 | 받는다. `response_format: json_object` · `reasoning_effort` 도 된다. 502 · 응답 없는 연결 끊김이 가끔 있어 워커 안에서 다시 부르면 이어졌다 | `https://gms.ssafy.io/gmsapi/api.openai.com/v1` 로 gpt-5-mini · gpt-5-nano · gpt-5.6-luna · gpt-6-luna 를 불러 봄(개인 파일럿, Jira S15P31A102-71) |
+| 2026-10-23 | GMS 크레딧 — 기사 한 건 추출 + 동일 사건 판정 | gpt-6-luna 기사당 약 7.4 크레딧, gpt-5-mini(기본 추론)는 같은 일에 약 6배. gpt-6-luna 응답 시간 중앙값 6.1초 · 느린 10% 9.4초 | 사람이 정한 정답 117건 · 30건으로 BE 계약 흐름을 돌리고 GMS 사용 현황 화면의 모델별 누적으로 계산(팀 공용이라 다른 사용분이 섞였을 수 있음) |
+| 2026-10-23 | 임베딩 CPU 시간 · 메모리 (GPU 끔, 2스레드) | BGE-m3-ko: 리드(중앙값 108토큰) 기사당 1.16초 · 2.6GB, 본문 앞 800자(426토큰) 4.27초 · 3.1GB. 16건씩 묶어도 빨라지지 않음 | GPU 개발 서버에서 `CUDA_VISIBLE_DEVICES=""` · `taskset` 2코어, SSAFY 2025 상반기 기사 100건 |
 | 2026-10-18 | 새 클론에서 `full` 프로필이 모두 healthy가 되기까지 | 174초 | WSL2 Ubuntu 홈에 작업 트리를 복사하고 compose 볼륨을 비운 뒤 `docker compose --profile full up -d --wait`. 이미지(약 1.9 GB)는 미리 받아 둔 상태라 받는 시간은 빠졌다 |
 | 2026-10-18 | 같은 환경을 내렸다가 다시 띄우기 (볼륨 남김) | 28초 | `down` 뒤 `up -d --wait` |
 | 2026-10-18 | 고친 코드가 컨테이너에 반영되기까지 | WSL2 클론: 화면 2초·워커 4초·API 6초 안. C: 드라이브 클론: 셋 다 60초 안에 반영 안 됨 | 파일을 고치고 2초 간격으로 응답·로그를 확인 |
@@ -326,5 +378,29 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-21 | exporter 가 SSAFY GitLab 에 보내는 요청 | 머지된 MR 까지(최근 10개) 읽을 때 초당 0.75번(약 2,700/시간) · 21분에 916번 — 상한 초당 1회에 거의 붙음. 열린 MR 만 읽게 바꾼 뒤 약 290/시간(그때 열린 MR 0개, dev 하나) | exporter 지표 `gcpe_gitlab_api_requests_count` 의 10분 · 20분 `rate` |
 | 2026-10-21 | exporter 자원 · 시계열 | CPU 0.001코어(10분 평균), 메모리 최대 12.3MiB(30분), exporter 시계열 105개 · 잡 Pod 주석 16개 | `container_cpu_usage_seconds_total` · `container_memory_working_set_bytes` · `count({job="gitlab-ci-exporter"})` |
 | 2026-10-21 | exporter 값 ↔ GitLab 잡 API 대조 — MR !66 파이프라인 235615 잡 9개, MR !67 파이프라인 235681 · 235732 잡 4개(열린 MR 로 실시간) | 13개 모두 잡 ID · 러너 · 기다림 · 걸린 시간이 소수점 셋째 자리까지 같음 (예: !66 w3:backend 노트북, 기다림 760.512초 · 걸린 시간 44.094초) | 클러스터 안 일회용 Pod 가 exporter 와 같은 읽기 토큰으로 `/projects/:id/pipelines/235615/jobs` 를 부르고, Prometheus 의 `gitlab_ci_pipeline_job_*` 와 견줌 |
+| 2026-10-22 | Lightsail 워커 join | `common.sh` 39초 · `kubeadm join` 3초 · join 뒤 노드 Ready 11초 | 각 명령 앞뒤 `date +%s`, `kubectl wait --for=condition=Ready` |
+| 2026-10-22 | 노드 사이 터널(wg0) 지연 · MTU | ping 왕복 약 1.0ms(EC2 · Lightsail 같은 서울), 1392바이트 통과 · 1393 「message too long」 | Lightsail 에서 `ping -c 3 10.200.0.1`, `ping -M do -s 1392/1393` |
+| 2026-10-22 | Lightsail 재부팅 회복 | SSH 17초 · wg-quick@wg0 · kubelet 부팅 5초, Cilium 다시 OK 까지 약 1분 안 | `uptime -s` 와 `systemctl show -p ActiveEnterTimestamp`, 노드 `lastHeartbeatTime` 이 새 부팅 뒤인지 |
+| 2026-10-22 | Pod 인터페이스 MTU | 두 노드 모두 1420(lxc · cilium_vxlan · Pod eth0). ~~기대값 1370 아님~~ → 인터페이스만 본 것이다. 경로 MTU는 아래 줄 | 워커에 busybox Pod 로 `cat /sys/class/net/eth0/mtu` · `ip route`(busybox 는 경로 mtu 를 안 찍는다), 노드에서 `ip -o link` |
+| 2026-10-22 | Pod MTU 다시 잼 (Jira S15P31A102-91) | 두 노드 Pod 모두 기본 경로 `mtu 1370`. DF ping 1342바이트 통과 · 1343 · 1392는 보내기 전 거절(두 방향). iperf3 5초 워커→컨트롤 플레인 1360 Mbps(재전송 44) · 반대 1255 Mbps(113), TCP MSS 1318 · pmtu 1370. 두 노드 IP 쪼개기 · 쪼개기 실패 0 → 0 | 노드마다 netshoot v0.16 Pod 하나, `ip route get <상대 Pod IP>` · `ping -M do -s` · `iperf3 -J` · `ss -tin`, 노드 `nstat -az IpFragCreates IpFragFails` 앞뒤 |
+| 2026-10-22 | Argo CD 부트스트랩 (`bootstrap-argocd.sh`, 작업 브랜치) | helm 설치 → 루트 앱 52초(배포 토큰 입력 포함), 루트 앱 → hello Pod Ready 113초. gateway 앱은 앞 wave(sealed-secrets · envoy-gateway)가 건강해진 뒤 89초에 만들어짐 — 건강 Lua 로 wave 가 실제로 기다림 | helm 기록 `updated`, Application · Pod 의 `creationTimestamp` · Ready `lastTransitionTime` |
+| 2026-10-22 | 관리자 PC → SSAFY 도메인:80 (Envoy hostPort) | `hello v1` 3번 모두 200, 30 ~ 56ms | `curl -w "%{http_code} %{time_total}"` |
+| 2026-10-22 | 헤어핀 — 워커 Pod → `newlearn.io.kr` · `www` (워커 자기 공인 IP) | 둘 다 `hello v1` | 워커에 묶은 busybox 의 `wget` |
+| 2026-10-22 | HTTPS 첫 발급 (Jira S15P31A102-93) | cert-manager · 443 리스너가 담긴 브랜치로 루트를 돌리고 앱 여섯 Healthy 까지 162초(Envoy 교체 포함). staging 인증서 64일짜리 · prod 로 바꾼 뒤 새 발급 42초, prod 90일짜리(만료 2027-01-20, 갱신 예정 2026-12-21). 브라우저처럼 검증해도 통과 — ISRG Root X2 → YE2 | `kubectl get certificate · order`, push 부터 `status.revision` 2 까지, `curl`(검증 결과 0) · `openssl s_client` |
+| 2026-10-22 | 넘기기 · 잠금 | `http://` 의 `/` · `/api/x` · `/argocd` · `/grafana/` 와 www(http · https) 모두 301 → `https://newlearn.io.kr/…`. `/argocd/` · `/argocd/api/v1/applications` · `/grafana/` · `/grafana/api/user` 계정 없이 401 + `WWW-Authenticate: Basic`, 틀린 비밀번호 401, `X-WEBAUTH-USER: admin` 만 꾸며 보내도 401. 맞는 계정으로 Grafana 는 바로 대시보드(기록에 `uname` 은 팝업 아이디뿐) · Argo CD 는 읽기 전용 앱 목록. 맞는 계정 + `X-WEBAUTH-USER: admin` 이면 `login` 은 팝업 아이디(꾸민 머리가 지워짐). 처음엔 `isGrafanaAdmin: true` — 팝업 아이디가 관리자 아이디와 같았음 → 관리자 아이디를 바꾸고 Grafana 를 다시 띄운 뒤 `false` · 조직 역할 `Viewer` | 관리자 PC `curl -D -` · `Invoke-RestMethod -Credential`(사람이 비밀번호 입력), 사람이 Chrome 으로 확인한 화면, Grafana 로그의 `uname` |
+| 2026-10-22 | 서비스 저장소 (local-path · PostgreSQL · Redis, Jira S15P31A102-105) | 루트를 돌리고 앱 아홉 Healthy 까지 51초, PVC 둘 Bound(Retain PV, 워커 폴더). PostgreSQL 18.6 · pgvector 0.8.7. 시험 표 · Redis 키를 쓰고 Pod 를 지웠다 띄워도 그대로(다시 Ready 2초) | `kubectl get pvc,pv`, 시험 표 · 키 쓰기 → `delete pod` → 읽기 → 지움 |
+| 2026-10-22 | 서비스 첫 배포 — 바깥에서 본 경로 | `/` 200 화면(「API 상태: UP」) · `/actuator/health` 200 `UP` · `/api/…` · `/v3/api-docs` · `/swagger-ui` 401(SecurityConfig 전) · `/internal/v1/x` · `/actuator/env` 는 화면 HTML(backend 로 안 감) · `http://…/api` 301. 클러스터 안 ai `/health` `UP`(redis UP, mock). 처음엔 frontend · ai 태그(`9f436817`)가 GHCR 에 없어 ImagePullBackOff — MR 파이프라인이 굽기만 한 커밋이었음 → dev push 로 올라간 `4abd39a2` 로 고침 | 관리자 PC `curl -w "%{http_code}"`, 클러스터 안 busybox `wget`, 내장 브라우저 화면 |
+| 2026-10-22 | backend 무중단 교체 (실제 서버) | `rollout restart` 17초 동안 바깥에서 `/actuator/health` 61번 — 61번 모두 200, 실패 0 | 관리자 PC 에서 0.2초마다 `curl`, 같은 때 EC2 에서 `kubectl rollout restart` · `rollout status` |
+| 2026-10-22 | 인증서 갱신 한 번 · 좁힌 입구 목록 | Certificate 에 Issuing 조건을 더해(cmctl renew 와 같은 방식) revision 2 → 3, 6초, 그동안 사이트 18번 모두 200. 이번엔 Let's Encrypt 가 30일 동안 기억하는 소유 확인을 다시 써 소유 확인 라우트가 안 생겼다 — 대신 같은 네임스페이스(envoy-gateway-system)의 라우트가 http 에 Accepted, default 에서 붙인 시험 라우트는 NotAllowedByListeners. 소유 확인이 실제로 다시 도는 첫 갱신은 2026-12 | `kubectl patch certificate --subresource status`(json add), `kubectl get order`, HTTPRoute `status.parents` |
+| 2026-10-22 | 배포 태그 MR 첫 실행 (C3, dev 파이프라인 237079) | `.gitlab-ci.yml` 이 바뀌어 세 영역을 다시 구움 — backend 137초 · frontend 325초(노트북) 성공, ai 는 노트북에서 바탕 층을 받다 `stream error … PROTOCOL_ERROR` 로 442초에 실패. `w5:deploy-mr` 18초: 올린 둘만 GHCR 확인 뒤 `deploy/app` MR 을 열고 ai 는 건너뜀(설계대로). 실패한 ai 를 다시 돌리니 1040초에 성공, `w5` 를 다시 돌리면 app 은 「같거나 더 새것」으로 건너뛰고 `deploy/ai` MR 만 엶 | GitLab 잡 기록 · `duration` · `queued_duration`, 잡 로그 |
+| 2026-10-22 | 태그 MR 머지 → 사이트 반영 (!96) | 머지 뒤 Argo CD 를 바로 새로 읽게 하면 30초에 backend · frontend 새 이미지 Running · Synced · Healthy. 그동안 5분 286번 — `/` 286번 200, `/actuator/health` 는 교체 구간 실패 0 · 교체 3분 뒤 한 번 3초 넘김(원인 미확인, 기록 없음). 머지로 생긴 dev 파이프라인(237125, 346초)에는 굽기 · 태그 MR 잡이 없음 — 다시 도는 고리 없음. 다만 dev 는 검사 잡을 전 영역 다 돌아 태그 한 줄에도 `w12:frontend` 337초 | 관리자 PC 에서 0.5초마다 `curl`, `kubectl rollout status`, Argo CD `refresh=hard` |
+| 2026-10-22 | ai 굽기가 느린 까닭 (노트북 러너) | 캐시에 둔 의존성 층(가상환경)을 받는 데만 10분 넘게, 굽기 컨테이너가 GHCR 에서 4GB 넘게 받음(초당 약 5MB). EC2 메모리 때문에 넣은 `--compressed-caching=false` 로 캐시 층이 압축 없이 올라가 있어서다 — 새로 설치하는 것보다 느리고, 받는 중 끊기면 실패 | 노트북에서 `docker stats` 의 NET 누적을 30초마다, 잡 로그의 「Extracting cached layer」 시각 |
+| 2026-10-22 | 태그 MR 되돌리기 시험 (ai — !97 머지 → !99 로 Revert → !100 으로 다시 적용) | 머지 뒤 Argo CD 를 바로 새로 읽게 하면 2 ~ 3초에 Deployment 이미지가 바뀜. 교체 끝까지 `0c9fc65b` 71초(워커가 처음 받음), 되돌린 `4abd39a2` 9초 · 다시 적용 8초(워커에 이미지가 남아 있음). 세 번 모두 새 Pod `/health` UP(Redis UP · mock), 앱 10개 Synced · Healthy. 되돌리기 MR 은 MR 화면의 Revert 단추로 만들고, 제목 `Revert "…"` · `Reapply "…"` 가 규칙 검사(`w0:rules`)를 지남. 머지로 생긴 dev 파이프라인 112 · 100초(`w12:frontend` 21초), 굽기 · 태그 MR 잡 없음 | `kubectl rollout status`, Argo CD `refresh=normal`, Pod 안에서 `/health`. 시간은 새로 고침부터 rollout 이 끝날 때까지. ai 는 바깥 길이 없어 교체 중 요청 실패는 재지 않음 |
+| 2026-10-23 | Argo CD 웹훅 · 배포 알림 켜기 (Jira S15P31A102-106 C) | `bootstrap-argocd.sh`(같은 차트 10.10.5, 루트를 작업 브랜치로) 49초, 앱 10개 Synced · Healthy, argocd-secret 의 admin 비밀번호 키 그대로. 밖에서 POST + GitLab 머리 → Argo CD 의 400(팝업 없음) — 토큰 없음 · 참조 글자 `$argocd-webhook:gitlab` 를 토큰으로 넣은 것 모두 `X-Gitlab-Token validation failed`. 머리 없는 POST · GET 은 팝업 401. GitLab 화면 Test(Push events) → 200, argocd-server 「Received push event … revision: dev」. 알림 컨트롤러가 뜨자 배포 완료가 `app` · `ai` 에 한 번씩. Git 밖 시험 앱 `notify-test`(argocd-example-apps 의 kustomize-guestbook)로 없는 네임스페이스 → 다시 시도 5번 뒤 Failed → 동기화 실패 알림 한 번, 없는 이미지 · `progressDeadlineSeconds: 10` → 20초에 Degraded → 알림 한 번. 다음 평가에서는 「already sent」로 다시 안 보냄 | curl, argocd-server · notifications-controller 로그, Mattermost 채널 글 목록(API). 시험 앱과 네임스페이스는 지움 |
+| 2026-10-23 | 굽기 러너 설치 · 네트워크 정책 (Jira S15P31A102-106 A) | helm 설치 63초, GitLab 에 online(태그 `newlearn-build` · 태그 없는 잡 안 받음 · Protected 아님), 매니저 Pod 는 관리 서버. 같은 워커 노드에서 busybox `nc -w 3` 대조 — 굽기 네임스페이스: postgres · redis · argocd-server · backend 막힘, ghcr.io · lab.ssafy.com 443 열림 / `default`: 여섯 곳 모두 열림. 처음엔 curl `telnet://` 로 쟀다가 `default` 에서도 막힘으로 나와 방법을 바꿨다 | `helm upgrade --install --wait` 시작 · 끝 시각, `kubectl run` 시험 Pod(끝나고 지움) |
+| 2026-10-23 | 굽기 러너에서 굽기 (Jira S15P31A102-106 A · B) | MR 굽기(올리지 않음, !106 · !105): frontend 83 · 72초, backend 153 · 162초, ai 339 · 151초 — 이전 MR 굽기 120 ~ 331 · 228 ~ 330 · 402 ~ 442초. dev 굽기 + 올리기(파이프라인 237813, 305초): frontend 93초 · backend 133초 · ai 217초(ai Dockerfile 이 바뀌어 캐시가 안 맞았는데도) — 이전 dev 325 ~ 359(노트북) · 137 ~ 566 · 680(EC2) ~ 1040초(노트북). 모두 oom_kill 0. ai 는 memory.peak 가 상한 3Gi 에 닿고 상한에 부딪힌 횟수(memory.events max) 16919(MR) · 382(dev) | GitLab 잡 duration · 러너, 잡 로그 끝의 cgroup memory.peak · memory.events |
+| 2026-10-23 | 굽는 동안 · 교체 동안 사이트 health | 1초마다 1464번(08:14 ~ 08:45 KST) — MR 굽기 둘 · dev 굽기 · ai · app 교체 구간에서 실패 1. 굽기 구간 중앙값 48 ~ 53ms · p99 284 ~ 313ms · 1초 넘김 1번(1.07초, backend 굽기 시작 순간). 실패 1번은 app 교체 중 5초 끊김인데 Envoy 접근 로그에 그 요청이 없음(앞뒤 요청은 backend 2 ~ 9ms), 워커 CPU 6 ~ 18% · 디스크 바쁨 0 · backend CPU 막힘 0 — 8절 | 관리자 PC 에서 `curl --max-time 5`, Envoy 접근 로그, Prometheus `node_cpu_seconds_total` · `node_disk_io_time_seconds_total` · cAdvisor |
+| 2026-10-23 | 태그 MR 머지 → 사이트 반영, 웹훅만으로 (!107 ai · !108 app) | 머지 → argocd-server 가 push 받음(같은 초) → Deployment 이미지 바뀜 2.2초(ai · app 같음) — 손으로 새로 고침 안 함(전에는 최대 3분 또는 사람이 새로 고침). 교체 끝까지 ai 79초(이미지 541MB 를 70초에 받음 — Dockerfile 을 바꾼 뒤 첫 배포라 층을 다 새로 받음), app 33.5초(backend 받기 11초). 머지로 생긴 dev 파이프라인(237816)은 w0:rules · w12:infra 둘만, 82초(전에는 100 ~ 346초에 영역 검사 다섯) | 서버에서 0.5초마다 Deployment 이미지 · `kubectl rollout status`, argocd-server 로그, kubelet 이벤트(Pulled) |
+| 2026-10-23 | 배포 완료 알림 횟수 | 처음 조건(이미지 목록이 바뀔 때)은 ai 배포 한 번에 두 번 울림 — 교체 끝 순간 목록에 옛 이미지 · 새 이미지가 같이 있었고(23:40:42), 옛 Pod 가 사라지자 또(23:40:57). 「이미지 수 = Deployment 수」를 더한 뒤 app 배포는 한 번(옛 Pod 가 사라진 11초 뒤, 새 이미지만). 트리거 조건을 바꾸면 「이미 보냄」 기록의 키가 바뀌어 구독한 앱마다 지금 상태로 한 번씩 다시 울림(ai · app 각 1) | notifications-controller 로그(TRIGGERED · Sending · already sent), Mattermost 채널 글 시각 |
 | 2026-10-21 | 12:24 몰림 — dev push 1개 + 반영 MR 셋(!64 · !65 · !66, `.gitlab-ci.yml` 이 달라 MR 마다 w4 굽기 3개까지) | MR 파이프라인 742 · 643 · 568초, 잡 기다림 최대 **760초**(!66 w3:backend) · !65 392초 · !64 50초 | exporter 지표(`gitlab_ci_pipeline_duration_seconds` · `…_job_queued_duration_seconds`), 위 대조로 API 와 같음을 확인 |
 | 2026-10-21 | 운영 이미지 첫 굽기 (인프라 담당 노트북, 캐시 없음) | frontend 31초 · backend 143초 · ai 170초. 로컬 크기 90.8 MB · 611 MB · 2.12 GB. 띄운 뒤 헬스 UP까지 backend 9초(DB · Redis 연결, Flyway 적용) · ai 1초 | Docker Desktop 29.6.2에서 `docker build` 시작 · 끝 시각 차이. 크기는 `docker image ls`의 SIZE(창고에 올라가는 압축 크기와 다르다). 헬스는 시험용 DB · Redis 컨테이너에 붙여 1초 간격으로 확인 |
