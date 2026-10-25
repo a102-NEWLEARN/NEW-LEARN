@@ -235,7 +235,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 2026-10-22 깔았다(v0.0.37, Argo CD 앱 `local-path`). StorageClass `newlearn-local` — PVC를 지워도 PV · 폴더를 남기고(Retain), Pod가 뜬 노드(워커)의 `/var/lib/newlearn/local-path`에 만든다. 기본 StorageClass로 두지 않아 PVC마다 이름을 적는다
   - PostgreSQL(pgvector 0.8.7-pg18, 20Gi) · Redis(8.10.2, AOF, `maxmemory 1gb` · `noeviction`, 5Gi)는 StatefulSet. Argo CD가 지우지 않게 막고(`Delete=false,Prune=false`), StatefulSet을 지워도 PVC를 남긴다. 크기 · StorageClass는 나중에 못 바꾼다
   - DB 계정은 `infra/server/seal-secrets.sh db`가 무작위 비밀번호로 `data` · `app`에 봉인한다. PostgreSQL은 처음 초기화 때만 읽어서 봉인 파일이 있으면 다시 만들지 않는다
-- PostgreSQL 백업은 pg_dump CronJob — 매일 04:00(한국) 관리 서버 디스크(`/var/lib/newlearn/pg-backup`, 정적 local PV)에 남기고 7일 보관한다. DB(워커)와 다른 서버라 워커를 잃어도 남는다. 매주 AWS S3 에도 한 벌 올리는 것은 만드는 중이다(2026-10-25 사용자 결정, Jira S15P31A102-109). 실패 알림은 없고 확인 명령 · 되살리는 법은 `infra/server/db-backup.md`
+- PostgreSQL 백업은 pg_dump CronJob — 매일 04:00(한국) 관리 서버 디스크(`/var/lib/newlearn/pg-backup`, 정적 local PV)에 남기고 7일 보관한다. DB(워커)와 다른 서버라 워커를 잃어도 남는다. 매주 일요일 05:00 그중 하나를 AWS S3(`infra/terraform/backup.tf`, 공개 막기 · 35일 뒤 지움)에도 올린다 — 올리는 키는 올리기만 되는 IAM 사용자라 새도 백업을 읽거나 지울 수 없다(2026-10-25 사용자 결정, Jira S15P31A102-109). 실패 알림은 없고 확인 명령 · 되살리는 법은 `infra/server/db-backup.md`
 
 ### 무중단 배포 조건
 

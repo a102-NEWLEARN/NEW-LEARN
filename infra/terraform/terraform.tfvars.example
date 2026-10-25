@@ -5,4 +5,5 @@ ssh_public_key     = "<내 SSH 공개키 — ssh-ed25519 로 시작하는 한 �
 admin_cidrs        = ["<내 PC 공인 IP>/32"]
 worker_cidrs       = [] # Lightsail 을 받으면 그 공인 IP 를 /32 로 넣는다 — 그 IP 에서 오는 WireGuard(51820/udp)만 열린다
 budget_alert_email = "<예산 알림을 받을 메일>"
+backup_bucket_name = "newlearn-pg-backup-<임의 접미사>" # DB 주간 백업 버킷. 이름은 전 세계에서 하나라 접미사를 붙인다 (예: openssl rand -hex 4)
 # 예산은 variables.tf 의 기본값(승인 금액 92.27 달러, 10/1 부터 누적)을 쓴다

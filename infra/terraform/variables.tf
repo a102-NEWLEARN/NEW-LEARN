@@ -69,3 +69,13 @@ variable "budget_alert_email" {
   description = "예산 알림을 받을 메일"
   type        = string
 }
+
+variable "backup_bucket_name" {
+  description = "PostgreSQL 주간 백업 S3 버킷 이름 (newlearn-pg-backup-<접미사>, 전 세계에서 하나). 접미사는 terraform.tfvars 에만 둔다"
+  type        = string
+
+  validation {
+    condition     = can(regex("^newlearn-pg-backup-[a-z0-9-]{4,40}$", var.backup_bucket_name))
+    error_message = "버킷 이름은 newlearn-pg-backup- 로 시작해야 한다 — apply 정책(iam/apply-policy.json)이 그 이름만 허용한다."
+  }
+}
