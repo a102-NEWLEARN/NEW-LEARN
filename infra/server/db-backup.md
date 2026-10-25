@@ -60,3 +60,22 @@ kubectl -n data exec postgres-0 -- dropdb -U newlearn newlearn_restore_check
 
 - 덤프 시각 뒤에 들어간 Flyway 마이그레이션은 되살린 DB 에 없다 — backend 를 다시 띄우면 그 마이그레이션이 다시 돈다
 - 워커를 통째로 잃었으면 새 워커를 붙이고(`infra/server/README.md` 「Lightsail」) data 앱이 빈 DB 를 띄운 뒤 같은 방법으로 되살린다
+
+## 매주 S3 사본
+
+CronJob `postgres-backup-s3`(같은 파일)가 매주 일요일 05:00(한국) 그날 가장 새 매일 백업 하나를 `s3://<버킷>/postgres/` 에 올린다. 이틀 안의 매일 백업이 없으면 실패로 남는다. 버킷 수명 규칙이 35일 뒤 지운다(`infra/terraform/backup.tf`). 올리는 키는 올리기만 되고, 받기는 apply 키(`newlearn-apply` 프로필)로 한다. 버킷 · 키를 처음 만드는 순서는 `infra/README.md` 「DB 백업 버킷 · 올리는 키」.
+
+**확인 · 손으로 돌리기**
+
+```bash
+kubectl -n data create job --from=cronjob/postgres-backup-s3 postgres-backup-s3-manual-$(date +%m%d%H%M)   # EC2. 로그 끝에 올린 주소 · 크기 · sha256
+aws s3 ls s3://<버킷>/postgres/ --profile newlearn-apply                                               # 관리자 PC
+```
+
+**S3 에서 받아 되살리기** (관리자 PC) — 받은 파일을 관리 서버를 거쳐 그대로 넣는다. 그다음은 위 「되살리기 연습」 · 「사고 때」와 같다
+
+```bash
+aws s3 cp s3://<버킷>/postgres/<파일> . --profile newlearn-apply
+ssh ubuntu@<EC2 탄력적 IP> "kubectl -n data exec postgres-0 -- createdb -U newlearn newlearn_restored"
+ssh ubuntu@<EC2 탄력적 IP> "kubectl -n data exec -i postgres-0 -- pg_restore -U newlearn -d newlearn_restored --no-owner" < <파일>
+```
