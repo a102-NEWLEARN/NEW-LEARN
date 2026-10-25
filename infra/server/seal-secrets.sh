@@ -8,6 +8,7 @@
 #   bash infra/server/seal-secrets.sh ghcr          워커가 GHCR 비공개 이미지를 받을 읽기 토큰 → app · ai 두 곳
 #   bash infra/server/seal-secrets.sh argocd-webhook  GitLab 웹훅 토큰 — 무작위로 만들어 봉인한다(묻지 않음) → argocd
 #   bash infra/server/seal-secrets.sh mattermost    Argo CD 배포 알림을 받을 Mattermost 들어오는 웹훅 주소 → argocd
+#   bash infra/server/seal-secrets.sh pg-backup-s3  DB 주간 백업을 S3 에 올리는 키(올리기만 되는 IAM 사용자) · 버킷 이름 → data
 # 만든 파일은 관리자 PC 로 가져와 저장소의 자리에 넣고 커밋한다 (봉인 파일은 저장소에 둬도 된다)
 #   ssh <EC2> 'cat ~/sealed/sealed-basic-auth-argocd.yaml' > infra/k8s/admin-ui/sealed-basic-auth-argocd.yaml
 # 봉인은 Secret 이름 · 네임스페이스에 묶인다(strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다
@@ -16,7 +17,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,10p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,11p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -142,6 +143,26 @@ case "${1:-}" in
     echo "채널에 연결 시험 글을 썼다 (HTTP 200)"
     printf '%s' "$url" | seal argocd-notifications-secret argocd mattermost-url "$OUT/sealed-argocd-notifications.yaml"
     unset url
+    ;;
+  pg-backup-s3)
+    need_tty
+    # DB 주간 백업을 S3 에 올리는 키 — 올리기만 되는 IAM 사용자(infra/terraform/iam/pg-backup-uploader-policy.json, infra/README.md)
+    # 주간 CronJob 이 이 이름 · 키를 읽는다 (infra/k8s/services/data/postgres-backup.yaml 의 postgres-backup-s3)
+    echo "버킷 이름은 관리자 PC 의 terraform output pg_backup_bucket, 키는 IAM › 사용자 newlearn-pg-backup-uploader › 보안 자격 증명"
+    read -rp "버킷 이름: " bucket
+    [[ "$bucket" =~ ^newlearn-pg-backup-[a-z0-9-]{4,40}$ ]] || { echo "❌ newlearn-pg-backup-<접미사> 모양이 아니다" >&2; exit 2; }
+    read -rsp "액세스 키 ID (화면에 안 보인다): " key_id
+    echo
+    read -rsp "비밀 액세스 키 (화면에 안 보인다): " secret
+    echo
+    [[ "$key_id" =~ ^AKIA[A-Z0-9]{16}$ ]] || { unset key_id secret; echo "❌ 액세스 키 ID 모양이 아니다 (AKIA 로 시작하는 20자)" >&2; exit 2; }
+    [ "${#secret}" -eq 40 ] || { unset key_id secret; echo "❌ 비밀 액세스 키는 40자다" >&2; exit 2; }
+    # 키 셋을 한 Secret 으로 — printf 는 셸 안에서 돌아 ps 에 값이 안 보인다
+    printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nS3_BUCKET=%s\n' "$key_id" "$secret" "$bucket" \
+      | kubectl create secret generic pg-backup-s3 -n data --from-env-file=/dev/stdin --dry-run=client -o yaml \
+      | kubeseal --controller-namespace "$CONTROLLER_NS" --format yaml >"$OUT/sealed-pg-backup-s3.yaml"
+    unset key_id secret
+    echo "봉인: $OUT/sealed-pg-backup-s3.yaml — 관리자 PC 로 가져와 infra/k8s/services/data/sealed-pg-backup-s3.yaml 로"
     ;;
   *)
     usage

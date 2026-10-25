@@ -17,7 +17,7 @@ F09 주장 관계 및 변화 분석 · F10 근거 기반 변화 카드의 주장
 
 ```mermaid
 erDiagram
-  %% 미정: article_embedding, bookmark, interest_issue, event_relation
+  %% 미정: bookmark, interest_issue, event_relation
   category |o--o{ article : "대표 카테고리"
   category |o--o{ category_mapping : "대응"
   press ||--o{ article : "언론사"
@@ -31,7 +31,7 @@ erDiagram
   event ||..o{ event_relation : "도착 (P1)"
   article ||--o{ analysis_job : "분석 단계"
   article ||--o| article_mindmap : "마인드맵"
-  article ||..o| article_embedding : "임베딩 (미정)"
+  article ||--o| article_embedding : "임베딩"
   member ||--o{ member_category : "관심 분야"
   category ||--o{ member_category : "관심 분야"
   member ||..o{ bookmark : "저장 (미정)"
@@ -145,7 +145,7 @@ erDiagram
   article_embedding {
     bigint article_id PK, FK
     text model "임베딩 모델 이름"
-    vector embedding "차원 미정"
+    vector embedding "1024차원 (BGE-m3-ko)"
     timestamptz created_at
   }
   member {
@@ -185,9 +185,9 @@ erDiagram
 
 | 칸 | 타입 | 필수 | 용도 · 규칙 |
 |---|---|---|---|
-| `code` | text | 기본 키 | URL · API 에 쓰는 코드. 제안: `politics` 정치 · `economy` 경제 · `society` 사회 · `world` 국제 · `it_science` IT·과학. URL 식별자라 FE 확인을 받는다(`docs/api.md` 4절) |
+| `code` | text | 기본 키 | URL · API 에 쓰는 코드. `politics` 정치 · `economy` 경제 · `society` 사회 · `world` 국제 · `it_science` IT·과학. 현재 DB 값을 사용하기로 팀장 승인(2026-10-23) |
 | `name` | text | 예 | 화면 이름. 표기는 「IT·과학」(2026-10-20) |
-| `sort_order` | smallint | 예 | 화면에 보이는 순서. 순서는 FE 와 정한다(5절) |
+| `sort_order` | smallint | 예 | 화면에 보이는 순서. 정치 1 · 경제 2 · 사회 3 · 국제 4 · IT·과학 5. 카테고리 목록과 이슈 카드의 카테고리 모두 이 순서를 따른다(2026-10-23 팀장 승인) |
 
 - 5행을 마이그레이션에 넣어 두고 화면에서 바꾸지 않는다. 스포츠 · 문화/연예는 MVP 뒤 확장 후보다(2026-10-20 팀 회의)
 
@@ -348,13 +348,13 @@ erDiagram
 - 근거 문장은 화면에 보이지 않고 데이터로만 남긴다. AI 가 기사에 없는 말을 지었는지 평가할 때 쓰고, 나중에 노드 상세 창을 만들면 그때 쓴다(2026-10-21)
 - 다시 분석하면 덮어쓴다. 지난 결과를 남길지는 프롬프트를 바꿀 일이 생기면 정한다
 
-### article_embedding — 기사 임베딩 (미정)
+### article_embedding — 기사 임베딩
 
 | 칸 | 타입 | 필수 | 용도 · 규칙 |
 |---|---|---|---|
 | `article_id` | bigint | 기본 키 · 외래 키 | 어느 기사의 벡터 |
 | `model` | text | 예 | 임베딩 모델 이름. 모델이 바뀌면 다시 만든다 |
-| `embedding` | vector | 예 | 기사 벡터. 임베딩 모델이 정해지면 그 차원으로 `vector(N)` 을 고정한다 — DB 가 차원을 막아 주고 인덱스를 바로 걸 수 있게. AI 가 Jira 35 시작 전까지 모델을 정한다(SSOT 8절, 2026-10-21 BE 안) |
+| `embedding` | vector | 예 | 기사 벡터. `vector(1024)` — 임베딩 모델 BGE-m3-ko 의 차원이다(2026-10-23 AI 결정, SSOT 3절). 차원을 고정해 DB 가 막아 주고 인덱스를 바로 걸 수 있게 한다(2026-10-21 BE 안) |
 | `created_at` | timestamptz | 예 | 만든 시각 |
 
 - 같은 사건 후보를 pgvector 로 찾을 때 쓴다(SSOT 3절). 후보 검색은 기사 임베딩끼리 비교해 그 기사의 사건으로 모은다
@@ -431,7 +431,6 @@ MVP 에 넣을지 미정이다(5절). 칸은 PRD FR-18 · FR-19 를 읽고 그�
 | 2 | 어떤 사건 3개를 한 이슈로 묶나, 사건이 여러 이슈에 속하나, `issue_category` 를 무엇으로 채우나 | `ISSUE` 단계가 판단(제안). 사건 하나는 이슈 하나. `issue_category` 는 이슈 기사들의 대표 카테고리 | AI 실험 · SSOT 8절 |
 | 3 | 동일 사건 판정 기준, 기사가 몇 개 모여야 사건으로 보이나 | 판정 점수 · 근거 칸 없음. 기사 하나로도 사건을 만든다 | AI 실험 (Q34) |
 | 4 | 근거가 본문과 맞지 않을 때 잎까지 버리나 | 근거만 지우고 잎은 남긴다 | AI (`docs/api-screen.md` 3절) |
-| 5 | 임베딩 모델 · 벡터 차원 | `article_embedding` 점선. BE 안: 모델이 정해지면 `vector(N)`, 검색은 처음엔 인덱스 없이(2026-10-21) | SSOT 8절 |
 | 6 | 북마크 · 관심 이슈를 MVP 에 넣나 | 점선, 칸은 자리만. 회원 · 관심 분야는 MVP(10-20) | SSOT 8절 |
 | 7 | 원본 분류 → 5개 대응 행, 이슈가 카테고리 여러 개에 걸치나 | 행 없음. 맞출 값이 없으면 `category_code` 비움 | 실제 데이터 확인 뒤 (NewsData 구독) |
 | 8 | 기사가 언제 화면에 보이나(`released_at`) | B1 투입 때 바로 보이고, 분석이 끝나기 전에는 「분석 중」으로 보인다(`mindmapStatus`). 「분석이 끝난 기사부터 보이게」라는 사용자 제안(10-19)은 팀 확인 전이다. 그쪽으로 정하면 `released_at` 을 채우는 때와 B1 의 뜻을 바꾼다 | Q21 |
@@ -444,7 +443,6 @@ MVP 에 넣을지 미정이다(5절). 칸은 PRD FR-18 · FR-19 를 읽고 그�
 | 15 | 언론사 표기 대응을 누가 맞추나, 처음 보는 언론사의 코드를 어떻게 짓나 | 처음 보는 표기는 수집 때 새 언론사로 등록하고, 묶기는 사람이 한다. 코드는 NewsData 응답의 언론사 ID 를 쓸지 구독 뒤 본다 | BE |
 | 16 | NewsData 요약이 우리 요금제에서 오는지, 한국 기사에서 쓸 만한지 | 우리 요약이 먼저, 없으면 NewsData 요약으로 대신한다(2026-10-21 BE 결정). 오지 않거나 품질이 낮으면 대신하지 않고 null | 구독 뒤 한국 기사로 확인 |
 | 17 | 데이터셋을 서비스 DB 에 넣나(검증용), 검증 실행을 따로 세나 | 정하지 않음. 넣지 않으면 서비스 첫 며칠은 비교할 기사가 적다 | AI · BE |
-| 18 | 카테고리 코드 · 탭 순서 | 2절 category 의 제안 코드 | FE |
 
 ---
 

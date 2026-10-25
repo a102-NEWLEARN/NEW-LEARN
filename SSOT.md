@@ -19,7 +19,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | 화면 | React | 이슈 에볼루션 맵, 기사 마인드맵, 변화 카드 화면 |
 | API 서버 | Spring Boot | 조회 API, 분석 작업 등록, 분석 결과 저장 |
 | AI 분석 워커 | FastAPI (Python) | 작업 큐 소비, 임베딩, LLM 호출(LangChain) |
-| LLM | SSAFY GMS (GPT-5-mini) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
+| LLM | SSAFY GMS (gpt-6-luna) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
 | DB | PostgreSQL + pgvector | 기사 원본, 분석 결과, 임베딩 저장·유사도 검색 |
 | 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐, 로그인 세션 |
 | 뉴스 수집 배치 | 운영 시 쿠버네티스 CronJob (구현 언어 미정) | NewsData.io 수집(하루 두 번 00 · 12시), 데이터셋 적재(검증용) |
@@ -40,6 +40,13 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 5. AI 분석 워커가 작업을 가져가 분석 단계를 수행 (3절)
 6. 워커가 결과를 Spring Boot에 전달해 저장
 
+기사 조회(A7·A8)의 계약과 요약 대체 규칙은 `docs/api-screen.md` 1·2절,
+분석 상태 계산은 `docs/api-internal.md` 6절을 따른다. 구현 성공 기준은
+`docs/specs/F01-F11-article-api.md`에 둔다.
+
+이슈 헤더·타임라인(A3·A4)의 조회 계약과 빈 이슈 처리는 `docs/api-screen.md` 2절,
+구현 성공 기준은 `docs/specs/F07-issue-timeline-api.md`를 따른다.
+
 ## 3. 분석 파이프라인
 
 > 이 절은 전부 초안이다. AI 담당(강유진, 황도경) 확인 필요.
@@ -49,7 +56,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | 단계 | MVP 개요 기능 | 무엇으로 | 상태 |
 |---|---|---|---|
 | 핵심 정보 추출 — 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망) | F03 → F04(흐름지도 · 마인드맵) | GMS. 출력 모양은 `docs/api-screen.md` 3절. 근거 문장은 데이터로만 남긴다(F05 화면 표시는 추후, 2026-10-21) | 켬 |
-| 같은 사건 후보 찾기 | F06 | 임베딩(sentence-transformers, CPU) + pgvector, 후보 최대 5개 | 켬 |
+| 같은 사건 후보 찾기 | F06 | 임베딩(sentence-transformers, CPU, BGE-m3-ko 1024차원) + pgvector, 후보 최대 5개 | 켬 |
 | 동일 사건 판정 | F06 → F07(이슈맵) | GMS. 새 사건이면 이름 · 키워드 · 요약도 짓는다. 판단 기준은 Q34 | 켬 |
 | 이슈 판단 — 새 사건을 이슈에 붙이거나, 사건 3개 이상으로 새 이슈를 만들고 이름 · 요약을 짓는다 | F07 | GMS. 단계 모양은 `docs/api-internal.md`(제안). 어떤 사건을 묶을지는 실험 | 켬(제안) |
 | 주장 추출 · 관계 판정 | F09 → F10(변화 카드) | GMS | 추후 논의. 자리만 두고 꺼 둠 |
@@ -59,7 +66,8 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 
 ### 예산
 
-- GMS 토큰 총 $168.30 (후불). 기사당 약 $0.01 기준 약 1만 7천 건 분석 가능
+- GMS 토큰 총 $168.30 (후불) = 팀 공용 1,683,000 크레딧(2026-10-21 ~ 12-11). 처음 짐작은 기사당 약 $0.01 → 약 1만 7천 건이었다
+- 실측(2026-10-23, 10절): gpt-6-luna 로 핵심 정보 추출 + 동일 사건 판정을 하면 기사당 약 7.4 크레딧(약 $0.0007). 이 두 단계에만 쓰면 이론상 약 22만 건이다. 이슈 판단과 v1 마인드맵(가지 4개) 모양의 출력은 아직 재지 않았다
 - 개발 중에는 모의 응답을 기본으로 하고, 실제 GMS 호출은 명시적으로 켤 때만
 
 ## 4. 작업 큐
@@ -139,7 +147,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 루트 계정은 결제·비상시에만 쓰고 MFA를 건다. 이 AWS 계정은 개인 계정과 분리한 프로젝트 전용 팀 계정이다
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
   - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
-  - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」
+  - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」. SSAFY 규칙에 맞는지 물어보지 않고 이 개인 계정에 그대로 둔다(2026-10-25 사용자 결정) — 막히면 그때 옮긴다(바꿀 곳: `.gitlab-ci.yml` 의 이미지 주소 · CI 변수, 배포 태그 파일, 이미지 받기 봉인 Secret)
   - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다 — 그래서 배포 태그는 dev push가 올린 것만 쓴다
   - 반영: **CI가 배포 태그 MR을 열고 사람이 머지한다**(2026-10-22 결정, Jira S15P31A102-105). 굽기(w4)가 올리기에 성공한 영역만 `w5:deploy-mr` 잡이 GHCR에 그 태그가 있는지 확인한 뒤 `infra/k8s/services/app · ai/kustomization.yaml`의 태그를 바꾸는 MR을 `deploy/app` · `deploy/ai` 브랜치로 `dev`에 연다. 같은 브랜치를 dev 위에 덮어써서 열린 MR이 있으면 그것을 갱신한다(MR이 쌓여 부딪히지 않게). 지금 태그가 더 새 커밋이면 건너뛴다. 바꾼 파일이 `infra/`뿐이라 그 MR을 머지해도 굽기가 다시 돌지 않는다. 토큰 `DEPLOY_MR_TOKEN`(프로젝트 액세스 토큰, Developer · `api`, 만료 2026-11-30)은 보호 · 가림 CI 변수. 코드는 `infra/ci/deploy_mr.py`
   - Image Updater(새 태그를 보고 자동 반영)는 쓰지 않는다 — 바뀐 태그가 Git에 남지 않아 아래 「되돌리기」와 어긋난다
@@ -210,6 +218,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Argo CD: 팝업 뒤 익명 읽기 전용. 동기화 · 설정 변경은 admin으로 한 번 더 로그인한다. admin 비밀번호는 인프라 담당만 안다. GitLab 웹훅 길(`/argocd/api/webhook` POST, GitLab 머리)만 팝업 밖이다 — 위 「배포 흐름」
   - 두 앱 모두 팝업의 `Authorization` 머리는 앱으로 넘기지 않는다 — Grafana가 그것을 자기 로그인으로 읽어 팝업이 되풀이된다
   - Swagger는 잠그지 않는다 — 개발하는 동안 FE가 편하게(2026-10-22 사용자 결정, 2026-10-20 「Swagger도 팝업」을 바꿈). 다시 잠글지는 8절
+    - 주소: `https://newlearn.io.kr/swagger-ui.html`(→ `/swagger-ui/index.html`) · `/v3/api-docs`. backend 의 springdoc 3.1.1이 만들고, `SecurityConfig`가 이 주소들만 GET으로 로그인 없이 연다. 내부 API는 문서에서 뺀다(2026-10-23, Jira S15P31A102-107). 잠글 때는 `infra/k8s/services/app/routes.yaml`의 Swagger 규칙과 `SecurityConfig`의 그 줄을 같이 뺀다
   - Envoy 기본 인증은 htpasswd의 SHA1 형식만 받아서 비밀번호를 16자 이상으로 한다(스크립트가 막는다)
 
 ### kubeadm을 고른 이유
@@ -226,7 +235,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 2026-10-22 깔았다(v0.0.37, Argo CD 앱 `local-path`). StorageClass `newlearn-local` — PVC를 지워도 PV · 폴더를 남기고(Retain), Pod가 뜬 노드(워커)의 `/var/lib/newlearn/local-path`에 만든다. 기본 StorageClass로 두지 않아 PVC마다 이름을 적는다
   - PostgreSQL(pgvector 0.8.7-pg18, 20Gi) · Redis(8.10.2, AOF, `maxmemory 1gb` · `noeviction`, 5Gi)는 StatefulSet. Argo CD가 지우지 않게 막고(`Delete=false,Prune=false`), StatefulSet을 지워도 PVC를 남긴다. 크기 · StorageClass는 나중에 못 바꾼다
   - DB 계정은 `infra/server/seal-secrets.sh db`가 무작위 비밀번호로 `data` · `app`에 봉인한다. PostgreSQL은 처음 초기화 때만 읽어서 봉인 파일이 있으면 다시 만들지 않는다
-- PostgreSQL 백업은 pg_dump CronJob. 같은 서버 안에만 두면 서버를 잃을 때 같이 사라진다 — 서버 밖 보관은 8절
+- PostgreSQL 백업은 pg_dump CronJob — 매일 04:00(한국) 관리 서버 디스크(`/var/lib/newlearn/pg-backup`, 정적 local PV)에 남기고 7일 보관한다. DB(워커)와 다른 서버라 워커를 잃어도 남는다. 매주 일요일 05:00 그중 하나를 AWS S3(`infra/terraform/backup.tf`, 공개 막기 · 35일 뒤 지움)에도 올린다 — 올리는 키는 올리기만 되는 IAM 사용자라 새도 백업을 읽거나 지울 수 없다(2026-10-25 사용자 결정, Jira S15P31A102-109). 실패 알림은 없고 확인 명령 · 되살리는 법은 `infra/server/db-backup.md`
 
 ### 무중단 배포 조건
 
@@ -279,19 +288,15 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 항목 | 누가 | 관련 |
 |---|---|---|
-| 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
-| 개인 외부 계정(GHCR)에 프로젝트 이미지를 두는 것이 SSAFY 규칙에 맞는지 — 막혀 있으면 저장소를 다시 고른다(바꿀 곳은 `.gitlab-ci.yml`의 이미지 주소와 CI 변수) | Infra | 6절 「배포 흐름」 |
+| 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다. 2026-10-25 사용자: 보류 — 수집 배치(CronJob)는 아직 만들지 않는다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
 | 배포 속도 줄이기 — 2026-10-23 ① 굽기 자리 ② 웹훅 ③ 태그 MR 머지 때 검사 ④ 굽기 재시도를 고쳤다(Jira S15P31A102-106, 6절 「굽기 러너」 · 「배포 흐름」, 10절). 남은 것: ai 굽기가 메모리 상한 3Gi 에 닿는다(oom 0, 커널이 캐시를 비운 횟수 382 ~ 16919) — 의존성이 늘면 상한 · Kaniko 캐시 압축을 다시 정한다 | Infra | 6절 「배포 흐름」 |
-| 바깥에서 부른 요청이 가끔 몇 초 멈춤 — 2026-10-22 한 번 3초 넘김, 10-23 한 번 5초 끊김(그 요청은 Envoy 접근 로그에 없음 = Envoy 에 닿기 전, 그 순간 워커 CPU 18% 이하 · 디스크 · IO 기다림 거의 0). 관리자 PC 회선 · TLS 연결 단계 중 어디인지 미확인. 다른 곳(서버 안 · 다른 회선)에서 같이 재 보면 가려진다 | Infra | 10절 2026-10-23 |
-| Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
+| Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22, 2026-10-25 사용자 「일단 계속 열어 둔다」). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
-| 임베딩 모델 — 정해지면 기사 임베딩 벡터의 차원도 정해진다. Jira 35 시작 전까지 정한다. 고를 때 볼 것: 한국어 기사 품질, Lightsail CPU 에서 기사 한 건 임베딩 시간, 워커 메모리, 차원 2,000 이하(pgvector HNSW 한도), 한 번에 받는 입력 길이(`EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다 — 제목 · 본문 앞부분 중 무엇을 넣을지). BE 안: 칸은 `vector(N)`, 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
+| 임베딩 입력 길이 — 모델은 BGE-m3-ko · 1024차원으로 정했다(2026-10-23, 3절). 남은 것은 제목 · 본문 앞부분 중 무엇을 넣을지다. CPU 2스레드에서 리드(제목 + 앞 두 문장)는 기사당 약 1.2초, 본문 앞 800자는 약 4.3초다(10절). `EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다. BE 안: 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
-| GMS가 OpenAI 호환 API를 그대로 받는지 (워커의 `LLM_MODE=gms` 코드는 그렇다고 보고 짰다) | AI | 3절 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
-| API 인증을 둘지, 둔다면 어떻게 할지 (지금은 Spring Security 기본값이라 헬스 말고는 막혀 있다). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
-| PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
+| API 인증을 둘지, 둔다면 어떻게 할지 (2026-10-22 Jira 100: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 열고 나머지는 로그인이 있어야 하게 막았다 — `backend` 의 `SecurityConfig`). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 워커 → API 결과 전달 방식과 작업 큐의 스트림 · consumer group 구성. BE 안(2026-10-21, AI 확인 전): 결과는 HTTP 내부 API W1, 큐는 스트림 3 · 그룹 4, 투입 메시지에 본문 통째 · `ACKED MAXLEN ~` 상한 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
@@ -318,6 +323,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-20 | 회원 · 관심 분야: MVP 이후 → MVP(가입 · 로그인 · 관심 분야) | 팀 회의. 북마크 · 관심 이슈는 아직 미정 |
 | 2026-10-21 | 「어려운 용어 자동 설명」(MVP 개요 P2) → 용어사전(표준국어대사전 Open API) MVP | 마인드맵 회의 |
 | 2026-10-23 | 러너 · 잡 Pod는 관리 서버에만(운영 서버와 같은 기계에 두지 않는다, `.claude/stack.md` 4절) → 이미지 굽기(w4) 잡만 워커(Lightsail)의 굽기 러너에서 | 여유가 있는 기계가 워커뿐이다 — 관리 서버는 잡 하나가 한계, 노트북은 GHCR 받기가 느리다(10절). 서비스와 다투는 것은 잡 상한 · 동시 2로 줄이고 굽는 동안 사이트 health를 잰다. 같은 노드의 DB · Redis · Argo CD는 네임스페이스 네트워크 정책으로 막는다(6절 「굽기 러너」, Jira S15P31A102-106) |
+| 2026-10-23 | LLM GPT-5-mini → gpt-6-luna | AI 파트 비교(Jira S15P31A102-71). 같은 흐름(추출 1번 + 판정 최대 1번)에서 30건은 잘못 합친 쌍 23 → 0, 크레딧 약 1/6. 117건은 쌍 F1 0.79 · B³ 0.93(DeepSeek 0.69 · 0.88) |
 
 ## 10. 잰 것
 
@@ -325,6 +331,10 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 숫자 | 어떻게 |
 |---|---|---|---|
+| 2026-10-25 | 바깥 요청이 가끔 몇 초 멈추던 것 — 어디서 멈추나 (Jira S15P31A102-110) | 관리자 PC(집 회선) 3,259번 중 1번 1.02초 — **TCP 연결 맺기에서 0.975초**(첫 연결 신호가 사라져 1초 뒤 다시 보낸 모양), TLS · 응답은 평소. 관리 서버(AWS → 인터넷 → Lightsail) 4,600번 · 워커 안(인터넷 안 거침) 4,800번은 1초 넘김 0 · 실패 0, 최대 0.23초 · 0.09초. Envoy 처리 시간 최대 8ms, 워커 연결 대기열 넘침 · 버림 0(전후 같음), Cilium 버림은 평소 종류만 → **서버 · Envoy 쪽 원인 없음, 관리자 PC 쪽 인터넷 길에서 가끔 패킷이 사라진다**. 브라우저는 연결을 다시 써서 연결 맺기는 처음 한 번뿐이라 사용자 영향은 작다. 10-22 · 10-23 의 멈춤도 모두 관리자 PC 에서 잰 것 | 같은 45분(11:04 ~ 11:49 KST) 동안 세 곳에서 0.5초마다 `curl -m 5` 로 health, 단계별(dns · conn · tls · ttfb · total) 시간. 느린 그 한 요청은 Envoy 로그가 용량으로 돌려 쓰여 짝을 못 찾음 — 남은 내 PC 요청 2,332개로 처리 시간을 봄 |
+| 2026-10-23 | GMS 가 OpenAI 호환 `/chat/completions` 를 그대로 받는지 | 받는다. `response_format: json_object` · `reasoning_effort` 도 된다. 502 · 응답 없는 연결 끊김이 가끔 있어 워커 안에서 다시 부르면 이어졌다 | `https://gms.ssafy.io/gmsapi/api.openai.com/v1` 로 gpt-5-mini · gpt-5-nano · gpt-5.6-luna · gpt-6-luna 를 불러 봄(개인 파일럿, Jira S15P31A102-71) |
+| 2026-10-23 | GMS 크레딧 — 기사 한 건 추출 + 동일 사건 판정 | gpt-6-luna 기사당 약 7.4 크레딧, gpt-5-mini(기본 추론)는 같은 일에 약 6배. gpt-6-luna 응답 시간 중앙값 6.1초 · 느린 10% 9.4초 | 사람이 정한 정답 117건 · 30건으로 BE 계약 흐름을 돌리고 GMS 사용 현황 화면의 모델별 누적으로 계산(팀 공용이라 다른 사용분이 섞였을 수 있음) |
+| 2026-10-23 | 임베딩 CPU 시간 · 메모리 (GPU 끔, 2스레드) | BGE-m3-ko: 리드(중앙값 108토큰) 기사당 1.16초 · 2.6GB, 본문 앞 800자(426토큰) 4.27초 · 3.1GB. 16건씩 묶어도 빨라지지 않음 | GPU 개발 서버에서 `CUDA_VISIBLE_DEVICES=""` · `taskset` 2코어, SSAFY 2025 상반기 기사 100건 |
 | 2026-10-18 | 새 클론에서 `full` 프로필이 모두 healthy가 되기까지 | 174초 | WSL2 Ubuntu 홈에 작업 트리를 복사하고 compose 볼륨을 비운 뒤 `docker compose --profile full up -d --wait`. 이미지(약 1.9 GB)는 미리 받아 둔 상태라 받는 시간은 빠졌다 |
 | 2026-10-18 | 같은 환경을 내렸다가 다시 띄우기 (볼륨 남김) | 28초 | `down` 뒤 `up -d --wait` |
 | 2026-10-18 | 고친 코드가 컨테이너에 반영되기까지 | WSL2 클론: 화면 2초·워커 4초·API 6초 안. C: 드라이브 클론: 셋 다 60초 안에 반영 안 됨 | 파일을 고치고 2초 간격으로 응답·로그를 확인 |
