@@ -54,7 +54,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `publisher` | 언론사 참조 | 언론사. 모든 기사 화면에 보인다(PRD FR-2) | `article.press_code` → `press` |
 | `publishedAt` | 시각 | 발행 시각 표시 · 정렬 | `article.published_at` |
 | `category` | 카테고리 참조 · null | 기사의 대표 카테고리 표시. 맞추지 못한 기사는 null | `article.category_code` → `category` |
-| `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이 있으면 그것, 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) NewsData 요약으로 대신한다(2026-10-21). 둘 다 AI 가 만든 요약이라 AI 생성 표시를 붙인다. 둘 다 없으면 null | `article_mindmap.summary`, 없으면 `article.source_summary` |
+| `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이 있으면 그것, 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) NewsData 요약으로 대신한다(2026-10-21). 두 소스 모두 null·빈 문자열·공백뿐인 문자열은 없는 것으로 처리한다(2026-10-23 팀장 확인). 둘 다 AI 가 만든 요약이라 AI 생성 표시를 붙인다. 둘 다 없으면 null | `article_mindmap.summary`, 없으면 `article.source_summary` |
 | `summarySource` | enum · null | 요약을 어디서 가져왔나. `NEWLEARN` 우리 AI · `NEWSDATA` NewsData. 화면이 출처를 보이고 싶을 때 쓴다. `summary` 가 null 이면 null | 계산 |
 | `url` | string | *원문 보기* 링크 | `article.url` |
 | `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` |
@@ -96,19 +96,19 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `sort` | enum · 선택 | `lastEventAt`(기본) — 마지막 사건 발생 시점 최신순(PRD FR-4 가정). `createdAt` — 이슈가 만들어진 최신순, 검색창 아래 「새로 생성된 이슈」(2026-10-20). 같으면 `id` 내림차순. 그 밖의 값이면 400 `VALIDATION_FAILED` |
 | `page` · `size` | number · 선택 | 쪽 번호 · 크기 (`api.md` 1절). 검색창 아래는 `size` 로 개수를 정한다(몇 개인지는 미정) |
 
-응답은 목록 모양이고 항목은 아래다. 이슈는 사건 3개가 모여야 생기므로(2026-10-20) 사건 없는 이슈는 없다.
+응답은 목록 모양이고 항목은 아래다. 정상 생성은 사건 3개가 모였을 때다(2026-10-20). DB에 이미 저장된 이슈의 사건이 0개인 경우 조회 규칙은 A3·A4를 따른다.
 
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
 | `id` · `title` | 이슈 참조 | 카드를 누르면 이슈 화면, 카드 제목 | `issue` |
 | `summary` | string · null | 카드의 한두 문장(AI 생성) | `issue.summary` |
-| `categories` | array(카테고리 참조) | 카드의 분야 표시. 여러 개일 수 있다 | `issue_category` → `category` |
+| `categories` | array(카테고리 참조) | 카드의 분야 표시. 여러 개일 수 있다 | `issue_category` → `category`, `sort_order` 순서(`data-model.md` 2절) |
 | `eventCount` | number | 「사건 8개」 | 계산 — 이 이슈의 사건 수 |
 | `articleCount` | number | 「기사 23개」 | 계산 — 이 이슈 사건들에 묶인 투입 기사 수 (`article_event`) |
 | `publisherCount` | number | 「언론사 5곳」 | 계산 — 그 기사들의 언론사(`press_code`) 수 |
 | `firstEventAt` · `lastEventAt` | 시각 | 기간 「08.04 ~ 10.09」, 정렬 | 계산 — 사건 `occurred_at` 의 가장 이른 값 · 늦은 값 |
 | `createdAt` | 시각 | 「새로 생성된 이슈」 정렬 · 표시 | `issue.created_at` |
-| `lastEvent` | 사건 참조 | 카드의 「최근 · 인력 수급 우려」(`label`) | 계산 — `occurred_at` 이 가장 늦은 사건 |
+| `lastEvent` | 사건 참조 | 카드의 「최근 · 인력 수급 우려」(`label`) | 계산 — `occurred_at` 내림차순, 같으면 사건 `id` 내림차순으로 하나 선택(2026-10-23 팀장 승인) |
 
 ```json
 {
@@ -128,9 +128,17 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 이슈 화면 맨 위 헤더(PRD FR-20)에 쓴다. 인자는 주소의 `issueId` 하나. 응답은 A2 항목에서 `lastEvent` 만 뺀 모양이고 필드 뜻도 같다. 기간은 `firstEventAt` ~ `lastEventAt` 이다.
 
+없는 이슈는 404 `ISSUE_NOT_FOUND`다. 이슈가 존재하고 사건이 0개면 200으로 반환한다.
+이때 `eventCount`·`articleCount`·`publisherCount`는 0, `firstEventAt`·`lastEventAt`은 null이다.
+카테고리는 저장된 관계대로 반환하며 `lastEvent` 키는 보내지 않는다(2026-10-23 사용자 승인).
+
 ### A4. 타임라인 — `GET /api/v1/issues/{issueId}/timeline`
 
 이슈 에볼루션 맵의 사건 노드를 그린다(F07, Jira 48). 이슈의 사건을 페이지 없이 한 번에 준다. 정렬은 `occurredAt` 오름차순, 같으면 `id` 오름차순. 화면은 사건을 **메인 흐름 · 서브 흐름 두 레인**에 놓는다(2026-10-20).
+
+없는 이슈는 404 `ISSUE_NOT_FOUND`, 존재하지만 사건이 0개면 200과 `{ "issueId": …, "events": [] }`다.
+기사가 없거나 투입 전 기사만 있는 사건도 타임라인에 남기고 기사·언론사 수는 0으로 반환한다.
+사건 발생 시각으로 정렬하며 기사 발행 시각을 대신 쓰지 않는다(2026-10-23 사용자 승인).
 
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
@@ -195,7 +203,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 | 인자 | 타입 | 용도 |
 |---|---|---|
-| `category` | enum · 선택 | 이 대표 카테고리의 기사만. 없으면 전체 |
+| `category` | enum · 선택 | 이 대표 카테고리의 기사만. 인자를 보내지 않으면 전체. 없는 코드와 빈 문자열은 404 `CATEGORY_NOT_FOUND`(2026-10-23 팀장 확인) |
 | `page` · `size` | number · 선택 | 쪽 번호 · 크기 |
 
 응답은 목록 모양이고 항목은 기사 요약(1절)이다. 정렬은 발행 시각 최신순(PRD FR-2), 같으면 `id` 내림차순. `summary` 가 null 일 때 무엇을 보일지는 FE 질문(`api.md` 4절)이다.
@@ -206,7 +214,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
     "id": 456, "title": "한빛반도체 텍사스 공장 첫 삽… \"2028년 양산 변함없다\"",
     "publisher": { "code": "garam", "name": "가람일보" }, "publishedAt": "2026-10-06T10:12:00+09:00",
     "category": { "code": "economy", "name": "경제" },
-    "summary": "한빛반도체가 텍사스 공장을 착공했다", "url": "https://news.example.com/a/456",
+    "summary": "한빛반도체가 텍사스 공장을 착공했다", "summarySource": "NEWLEARN", "url": "https://news.example.com/a/456",
     "mindmapStatus": "SUCCEEDED"
   }],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
@@ -231,7 +239,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
   "id": 456, "title": "…", "publisher": { "code": "garam", "name": "가람일보" }, "reporter": "김민정 기자",
   "publishedAt": "2026-10-06T10:12:00+09:00", "url": "https://news.example.com/a/456",
   "category": { "code": "economy", "name": "경제" },
-  "summary": "…", "mindmapStatus": "SUCCEEDED", "eventMatchStatus": "SUCCEEDED",
+  "summary": "…", "summarySource": "NEWLEARN", "mindmapStatus": "SUCCEEDED", "eventMatchStatus": "SUCCEEDED",
   "event": { "id": 97, "title": "한빛반도체 텍사스 공장 착공식", "label": "착공식", "occurredAt": "2026-10-06T00:00:00+09:00" },
   "issue": { "id": 12, "title": "한빛반도체 미국 공장 건설" }
 }

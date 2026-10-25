@@ -143,7 +143,7 @@ flowchart LR
 |---|---|---|---|
 | `attempt` | number | 받은 메시지의 값 그대로. 지금 시도와 다르면 409 — 늦게 온 옛 결과가 새 결과를 덮지 않게 | 대조만 한다 |
 | `status` | enum | `SUCCEEDED` · `FAILED` | `analysis_job.status` |
-| `model` | string | 쓴 모델 이름(`gpt-5-mini` 등). 결과를 비교 · 다시 돌릴 때(`/evals`) | `EXTRACT` 는 `article_mindmap.model`. 다른 단계는 저장할 칸이 없다 |
+| `model` | string | 쓴 모델 이름(`gpt-6-luna` 등). 결과를 비교 · 다시 돌릴 때(`/evals`) | `EXTRACT` 는 `article_mindmap.model`. 다른 단계는 저장할 칸이 없다 |
 | `promptVersion` | string · null | 쓴 프롬프트 버전. 임베딩처럼 프롬프트가 없으면 null | `EXTRACT` 는 `article_mindmap.prompt_version` |
 | `startedAt` · `finishedAt` | 시각 | 워커가 처리를 시작 · 끝낸 때 | `analysis_job.started_at` · `finished_at`. `EXTRACT` 의 `finishedAt` 은 `article_mindmap.generated_at` 에도 |
 | `result` | object · null | 단계별 결과(아래). 실패면 null | 단계마다 다름 |
@@ -151,7 +151,7 @@ flowchart LR
 
 ```json
 {
-  "attempt": 1, "status": "SUCCEEDED", "model": "gpt-5-mini", "promptVersion": "extract-v1",
+  "attempt": 1, "status": "SUCCEEDED", "model": "gpt-6-luna", "promptVersion": "extract-v1",
   "startedAt": "2026-10-06T10:12:30+09:00", "finishedAt": "2026-10-06T10:13:05+09:00",
   "result": { }, "error": null
 }
@@ -171,7 +171,7 @@ flowchart LR
 | 필드 | 타입 | 용도 | 저장하는 곳 |
 |---|---|---|---|
 | `model` | string | 임베딩 모델 이름 | `article_embedding.model` |
-| `dimension` | number | 벡터 길이. 칸의 차원과 다르면 400. 384 는 시험 모델(SSOT 10절) 값일 뿐이고 쓸 모델은 미정 | 대조만 한다 |
+| `dimension` | number | 벡터 길이. 칸의 차원과 다르면 400. BGE-m3-ko 라 1024(2026-10-23, SSOT 3절). 384 는 시험 모델(SSOT 10절) 값이었다 | 대조만 한다 |
 | `vector` | array(number) | 기사 벡터 | `article_embedding.embedding` |
 
 `MATCH_EVENT` 결과
@@ -230,5 +230,5 @@ stateDiagram-v2
 
 | 화면 필드 | 어떻게 정하나 | 쓰는 곳 |
 |---|---|---|
-| `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업의 상태(`QUEUED` · `FAILED`). 작업도 없으면 `NONE` | A6 · A7 · A8 |
+| `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업 상태를 그대로 반환한다(`QUEUED` · `SUCCEEDED` · `FAILED`). 결과 없이 작업만 성공이어도 `SUCCEEDED`이며 별도 저장 금지 규칙은 추가하지 않는다(2026-10-23 팀장 확인). 작업도 없으면 `NONE` | A6 · A7 · A8 |
 | `eventMatchStatus` | `MATCH_EVENT` 작업의 상태. 작업이 없으면 `NONE` | A8 |
