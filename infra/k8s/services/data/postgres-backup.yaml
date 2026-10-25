@@ -1,0 +1,87 @@
+# PostgreSQL 매일 백업 — 관리 서버 디스크에 pg_dump, 7일 보관 (Jira S15P31A102-109)
+# 관리 서버(EC2)에 떠서 postgres.data.svc 에 붙어 덤프를 받는다 — DB(워커)와 다른 서버에 남긴다
+# PV(pg-backup-local)와 폴더는 Argo CD 밖에서 손으로 — infra/k8s/bootstrap/pg-backup-pv.yaml
+# 손으로 한 번 돌리기 · 확인 명령 · 되살리는 법은 infra/server/README.md 「DB 백업」
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pg-backup
+spec:
+  storageClassName: newlearn-local-manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pg-backup-local
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "0 4 * * *"
+  timeZone: Asia/Seoul
+  # 앞 백업이 안 끝났으면 겹쳐 돌지 않는다
+  concurrencyPolicy: Forbid
+  # 그 시각에 못 돌았으면(서버 재시작 등) 1시간 안에는 늦게라도 돈다
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          # 관리 서버에만 뜬다 — 백업 폴더(PV)가 거기 있다. 컨트롤 플레인 taint 를 견딘다 (Prometheus 와 같은 방식)
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          # 폴더 주인과 같은 postgres 이미지 사용자
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+          containers:
+            - name: pg-dump
+              # DB 와 같은 이미지 — pg_dump 판이 서버(18)와 맞아야 덤프가 된다
+              image: pgvector/pgvector:0.8.7-pg18
+              envFrom:
+                - secretRef:
+                    name: postgres-auth
+              env:
+                - name: PGHOST
+                  value: postgres.data.svc
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  export PGPASSWORD="$POSTGRES_PASSWORD"
+                  name="newlearn-$(TZ=Asia/Seoul date +%Y%m%d-%H%M).dump"
+                  # 다 쓰고 읽히는 것을 본 뒤에야 이름을 붙인다 — 반쯤 쓴 파일이 백업으로 남지 않게
+                  pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f "/backup/$name.part"
+                  pg_restore --list "/backup/$name.part" > /dev/null
+                  mv "/backup/$name.part" "/backup/$name"
+                  # 7일 넘은 백업과 실패해 남은 .part 를 지운다
+                  find /backup -maxdepth 1 \( -name 'newlearn-*.dump' -o -name 'newlearn-*.dump.part' \) -mtime +7 -print -delete
+                  ls -l "/backup/$name"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: pg-backup

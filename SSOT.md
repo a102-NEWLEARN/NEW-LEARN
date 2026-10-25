@@ -235,7 +235,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 2026-10-22 깔았다(v0.0.37, Argo CD 앱 `local-path`). StorageClass `newlearn-local` — PVC를 지워도 PV · 폴더를 남기고(Retain), Pod가 뜬 노드(워커)의 `/var/lib/newlearn/local-path`에 만든다. 기본 StorageClass로 두지 않아 PVC마다 이름을 적는다
   - PostgreSQL(pgvector 0.8.7-pg18, 20Gi) · Redis(8.10.2, AOF, `maxmemory 1gb` · `noeviction`, 5Gi)는 StatefulSet. Argo CD가 지우지 않게 막고(`Delete=false,Prune=false`), StatefulSet을 지워도 PVC를 남긴다. 크기 · StorageClass는 나중에 못 바꾼다
   - DB 계정은 `infra/server/seal-secrets.sh db`가 무작위 비밀번호로 `data` · `app`에 봉인한다. PostgreSQL은 처음 초기화 때만 읽어서 봉인 파일이 있으면 다시 만들지 않는다
-- PostgreSQL 백업은 pg_dump CronJob. 같은 서버 안에만 두면 서버를 잃을 때 같이 사라진다 — 서버 밖 보관은 8절
+- PostgreSQL 백업은 pg_dump CronJob — 매일 04:00(한국) 관리 서버 디스크(`/var/lib/newlearn/pg-backup`, 정적 local PV)에 남기고 7일 보관한다. DB(워커)와 다른 서버라 워커를 잃어도 남는다. 매주 AWS S3 에도 한 벌 올리는 것은 만드는 중이다(2026-10-25 사용자 결정, Jira S15P31A102-109). 실패 알림은 없고 확인 명령 · 되살리는 법은 `infra/server/README.md` 「DB 백업」
 
 ### 무중단 배포 조건
 
@@ -299,7 +299,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증을 둘지, 둔다면 어떻게 할지 (2026-10-22 Jira 100: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 열고 나머지는 로그인이 있어야 하게 막았다 — `backend` 의 `SecurityConfig`). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
-| PostgreSQL 백업(pg_dump)을 서버 밖에 둘지 | Infra · BE | 6절 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — 제안을 FE · AI 가 확인하기 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 워커 → API 결과 전달 방식과 작업 큐의 스트림 · consumer group 구성. BE 안(2026-10-21, AI 확인 전): 결과는 HTTP 내부 API W1, 큐는 스트림 3 · 그룹 4, 투입 메시지에 본문 통째 · `ACKED MAXLEN ~` 상한 | AI · BE | 2절 6번 · 4절, `docs/api-internal.md` |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
