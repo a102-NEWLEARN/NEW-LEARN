@@ -23,3 +23,8 @@ spring:
   devtools:
     livereload:
       enabled: false
+
+# Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
+# 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
+springdoc:
+  paths-to-exclude: /internal/**

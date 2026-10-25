@@ -28,9 +28,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.flywaydb:flyway-database-postgresql'
-	implementation 'io.github.openfeign.querydsl:querydsl-jpa:7.7'
-	annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:7.7:jpa'
-	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+	// Swagger 화면(/swagger-ui.html) · OpenAPI 문서(/v3/api-docs) — 3.1 줄이 Spring Boot 4.1 을 지원한다 (Jira 107)
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+	// 엔티티는 @Getter · @NoArgsConstructor(access = PROTECTED) 만 쓴다 (docs/backend-convention.md). 판은 Spring Boot 가 정한다
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'

@@ -1,0 +1,76 @@
+# ai 워커 (FastAPI) — Redis 작업 큐를 읽어 분석한다. 밖에는 열지 않는다
+# 처음에는 LLM_MODE=mock(가짜 응답, GMS 키 없음) — GMS 는 AI 팀이 준비되면 키를 봉인해 바꾼다 (SSOT 6절)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai
+spec:
+  selector:
+    app: ai
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: ai
+  template:
+    metadata:
+      labels:
+        app: ai
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ai
+          image: ghcr.io/kimzoo5676-del/newlearn-ai
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: REDIS_HOST
+              value: redis.data.svc
+            - name: REDIS_PORT
+              value: "6379"
+            - name: LLM_MODE
+              value: mock
+          # /health 는 Redis 에 ping 한다 — Redis 가 안 되면 준비 안 됨(503)
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]

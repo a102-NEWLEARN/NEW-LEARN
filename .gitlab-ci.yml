@@ -7,9 +7,11 @@
 #   w0  규칙 — 시크릿 스캔 · MR 규칙 · 하네스 자체 검사. 거의 안 막힌다
 #   w12 영역 정적 검사 + DB 없는 테스트 — frontend · ai · infra
 #   w3  DB · Redis 가 필요한 테스트 — backend (services 로 DB · Redis 를 잡 옆에 띄운다)
-#   w4  운영 이미지 굽기 — dev 에서 굽고 GHCR 에 올린다 (Jira S15P31A102-96, 아래 「w4」)
-# KUBERNETES_* 변수는 EC2 러너(Kubernetes executor)만 읽는다. 러너 값의 *_overwrite_max_allowed 를 넘으면
-# 무시된다 (infra/k8s/bootstrap/gitlab-runner-values.yaml). 노트북 러너(Docker executor)는 자기 설정의 상한을 쓴다.
+#   w4  운영 이미지 굽기 — dev 에서 굽고 GHCR 에 올린다. 굽기 전용 러너(워커 노드)에서만 돈다 (Jira S15P31A102-96 · 106, 아래 「w4」)
+#   w5  배포 태그 MR — w4 가 올린 영역만 배포 설정의 태그를 바꾸는 MR 을 연다. 머지는 사람이 (Jira S15P31A102-105, 아래 「w5」)
+# KUBERNETES_* 변수는 쿠버네티스 러너 둘(EC2 검사 · 워커 굽기)만 읽는다. 러너 값의 *_overwrite_max_allowed 를 넘으면
+# 잡이 실패한다 (infra/k8s/bootstrap/gitlab-runner-values.yaml · gitlab-runner-build-values.yaml).
+# 노트북 러너(Docker executor)는 자기 설정의 상한을 쓴다.
 #
 # 껍데기와 다른 점
 #   - 영역마다 fast · slow 두 잡이 아니라 한 잡이다. 러너 자리가 1개라 두 잡이면 Pod 와 설치가 두 번 돈다
@@ -43,6 +45,7 @@ stages:
   - rules
   - check
   - build
+  - deploy
 
 # ---------------------------------------------------------------------------
 # 갈래별 자원
@@ -65,6 +68,13 @@ stages:
     KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w12"
   script:
     - bash .claude/hooks/pre-commit --ci "$AREA"
+
+# 배포 태그 MR(deploy/app · deploy/ai)을 머지한 dev 커밋은 태그 한 줄만 바뀐다 — 영역 검사를 다시 돌지 않는다 (Jira S15P31A102-106)
+# w0:rules · w12:infra 는 돈다(바뀐 파일이 infra/ 다). 머지 커밋 제목 모양이 바뀌면 그냥 검사가 다시 돈다
+.skip-deploy-merge:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^Merge branch 'deploy\/(app|ai)' into 'dev'$/
+      when: never
 
 # ---------------------------------------------------------------------------
 # w0 규칙
@@ -94,6 +104,7 @@ w0:harness:
   script:
     - bash .claude/hooks/tests/run.sh
   rules:
+    - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: [".claude/**/*"]
 
@@ -112,6 +123,7 @@ w12:frontend:
     AREA: frontend
     npm_config_cache: /ci-cache/npm
   rules:
+    - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["frontend/**/*", .editorconfig, ".prettierrc*", "prettier.config.*", package.json, package-lock.json, ".claude/**/*", .gitlab-ci.yml]
 
@@ -129,6 +141,7 @@ w12:ai:
     reports:
       junit: ai-junit.xml
   rules:
+    - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["ai/**/*", pyproject.toml, uv.lock, ".claude/**/*", .gitlab-ci.yml]
 
@@ -142,7 +155,8 @@ w12:infra:
   # Terraform 플러그인 캐시는 뺐다 — 쓰면 설치가 오히려 느렸다(20 → 28초, SSOT.md 10절)
   before_script:
     # alpine 이라 bash 가 없고 grep 은 busybox 다. 게이트는 bash 와 GNU grep 을 쓴다
-    - apk add --no-cache bash grep
+    # python3 는 태그 MR 스크립트 시험(infra/ci, stack.md infra_TEST)에 쓴다
+    - apk add --no-cache bash grep python3
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["infra/**/*", ".claude/**/*", .gitlab-ci.yml]
@@ -180,6 +194,7 @@ w3:backend:
     reports:
       junit: backend/build/test-results/test/TEST-*.xml
   rules:
+    - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["backend/**/*", ".claude/**/*", .gitlab-ci.yml]
 
@@ -191,21 +206,26 @@ w3:backend:
 #     Dockerfile 이 깨진 채 dev 에 들어가지 않게 하려는 것이다
 # GHCR_USER · GHCR_TOKEN 은 GitLab CI 변수(protected · masked)다 — 보호 브랜치(dev) 파이프라인에만 들어온다.
 # 그래서 MR 은 토큰 없이, 캐시도 없이 굽는다
-# Kaniko 는 Docker 데몬도 특권도 없이 컨테이너 안 root 로 Dockerfile 의 RUN 을 돈다 — 두 러너 설정을 바꾸지 않는다
+# Kaniko 는 Docker 데몬도 특권도 없이 컨테이너 안 root 로 Dockerfile 의 RUN 을 돈다
+# 굽기 전용 러너(태그 newlearn-build)에서만 돈다 — 잡 Pod 는 워커 노드, 네임스페이스 gitlab-runner-build 는 바깥 인터넷만 나간다
+# (infra/k8s/bootstrap/gitlab-runner-build-values.yaml · build-netpol.yaml, Jira S15P31A102-106). 노트북은 GHCR 받기가 느렸다(SSOT.md 10절)
+# 🔴 태그를 빼면 EC2 · 노트북 러너로 가는데, 그때는 자원을 1 · 2Gi 로 같이 내려야 한다 — 상한을 넘으면 잡이 실패한다
 .w4:
   stage: build
+  tags: [newlearn-build]
   image:
     name: ghcr.io/osscontainertools/kaniko:v1.28.6-debug@sha256:7ab44d0131c3051b6dea128067e258c7afb5c4815082a93b9cf6c624f2140bf0
     entrypoint: [""]   # 기본 진입점이 executor 라 셸이 안 뜬다 (debug 판은 /busybox 에 셸이 있다)
   variables:
-    # 러너 덮어쓰기 상한과 같다 — 굽기는 CPU · 메모리를 가장 많이 쓴다
+    # 굽기 러너의 덮어쓰기 상한과 같다. 갈래 이름표(w4)는 러너가 고정으로 붙인다
     KUBERNETES_CPU_REQUEST: "500m"
-    KUBERNETES_CPU_LIMIT: "1"
+    KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_REQUEST: "1Gi"
-    KUBERNETES_MEMORY_LIMIT: "2Gi"
-    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w4"
+    KUBERNETES_MEMORY_LIMIT: "3Gi"
     IMAGE_PREFIX: ghcr.io/kimzoo5676-del/newlearn
   script:
+    # w5:deploy-mr 이 읽는 「올린 태그」 — 올리지 않는 MR 이나 실패한 잡은 빈 값 (dotenv 는 성공한 잡의 것만 넘어간다)
+    - echo "DEPLOY_TAG_$AREA=" > "$CI_PROJECT_DIR/deploy.env"
     - |
       if [ "${W4_PUSH:-}" = "true" ]; then
         mkdir -p /kaniko/.docker
@@ -215,15 +235,25 @@ w3:backend:
         set -- --no-push
       fi
       # --use-new-run · --compressed-caching=false — 메모리를 덜 쓰게. 둘 없이 EC2(메모리 2Gi)에서 ai 가
-      # 의존성 설치 뒤 파일 시스템 스냅샷 중 OOMKilled 됐다 (2026-10-21, MR !60)
+      # 의존성 설치 뒤 파일 시스템 스냅샷 중 OOMKilled 됐다 (2026-10-21, MR !60). 압축을 다시 켤지는 굽기 러너에서 잰 뒤 정한다
+      # 받기 · 풀기 · 올리기 재시도 — 받는 중 stream error 로 굽기가 통째로 실패했다 (2026-10-22, SSOT.md 10절)
       /kaniko/executor --context "$CI_PROJECT_DIR/$AREA" --dockerfile "$CI_PROJECT_DIR/$AREA/Dockerfile" \
         --custom-platform linux/amd64 --snapshot-mode redo --use-new-run --compressed-caching=false \
+        --image-download-retry=3 --image-fs-extract-retry=3 --push-retry=3 \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
         "$@"
+      # 올리기까지 성공했을 때만 태그를 남긴다 (executor 가 실패하면 여기 오지 않는다)
+      if [ "${W4_PUSH:-}" = "true" ]; then echo "DEPLOY_TAG_$AREA=$CI_COMMIT_SHORT_SHA" > "$CI_PROJECT_DIR/deploy.env"; fi
     # CPU 막힘 · 최대 메모리 기록을 여기서 남긴다. Kaniko 가 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아
     # EC2 러너에서는 after_script 가 시작 폴더(/workspace)를 못 찾고 실패한다 (2026-10-21 겪음)
-    - cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.peak 2>/dev/null || true
+    # memory.peak 는 디스크 캐시까지 세어 상한에 닿아도 모자란 것인지 모른다 — oom_kill 횟수와 실제 쓴 양(anon)을 같이 본다
+    - cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events 2>/dev/null || true
+    - grep -E '^(anon|file) ' /sys/fs/cgroup/memory.stat 2>/dev/null || true
   after_script: []
+  artifacts:
+    reports:
+      dotenv: deploy.env
+    expire_in: 1 day
 
 # needs — 그 영역 검사가 통과해야 굽는다. MR 에서 검사 잡이 없을 때도 돌게 optional
 w4:backend:
@@ -264,3 +294,33 @@ w4:ai:
         W4_PUSH: "true"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: [ai/Dockerfile, ai/.dockerignore, .gitlab-ci.yml]
+
+# ---------------------------------------------------------------------------
+# w5 — 배포 태그 MR (Jira S15P31A102-105, SSOT.md 6절 「배포 흐름」)
+# dev 에서 이미지를 GHCR 에 올린 영역만 infra/k8s/services/<app|ai>/kustomization.yaml 의 태그를 바꾸는 MR 을 연다.
+# kustomization 마다 고정 브랜치(deploy/app · deploy/ai)를 dev 위에 덮어쓰고, 열린 MR 이 있으면 갱신한다. 머지는 사람이 한다
+# 무엇을 하는지는 infra/ci/deploy_mr.py. 바꾼 파일이 infra/ 뿐이라 그 MR 을 머지해도 w4 · w5 가 다시 돌지 않는다
+# DEPLOY_MR_TOKEN — 프로젝트 액세스 토큰(Developer · api, 만료 2026-11-30). 보호 · 가림 변수라 dev 파이프라인에만 들어온다
+# ---------------------------------------------------------------------------
+w5:deploy-mr:
+  extends: .w0
+  stage: deploy
+  image: python:3.14.8-slim-trixie@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170   # ai 실행 이미지와 같은 바탕
+  variables:
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w5"
+    IMAGE_PREFIX: ghcr.io/kimzoo5676-del/newlearn
+    PYTHONIOENCODING: utf-8
+  needs:
+    - { job: "w4:backend", optional: true }
+    - { job: "w4:frontend", optional: true }
+    - { job: "w4:ai", optional: true }
+  # w4 와 같은 때 돈다. 굽기가 하나 실패해도 성공한 영역은 반영한다(when: always) — 실패한 잡은 태그를 넘기지 않는다
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: ["backend/**/*", "frontend/**/*", "ai/**/*", .gitlab-ci.yml]
+      when: always
+  # dev 파이프라인 둘이 같은 브랜치를 동시에 덮지 않게 줄 세운다
+  resource_group: deploy-mr
+  interruptible: false
+  script:
+    - python3 infra/ci/deploy_mr.py

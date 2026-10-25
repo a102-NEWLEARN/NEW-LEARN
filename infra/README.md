@@ -6,7 +6,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `terraform/` | 관리 서버(쿠버네티스 컨트롤 플레인) EC2 · 보안 그룹 · 탄력적 IP · 예산 알림. Lightsail 은 SSAFY 소유라 대상이 아니다 |
-| `terraform/iam/` | apply 전용 IAM 사용자에 붙일 정책 — EC2 는 서울 리전만, 예산, 상태 버킷(`newlearn-tfstate-*`)만 |
+| `terraform/iam/` | apply 전용 IAM 사용자에 붙일 정책 — EC2 는 서울 리전만, 예산, 상태 버킷(`newlearn-tfstate-*`) · DB 백업 버킷(`newlearn-pg-backup-*`, 지우기 없음)만. DB 백업을 올리기만 하는 사용자 정책 |
 | `kind/` | 내 PC 의 kind 리허설 클러스터 — 정의 · 올리기 · 지우기 · 무중단 교체 리허설 (아래 「kind 리허설」) |
 | `k8s/bootstrap/` | 클러스터를 만든 뒤 Helm 으로 한 번 까는 것 — Cilium · Argo CD 값, 루트 Application. 실제 서버도 같은 값을 쓰고 다른 것만 덮는다 |
 | `k8s/apps/` | Argo CD 가 Git 에서 읽는 앱 목록 (app-of-apps — 이 폴더를 Helm 차트로 그려 앱마다 Application 을 만든다) |
@@ -79,6 +79,7 @@
    ssh-keygen -t ed25519 -f ~/.ssh/newlearn-ec2 -C newlearn-ec2
    ```
 
+   - `backup_bucket_name` — DB 주간 백업 버킷. `newlearn-pg-backup-` 뒤에 `openssl rand -hex 4` 로 접미사를 붙인다 (아래 「DB 백업 버킷」)
    - `admin_cidrs` — 아래가 알려 주는 내 PC 공인 IP 에 `/32` 를 붙인다. 캠퍼스와 집처럼 자리를 옮기면 고치고 다시 apply 한다
 
    ```bash
@@ -121,6 +122,23 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 
 - 새 Ubuntu 이미지가 나와도 서버를 바꿔 끼우지 않는다 (`compute.tf` 의 `ignore_changes`). OS 갱신은 서버 안에서 한다
 - **최종 발표(11/18) 뒤 `terraform destroy` 로 지운다.** 서버를 멈추기만 하면 EBS · 탄력적 IP 요금이 계속 나간다. 상태 버킷은 destroy 가 끝난 뒤 버전까지 비우고 지운다
+- DB 백업 버킷은 `force_destroy` 를 꺼 두어 안에 백업이 있으면 destroy 가 멈춘다(실수 방지). 남길 백업을 받은 뒤 S3 콘솔(루트 계정)에서 비우고 destroy 한다 — apply 키에는 백업을 지우는 권한을 주지 않았다
+
+## DB 백업 버킷 · 올리는 키 (Jira S15P31A102-109)
+
+매주 DB 백업 하나를 S3 에 올린다(`backup.tf`, 35일 뒤 지움). 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
+
+1. **apply 정책 고치기** — IAM 콘솔 → 「정책」 → `newlearn-terraform-apply` → 「편집」 → JSON 탭에 `infra/terraform/iam/apply-policy.json` 을 그대로 붙이고 저장한다. 버킷 `newlearn-pg-backup-*` 를 만들고 설정 · 읽는 권한이 더해진다(지우기 권한은 없다). 이전 판은 「정책 버전」에 남아 되돌릴 수 있다
+2. **버킷 만들기** — `terraform.tfvars` 에 `backup_bucket_name` 을 넣고 plan → 「3 to add, 0 to change, 0 to destroy」(버킷 · 공개 막기 · 수명 규칙)인지 사람이 보고 그 plan 으로 apply 한다
+3. **올리기만 되는 사용자** — 「정책 생성」 → JSON 에 `infra/terraform/iam/pg-backup-uploader-policy.json` · 이름 `newlearn-pg-backup-uploader` → 「사용자 생성」 → 이름 `newlearn-pg-backup-uploader`, 콘솔 액세스 없음, 「직접 정책 연결」로 그 정책 → 「보안 자격 증명」 → 「액세스 키 만들기」 → 사용 사례 「AWS 외부에서 실행되는 애플리케이션」. 비밀 키는 이 화면에서 한 번만 보인다 — 띄워 둔 채 바로 4번에 입력하고 어디에도 저장하지 않는다
+4. **봉인** (EC2 터미널, 값을 묻는다) — 버킷 이름은 `terraform -chdir=infra/terraform output pg_backup_bucket`
+
+   ```bash
+   ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh pg-backup-s3"
+   ```
+
+   만든 `~/sealed/sealed-pg-backup-s3.yaml` 을 `infra/k8s/services/data/sealed-pg-backup-s3.yaml` 로 가져와 커밋 · MR 한다
+- 키가 샜으면 IAM 콘솔에서 그 키를 비활성화하고 3 · 4번을 다시 한다. 이 키로는 백업을 읽거나 지울 수 없다
 
 ## 이미지 저장소 (GHCR)
 
@@ -165,6 +183,8 @@ w4 잡이 `error checking push permissions ... DENIED: requested access to the r
 - 워커가 받는 읽기 토큰(Jira S15P31A102-91)도 같이 지운다
 
 ## kind 리허설
+
+> **2026-10-22 은퇴 — 지금은 돌지 않는다.** 실제 클러스터가 생겨 앱 목록에 cert-manager · 운영 키로 봉인한 Secret · 서비스가 들어갔고, 시험 앱 hello 는 지웠다(Jira S15P31A102-105). 아래는 Jira S15P31A102-77 때의 기록이다. 확인은 실제 서버에서 한다 — `infra/server/README.md`, 결과는 `SSOT.md` 6 · 10절
 
 서버가 오기 전에 내 PC 의 kind(Docker 컨테이너를 노드로 쓰는 쿠버네티스)로 배포 흐름(`SSOT.md` 6절)을 돌려 본다.
 노드 2개(컨트롤 플레인 1 · 워커 1)에 Cilium → Argo CD 를 깔고, Argo CD 가 Git 에서 Envoy Gateway · Gateway · hello 앱을 가져가 깐다.

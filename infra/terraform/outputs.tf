@@ -12,3 +12,8 @@ output "ssh_command" {
   description = "관리 서버 접속 명령"
   value       = "ssh ubuntu@${aws_eip.control_plane.public_ip}"
 }
+
+output "pg_backup_bucket" {
+  description = "PostgreSQL 주간 백업 버킷 — 봉인할 때(seal-secrets.sh pg-backup-s3) · 받을 때 쓴다"
+  value       = aws_s3_bucket.pg_backup.bucket
+}

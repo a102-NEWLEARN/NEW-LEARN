@@ -43,7 +43,7 @@
 | 영역 | 언어 · 프레임워크 |
 |---|---|
 | `frontend` | TypeScript 6 · React 19 · Vite 8 · Tailwind CSS 4 · SEED Design · TanStack Query · Zustand · React Router · D3. Node 26 |
-| `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · QueryDSL · Flyway) · Gradle 9 (Groovy DSL) |
+| `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · Flyway) · Lombok · Gradle 9 (Groovy DSL) |
 | `ai` | Python 3.14 · FastAPI · LangChain · sentence-transformers (torch CPU 판) · uv |
 | `infra` | Terraform 1.16 (AWS provider 6) — 관리 서버 EC2. 쿠버네티스 Helm 값 · Argo CD 앱 목록 · 매니페스트(`infra/k8s/`)와 kind 리허설 스크립트(`infra/kind/`) |
 
@@ -101,11 +101,11 @@ ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jir
 infra_PATH="infra"   # 인프라 코드 (Terraform · 쿠버네티스 매니페스트 · kind 리허설). 검사는 AWS 자격 증명 없이 돈다
 infra_ALSO_PATHS=""   # 검사가 terraform -chdir 와 infra/kind/ 만 본다
 infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # provider 를 받는다. 상태 파일은 만들지 않는다
-infra_RUN="bash kind/up.sh"   # 내 PC 의 kind 리허설 클러스터 (Docker Desktop · kind · Helm 필요). Terraform plan 은 읽기 전용 키를 넣은 뒤 사람이 돌린다 (infra/README.md)
+infra_RUN="ssh newlearn 'kubectl -n argocd get applications' && curl -fsS https://newlearn.io.kr/actuator/health"   # 실제 클러스터의 앱 상태와 사이트 헬스. newlearn 은 EC2(컨트롤 플레인) SSH 별칭 — 없으면 ubuntu@<EC2 탄력적 IP> (infra/server/README.md). kind 리허설(kind/up.sh)은 2026-10-22 은퇴. Terraform plan 은 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
 infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done'   # 셸 스크립트(kind 리허설 · 서버 설정)는 문법만 본다. 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
-infra_TEST="terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test"   # 가짜 provider 로 보안 그룹 규칙을 검사한다
+infra_TEST='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test && for py in python3 python; do "$py" -c "" 2>/dev/null && break; py=""; done && "${py:?python 이 없다}" -B -m unittest discover -s ci'   # 가짜 provider 로 보안 그룹 규칙을, unittest 로 태그 MR 스크립트(ci/)를 검사한다. python3 가 안 되면 python — Windows 의 python3 는 Store 안내용 가짜일 수 있다. -B 는 __pycache__ 를 안 남긴다. 작은따옴표 이유는 infra_LINT 와 같다
 infra_BUILD=""   # 산출물이 없다 — 실제 생성(apply)은 사람이 plan 을 읽고 한다 (.claude/docs/deploy.md 3절)
 
 # 진실 문서는 쪼갤 곳이 없어 크기 상한에서 뺀다 (HARNESS.md 5절). 저장소 루트 기준 경로를 글자 그대로 맞춘다 (* 는 안 펼친다).
@@ -166,7 +166,7 @@ PR · MR 이면 그 사이 커밋 이력까지 시크릿을 찾는다(`SCAN_BASE
 
 | | |
 |---|---|
-| 러너가 동시에 몇 개 | EC2 러너 1 (관리 서버의 잡 Pod, 잡 CPU 상한 1) + 노트북 러너가 켜져 있으면 2 (잡 CPU 상한 4, `infra/laptop-runner/`). 그래서 CI 는 영역마다 잡 하나로 두고 MR 에서는 바뀐 영역만 돈다 — `SSOT.md` 6절 「CI 파이프라인」 |
+| 러너가 동시에 몇 개 | EC2 러너 1 (관리 서버의 잡 Pod, 잡 CPU 상한 1) + 노트북 러너가 켜져 있으면 2 (잡 CPU 상한 4, `infra/laptop-runner/`). 그래서 CI 는 영역마다 잡 하나로 두고 MR 에서는 바뀐 영역만 돈다 — `SSOT.md` 6절 「CI 파이프라인」. 이미지 굽기(w4)만 굽기 러너 2 (워커 노드, 잡 CPU 상한 2) — `SSOT.md` 6절 「굽기 러너」 |
 | 테스트가 너무 느릴 때 | 해당 없음 — 아직 느리지 않다 (잰 값은 `SSOT.md` 10절). 느려지면 그때 나눈다 (예: 커밋 전엔 단위만, 통합은 CI 에서 — `<영역>_TEST="단위${CI:+ && 통합}"`) |
 | 게이트를 건너뛰는 법 | `git commit --no-verify` — **급할 때만, 사람이 친다. 쓴 사실을 PR 에 적는다** (Claude 는 `settings.json` deny 로 막혀 있다) |
 
@@ -178,7 +178,7 @@ PR · MR 이면 그 사이 커밋 이력까지 시크릿을 찾는다(`SCAN_BASE
 
 | 재 보니 | 할 일 (위에서부터) |
 |---|---|
-| **대기가 실행보다 길다** — 용량이 모자라다. 설정으로는 못 고친다 | ① 쓸모없어진 실행이 러너를 붙들지 않게 한다 — `ci/` 의 취소 설정(이미 켜져 있다) ② PR 에서는 바뀐 영역만 돌린다 — `ci/` 의 영역별 예시 ③ 러너를 늘린다. **운영 서버와 같은 기계에 두지 않는다** — 빌드가 서비스와 CPU 를 다툰다 |
+| **대기가 실행보다 길다** — 용량이 모자라다. 설정으로는 못 고친다 | ① 쓸모없어진 실행이 러너를 붙들지 않게 한다 — `ci/` 의 취소 설정(이미 켜져 있다) ② PR 에서는 바뀐 영역만 돌린다 — `ci/` 의 영역별 예시 ③ 러너를 늘린다. **운영 서버와 같은 기계에 두지 않는다** — 빌드가 서비스와 CPU 를 다툰다 (이 저장소는 이미지 굽기만 예외 — 다른 기계가 없어서. 상한 · 격리 · 잰 값은 `SSOT.md` 6절 「굽기 러너」 · 9절) |
 | **실행이 길다** — 잡 하나가 무겁다 | ① 빠른 층이 형식 오류를 먼저 알리는지 본다 ② 설치가 큰 몫이면 재 보고 캐시를 붙인다 — `ci/` 의 캐시 예시 ③ 테스트가 큰 몫이고 러너가 남으면 나눠 돌린다 — `ci/` 의 샤드 예시 |
 
 ---
@@ -219,10 +219,10 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | 항목 | 값 |
 |---|---|
 | 헬스 엔드포인트 | API `GET /actuator/health` (DB · Redis 연결 포함) · 워커 `GET /health` (Redis 연결 포함). 정상이면 200, 아니면 503 |
-| 🔴 **배포 판정용** 엔드포인트 | `<채워넣기>` |
-| 배포 판정에 **포함**할 것 | `<채워넣기>` (없으면 앱이 아무 일도 못 하는 것만 — 후보: PostgreSQL · Redis 연결) |
-| 배포 판정에서 **뺄 것** | `<채워넣기>` (후보: SSAFY GMS · NewsData.io 같은 외부 API) |
-| 외부 노출 여부 | `<채워넣기>` (Envoy Gateway 에서 헬스 주소를 막을지) |
+| 🔴 **배포 판정용** 엔드포인트 | 쿠버네티스 준비 확인(readinessProbe) — backend `GET /actuator/health` · ai `GET /health`. 안 되면 새 Pod 가 요청을 받지 않고 옛 Pod 가 남는다. 살아 있는지(livenessProbe)는 포트만 본다 — DB 가 잠깐 끊겼다고 재시작하지 않게 (`infra/k8s/services/`) |
+| 배포 판정에 **포함**할 것 | PostgreSQL · Redis 연결 (Spring 기본 health 표시기, 워커는 Redis ping) |
+| 배포 판정에서 **뺄 것** | SSAFY GMS · NewsData.io 같은 외부 API — 지금 health 에 없고 넣지 않는다 |
+| 외부 노출 여부 | `/actuator/health` 한 경로만 연다(화면이 상태를 부른다, 세부는 안 보임). 다른 actuator 경로와 `/internal` 은 Envoy 길에 없다 (`infra/k8s/services/app/routes.yaml`) |
 
 > 🔴 **"서비스가 건강한가"와 "배포해도 되는가"는 다른 질문이다.** 이유는 `docs/health-check.md` §2.
 
@@ -230,9 +230,9 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 
 | 항목 | 값 |
 |---|---|
-| 확인 명령 | `<채워넣기>` (서버가 아직 없다. 헬스 주소 말고 **실제 API** 를 부른다) |
-| 정상 판정 기준 | `<채워넣기>` |
-| 떠 있는 버전 확인 | `<채워넣기>` (방금 올린 커밋 · 태그와 같은가. 앱이 버전을 안 내보내면 그 응답부터 만든다) |
+| 확인 명령 | `ssh newlearn 'kubectl -n argocd get applications'` · `curl -fsS https://newlearn.io.kr/actuator/health` · 화면 첫 장. 실제 API 는 첫 공개 API 가 dev 에 들어오면 그 주소를 더한다 (2026-10-22 dev 의 backend 는 SecurityConfig 전이라 `/api` 가 401) |
+| 정상 판정 기준 | Argo CD 앱 전부 Synced · Healthy, health 200 `UP`, 화면에 「API 상태: UP」 |
+| 떠 있는 버전 확인 | `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'` 의 태그 = `infra/k8s/services/<영역>/kustomization.yaml` 의 `newTag` = 구운 커밋 짧은 SHA 8자. 앱이 버전을 내보내지는 않는다 |
 | 확인 실패 시 | 6절의 되돌리는 법 — Git 에서 배포 설정을 이전 커밋으로 되돌린다 |
 
 ---
@@ -242,14 +242,14 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | | |
 |---|---|
 | 배포가 있나 | 서버 — 쿠버네티스(kubeadm 직접 구축) |
-| 어디로 | 노드 2대 — 관리 서버(컨트롤 플레인) AWS EC2 t3.large · 서비스 서버(워커) SSAFY Lightsail xlarge. 둘 다 아직 없다 (EC2 미생성 · Lightsail 미수령, `SSOT.md` 6절) |
+| 어디로 | 노드 2대 — 관리 서버(컨트롤 플레인) AWS EC2 t3.large · 서비스 서버(워커) SSAFY Lightsail xlarge. 둘 다 클러스터로 묶였고 Argo CD 가 dev 브랜치를 읽는다 (2026-10-22, `SSOT.md` 6절 「현재 상태」) |
 | 무엇으로 트리거되나 | push → GitLab Runner 가 테스트 · 이미지 빌드 → 배포 설정의 이미지 버전 갱신 → Argo CD 가 반영. 이미지는 dev push 에서 굽는다 (`SSOT.md` 6절 「배포 흐름」) |
 | 배포 명령 | 사람이 치는 명령은 없다 — Argo CD 가 Git 의 배포 설정을 클러스터에 맞춘다(GitOps). 배포 설정은 `infra/k8s/apps/`(앱 목록) 와 그것이 가리키는 `infra/k8s/` 폴더. kind 리허설에서 확인 (`SSOT.md` 6절) |
 | **산출물(이미지 · 패키지 · 앱 번들)을 어디에 두나** | GHCR 비공개 패키지 — SSAFY GitLab 레지스트리는 서버에서 꺼져 있다 (`SSOT.md` 6절 「배포 흐름」) |
 | 태그 규칙 | 커밋 짧은 SHA 8자, `latest` 는 안 쓴다. 정리 정책은 없다 — 옛 태그가 남아 되돌릴 수 있다 (`SSOT.md` 6절 「배포 흐름」) |
 | 🔴 되돌리는 법 | Git 에서 배포 설정을 이전 커밋으로 되돌리면 Argo CD 가 이전 버전으로 맞춘다 (`SSOT.md` 6절) |
 | 되돌려도 **안 돌아오는 것** | DB 구조 변경(마이그레이션) — 되돌리기 전에 스키마가 이전 버전과 맞는지 본다. 이미 호출한 GMS 토큰 비용 |
-| 새 환경변수를 추가했을 때 | `<채워넣기>` (쿠버네티스 Secret · ConfigMap 을 어디에 두는지 정해진 뒤 적는다) |
+| 새 환경변수를 추가했을 때 | 비밀이 아니면 `infra/k8s/services/<영역>/` 의 Deployment `env` 에 · 비밀이면 `infra/server/seal-secrets.sh` 에 기능을 더해 사람이 값을 넣고 SealedSecret 을 같은 폴더에 둔다(`envFrom` · `secretKeyRef`). 로컬은 `.env.example` 에 이름을 더한다 |
 
 **이미지로 배포한다면 CI 가 굽고 레지스트리에 올린다.** 서버는 받아서 띄우기만 하고 되돌리기는 옛 태그를
 다시 받는 일이 된다. GitLab·GitHub 모두 저장소에 딸린 레지스트리를 무료로 준다.
@@ -284,6 +284,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | 시스템 구성도 | `SSOT.md` 1 · 2절 (그림은 아직 없다) |
 | 로컬 개발 환경 쓰는 법 | `docs/dev-environment.md` (정한 것은 `SSOT.md` 7절) |
 | 협업 규칙 (브랜치·커밋·PR) | `docs/git-convention.md` · MR 양식은 `.gitlab/merge_request_templates/Default.md` |
+| 백엔드 코드 약속 | `docs/backend-convention.md` (패키지 · 엔티티 · 오류 · 시각 · 목록 · 보안 · 테스트를 코드로 옮기는 법) |
 | 기능 스펙 | `docs/specs/` — 기능마다 한 파일, 이름은 기능 번호로 시작한다 (예: `docs/specs/F07-issue-evolution-map.md`) |
 | 승인한 계획 | `docs/plans/` (`settings.json` 의 `plansDirectory` 로 plan mode 가 바로 쓴다) |
 | 인계 메모 | MR 본문 (작업 중이면 Draft MR) |
@@ -336,7 +337,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 
 | 모듈 | 켤까 | 조건 |
 |---|---|---|
-| `/evals` | 예 — SSAFY GMS(GPT-5-mini)로 6하원칙 추출 · 동일 사건 판정을 한다 | LLM 을 부르는 기능이 있으면 켠다 |
+| `/evals` | 예 — SSAFY GMS(gpt-6-luna)로 핵심 정보 추출(마인드맵 가지 4개) · 동일 사건 판정을 한다 | LLM 을 부르는 기능이 있으면 켠다 |
 | 운영 모듈 | 아니오 — 최종 발표(2026-11-18) 뒤 서버를 끄는 시연 프로젝트다. *(운영)* 칸은 지웠다. EC2 빌링 알람은 `SSOT.md` 6절대로 따로 챙긴다 | 실사용자가 있거나 서비스를 오래 운영하면 켠다. 시연 · 프로토타입이면 끈다. 나중에 켜면 템플릿의 같은 줄을 다시 가져온다. 왜는 `docs/deploy.md` |
 
 | | |
