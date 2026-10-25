@@ -17,6 +17,7 @@ variables {
   ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOnlyForTerraformTestsNotARealKey000000 test"
   admin_cidrs        = ["203.0.113.10/32"]
   budget_alert_email = "alerts@example.com"
+  backup_bucket_name = "newlearn-pg-backup-test0000"
 }
 
 run "워커_IP_가_없으면_WireGuard_포트를_열지_않는다" {

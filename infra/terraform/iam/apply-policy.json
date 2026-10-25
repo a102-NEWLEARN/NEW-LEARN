@@ -79,6 +79,30 @@
       "Resource": "arn:aws:s3:::newlearn-tfstate-*/*"
     },
     {
+      "Sid": "PgBackupBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:ListBucket",
+        "s3:GetBucket*",
+        "s3:GetAccelerateConfiguration",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:GetReplicationConfiguration",
+        "s3:PutBucketTagging",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutLifecycleConfiguration"
+      ],
+      "Resource": "arn:aws:s3:::newlearn-pg-backup-*"
+    },
+    {
+      "Sid": "PgBackupObjectsRead",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::newlearn-pg-backup-*/*"
+    },
+    {
       "Sid": "ReadDeniedReason",
       "Effect": "Allow",
       "Action": "sts:DecodeAuthorizationMessage",
