@@ -6,7 +6,6 @@ import kr.io.newlearn.analysis.AnalysisJobRepository;
 import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.article.dto.ArticleAnalysisStatus;
 import kr.io.newlearn.article.dto.ArticleSummaryResponse;
-import kr.io.newlearn.article.dto.SummarySource;
 import kr.io.newlearn.category.dto.CategoryRef;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.mindmap.ArticleMindmapRepository;
@@ -35,10 +34,7 @@ public class ArticleSummaryAssembler {
                 .map(article -> {
                     var result = results.get(article.getId());
                     String own = result == null ? null : result.getSummary();
-                    String source = article.getSourceSummary();
-                    String summary = present(own) ? own : present(source) ? source : null;
-                    SummarySource summarySource =
-                            present(own) ? SummarySource.NEWLEARN : present(source) ? SummarySource.NEWSDATA : null;
+                    String summary = present(own) ? own : null;
                     var category = article.getCategory();
                     return new ArticleSummaryResponse(
                             article.getId(),
@@ -49,7 +45,6 @@ public class ArticleSummaryAssembler {
                             ApiTime.toKst(article.getPublishedAt()),
                             category == null ? null : new CategoryRef(category.getCode(), category.getName()),
                             summary,
-                            summarySource,
                             article.getUrl(),
                             result != null
                                     ? ArticleAnalysisStatus.SUCCEEDED

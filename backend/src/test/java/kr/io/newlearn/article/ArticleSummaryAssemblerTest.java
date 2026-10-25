@@ -23,26 +23,22 @@ class ArticleSummaryAssemblerTest {
 
     static Stream<Arguments> summaries() {
         return Stream.of(
-                Arguments.of("우리", "원본", "우리", SummarySource.NEWLEARN),
-                Arguments.of(null, "원본", "원본", SummarySource.NEWSDATA),
-                Arguments.of("", "원본", "원본", SummarySource.NEWSDATA),
-                Arguments.of(" \t\n ", "원본", "원본", SummarySource.NEWSDATA),
-                Arguments.of(null, "", null, null),
-                Arguments.of("  ", " \n ", null, null));
+                Arguments.of("우리", "우리"),
+                Arguments.of(null, null),
+                Arguments.of("", null),
+                Arguments.of(" \t\n ", null));
     }
 
     @ParameterizedTest
     @MethodSource("summaries")
-    void summaryFallbackDoesNotChangeResultPresence(
-            String own, String source, String expected, SummarySource expectedSource) {
-        var article = article(1L, source);
+    void summaryIsOursOnlyAndDoesNotChangeResultPresence(String own, String expected) {
+        var article = article(1L);
         var result = mock(ArticleMindmapRepository.SummaryView.class);
         when(result.getArticleId()).thenReturn(1L);
         when(result.getSummary()).thenReturn(own);
         when(mindmaps.findSummariesByArticleIdIn(List.of(1L))).thenReturn(List.of(result));
         var summary = assembler.assemble(List.of(article)).getFirst();
         assertThat(summary.summary()).isEqualTo(expected);
-        assertThat(summary.summarySource()).isEqualTo(expectedSource);
         assertThat(summary.mindmapStatus()).isEqualTo(ArticleAnalysisStatus.SUCCEEDED);
     }
 
@@ -50,8 +46,7 @@ class ArticleSummaryAssemblerTest {
     void usesOneBulkLookupForMultipleArticlesAndNoQueriesForEmptyInput() {
         when(mindmaps.findSummariesByArticleIdIn(any())).thenReturn(List.of());
         when(jobs.findStatesByArticleIdInAndStage(any(), any())).thenReturn(List.of());
-        assertThat(assembler.assemble(List.of(article(1L, null), article(2L, null))))
-                .hasSize(2);
+        assertThat(assembler.assemble(List.of(article(1L), article(2L)))).hasSize(2);
         verify(mindmaps).findSummariesByArticleIdIn(List.of(1L, 2L));
         verify(jobs).findStatesByArticleIdInAndStage(List.of(1L, 2L), AnalysisStage.EXTRACT);
         clearInvocations(mindmaps, jobs);
@@ -59,13 +54,12 @@ class ArticleSummaryAssemblerTest {
         verifyNoInteractions(mindmaps, jobs);
     }
 
-    private Article article(long id, String source) {
+    private Article article(long id) {
         var article = mock(Article.class);
         var press = mock(Press.class);
         when(article.getId()).thenReturn(id);
         when(article.getPress()).thenReturn(press);
         when(article.getPublishedAt()).thenReturn(Instant.parse("2026-10-22T00:00:00Z"));
-        when(article.getSourceSummary()).thenReturn(source);
         return article;
     }
 }
