@@ -147,7 +147,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 루트 계정은 결제·비상시에만 쓰고 MFA를 건다. 이 AWS 계정은 개인 계정과 분리한 프로젝트 전용 팀 계정이다
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
   - 운영 이미지는 CI(amd64)에서만 빌드한다. 이미지 태그는 커밋마다 다르게 붙이고 `latest`는 쓰지 않는다
-  - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」
+  - 이미지 저장소: GHCR(ghcr.io), 인프라 담당 개인 GitHub 계정 아래 비공개 패키지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai`(2026-10-21, Jira S15P31A102-96). SSAFY GitLab 레지스트리는 서버 설정에서 꺼져 있어(`/jwt/auth?service=container_registry` → `registry not enabled`, 프로젝트 설정에 스위치 없음) 프로젝트에서 켤 수 없다. 비용 0 · 비공개 · 두 러너 모두 넣을 수 있는 곳이 GHCR 뿐이었다 — 후보 비교는 `docs/plans/2026-10-21-image-build.md`. 토큰 · 정리는 `infra/README.md` 「이미지 저장소」. SSAFY 규칙에 맞는지 물어보지 않고 이 개인 계정에 그대로 둔다(2026-10-25 사용자 결정) — 막히면 그때 옮긴다(바꿀 곳: `.gitlab-ci.yml` 의 이미지 주소 · CI 변수, 배포 태그 파일, 이미지 받기 봉인 Secret)
   - 굽는 때 · 태그: dev push 파이프라인에서 그 영역 폴더나 `.gitlab-ci.yml`이 바뀌면 굽고 올린다(w4 잡). 태그는 커밋 짧은 SHA 8자(`CI_COMMIT_SHORT_SHA`). MR은 Dockerfile이 바뀔 때 올리지 않고 굽기만 한다 — 그래서 배포 태그는 dev push가 올린 것만 쓴다
   - 반영: **CI가 배포 태그 MR을 열고 사람이 머지한다**(2026-10-22 결정, Jira S15P31A102-105). 굽기(w4)가 올리기에 성공한 영역만 `w5:deploy-mr` 잡이 GHCR에 그 태그가 있는지 확인한 뒤 `infra/k8s/services/app · ai/kustomization.yaml`의 태그를 바꾸는 MR을 `deploy/app` · `deploy/ai` 브랜치로 `dev`에 연다. 같은 브랜치를 dev 위에 덮어써서 열린 MR이 있으면 그것을 갱신한다(MR이 쌓여 부딪히지 않게). 지금 태그가 더 새 커밋이면 건너뛴다. 바꾼 파일이 `infra/`뿐이라 그 MR을 머지해도 굽기가 다시 돌지 않는다. 토큰 `DEPLOY_MR_TOKEN`(프로젝트 액세스 토큰, Developer · `api`, 만료 2026-11-30)은 보호 · 가림 CI 변수. 코드는 `infra/ci/deploy_mr.py`
   - Image Updater(새 태그를 보고 자동 반영)는 쓰지 않는다 — 바뀐 태그가 Git에 남지 않아 아래 「되돌리기」와 어긋난다
@@ -288,11 +288,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 항목 | 누가 | 관련 |
 |---|---|---|
-| 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
-| 개인 외부 계정(GHCR)에 프로젝트 이미지를 두는 것이 SSAFY 규칙에 맞는지 — 막혀 있으면 저장소를 다시 고른다(바꿀 곳은 `.gitlab-ci.yml`의 이미지 주소와 CI 변수) | Infra | 6절 「배포 흐름」 |
+| 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다. 2026-10-25 사용자: 보류 — 수집 배치(CronJob)는 아직 만들지 않는다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
 | 배포 속도 줄이기 — 2026-10-23 ① 굽기 자리 ② 웹훅 ③ 태그 MR 머지 때 검사 ④ 굽기 재시도를 고쳤다(Jira S15P31A102-106, 6절 「굽기 러너」 · 「배포 흐름」, 10절). 남은 것: ai 굽기가 메모리 상한 3Gi 에 닿는다(oom 0, 커널이 캐시를 비운 횟수 382 ~ 16919) — 의존성이 늘면 상한 · Kaniko 캐시 압축을 다시 정한다 | Infra | 6절 「배포 흐름」 |
-| 바깥에서 부른 요청이 가끔 몇 초 멈춤 — 2026-10-22 한 번 3초 넘김, 10-23 한 번 5초 끊김(그 요청은 Envoy 접근 로그에 없음 = Envoy 에 닿기 전, 그 순간 워커 CPU 18% 이하 · 디스크 · IO 기다림 거의 0). 관리자 PC 회선 · TLS 연결 단계 중 어디인지 미확인. 다른 곳(서버 안 · 다른 회선)에서 같이 재 보면 가려진다 | Infra | 10절 2026-10-23 |
-| Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
+| Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22, 2026-10-25 사용자 「일단 계속 열어 둔다」). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 입력 길이 — 모델은 BGE-m3-ko · 1024차원으로 정했다(2026-10-23, 3절). 남은 것은 제목 · 본문 앞부분 중 무엇을 넣을지다. CPU 2스레드에서 리드(제목 + 앞 두 문장)는 기사당 약 1.2초, 본문 앞 800자는 약 4.3초다(10절). `EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다. BE 안: 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
@@ -333,6 +331,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 숫자 | 어떻게 |
 |---|---|---|---|
+| 2026-10-25 | 바깥 요청이 가끔 몇 초 멈추던 것 — 어디서 멈추나 (Jira S15P31A102-110) | 관리자 PC(집 회선) 3,259번 중 1번 1.02초 — **TCP 연결 맺기에서 0.975초**(첫 연결 신호가 사라져 1초 뒤 다시 보낸 모양), TLS · 응답은 평소. 관리 서버(AWS → 인터넷 → Lightsail) 4,600번 · 워커 안(인터넷 안 거침) 4,800번은 1초 넘김 0 · 실패 0, 최대 0.23초 · 0.09초. Envoy 처리 시간 최대 8ms, 워커 연결 대기열 넘침 · 버림 0(전후 같음), Cilium 버림은 평소 종류만 → **서버 · Envoy 쪽 원인 없음, 관리자 PC 쪽 인터넷 길에서 가끔 패킷이 사라진다**. 브라우저는 연결을 다시 써서 연결 맺기는 처음 한 번뿐이라 사용자 영향은 작다. 10-22 · 10-23 의 멈춤도 모두 관리자 PC 에서 잰 것 | 같은 45분(11:04 ~ 11:49 KST) 동안 세 곳에서 0.5초마다 `curl -m 5` 로 health, 단계별(dns · conn · tls · ttfb · total) 시간. 느린 그 한 요청은 Envoy 로그가 용량으로 돌려 쓰여 짝을 못 찾음 — 남은 내 PC 요청 2,332개로 처리 시간을 봄 |
 | 2026-10-23 | GMS 가 OpenAI 호환 `/chat/completions` 를 그대로 받는지 | 받는다. `response_format: json_object` · `reasoning_effort` 도 된다. 502 · 응답 없는 연결 끊김이 가끔 있어 워커 안에서 다시 부르면 이어졌다 | `https://gms.ssafy.io/gmsapi/api.openai.com/v1` 로 gpt-5-mini · gpt-5-nano · gpt-5.6-luna · gpt-6-luna 를 불러 봄(개인 파일럿, Jira S15P31A102-71) |
 | 2026-10-23 | GMS 크레딧 — 기사 한 건 추출 + 동일 사건 판정 | gpt-6-luna 기사당 약 7.4 크레딧, gpt-5-mini(기본 추론)는 같은 일에 약 6배. gpt-6-luna 응답 시간 중앙값 6.1초 · 느린 10% 9.4초 | 사람이 정한 정답 117건 · 30건으로 BE 계약 흐름을 돌리고 GMS 사용 현황 화면의 모델별 누적으로 계산(팀 공용이라 다른 사용분이 섞였을 수 있음) |
 | 2026-10-23 | 임베딩 CPU 시간 · 메모리 (GPU 끔, 2스레드) | BGE-m3-ko: 리드(중앙값 108토큰) 기사당 1.16초 · 2.6GB, 본문 앞 800자(426토큰) 4.27초 · 3.1GB. 16건씩 묶어도 빨라지지 않음 | GPU 개발 서버에서 `CUDA_VISIBLE_DEVICES=""` · `taskset` 2코어, SSAFY 2025 상반기 기사 100건 |
