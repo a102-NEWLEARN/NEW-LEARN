@@ -4,6 +4,7 @@ NEW:LEARN 서비스 테이블의 설계다. 기능 티켓이 테이블을 만들
 
 - **v0 (2026-10-19, Jira S15P31A102-28)**: 확정 기능(F01~F08 · F11)만으로 짤 수 있는 것만 담았다
 - **v1 (2026-10-21, Jira S15P31A102-99)**: 10-19 테이블 검토 · 10-20 팀 회의 · 10-21 마인드맵 회의에서 정한 것을 더했다. 카테고리 5개 · 원본 분류 대응 · 언론사 명부 · 회원과 관심 분야 · 이슈를 만드는 길 · 사건 키워드 · 마인드맵 가지 4개 · 수집 실행 기록 · 사용자 URL 입력 삭제. 아직 정하지 못한 것은 5절 「미정 목록」에 있다
+- **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 V3 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다. 임베딩 차원은 모델 확정 뒤로 미뤘다
 - 테이블은 아직 하나도 없다. 만들어진 테이블은 Flyway 마이그레이션(`backend/src/main/resources/db/migration/`)이 진실이다. 이 문서와 어긋나면 이 문서를 고친다
 - 화면 · 워커와 주고받는 모양은 `docs/api.md`(필드 상세는 `docs/api-screen.md` · `docs/api-internal.md`), 용어는 `docs/glossary.md`. 데이터셋 원본 필드는 PRD 폴더의 `addendum.md` 「데이터셋 구조」
 - 기능 번호와 이름은 `docs/mvp-overview.md` 3-1 표가 기준이다. F12 회원 · 관심 분야, F13 용어사전은 MVP 개요 MR(따로 올림)에서 제안하는 번호다
@@ -126,6 +127,7 @@ erDiagram
     text requested_by "누가 요청했나"
     int attempt "몇 번째 시도"
     jsonb candidates "MATCH_EVENT, ISSUE 에 보낸 후보"
+    jsonb result "판정 기록, V3 에서 더함"
     text error_code
     text error_message
     timestamptz created_at "작업을 만든 시각"
@@ -136,7 +138,8 @@ erDiagram
     bigint article_id PK, FK
     text summary "우리 AI 기사 요약, 비워도 됨"
     jsonb content "가지 4개, 잎, 근거"
-    timestamptz occurred_at "본문에서 뽑은 발생 시점"
+    int primary_core_index "대표 사건 잎 번호, V3 에서 더함"
+    timestamptz occurred_at "대표 사건의 발생 시점"
     text schema_version "content 형식 버전"
     text model "LLM 모델 이름"
     text prompt_version
@@ -145,7 +148,7 @@ erDiagram
   article_embedding {
     bigint article_id PK, FK
     text model "임베딩 모델 이름"
-    vector embedding "1024차원 (BGE-m3-ko)"
+    vector embedding "차원은 모델 확정 뒤, BGE-m3-ko 1024 유력"
     timestamptz created_at
   }
   member {
@@ -211,7 +214,7 @@ erDiagram
 | `press.code` | text | 기본 키 | 언론사 코드. API 에 이 코드와 이름이 같이 나간다 |
 | `press.name` | text | 예 | 화면에 보이는 언론사 이름 |
 | `press_mapping.source` | text | 기본 키 | `SSAFY` · `NEWSDATA` |
-| `press_mapping.source_value` | text | 기본 키 | 원본 언론사 표기. 데이터셋 `company`, NewsData 는 응답의 언론사 칸(칸 이름은 구독 뒤 확인) |
+| `press_mapping.source_value` | text | 기본 키 | 원본 언론사 표기. 데이터셋 `company`, NewsData 는 `source_name`(예: 뉴시스). 언론사 ID 는 `source_id`(예: `newsis` · `hani` · `kbs_kr`)로 따로 온다(2026-10-22 응답, AI 확인) |
 | `press_mapping.press_code` | text | 예 · 외래 키 | 어느 언론사인가 |
 
 - 소스마다 같은 언론사를 다르게 적어 와도 한 언론사로 묶으려고 명부와 대응 표를 나눴다. 언론사 수(`publisherCount`)를 세거나 언론사 필터(P1)를 걸 때 같은 곳이 둘로 갈리지 않는다
@@ -238,7 +241,7 @@ erDiagram
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
 - 필수 값이 빠진 기사는 저장하지 않고 이유를 남긴다(PRD FR-1). 실행 한 번에 몇 건 받았는지는 `ingest_run`, 기사마다의 이유는 수집 티켓(Jira 34)이 정한다
-- NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 한국 기사에 실제로 오는지는 구독 뒤 확인한다. 2024 데이터셋 필드는 아직 못 봤다
+- NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 실제 응답(2026-10-22, 한국어 최신 50건, AI 확인)에서는 49건에 오고 1건은 비었다. 본문에 줄바꿈이 없어 문단이 하나라 근거의 `paragraphIndex` 는 늘 0이다. 저작권 · 안내 문구가 본문 앞뒤에 붙어 오지만 원문 그대로 저장한다(워커가 문장을 나눌 때 그 구간을 뺀다). `pubDate` 에는 시간대가 없고 `pubDateTZ` 가 50건 모두 UTC 라 적재할 때 `+09:00` 으로 바꾼다. `duplicate: true` 가 2건 있었다. 2024 데이터셋 필드는 아직 못 봤다
 - 언제 투입하나(무엇이 끝나야 화면에 보이나)는 5절
 
 ### ingest_run — 수집 실행 기록 (F01, 2026-10-19)
@@ -322,6 +325,7 @@ erDiagram
 | `requested_by` | text | 예 | 누가 요청했나. 지금은 `BATCH`(수집 배치가 투입) 하나. 사용자 URL 입력은 뺐다(2026-10-20) |
 | `attempt` | int | 예 | 몇 번째 시도인가(1부터). 다시 돌리면 올린다. 늦게 온 옛 결과를 가르는 데 쓴다 |
 | `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다 |
+| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). **V3 마이그레이션에서 더한다** |
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
@@ -338,7 +342,8 @@ erDiagram
 | `article_id` | bigint | 기본 키 · 외래 키 | 어느 기사의 결과인가. 기사 하나에 결과 하나다 |
 | `summary` | text | 아니오 | 우리 AI 가 만든 기사 요약. 기사 목록 · 사건 패널에 쓰려고 jsonb 밖에 둔다. GMS 토큰을 아끼려고 나중에 만들지 않을 수 있어 비워도 된다(2026-10-19). 화면은 AI 생성 표시를 붙인다(PRD FR-2) |
 | `content` | jsonb | 예 | 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망)와 그 아래 잎(문장), 잎마다 선택 칸인 근거. 내용이 있는 가지만 들어간다(2026-10-21). 모양은 `docs/api-screen.md` 3절 |
-| `occurred_at` | timestamptz | 아니오 | 본문에서 뽑은 사건 발생 시점. 새 사건을 만들 때와 동일 사건 판정에 쓴다. 날짜까지만 있으면 그날 0시(5절 12번). 못 뽑았으면 비운다 |
+| `primary_core_index` | int | 아니오 | 대표 사건 — `content` 의 `CORE` 가지 잎 중 몇 번째인가(0부터). 비어 있으면 특정 사건이 없는 기사라 동일 사건 판정을 걸지 않는다(`docs/api-internal.md` 3절, 2026-10-26). **V3 마이그레이션에서 더한다** |
+| `occurred_at` | timestamptz | 아니오 | 대표 사건의 발생 시점. 새 사건을 만들 때와 동일 사건 판정에 쓴다. 날짜까지만 있으면 그날 0시(`+09:00`)로 넣고 정밀도 칸은 두지 않는다 — 화면이 날짜만 보여서다. 시각을 보이는 화면이 생기면 더한다(2026-10-23 AI 동의). 못 뽑았거나 대표 사건이 없으면 비운다. 뽑는 규칙은 `docs/api-internal.md` 5절 `EXTRACT` |
 | `schema_version` | text | 예 | `content` 모양의 버전(`mindmap-v1`) |
 | `model` | text | 예 | 결과를 만든 LLM 모델 이름 |
 | `prompt_version` | text | 예 | 쓴 프롬프트 버전. `model` 과 함께 결과를 비교하고 다시 돌릴 대상을 고를 때 쓴다(`/evals`) |
@@ -354,7 +359,7 @@ erDiagram
 |---|---|---|---|
 | `article_id` | bigint | 기본 키 · 외래 키 | 어느 기사의 벡터 |
 | `model` | text | 예 | 임베딩 모델 이름. 모델이 바뀌면 다시 만든다 |
-| `embedding` | vector | 예 | 기사 벡터. `vector(1024)` — 임베딩 모델 BGE-m3-ko 의 차원이다(2026-10-23 AI 결정, SSOT 3절). 차원을 고정해 DB 가 막아 주고 인덱스를 바로 걸 수 있게 한다(2026-10-21 BE 안) |
+| `embedding` | vector | 예 | 기사 벡터. 차원은 임베딩 모델을 확정(Jira 35)한 뒤 정한다. BGE-m3-ko(1024)가 유력하다(2026-10-23 AI 답, SSOT 3절). 정하면 `vector(N)` 으로 고정해 DB 가 막아 주고 인덱스를 바로 걸 수 있게 한다(2026-10-21 BE 안) |
 | `created_at` | timestamptz | 예 | 만든 시각 |
 
 - 같은 사건 후보를 pgvector 로 찾을 때 쓴다(SSOT 3절). 후보 검색은 기사 임베딩끼리 비교해 그 기사의 사건으로 모은다
@@ -429,18 +434,16 @@ MVP 에 넣을지 미정이다(5절). 칸은 PRD FR-18 · FR-19 를 읽고 그�
 |---|---|---|---|
 | 1 | 한 기사가 여러 사건에 속하나 | 하나 (PRD FR-9) | SSOT 8절 |
 | 2 | 어떤 사건 3개를 한 이슈로 묶나, 사건이 여러 이슈에 속하나, `issue_category` 를 무엇으로 채우나 | `ISSUE` 단계가 판단(제안). 사건 하나는 이슈 하나. `issue_category` 는 이슈 기사들의 대표 카테고리 | AI 실험 · SSOT 8절 |
-| 3 | 동일 사건 판정 기준, 기사가 몇 개 모여야 사건으로 보이나 | 판정 점수 · 근거 칸 없음. 기사 하나로도 사건을 만든다 | AI 실험 (Q34) |
-| 4 | 근거가 본문과 맞지 않을 때 잎까지 버리나 | 근거만 지우고 잎은 남긴다 | AI (`docs/api-screen.md` 3절) |
+| 3 | 동일 사건 판정 기준, 기사가 몇 개 모여야 사건으로 보이나 | 판정 점수 칸 없음(판정 기록은 `analysis_job.result`). 대표 사건이 있는 기사는 하나로도 사건을 만든다 | AI 실험 (Q34) |
 | 6 | 북마크 · 관심 이슈를 MVP 에 넣나 | 점선, 칸은 자리만. 회원 · 관심 분야는 MVP(10-20) | SSOT 8절 |
-| 7 | 원본 분류 → 5개 대응 행, 이슈가 카테고리 여러 개에 걸치나 | 행 없음. 맞출 값이 없으면 `category_code` 비움 | 실제 데이터 확인 뒤 (NewsData 구독) |
+| 7 | 원본 분류 → 5개 대응 행, 이슈가 카테고리 여러 개에 걸치나 | 행 없음. 맞출 값이 없으면 `category_code` 비움. NewsData 에서 본 값(2026-10-22 응답 50건, 여러 개가 같이 옴): `top` · `politics` · `business` · `technology` · `world` · `crime` · `domestic` · `health` · `environment` · `lifestyle` · `sports` · `entertainment`. `top` 은 주제가 아니라 비운다 | BE — 이 값으로 행을 채울 때 |
 | 8 | 기사가 언제 화면에 보이나(`released_at`) | B1 투입 때 바로 보이고, 분석이 끝나기 전에는 「분석 중」으로 보인다(`mindmapStatus`). 「분석이 끝난 기사부터 보이게」라는 사용자 제안(10-19)은 팀 확인 전이다. 그쪽으로 정하면 `released_at` 을 채우는 때와 B1 의 뜻을 바꾼다 | Q21 |
 | 9 | 받은 기사 전부에 마인드맵을 만드나, 한 번에 몇 건 받나 | 투입한 기사 전부에 `EXTRACT` 를 건다(PRD FR-31 가정). GMS 예산 상한은 약 1만 7천 건(SSOT 3절). 몇 건 받을지는 AI 파트와 | Q27 · Q4 |
 | 10 | 본문을 화면에 얼마나 보여 주나 | `body` 는 저장만 하고 API 로 안 내보냄 | Q3 · Q28 |
 | 11 | 메인 · 서브 레인을 나누는 기준, 레인을 저장하나 | 기준 전에는 레인 값 없음(`docs/api-screen.md` A4) | 팀 |
-| 12 | 본문에서 뽑은 발생 시점이 날짜까지만 있을 때 | 그날 0시(`+09:00`)로 넣고 정밀도 칸은 두지 않는다 — 화면이 날짜만 보여서. 시각을 보이는 화면이 생기면 더한다. 상대 날짜 · 현지 날짜 · 흐린 표현을 뽑는 규칙은 `api-internal.md` 5절 `EXTRACT` (2026-10-21 BE 안) | AI (`docs/api.md` 4절) |
 | 13 | 사건 요약을 기사가 붙을 때 다시 쓰나, 사건 · 이슈 요약에 AI 표시를 붙이나 | 사건 이름 · 키워드 · 요약은 새 사건 때 판정과 같은 호출에서 한 번 짓고 고정한다(2026-10-21 BE 안, 평가 뒤 다시 볼 수 있음). AI 표시는 UX `EXPERIENCE.md` 의 「AI 가 만든 요약 · 마인드맵에는 AI 생성 표시를 붙인다」를 사건 · 이슈 요약에도 따른다 | AI · FE |
 | 14 | F09 · F10 주장 · 변화 카드 테이블 | 그리지 않음 | 추후 논의 |
-| 15 | 언론사 표기 대응을 누가 맞추나, 처음 보는 언론사의 코드를 어떻게 짓나 | 처음 보는 표기는 수집 때 새 언론사로 등록하고, 묶기는 사람이 한다. 코드는 NewsData 응답의 언론사 ID 를 쓸지 구독 뒤 본다 | BE |
+| 15 | 언론사 표기 대응을 누가 맞추나, 처음 보는 언론사의 코드를 어떻게 짓나 | 처음 보는 표기는 수집 때 새 언론사로 등록하고, 묶기는 사람이 한다. 코드는 NewsData `source_id`(예: `newsis`)를 쓰는 쪽이 유력하다 — 응답에서 안정적으로 보였다(2026-10-22, AI 확인) | BE |
 | 16 | NewsData 요약이 우리 요금제에서 오는지, 한국 기사에서 쓸 만한지 | 우리 요약이 먼저, 없으면 NewsData 요약으로 대신한다(2026-10-21 BE 결정). 오지 않거나 품질이 낮으면 대신하지 않고 null | 구독 뒤 한국 기사로 확인 |
 | 17 | 데이터셋을 서비스 DB 에 넣나(검증용), 검증 실행을 따로 세나 | 정하지 않음. 넣지 않으면 서비스 첫 며칠은 비교할 기사가 적다 | AI · BE |
 

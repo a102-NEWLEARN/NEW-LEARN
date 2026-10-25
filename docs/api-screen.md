@@ -57,7 +57,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이 있으면 그것, 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) NewsData 요약으로 대신한다(2026-10-21). 두 소스 모두 null·빈 문자열·공백뿐인 문자열은 없는 것으로 처리한다(2026-10-23 팀장 확인). 둘 다 AI 가 만든 요약이라 AI 생성 표시를 붙인다. 둘 다 없으면 null | `article_mindmap.summary`, 없으면 `article.source_summary` |
 | `summarySource` | enum · null | 요약을 어디서 가져왔나. `NEWLEARN` 우리 AI · `NEWSDATA` NewsData. 화면이 출처를 보이고 싶을 때 쓴다. `summary` 가 null 이면 null | 계산 |
 | `url` | string | *원문 보기* 링크 | `article.url` |
-| `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` |
+| `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다) |
 
 회원 정보 — A15 · A17 · A18 의 응답. A14 응답도 같은 모양
 
@@ -228,7 +228,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
 | `reporter` | string · null | 기자 이름 | `article.reporter` |
-| `eventMatchStatus` | enum | 「사건을 찾는 중」과 「묶이지 않음」을 가른다 — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` | 계산 — 이 기사 `MATCH_EVENT` 작업의 상태, 없으면 `NONE` |
+| `eventMatchStatus` | enum | 「사건을 찾는 중」과 「묶이지 않음」을 가른다 — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NO_EVENT`(대표 사건이 없어 사건으로 묶지 않는 기사, W1 구현 때부터 나온다) | 계산 (`api-internal.md` 6절) — 이 기사 `MATCH_EVENT` 작업의 상태, 없으면 `NO_EVENT` 또는 `NONE` |
 | `event` | 사건 참조 · null | 속한 사건. 이슈 화면에서 이 사건을 강조한다(PRD FR-15) | `article_event` → `event` |
 | `issue` | 이슈 참조 · null | 속한 이슈. *이 기사가 속한 이슈 보기* 로 A3 · A4 를 연다 | `event.issue_id` → `issue` |
 
@@ -390,7 +390,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `sentenceIndex` | number | 그 문단 안 몇 번째 문장인가, 0부터 |
 
 - 근거는 화면에 보이지 않고 데이터로만 남긴다(2026-10-21). AI 가 기사에 없는 말을 지었는지 평가할 때 쓰고(MVP 개요 7장 「원문 근거 연결 정확도 평가」), 나중에 노드 상세 창을 만들면 그때 쓴다
-- `text` 는 그 문단에 글자 그대로 있어야 한다(PRD FR-5). API 가 저장 전에 대조해 맞지 않는 근거만 지운다. 대조는 `paragraphIndex` 가 범위 안이고 그 문단에 `text` 가 한 글자도 다르지 않게 들어 있는지만 본다. 공백 · 따옴표를 맞추지 않고, `sentenceIndex` 는 대조하지 않는다(2026-10-21 BE 안). 잎은 근거가 없어도 남긴다. 지운 개수는 로그에 남겨 평가에 쓴다. 잎까지 버릴지는 AI 와 정한다(`data-model.md` 5절 4번)
+- `text` 는 그 문단에 글자 그대로 있어야 한다(PRD FR-5). API 가 저장 전에 대조해 맞지 않는 근거만 지운다. 대조는 `paragraphIndex` 가 범위 안이고 그 문단에 `text` 가 한 글자도 다르지 않게 들어 있는지만 본다. 공백 · 따옴표를 맞추지 않고, `sentenceIndex` 는 대조하지 않는다(2026-10-21 BE 안). 잎은 근거가 없어도 남긴다(2026-10-23 AI 동의). 지운 개수는 로그에 남겨 평가에 쓴다
 - 근거는 뽑는다 — PRD SM-2 근거 연결 평가와 나중의 노드 상세 창(F05)에 쓴다. 근거 문장을 모델이 그대로 쓰게 하면 출력이 길어져 GMS 토큰이 더 들어서 **문장 번호 방식**을 권한다: 워커가 본문 문장마다 번호(`[P0-S1]` — 0번 문단 1번 문장)를 붙여 넣고, 모델은 번호만 답하고, 워커가 그 번호로 원문 문장을 꺼내 `text` 를 채운다. 그러면 `text` 가 늘 원문 그대로라 대조에서 버려지지 않는다. W1 모양은 같고, 최종 방법은 AI 가 정한다(2026-10-21 BE 안, `api.md` 4절)
 - 문장을 나누는 규칙은 AI 쪽 코드 하나에만 둔다
 
