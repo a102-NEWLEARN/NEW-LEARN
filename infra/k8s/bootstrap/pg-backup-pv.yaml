@@ -3,7 +3,7 @@
 # services/data/postgres-backup.yaml 의 PVC 가 라벨로 이 PV 를 고르고, CronJob 이 관리 서버에 떠서 여기에 쓴다
 # StorageClass newlearn-local-manual 은 prometheus-pv.yaml 에 있다 — 그 파일을 먼저 apply 한다
 # 폴더는 먼저 만들고 postgres 이미지 사용자(uid 999 · gid 999)에게만 준다(0700) — 백업에 회원 정보가 들어 있다.
-# 순서는 infra/server/README.md 「DB 백업」. Argo CD 밖에서 kubectl apply 로 (러너 · 모니터링 PV 와 같다)
+# 순서는 infra/server/db-backup.md. Argo CD 밖에서 kubectl apply 로 (러너 · 모니터링 PV 와 같다)
 # Retain: PVC 를 지워도 백업 파일은 남는다. 지울 때는 PV 와 폴더를 손으로 지운다
 apiVersion: v1
 kind: PersistentVolume
