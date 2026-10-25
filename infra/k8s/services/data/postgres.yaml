@@ -1,6 +1,6 @@
 # PostgreSQL 18 + pgvector — 로컬 개발(compose.yaml)과 같은 이미지 · 마운트 경로
 # 접속: postgres.data.svc:5432. 계정 · 비밀번호는 sealed-postgres-auth.yaml (infra/server/seal-secrets.sh db, 무작위)
-# 데이터는 워커 디스크 하나에만 있다 — 워커를 잃으면 같이 잃는다. 서버 밖 백업은 SSOT 8절
+# 데이터는 워커 디스크 하나에만 있다 — 워커를 잃으면 같이 잃는다. 백업은 postgres-backup.yaml(관리 서버, SSOT 6절 「저장소·백업」)
 apiVersion: v1
 kind: Service
 metadata:
