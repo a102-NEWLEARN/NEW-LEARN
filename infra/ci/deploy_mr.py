@@ -97,7 +97,20 @@ def ghcr_has(image, tag):
 
 
 def tag_pattern(image):
-    return re.compile(r"(- name: " + re.escape(image) + r"\n\s+newTag: )([0-9a-f]+)")
+    # 따옴표가 있든 없든 읽는다 — 따옴표를 쓰기 전에 만든 파일도 읽게
+    return re.compile(r"(- name: " + re.escape(image) + r'\n\s+newTag: )"?([0-9a-f]+)"?')
+
+
+def read_tag(content, image):
+    """kustomization 에서 그 이미지의 지금 태그. 없으면 None"""
+    found = tag_pattern(image).search(content)
+    return found.group(2) if found else None
+
+
+def write_tag(content, image, tag):
+    """그 이미지의 태그 한 줄만 바꾼다. 늘 따옴표로 — 커밋 번호가 숫자로만 되면(19187037) YAML 이 숫자로 읽어
+    kustomize 가 실패한다 (2026-10-24 태그 MR !126, Jira S15P31A102-108)"""
+    return tag_pattern(image).sub(lambda m: m.group(1) + f'"{tag}"', content, count=1)
 
 
 def is_newer_or_same(current, new_full):
@@ -147,15 +160,13 @@ def main():
             if AREAS[area] != group:
                 continue
             image = f"{IMAGE_PREFIX}-{area}"
-            pattern = tag_pattern(image)
-            found = pattern.search(content)
-            if not found:
+            current = read_tag(content, image)
+            if current is None:
                 sys.exit(f"❌ {path} 에 {image} 의 newTag 가 없다")
-            current = found.group(2)
             if current == tag or is_newer_or_same(current, COMMIT_SHA):
                 print(f"  {area}: 지금 {current} 가 같거나 더 새것 — 건너뜀")
                 continue
-            content = pattern.sub(lambda m, t=tag: m.group(1) + t, content, count=1)
+            content = write_tag(content, image, tag)
             changes.append((area, current, tag))
         if not changes:
             print(f"{group}: 바꿀 것 없음")
