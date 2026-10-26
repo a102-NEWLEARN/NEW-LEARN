@@ -71,7 +71,7 @@ erDiagram
     text category_code FK "대표 카테고리"
     text_array source_categories "원본 분류 목록"
     text_array source_tags "NewsData AI 태그"
-    text source_summary "NewsData 기사 요약"
+    text source_summary "안 씀, V3 에서 지움"
     timestamptz released_at "서비스 투입 시각"
     timestamptz created_at "적재 시각"
   }
@@ -233,7 +233,7 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고른다. 맞출 값이 없으면 비운다 |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `source_summary` | text | 아니오 | NewsData `ai_summary`(유료 요금제의 기사 요약). 우리 요약(`article_mindmap.summary`)이 없을 때 화면 요약으로 대신 쓴다(2026-10-21, `docs/api-screen.md` 1절 기사 요약). 우리 요금제에서 오는지 · 한국 기사 품질은 구독 뒤 확인한다(5절) |
+| `source_summary` | text | 아니오 | **안 쓴다 — V3 마이그레이션에서 지운다.** NewsData `ai_summary` 를 담으려던 칸이다. 한국어 기사에는 NewsData 가 요약을 만들지 않아서(`SSOT.md` 10절) 우리 요약이 없을 때 대신 쓰던 길을 없앴다(2026-10-26). 앱은 이 칸을 읽지도 쓰지도 않는다 |
 | `released_at` | timestamptz | 아니오 | 서비스 투입 시각. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입은 수집 배치가 B1 을 불러서 한다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
@@ -441,7 +441,6 @@ MVP 에 넣을지 미정이다(5절). 칸은 PRD FR-18 · FR-19 를 읽고 그�
 | 13 | 사건 요약을 기사가 붙을 때 다시 쓰나, 사건 · 이슈 요약에 AI 표시를 붙이나 | 사건 이름 · 키워드 · 요약은 새 사건 때 판정과 같은 호출에서 한 번 짓고 고정한다(2026-10-21 BE 안, 평가 뒤 다시 볼 수 있음). AI 표시는 UX `EXPERIENCE.md` 의 「AI 가 만든 요약 · 마인드맵에는 AI 생성 표시를 붙인다」를 사건 · 이슈 요약에도 따른다 | AI · FE |
 | 14 | F09 · F10 주장 · 변화 카드 테이블 | 그리지 않음 | 추후 논의 |
 | 15 | 언론사 표기 대응을 누가 맞추나, 처음 보는 언론사의 코드를 어떻게 짓나 | 처음 보는 표기는 수집 때 새 언론사로 등록하고, 묶기는 사람이 한다. 코드는 NewsData 응답의 언론사 ID 를 쓸지 구독 뒤 본다 | BE |
-| 16 | NewsData 요약이 우리 요금제에서 오는지, 한국 기사에서 쓸 만한지 | 우리 요약이 먼저, 없으면 NewsData 요약으로 대신한다(2026-10-21 BE 결정). 오지 않거나 품질이 낮으면 대신하지 않고 null | 구독 뒤 한국 기사로 확인 |
 | 17 | 데이터셋을 서비스 DB 에 넣나(검증용), 검증 실행을 따로 세나 | 정하지 않음. 넣지 않으면 서비스 첫 며칠은 비교할 기사가 적다 | AI · BE |
 
 ---

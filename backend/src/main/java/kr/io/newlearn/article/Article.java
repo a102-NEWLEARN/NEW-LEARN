@@ -22,7 +22,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 // 기사. 수집 배치가 적재하고(Jira 34), 투입(B1)하면 released_at 이 채워져 화면에 보인다 (data-model.md 2절)
-// 기자명 · 대표 카테고리 · 태그 · 요약 · 투입 시각을 채우는 일은 수집 · 투입 티켓이 더한다
+// 기자명 · 대표 카테고리 · 태그 · 투입 시각을 채우는 일은 수집 · 투입 티켓이 더한다
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -62,7 +62,8 @@ public class Article {
     @JdbcTypeCode(SqlTypes.ARRAY)
     private List<String> sourceTags;
 
-    private String sourceSummary;
+    // source_summary 칸(NewsData ai_summary)은 쓰지 않는다 — 한국어 기사에는 NewsData 가 요약을 만들지 않는다(2026-10-26).
+    // 칸은 다음 마이그레이션에서 지운다. ddl-auto validate 는 엔티티에 없는 칸을 막지 않는다
 
     private Instant releasedAt;
 

@@ -39,7 +39,7 @@ class ArticleApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].id").value(4201))
                 .andExpect(jsonPath("$.items[1].id").value(4209))
                 .andExpect(jsonPath("$.items[0].summary").value("우리 요약"))
-                .andExpect(jsonPath("$.items[0].summarySource").value("NEWLEARN"))
+                .andExpect(jsonPath("$.items[0].summarySource").doesNotExist())
                 .andExpect(jsonPath("$.items[0].publishedAt").value("2026-10-23T09:00:00+09:00"))
                 .andExpect(jsonPath("$.items[0].body").doesNotExist());
         mvc.perform(get("/api/v1/articles").param("size", "2").param("page", "1"))
@@ -63,31 +63,25 @@ class ArticleApiIntegrationTest {
     }
 
     @Test
-    void summaryFallbackAndFlatDetailFields() throws Exception {
+    void summaryIsOursOnlyAndDetailFieldsAreFlat() throws Exception {
         mvc.perform(get("/api/v1/articles/4201"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(4201))
                 .andExpect(jsonPath("$.reporter").value("기자"))
                 .andExpect(jsonPath("$.summary").value("우리 요약"))
-                .andExpect(jsonPath("$.summarySource").value("NEWLEARN"))
+                .andExpect(jsonPath("$.summarySource").doesNotExist())
                 .andExpect(jsonPath("$.event.id").value(4200))
                 .andExpect(jsonPath("$.issue.id").value(4200))
                 .andExpect(jsonPath("$.eventMatchStatus").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.body").doesNotExist())
                 .andExpect(jsonPath("$.article").doesNotExist());
-        for (long id : new long[] {4202, 4204}) {
-            mvc.perform(get("/api/v1/articles/" + id))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.summary").value("NewsData 요약"))
-                    .andExpect(jsonPath("$.summarySource").value("NEWSDATA"));
-        }
-        for (long id : new long[] {4203, 4205}) {
+        // 4202 · 4204 는 NewsData 요약(source_summary)만 있다 — 대신 쓰지 않는다(2026-10-26)
+        for (long id : new long[] {4202, 4203, 4204, 4205}) {
             mvc.perform(get("/api/v1/articles/" + id))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.summary").hasJsonPath())
                     .andExpect(jsonPath("$.summary").isEmpty())
-                    .andExpect(jsonPath("$.summarySource").hasJsonPath())
-                    .andExpect(jsonPath("$.summarySource").isEmpty());
+                    .andExpect(jsonPath("$.summarySource").doesNotExist());
         }
     }
 

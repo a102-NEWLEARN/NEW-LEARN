@@ -11,7 +11,6 @@ public record ArticleSummaryResponse(
         OffsetDateTime publishedAt,
         CategoryRef category,
         String summary,
-        SummarySource summarySource,
         String url,
         ArticleAnalysisStatus mindmapStatus) {
     public record PublisherRef(String code, String name) {}

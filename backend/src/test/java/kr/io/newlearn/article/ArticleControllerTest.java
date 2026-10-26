@@ -61,7 +61,6 @@ class ArticleControllerTest {
                 null,
                 null,
                 null,
-                null,
                 "https://fixture.invalid",
                 ArticleAnalysisStatus.NONE);
         when(service.get(42))
@@ -70,8 +69,9 @@ class ArticleControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(42))
                 .andExpect(jsonPath("$.publisher.name").value("신문"))
-                .andExpect(jsonPath("$.summarySource").hasJsonPath())
-                .andExpect(jsonPath("$.summarySource").isEmpty())
+                .andExpect(jsonPath("$.summary").hasJsonPath())
+                .andExpect(jsonPath("$.summary").isEmpty())
+                .andExpect(jsonPath("$.summarySource").doesNotExist())
                 .andExpect(jsonPath("$.reporter").hasJsonPath())
                 .andExpect(jsonPath("$.reporter").isEmpty())
                 .andExpect(jsonPath("$.eventMatchStatus").value("NONE"))
