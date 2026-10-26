@@ -1,13 +1,14 @@
 package kr.io.newlearn.common.security;
 
+import static kr.io.newlearn.common.security.TestCsrf.csrfToken;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -96,7 +97,7 @@ class SecurityRulesTest {
     // 내부 API(/internal/v1) 인증 방식은 아직 못 정했다(SSOT.md 8절). 그때까지 막아 둔다
     @Test
     void internalApisStayLocked() throws Exception {
-        mockMvc.perform(post("/internal/v1/articles/1/release").with(csrf()))
+        mockMvc.perform(post("/internal/v1/articles/1/release").with(csrfToken()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
@@ -116,11 +117,54 @@ class SecurityRulesTest {
     void signupAndLoginWithCsrfTokenPassSecurity() throws Exception {
         for (String path : new String[] {"/api/v1/members", "/api/v1/auth/login"}) {
             MvcResult result = mockMvc.perform(post(path)
-                            .with(csrf())
+                            .with(csrfToken())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andReturn();
             assertThat(result.getResponse().getStatus()).as(path).isNotIn(401, 403);
         }
+    }
+
+    // CSRF 번호표(csrf.spa(), Jira 62) — 화면은 첫 POST(가입 · 로그인) 전에 아무 응답에서나 XSRF-TOKEN 쿠키를 받는다
+    // 화면(axios)이 그 값을 읽어 헤더로 돌려보내야 해서 HttpOnly 가 아니다
+    @Test
+    void anyResponseHandsOutCsrfTokenCookie() throws Exception {
+        Cookie token = mockMvc.perform(get("/api/v1/categories"))
+                .andReturn()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+        assertThat(token).isNotNull();
+        assertThat(token.getValue()).isNotBlank();
+        assertThat(token.isHttpOnly()).isFalse();
+    }
+
+    // 쿠키 값을 X-XSRF-TOKEN 헤더(axios 기본 이름)로 돌려보내면 통과하고, 헤더가 없거나 틀리면 403 FORBIDDEN 이다
+    @Test
+    void csrfTokenCookieMustComeBackAsHeader() throws Exception {
+        Cookie token = mockMvc.perform(get("/api/v1/categories"))
+                .andReturn()
+                .getResponse()
+                .getCookie("XSRF-TOKEN");
+        assertThat(token).isNotNull();
+        MvcResult passed = mockMvc.perform(post("/api/v1/auth/login")
+                        .cookie(token)
+                        .header("X-XSRF-TOKEN", token.getValue())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andReturn();
+        assertThat(passed.getResponse().getStatus()).isNotIn(401, 403);
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .cookie(token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .cookie(token)
+                        .header("X-XSRF-TOKEN", "wrong-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
     }
 }

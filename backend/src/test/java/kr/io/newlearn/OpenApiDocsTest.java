@@ -46,7 +46,11 @@ class OpenApiDocsTest {
     }
 
     static String op(String path) {
-        return "$.paths['" + path + "'].get";
+        return op("get", path);
+    }
+
+    static String op(String method, String path) {
+        return "$.paths['" + path + "']." + method;
     }
 
     @Test
@@ -55,6 +59,9 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.tags[1].name").value("이슈"))
                 .andExpect(jsonPath("$.tags[2].name").value("사건"))
                 .andExpect(jsonPath("$.tags[3].name").value("기사"))
+                .andExpect(jsonPath("$.tags[4].name").value("회원"))
+                .andExpect(jsonPath("$.tags[3].description", not(emptyOrNullString())))
+                .andExpect(jsonPath("$.tags[4].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[0].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[1].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[2].description", not(emptyOrNullString())))
@@ -153,5 +160,36 @@ class OpenApiDocsTest {
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.Problem.properties.properties")
                         .doesNotExist());
+    }
+
+    // 가입 · 로그인 · 로그아웃(A14 ~ A16, Jira 62) — 성공 응답과 오류 응답이 실제와 같다
+    @Test
+    void memberApisAreConfirmedWithTheirResponses() throws Exception {
+        String signUp = op("post", "/api/v1/members");
+        String login = op("post", "/api/v1/auth/login");
+        String logout = op("post", "/api/v1/auth/logout");
+        var result = docs();
+        result.andExpect(jsonPath(signUp + ".summary", startsWith("[확정] A14 ")))
+                .andExpect(jsonPath(login + ".summary", startsWith("[확정] A15 ")))
+                .andExpect(jsonPath(logout + ".summary", startsWith("[확정] A16 ")));
+        for (String operation : new String[] {signUp, login, logout}) {
+            result.andExpect(jsonPath(operation + ".tags[0]").value("회원"));
+        }
+        result.andExpect(jsonPath(signUp + ".responses['201'].content['application/json']")
+                        .exists())
+                .andExpect(jsonPath(login + ".responses['200'].content['application/json']")
+                        .exists())
+                .andExpect(jsonPath(logout + ".responses['204']").exists());
+        String[][] errors = {
+            {signUp, "400"}, {signUp, "409"}, {login, "400"}, {login, "401"}, {login, "429"}, {logout, "401"}
+        };
+        for (String[] error : errors) {
+            result.andExpect(jsonPath(
+                    error[0] + ".responses['" + error[1] + "'].content['application/problem+json'].schema['$ref']",
+                    endsWith("/Problem")));
+        }
+        result.andExpect(jsonPath(signUp + ".responses['409'].description", containsString("LOGIN_ID_TAKEN")))
+                .andExpect(jsonPath(login + ".responses['401'].description", containsString("LOGIN_FAILED")))
+                .andExpect(jsonPath(login + ".responses['429'].description", containsString("TOO_MANY_REQUESTS")));
     }
 }
