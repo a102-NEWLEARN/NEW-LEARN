@@ -59,6 +59,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      # 직원용 문 출입증 (docs/api.md 1절). 비우면 W1 · B1 이 모두 막힌다
+      INTERNAL_WORKER_KEY: ${INTERNAL_WORKER_KEY:-}
+      INTERNAL_BATCH_KEY: ${INTERNAL_BATCH_KEY:-}
       GRADLE_USER_HOME: /cache/gradle
       GRADLE_BUILD_DIR: /cache/build # build.gradle 이 읽는다
     volumes:
