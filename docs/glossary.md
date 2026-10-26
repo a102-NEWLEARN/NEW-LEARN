@@ -64,7 +64,8 @@ flowchart LR
 |---|---|---|
 | 적재 | NewsData · 데이터셋 기사를 DB 에 넣는 것. 화면에는 아직 안 보인다 | `article` 행이 생긴다 (`created_at`) |
 | 수집 실행 | CronJob 이 NewsData 를 한 번 부르는 일. 하루 두 번(00 · 12시) | `ingest_run` 한 행 |
-| 투입 | 적재한 기사를 서비스에 내놓는 것. 이때 분석이 시작된다 | `article.released_at`, B1 |
+| 투입 | 적재한 기사에 분석을 거는 것(B1). 기사는 아직 화면에 안 보인다 — 보이는 것은 「공개」 | B1, `ALREADY_RELEASED` |
+| 공개 | 기사가 화면에 보이기 시작하는 것. EXTRACT 결과(마인드맵)를 처음 저장할 때 API 가 한다 — 분석이 끝난 기사부터 보인다(2026-10-26, Jira 34). 공개 전 기사는 모든 조회 · 집계에서 없는 것으로 본다 | `article.released_at`, `Article.markReleased` |
 | 분석 작업 | 기사 하나의 분석 단계 하나 | `analysis_job` 한 행, 메시지의 `jobId` |
 | 분석 단계 | 분석 작업의 종류 넷 | `stage` = `EXTRACT` · `EMBED` · `MATCH_EVENT` · `ISSUE` |
 | 핵심 정보 추출 | 기사에서 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망)를 뽑아 마인드맵을 만드는 단계 | `EXTRACT` |

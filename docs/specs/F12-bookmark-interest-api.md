@@ -7,7 +7,7 @@
 - AC-1: A20 `PUT /api/v1/members/me/bookmarks/{articleId}` 는 200 과 `{ articleId, bookmarked: true, bookmarkedAt }` 다. 이미 담긴 기사를 또 담아도 같은 응답이고 `bookmark` 에는 한 줄, 담은 시각은 그대로다. 같은 요청 두 개를 동시에 보내도 둘 다 200 · 한 줄이다(500 이 나지 않는다)
 - AC-2: A21 `DELETE` 는 200 과 `{ articleId, bookmarked: false, bookmarkedAt: null }` 다. 안 담긴 기사, 없는 기사 id 를 빼도 같은 응답이다
 - AC-3: A22 `GET /api/v1/members/me/bookmarks` 는 담은 기사를 쪽 없이 전부 `items` 로 준다. 담은 시각 최신순, 같으면 기사 `id` 내림차순. 항목은 기사 요약 + `bookmarked: true` + `bookmarkedAt`. 없으면 빈 `items`
-- AC-4: 없는 기사 · 투입 전 기사를 A20 으로 담으면 404 `ARTICLE_NOT_FOUND`, 숫자가 아닌 `articleId` 는 A20 · A21 모두 400 `VALIDATION_FAILED`
+- AC-4: 없는 기사 · 공개 전 기사를 A20 으로 담으면 404 `ARTICLE_NOT_FOUND`, 숫자가 아닌 `articleId` 는 A20 · A21 모두 400 `VALIDATION_FAILED`
 - AC-5: A6 · A7 · A8 의 `bookmarked` 는 로그인한 회원이 담은 기사만 true, 다른 회원 · 손님에게는 false 다. 목록(A6 · A7)은 항목마다 따로 쿼리하지 않는다 — 쪽의 기사 id 를 모아 한 번에 찾는다
 
 ## 64 관심 이슈
