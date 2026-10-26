@@ -5,6 +5,7 @@ resources:
   - ai.yaml
   - model-cache.yaml
   - sealed-ghcr-pull.yaml
+  - sealed-internal-api.yaml
 # 배포 태그 — dev 에서 구운 커밋 짧은 SHA 8자. CI 태그 MR 잡이 이 블록의 newTag 만 바꾼다
 # 태그는 따옴표로 감싼다 — 숫자로만 된 번호(19187037)를 YAML 이 숫자로 읽으면 kustomize 가 실패한다 (Jira S15P31A102-108)
 images:

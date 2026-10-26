@@ -108,6 +108,16 @@ spec:
               value: "1"
             - name: HF_HOME
               value: /models/hf
+            # 분석 결과를 W1 로 돌려줄 backend 주소와 직원용 문 출입증(워커 키) — AI 코드가 아직 안 읽는다, 자리만 (Jira 30, docs/api-internal.md)
+            # 봉인(seal-secrets.sh internal-api) 전에는 키가 비어 W1 이 401 이다
+            - name: BACKEND_URL
+              value: http://backend.app.svc:8080
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api
+                  key: INTERNAL_API_KEY
+                  optional: true
           volumeMounts:
             - name: models
               mountPath: /models
