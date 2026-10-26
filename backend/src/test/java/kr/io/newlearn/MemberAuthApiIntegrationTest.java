@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -299,7 +301,7 @@ class MemberAuthApiIntegrationTest {
         ExecutorService pool = Executors.newFixedThreadPool(requests);
         CountDownLatch start = new CountDownLatch(1);
         try {
-            List<Future<Integer>> statuses = java.util.stream.IntStream.range(0, requests)
+            List<Future<Integer>> statuses = IntStream.range(0, requests)
                     .mapToObj(i -> pool.submit(() -> {
                         start.await();
                         return login("race_08", "guess-" + i)
@@ -309,7 +311,7 @@ class MemberAuthApiIntegrationTest {
                     }))
                     .toList();
             start.countDown();
-            List<Integer> codes = new java.util.ArrayList<>();
+            List<Integer> codes = new ArrayList<>();
             for (Future<Integer> status : statuses) {
                 codes.add(status.get(60, TimeUnit.SECONDS));
             }
