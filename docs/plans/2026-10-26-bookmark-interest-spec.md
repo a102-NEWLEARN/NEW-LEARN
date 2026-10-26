@@ -83,3 +83,9 @@
 ## 흐름
 
 브랜치 `docs/backend/S15P31A102-114-bookmark-interest-spec` ← `origin/dev` → 커밋 → reviewer → MR(→ dev, 문서만) → 머지 직전 원격 dev · 열린 MR 확인 → 머지 → 분야 브랜치 맞추기 → Jira 63 · 64 고치기 · 114 댓글 → 하린님 · FE 에 보낼 메시지 초안
+
+## 하면서 달라진 것 (2026-10-26)
+
+- 리뷰(reviewer 조수)로 더한 것: 동시에 두 번 담을 때를 위해 `insert … on conflict do nothing` 을 명세 · 데이터 모델에 적고 AC-1 · 6 에 동시 요청 기준, AC-13 의 응답 코드를 PUT · DELETE · GET 으로 나눔, api.md 머리의 범위(A25) · 기능 이름(F12 회원 · 관심 분야), 사건 0개 이슈 카드 · 캐시 문구 · 관계 다중성 · cascade 까닭
+- 계획의 「바꿀 파일」에 없던 `docs/glossary.md` 에 북마크 · 나의 뉴스함 · 관심 이슈(별표) 줄을 더함 — 관심 분야와 헷갈리기 쉬워서
+- api.md · data-model.md 머리에 v1.2(Jira 114) 줄

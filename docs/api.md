@@ -4,6 +4,7 @@
 
 - **v0 (2026-10-19, Jira S15P31A102-28 · 80)**: 확정 기능(F01~F08 · F11)의 흐름 A · B 에 필요한 것만 담았다
 - **v1 (2026-10-21, Jira S15P31A102-99)**: 10-20 팀 회의 · 10-21 마인드맵 회의 결과를 더했다. 사용자 URL 분석(A10 · A11 · A12)을 지우고, 회원(A14 ~ A18) · 용어사전(A19) · 이슈를 만드는 분석 단계(`ISSUE`, 제안)를 더했다. 아직 코드가 없다
+- **v1.2 (2026-10-26, Jira S15P31A102-114)**: 북마크 · 관심 이슈(A20 ~ A25)를 더하고, 기사 · 이슈 응답에 회원 기준 `bookmarked` · `interested` 칸을 더했다(1절 「내 상태 칸」)
 - **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 작업 실패 코드 `INPUT_NOT_ANALYZABLE` · `LLM_UNAVAILABLE` · `RESULT_SCHEMA_INVALID`(API 가 적음)를 더하고 4절 AI 질문을 닫았다. 워커 계약의 바뀐 곳은 `api-internal.md` v1.1
 - 1절 공통 규칙은 나중에 바꾸면 비싸서 먼저 정한다. FE · AI 와 합의하기 전까지는 제안이다(`SSOT.md` 8절)
 - 응답 필드 · 엔드포인트는 기능 티켓마다 더한다. 구현이 생기면 그 MR 에서 이 문서들을 같이 고친다
@@ -12,7 +13,7 @@
 | 문서 | 담는 것 |
 |---|---|
 | `docs/api.md` (이 문서) | 계약 지도, 공통 규칙, 오류 코드, 엔드포인트 목록과 흐름, 질문, Jira 대조 |
-| `docs/api-screen.md` | 화면용 A1 ~ A9 · A13 ~ A19 의 인자 · 응답 필드(용도 · 어디서 오나) · 예시, 마인드맵 `content` 모양 |
+| `docs/api-screen.md` | 화면용 A1 ~ A9 · A13 ~ A25 의 인자 · 응답 필드(용도 · 어디서 오나) · 예시, 마인드맵 `content` 모양 |
 | `docs/api-internal.md` | 수집 배치 투입(B1) · 작업 큐 · 워커 결과(W1)의 필드, 작업 상태 |
 
 번호 A10 · A11 · A12 는 지운 사용자 URL 분석이 쓰던 번호라 비워 둔다. 옛 문서 · Jira 의 번호와 헷갈리지 않게 새 엔드포인트는 A14 부터 붙였다.
@@ -21,7 +22,7 @@
 
 ```mermaid
 flowchart LR
-  FE["화면 (React)"] -- "A1~A9 · A13~A19 · /api/v1" --> API["API 서버 (Spring Boot)"]
+  FE["화면 (React)"] -- "A1~A9 · A13~A25 · /api/v1" --> API["API 서버 (Spring Boot)"]
   N["NewsData.io"] -- "기사 받기" --> B["수집 배치 (CronJob 하루 두 번)"]
   B -- "B1 투입 · /internal/v1" --> API
   B -. "적재 (길 미정)" .-> DB[("PostgreSQL + pgvector")]
@@ -52,7 +53,7 @@ flowchart LR
 | 투입 전 기사 | `released_at` 이 빈 기사(`data-model.md` 2절)는 모든 조회 · 집계 · 검색에서 없는 것으로 본다. 단건 조회도 404 다 |
 | 오류 | RFC 9457 Problem Details(`application/problem+json`) + `code`. Spring 의 `ProblemDetail` 타입을 쓴다. 컨트롤러 예외는 `@RestControllerAdvice`, 인증 · 권한 오류는 Security 진입점에서 같은 모양으로 만든다 — 그래야 모든 오류에 `code` 가 붙는다 |
 | 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) · 북마크 · 관심 이슈(A20 ~ A25)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 번호표 쿠키가 없는 요청이면 어느 응답에든 새 번호표 쿠키가 붙는다 — 화면은 앱이 뜰 때 부르는 GET(A1 · A17 등) 응답으로 첫 번호표를 받고, 가입 · 로그인 · 로그아웃 때 번호표가 새로 바뀐다. 세션 쿠키 이름은 `SESSION`(`HttpOnly`)이고 로그인한 때부터 하루 남는다(쿠키 `Max-Age` 1일 · Redis 세션 비활동 만료 1일) — 브라우저를 닫아도 하루는 로그인이 남는다. 두 쿠키 모두 `SameSite=Lax` 이고 사이트에서는 `Secure` 다(2026-10-26 Jira 62). 어느 주소를 로그인 없이 여는지는 `backend` 의 `SecurityConfig` 한 곳에 있다(Jira 100). Swagger 화면(`/swagger-ui.html`)과 OpenAPI 문서(`/v3/api-docs`)도 개발하는 동안 로그인 없이 연다 — 코드에서 만든 사본이라 계약의 원본은 이 문서다. 내부 API 는 문서에서도 뺀다. 다시 잠글지는 `SSOT.md` 8절(Jira 107). 로그인 실패 잠금(5번 틀리면 1분)은 `api-screen.md` A15. 로그인 없이 부르는 A14 · A15 · A19 의 주소별 요청 수 상한과 내부 API 를 막는 법은 `SSOT.md` 8절 「API 인증」 |
-| 내 상태 칸 | 기사 응답(A6 · A7 · A8 · A22)의 `bookmarked`, 이슈 응답(A2 · A3 · A25)의 `interested` 는 세션 회원 기준이고 손님이면 false 다(2026-10-26 Jira 114). 같은 주소라도 로그인 여부로 응답이 다르니, 응답을 캐시하게 되면 세션(쿠키)마다 나눈다 |
+| 내 상태 칸 | 기사 응답(A6 · A7 · A8 · A22)의 `bookmarked`, 이슈 응답(A2 · A3 · A25)의 `interested` 는 세션 회원 기준이고 손님이면 false 다(2026-10-26 Jira 114). 같은 주소라도 로그인 여부로 응답이 다르다. 응답을 캐시하게 되면 회원 공통 부분만 캐시하고 두 칸은 캐시 밖에서 덧씌운다 |
 
 목록 응답
 
@@ -195,7 +196,7 @@ flowchart LR
 | A17 | `GET /api/v1/members/me` | 내 정보와 관심 분야 (F12, Jira 65) |
 | A18 | `PUT /api/v1/members/me/categories` | 관심 분야 바꾸기 (F12, Jira 65) |
 | A19 | `GET /api/v1/dictionary` | 용어사전 — 표준국어대사전 검색 (F13 용어사전, Jira 102) |
-| A20 | `PUT /api/v1/members/me/bookmarks/{articleId}` | 북마크 담기 — 기사 옆 북마크 아이콘 (F12 회원이 저장한 것, Jira 63) |
+| A20 | `PUT /api/v1/members/me/bookmarks/{articleId}` | 북마크 담기 — 기사 옆 북마크 아이콘 (F12 회원 · 관심 분야, Jira 63) |
 | A21 | `DELETE /api/v1/members/me/bookmarks/{articleId}` | 북마크 빼기 (F12, Jira 63) |
 | A22 | `GET /api/v1/members/me/bookmarks` | 나의 뉴스함 — 담은 기사 전부, 최근 담은 순 (F12, Jira 63) |
 | A23 | `PUT /api/v1/members/me/interest-issues/{issueId}` | 관심 이슈 저장 — 이슈 이름 옆 별표 (F12, Jira 64) |
@@ -245,7 +246,7 @@ FE
 5. 기사 목록 요약이 `null` 일 때(분석 전 · 실패 · 우리 요약을 끈 동안) 화면에 무엇을 보이나. NewsData 요약으로 대신하던 길은 없앴다(2026-10-26)
 6. user-flow 의 「데이터가 아직 없는 이슈 — 준비 중 + 사건 · 기사 수」를 화면에 어떻게 보이나. 사건 0개인 기존 이슈의 API 조회는 `api-screen.md` A3·A4로 확정했다(2026-10-23). 정상 생성의 사건 3개 조건은 유지한다
 7. 회원 API(A14 ~ A18) 응답 모양과 로그인 방식(세션 쿠키 + CSRF 번호표, 1절 「인증」 — 화면은 axios 기본값 그대로, 첫 번호표는 앱이 뜰 때 부르는 GET 응답으로 받는다), 손님이 A17 을 부르면 401, 입력 오류 `errors[].reason` 은 한국어 문장(2절), 로그인 5번 틀리면 1분 잠금(429), 용어사전(A19) 응답 모양(`api-screen.md`)을 그대로 써도 되나. A14 ~ A16 은 이대로 만들었다(2026-10-26 Jira 62)
-8. 북마크 · 관심 이슈(A20 ~ A25, 2026-10-26 Jira 114) — 담기 · 빼기는 `PUT` · `DELETE`(겹쳐도 204), 목록은 쪽 없이 전부, 아이콘은 기사 · 이슈 응답의 `bookmarked` · `interested` 로 채우는 모양(`api-screen.md`)을 그대로 써도 되나. UX 문서의 「나의 뉴스함 · 관심 이슈 = 곧 제공」을 MVP 로 바꿔야 한다
+8. 북마크 · 관심 이슈(A20 ~ A25, 2026-10-26 Jira 114) — 담기 · 빼기는 `PUT` · `DELETE`(겹쳐도 204), 목록은 쪽 없이 전부, 아이콘은 기사 · 이슈 응답의 `bookmarked` · `interested` 로 채우는 모양(`api-screen.md`)을 그대로 써도 되나. UX 문서의 「나의 뉴스함 · 관심 이슈 = 곧 제공」을 MVP 로 바꿔야 한다. 나의 뉴스함 분야 탭은 기사 자신의 `category` 로 센다(프로토타입은 기사가 속한 이슈의 분야) — 분야가 없는(null) 기사는 「전체」에만 든다. 홈 추천에서 별표한 이슈를 먼저 보이는 것은 화면이 A25 와 A2 를 조합한다(A2 에 정렬 인자를 더하지 않는다)
 
 AI
 
@@ -260,7 +261,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | Jira | 맡는 것 | 메모 |
 |---|---|---|
 | 100 API 공통 기반 | 1절 공통 규칙 · 2절 오류 모양, 둘러보기 API 를 로그인 없이 열기, 코드 약속 | 다른 API 티켓보다 먼저 |
-| 101 핵심 테이블 | `data-model.md` v1 실선 테이블 14개 마이그레이션 · 엔티티 | 다른 API 티켓보다 먼저 |
+| 101 핵심 테이블 | `data-model.md` v1 의 V2 실선 테이블 14개 마이그레이션 · 엔티티 | 다른 API 티켓보다 먼저 |
 | 41 | A1 · A2 (`eventCount` · `articleCount` · `lastEvent`, 새로 생성된 이슈 순 `sort=createdAt`), 빈 `items` | |
 | 42 | A7 · A8 (목록과 상세가 같은 `id`, `mindmapStatus` · `eventMatchStatus`) | |
 | 48 | A3 · A4 (`occurredAt` 과 기사 쪽 `publishedAt` 은 다른 필드, `label` · `lane`) | 사건 사이 선은 그리지 않기로 했고(2026-10-20) 언론사 필터는 P1(PRD FR-23)이라 뺐다 |
