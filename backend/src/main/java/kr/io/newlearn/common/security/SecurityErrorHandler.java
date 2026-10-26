@@ -19,23 +19,35 @@ import tools.jackson.databind.json.JsonMapper;
 public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
     private final JsonMapper jsonMapper;
+    private final String unauthorizedDetail;
+    private final String forbiddenDetail;
 
+    // 손님용 문 — 로그인하지 않았다(401), 권한이 없거나 CSRF 번호표가 없거나 틀렸다(403)
     public SecurityErrorHandler(JsonMapper jsonMapper) {
-        this.jsonMapper = jsonMapper;
+        this(jsonMapper, "로그인이 필요한 주소다", "허락되지 않은 요청이다 (권한 또는 CSRF 번호표)");
     }
 
-    // 로그인하지 않았다 → 401
+    private SecurityErrorHandler(JsonMapper jsonMapper, String unauthorizedDetail, String forbiddenDetail) {
+        this.jsonMapper = jsonMapper;
+        this.unauthorizedDetail = unauthorizedDetail;
+        this.forbiddenDetail = forbiddenDetail;
+    }
+
+    // 직원용 문(/internal/**, Jira 30) — 출입증이 없거나 틀렸다(401), 남의 문 출입증이다(403). 코드는 같고 설명만 다르다
+    static SecurityErrorHandler forInternalApi(JsonMapper jsonMapper) {
+        return new SecurityErrorHandler(jsonMapper, "출입증(X-Internal-Key)이 없거나 맞지 않는다", "이 출입증으로는 열 수 없는 주소다");
+    }
+
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException ex)
             throws IOException {
-        write(request, response, ErrorCode.UNAUTHORIZED, "로그인이 필요한 주소다");
+        write(request, response, ErrorCode.UNAUTHORIZED, unauthorizedDetail);
     }
 
-    // 로그인은 했지만 허락되지 않았거나, POST · PUT · DELETE 에 CSRF 번호표가 없거나 틀렸다 → 403
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException ex)
             throws IOException {
-        write(request, response, ErrorCode.FORBIDDEN, "허락되지 않은 요청이다 (권한 또는 CSRF 번호표)");
+        write(request, response, ErrorCode.FORBIDDEN, forbiddenDetail);
     }
 
     private void write(HttpServletRequest request, HttpServletResponse response, ErrorCode errorCode, String detail)

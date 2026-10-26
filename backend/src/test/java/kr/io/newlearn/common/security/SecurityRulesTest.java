@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.http.Cookie;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -18,6 +19,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,9 +27,20 @@ import org.springframework.web.bind.annotation.RestController;
 // 로그인 없이 여는 주소와 막는 주소 (docs/api.md 1절 「인증」, Jira 100). 로그인하지 않은 손님으로 부른다
 // 실제 API 컨트롤러를 가져오지 않고 보안 규칙만 본다. 열린 주소는 보안을 통과해 404 NOT_FOUND다.
 // @WebMvcTest 는 SecurityFilterChain 을 스스로 가져오지 않아 SecurityConfig 를 꼭 넣는다
+// 직원용 문(/internal/**)은 체인이 따로라 InternalApiSecurityConfig 도 넣고, 시험용 출입증 두 장을 준다 (Jira 30)
 @WebMvcTest(controllers = SecurityRulesTest.NoEndpoints.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, InternalApiSecurityConfig.class})
+@TestPropertySource(
+        properties = {
+            "newlearn.internal.worker-key=" + SecurityRulesTest.WORKER_KEY,
+            "newlearn.internal.batch-key=" + SecurityRulesTest.BATCH_KEY
+        })
 class SecurityRulesTest {
+
+    static final String WORKER_KEY = "test-worker-key";
+    static final String BATCH_KEY = "test-batch-key";
+    static final String W1 = "/internal/v1/analysis-jobs/1/result";
+    static final String B1 = "/internal/v1/articles/1/release";
 
     @RestController
     static class NoEndpoints {}
@@ -36,7 +49,7 @@ class SecurityRulesTest {
     MockMvc mockMvc;
 
     @Autowired
-    SecurityFilterChain securityFilterChain;
+    List<SecurityFilterChain> securityFilterChains;
 
     // 둘러보기(A1 ~ A9 · A13)와 용어사전(A19). /api/v1/categories 처럼 /** 앞 주소 자체도 열려야 한다
     @Test
@@ -88,16 +101,59 @@ class SecurityRulesTest {
     // (켜 두면 스프링이 만든 임시 계정으로 Basic 로그인이 되고, POST /logout 이 열린다)
     @Test
     void builtInLoginAndLogoutAreOff() {
-        assertThat(securityFilterChain.getFilters())
-                .noneMatch(filter -> filter instanceof BasicAuthenticationFilter)
-                .noneMatch(filter -> filter instanceof UsernamePasswordAuthenticationFilter)
-                .noneMatch(filter -> filter instanceof LogoutFilter);
+        assertThat(securityFilterChains).hasSize(2);
+        for (SecurityFilterChain chain : securityFilterChains) {
+            assertThat(chain.getFilters())
+                    .noneMatch(filter -> filter instanceof BasicAuthenticationFilter)
+                    .noneMatch(filter -> filter instanceof UsernamePasswordAuthenticationFilter)
+                    .noneMatch(filter -> filter instanceof LogoutFilter);
+        }
     }
 
-    // 내부 API(/internal/v1) 인증 방식은 아직 못 정했다(SSOT.md 8절). 그때까지 막아 둔다
+    // 직원용 문(/internal/v1)은 출입증(X-Internal-Key)이 없거나 틀리면 401 이다. 워커 · 배치는 CSRF 번호표를 안 보낸다
     @Test
-    void internalApisStayLocked() throws Exception {
-        mockMvc.perform(post("/internal/v1/articles/1/release").with(csrfToken()))
+    void internalApisWithoutValidKeyAreUnauthorized() throws Exception {
+        for (String path : new String[] {W1, B1}) {
+            mockMvc.perform(post(path))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+            mockMvc.perform(post(path).header(InternalKeyFilter.HEADER, "wrong-key"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        }
+    }
+
+    // 출입증은 제 문만 연다 — 워커 키는 W1, 배치 키는 B1. 남의 문 키면 403 이다
+    @Test
+    void internalKeyOpensOnlyItsOwnDoor() throws Exception {
+        mockMvc.perform(post(W1).header(InternalKeyFilter.HEADER, BATCH_KEY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(post(B1).header(InternalKeyFilter.HEADER, WORKER_KEY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        // 정하지 않은 직원용 주소는 어느 키로도 못 연다
+        mockMvc.perform(post("/internal/v1/other").header(InternalKeyFilter.HEADER, WORKER_KEY))
+                .andExpect(status().isForbidden());
+    }
+
+    // 맞는 키면 CSRF 번호표 없이 보안을 지난다(아직 컨트롤러가 없어 404). 세션 · 번호표 쿠키를 만들지 않는다
+    @Test
+    void matchingKeyPassesWithoutCsrfOrSession() throws Exception {
+        MvcResult worker = mockMvc.perform(post(W1).header(InternalKeyFilter.HEADER, WORKER_KEY))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andReturn();
+        assertThat(worker.getResponse().getCookie("XSRF-TOKEN")).isNull();
+        assertThat(worker.getRequest().getSession(false)).isNull();
+        mockMvc.perform(post(B1).header(InternalKeyFilter.HEADER, BATCH_KEY)).andExpect(status().isNotFound());
+    }
+
+    // 출입증은 직원용 문에서만 쓴다. 손님용 문에서는 로그인 대신이 되지 않는다
+    @Test
+    void internalKeyIsNotALoginForPublicApis() throws Exception {
+        mockMvc.perform(get("/api/v1/members/me").header(InternalKeyFilter.HEADER, WORKER_KEY))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
