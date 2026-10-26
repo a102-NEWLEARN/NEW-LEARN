@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: internal-api
+  namespace: ai
+spec:
+  encryptedData:
+    INTERNAL_API_KEY: AgALG6JkIiXrDRSKR2OHaohW3Bo4kdimXRfs5nxNhWV73MgVhKAQSoMfkEDdb0WFO+4vOJI/M1VeuUoYjmO71aQMnwMOE3sNgCJb7oiNiUpVsbotbKMk22GN5U7yGrW6hdOGgpoMD6PYoeSVTOPLmY+XxZuOqAoinmkUVlQcmAo2IAJ4mDT6JMOWHDnaA4bcSxMSYV6dah3uk4mCdepLoVTRJk6MHs2OrMhsEBYeUWobbilNB/JZF1vTnQ614cDpbpxfnb60L86lYZG4ZqV58FrwO2IC4bTIjPJ9frHfgEjHX679X+39lcGAI01a0Y9p8F7ewiAx71yyE1xbJ3neeXtTXOVASjU8nle3hJ4fYi5aZDsm5esYCnV3YrBVI3KdeGjFYMhFfFs2bYslYySkz+JtTOCUnjPR0XnBK//MDPox7TiPjUZqapnlF5rBEEZTp+V5in9qQ6MLsHqLso+G1wkTdcqEz+L3b/iyKtTPqg8axJCvgmCUnBZuIy7FKs1R/tC7SeB1b5FN9MoPe+E4x3thbYlxgWsMTvLs2TEyqmMFtycQr5ApAoBXQiwTHwqnaXkUpXknTmL47VSmunY9WqQwzJYQ4FgZ+03rWhD2McBW+mnuGq56dUHsFqG08s2bN0R2fJUaVWtvjpYZH4x1b64HXkoFwVPyZ8u8oo2Z0lTRrmecp9ffK62h/42YZU5gKXRXqjWacT0+ambKqkqLJdBRWbiFfFS+A3CFynIwNuE8ACu6nCQcGRQnPUCDIpFpdthe+wDsnPH1sZagTgZbuigd
+  template:
+    metadata:
+      name: internal-api
+      namespace: ai
