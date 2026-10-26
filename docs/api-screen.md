@@ -164,12 +164,15 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
 | `id` · `title` · `label` · `occurredAt` | 사건 참조 | 패널 제목 · 날짜 | `event` |
-| `summary` | string · null | 사건 요약(AI 생성). 사건 핵심 근거는 보이지 않는다(2026-10-20) | `event.summary` |
+| `summary` | string · null | 저장된 사건 요약(AI 생성). 조회 중 재생성하지 않는다(2026-10-26). 사건 핵심 근거는 보이지 않는다(2026-10-20) | `event.summary` |
 | `occurredAtBasis` | enum | A4 와 같다 | `event.occurred_at_basis` |
 | `issue` | 이슈 참조 · null | 속한 이슈. null 이면 아직 이슈로 묶이지 않은 사건 | `event.issue_id` → `issue` |
 | `articleCount` | number | 「관련 기사 4건」 | 계산 |
-| `publishers` | array(언론사 참조) | 이 사건을 보도한 언론사 전부(PRD FR-11). 순서는 아직 정하지 않았다 | 계산 — 투입 기사들의 `press_code` |
-| `previousEvent` · `nextEvent` | 사건 참조 · null | *이전 · 다음 사건* 이동. 같은 이슈 안에서 발생 시점 순서로 앞뒤. 없으면 null | 계산 |
+| `publishers` | array(언론사 참조) | 이 사건을 보도한 언론사 전부(PRD FR-11). 중복 제거 후 `press.code` 오름차순(2026-10-26 사용자 승인) | 계산 — 투입 기사들의 `press_code` |
+| `previousEvent` · `nextEvent` | 사건 참조 · null | *이전 · 다음 사건* 이동. 같은 이슈 안에서 A4와 같은 `occurredAt` · `id` 오름차순의 인접 사건. 시각이 같아도 ID로 가른다(2026-10-26 사용자 승인). 없으면 null | 계산 |
+
+없는 사건은 404 `EVENT_NOT_FOUND`다. 이슈 밖 사건은 `issue` · `previousEvent` · `nextEvent`가 모두 null이다.
+투입 기사 0건인 사건도 200이며 `articleCount`는 0, `publishers`는 빈 배열이다.
 
 관점(PRD FR-24~26, P2)과 이 사건의 변화(F09 · F10)는 빠져 있다.
 
@@ -195,6 +198,9 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `page` · `size` | number · 선택 | 화면은 처음 4건(PRD FR-11)을 `size=4` 로 부르고 *더 보기* 에서 다음 쪽을 부른다 |
 
 응답은 목록 모양이고 항목은 기사 요약(1절)이다. 정렬은 발행 시각 오름차순, 같으면 `id` 오름차순. 특정 언론사를 앞세우지 않는다(PRD 4.11).
+
+투입 전 기사는 목록과 전체 개수에서 제외한다. 사건이 없으면 404 `EVENT_NOT_FOUND`, 사건은 있지만 관련 투입 기사가 없으면 200과 빈 목록이다.
+페이지 인자 기본값·범위는 `api.md` 1절을 따른다. A6는 기존 `ArticleSummaryResponse`와 `ArticleSummaryAssembler`를 재사용한다.
 
 ### A7. 최신 기사 — `GET /api/v1/articles`
 
