@@ -3,6 +3,7 @@ package kr.io.newlearn;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -239,6 +240,41 @@ class AnalysisJobQueueIntegrationTest {
         assertThat(row(job)).containsEntry("status", "SUCCEEDED").containsEntry("error_code", null);
     }
 
+    // 기사가 보이는 때는 EXTRACT 결과를 처음 저장한 때다(2026-10-26 사용자 — 분석이 끝난 뒤부터, Jira 34)
+    // 그 전에는 화면 단건 조회(A8)도 404 이고, 성공하면 보인다. 다시 분석해 성공해도 처음 공개 시각은 그대로
+    @Test
+    void extractSuccessReleasesTheArticleOnce() throws Exception {
+        handle(AnalysisStage.EXTRACT, (job, request) -> {});
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        mvc.perform(get("/api/v1/articles/{id}", ARTICLE)).andExpect(status().isNotFound());
+
+        w1(job, envelope(1, "SUCCEEDED", "{}", "null")).andExpect(status().isNoContent());
+        Object first = releasedAt(ARTICLE);
+        assertThat(first).isNotNull();
+        mvc.perform(get("/api/v1/articles/{id}", ARTICLE)).andExpect(status().isOk());
+
+        jdbc.sql("update analysis_job set status = 'QUEUED', attempt = 2 where id = :id")
+                .param("id", job)
+                .update();
+        w1(job, envelope(2, "SUCCEEDED", "{}", "null")).andExpect(status().isNoContent());
+        assertThat(releasedAt(ARTICLE)).isEqualTo(first);
+    }
+
+    // EXTRACT 가 실패하거나 다른 단계(EMBED)가 성공해서는 공개되지 않는다
+    @Test
+    void onlyExtractSuccessReleases() throws Exception {
+        handle(AnalysisStage.EMBED, (job, request) -> {});
+        long extract = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        long embed = job(ARTICLE, "EMBED", "QUEUED", 1, null, null, T0, T0, null);
+
+        w1(extract, envelope(1, "FAILED", "null", error("INPUT_NOT_ANALYZABLE")))
+                .andExpect(status().isNoContent());
+        w1(embed, envelope(1, "SUCCEEDED", "{}", "null")).andExpect(status().isNoContent());
+
+        assertThat(releasedAt(ARTICLE)).isNull();
+        mvc.perform(get("/api/v1/articles/{id}", ARTICLE)).andExpect(status().isNotFound());
+    }
+
     // 처리기가 결과를 거절하면 처리기가 쓴 것은 되돌리고, RESULT_SCHEMA_INVALID 로 남긴 뒤 바로 한 번 더 건다.
     // 다시 건 시도도 거절되면 멈춘다
     @Test
@@ -255,6 +291,7 @@ class AnalysisJobQueueIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
         assertThat(title(ARTICLE)).isEqualTo("큐 기사 3001");
+        assertThat(releasedAt(ARTICLE)).isNull(); // 거절되면 공개 단계까지 가지 않는다
         assertThat(row(job))
                 .containsEntry("status", "QUEUED")
                 .containsEntry("attempt", 2)
@@ -438,8 +475,8 @@ class AnalysisJobQueueIntegrationTest {
 
     private long article(long id) {
         jdbc.sql("""
-                insert into article(id,source,url,press_code,title,body,published_at,released_at,created_at)
-                values (:id,'NEWSDATA',:url,:press,:title,:body,'2026-10-06T01:12:00Z',now(),now())
+                insert into article(id,source,url,press_code,title,body,published_at,created_at)
+                values (:id,'NEWSDATA',:url,:press,:title,:body,'2026-10-06T01:12:00Z',now())
                 """)
                 .param("id", id)
                 .param("url", "https://fixture.invalid/queue30/" + id)
@@ -483,6 +520,14 @@ class AnalysisJobQueueIntegrationTest {
         return jdbc.sql("""
                 select status, attempt, error_code, error_message, published_at, retry_at from analysis_job where id = :id
                 """).param("id", jobId).query().singleRow();
+    }
+
+    private Object releasedAt(long articleId) {
+        return jdbc.sql("select released_at from article where id = :id")
+                .param("id", articleId)
+                .query(java.sql.Timestamp.class)
+                .list()
+                .getFirst();
     }
 
     private String title(long articleId) {

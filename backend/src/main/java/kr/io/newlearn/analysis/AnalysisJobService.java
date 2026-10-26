@@ -119,6 +119,11 @@ public class AnalysisJobService {
                     return;
                 }
                 handlers.forStage(job.getStage()).save(job, request);
+                if (job.getStage() == AnalysisStage.EXTRACT) {
+                    // 기사는 분석이 끝난 뒤부터 보인다 — 마인드맵을 처음 저장할 때 공개한다(Jira 34). 처리기가 거절하거나
+                    // 실패하면 여기까지 오지 않아 공개되지 않는다
+                    job.getArticle().markReleased(now);
+                }
                 job.succeed(startedAt, finishedAt);
             });
         } catch (ResultSchemaInvalidException e) {
