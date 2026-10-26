@@ -107,6 +107,7 @@ MR C — Infra (출입증 넣을 자리)
   - 스케줄러가 못 넣은 작업을 넣을 때는 `published_at` 을 먼저 적고(차지) 넣는다. 넣다 실패하면 지운다. 차지한 뒤 넣기 전에 Pod 가 죽으면 그 작업은 `QUEUED` 로 남는다 — 드물어 손으로 다시 건다(한계)
   - 봉투를 JSON 으로 못 읽으면 W1 컨트롤러가 400 `RESULT_SCHEMA_INVALID` 로 답한다(전역 처리기는 `VALIDATION_FAILED` 를 줘서)
   - 시험은 `src/test/resources/config/application.yaml` 로 스케줄러를 끈다
+  - 마이그레이션은 `V4__analysis_job_queue.sql` — BE 팀원의 113(!190)이 `V3__drop_article_source_summary.sql` 을 써서 계획대로 다음 번호로 옮겼다. 113 보다 먼저 머지하게 되면 다시 본다
 
 ## 되돌리는 법
 
