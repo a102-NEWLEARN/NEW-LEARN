@@ -371,7 +371,7 @@ flowchart LR
 2. **토큰** (EC2, 값을 물어서 `ssh -t`): `kubectl create namespace gitlab-runner-build && read -rsp "runner token: " T && echo && printf "%s" "$T" | kubectl -n gitlab-runner-build create secret generic gitlab-runner-build-token --from-literal=runner-registration-token= --from-file=runner-token=/dev/stdin; unset T` <!-- secret-scan:allow — 값이 아니라 변수 이름 -->
 3. **정책 먼저, 그다음 러너** (EC2): `kubectl apply -f infra/k8s/bootstrap/build-netpol.yaml` → `helm upgrade --install gitlab-runner-build gitlab/gitlab-runner --version 0.88.4 -n gitlab-runner-build -f infra/k8s/bootstrap/gitlab-runner-build-values.yaml --wait`
 
-- 확인: GitLab Runners 화면에 online. 정책은 같은 노드에서 대조 — 굽기 네임스페이스와 `default` 에 busybox Pod 를 띄워 `nc -w 3 postgres.data.svc 5432` 가 앞은 막히고 뒤는 열리는지(curl `telnet://` 은 열린 곳도 막힌 것처럼 나왔다)
+- 확인: GitLab Runners 화면에 online. 정책은 같은 노드에서 대조 — 굽기 네임스페이스와 `default` 에 busybox Pod 를 띄워 `nc -w 3 postgres.data.svc 5432` 가 앞은 막히고 뒤는 열리는지(curl `telnet://` 은 열린 곳도 막힌 것처럼 나왔다). 2026-10-27 뒤로는 data 정책(Jira 121) 때문에 postgres 는 어디서든 막혀 원인을 가르지 못한다 — 대상을 들어오는 길 정책이 없는 `argocd-server.argocd 80` 으로 바꿔 같은 대조(굽기 쪽 막힘 · `default` 열림)를 한다
 - 러너가 죽으면 w4 가 기다린다. 급하면 `.gitlab-ci.yml` 의 `.w4` 태그를 빼고 **자원도 CPU 1 · 메모리 2Gi 로 같이** 내린다 — 다른 러너의 상한을 넘으면 잡이 실패한다
 - 내리기: `helm uninstall gitlab-runner-build -n gitlab-runner-build` → `kubectl delete namespace gitlab-runner-build` → GitLab 에서 러너 삭제
 
