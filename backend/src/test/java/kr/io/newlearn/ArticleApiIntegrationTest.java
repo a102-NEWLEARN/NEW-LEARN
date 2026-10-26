@@ -75,7 +75,7 @@ class ArticleApiIntegrationTest {
                 .andExpect(jsonPath("$.eventMatchStatus").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.body").doesNotExist())
                 .andExpect(jsonPath("$.article").doesNotExist());
-        // 4202 · 4204 는 NewsData 요약(source_summary)만 있다 — 대신 쓰지 않는다(2026-10-26)
+        // 자체 요약이 null · 공백이거나 마인드맵 결과가 없는 기사는 요약을 null 로 반환한다
         for (long id : new long[] {4202, 4203, 4204, 4205}) {
             mvc.perform(get("/api/v1/articles/" + id))
                     .andExpect(status().isOk())
