@@ -2,7 +2,7 @@
 # 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일을 만든다 — EC2 에서, sudo 없이, 터미널에서 (값을 물어본다)
 # 평문은 화면 · 파일 · 명령 인자(ps)에 남기지 않는다. 남는 것은 ~/sealed/ 의 봉인 파일뿐이다 (컨트롤러만 풀 수 있다)
 #
-# 쓰는 법 (infra/server/README.md 「봉인한 Secret 만들기」)
+# 쓰는 법 — 언제 · 어디서 돌리나는 infra/server/README.md (gms 는 ai-worker.md, pg-backup-s3 는 infra/README.md)
 #   bash infra/server/seal-secrets.sh basic-auth    관리 화면(/argocd · /grafana) 팝업 계정 하나 → argocd · monitoring 두 곳
 #   bash infra/server/seal-secrets.sh db            PostgreSQL 계정 — 비밀번호는 무작위로 만든다(묻지 않음) → data · app 두 곳
 #   bash infra/server/seal-secrets.sh ghcr          워커가 GHCR 비공개 이미지를 받을 읽기 토큰 → app · ai 두 곳
@@ -10,6 +10,7 @@
 #   bash infra/server/seal-secrets.sh mattermost    Argo CD 배포 알림을 받을 Mattermost 들어오는 웹훅 주소 → argocd
 #   bash infra/server/seal-secrets.sh pg-backup-s3  DB 주간 백업을 S3 에 올리는 키(올리기만 되는 IAM 사용자) · 버킷 이름 → data
 #   bash infra/server/seal-secrets.sh gms           AI 워커가 SSAFY GMS 를 부를 키 — 봉인 전에 그 키로 GMS 를 불러 본다 → ai
+#   bash infra/server/seal-secrets.sh internal-api  직원용 문(/internal/v1) 출입증 — 워커 · 배치 키를 무작위로 만든다(묻지 않음) → app 에 둘 · ai 에 워커 키
 # 만든 파일은 관리자 PC 로 가져와 저장소의 자리에 넣고 커밋한다 (봉인 파일은 저장소에 둬도 된다)
 #   ssh <EC2> 'cat ~/sealed/sealed-basic-auth-argocd.yaml' > infra/k8s/admin-ui/sealed-basic-auth-argocd.yaml
 # 봉인은 Secret 이름 · 네임스페이스에 묶인다(strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다
@@ -18,7 +19,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,12p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,13p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -186,6 +187,31 @@ case "${1:-}" in
     printf '%s' "$key" | seal gms-api ai GMS_API_KEY "$OUT/sealed-gms-api.yaml"
     unset key
     echo "관리자 PC 로 가져와 infra/k8s/services/ai/sealed-gms-api.yaml 로"
+    ;;
+  internal-api)
+    # 직원용 문(/internal/v1) 출입증 — backend 는 X-Internal-Key 머리를 두 키와 비교한다. 워커 키는 W1(분석 결과), 배치 키는 B1(기사 넣기)만 연다 (docs/api-internal.md)
+    # 봉인 파일이 있으면 건너뛴다 — 한쪽만 새로 만들면 backend 와 워커의 키가 어긋난다. 바꿀 때는 두 파일을 지우고 돌려 둘 다 커밋한다
+    files=("$OUT/sealed-internal-api-app.yaml" "$OUT/sealed-internal-api-ai.yaml")
+    if [ -e "${files[0]}" ] || [ -e "${files[1]}" ]; then
+      echo "이미 있다 — 건너뛴다: ${files[*]}"
+      exit 0
+    fi
+    worker="$(openssl rand -hex 32)"  # secret-scan:allow — 값이 아니라 무작위로 만드는 명령
+    batch="$(openssl rand -hex 32)"  # secret-scan:allow — 값이 아니라 무작위로 만드는 명령
+    [[ "${#worker}" -eq 64 && "${#batch}" -eq 64 ]] || { echo "❌ 키를 만들지 못했다" >&2; exit 1; }
+    # 봉인하다 멈추면 반쪽 파일을 지운다 — 남으면 다시 돌릴 때 건너뛴다
+    trap 'rm -f "${files[@]}"' ERR
+    # app 에는 둘 다 backend 가 읽는 이름으로, ai 에는 워커 키만 워커가 읽는 이름으로 — 봉인은 네임스페이스에 묶여 따로 봉인한다
+    printf 'INTERNAL_WORKER_KEY=%s\nINTERNAL_BATCH_KEY=%s\n' "$worker" "$batch" \
+      | kubectl create secret generic internal-api -n app --from-env-file=/dev/stdin --dry-run=client -o yaml \
+      | kubeseal --controller-namespace "$CONTROLLER_NS" --format yaml >"${files[0]}"
+    echo "봉인: ${files[0]}"
+    printf '%s' "$worker" | seal internal-api ai INTERNAL_API_KEY "${files[1]}"
+    trap - ERR
+    unset worker batch
+    echo "관리자 PC 로 가져와 infra/k8s/services/app/sealed-internal-api.yaml · infra/k8s/services/ai/sealed-internal-api.yaml 로 (두 kustomization.yaml 의 resources 에도 한 줄씩)"
+    # env 는 컨테이너가 뜰 때만 읽는다 — 봉인 파일만 넣는 MR 은 Pod 를 바꾸지 않는다
+    echo "Secret 이 풀린 뒤: kubectl -n app rollout restart deploy/backend && kubectl -n ai rollout restart deploy/ai"
     ;;
   *)
     usage
