@@ -56,7 +56,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `category` | 카테고리 참조 · null | 기사의 대표 카테고리 표시. 맞추지 못한 기사는 null | `article.category_code` → `category` |
 | `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이고 AI 생성 표시를 붙인다. 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) null 이다. 빈 문자열 · 공백뿐인 문자열도 없는 것으로 보고 null(2026-10-23 팀장 확인). NewsData 요약으로 대신하던 길은 없앴다 — 한국어 기사에는 NewsData 가 요약을 만들지 않는다(2026-10-26) | `article_mindmap.summary` |
 | `url` | string | *원문 보기* 링크 | `article.url` |
-| `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다) |
+| `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다). 기사는 마인드맵 결과가 생긴 뒤부터 보여서(2026-10-26, Jira 34) 목록 · 상세의 기사는 사실상 늘 `SUCCEEDED` 다 |
 | `bookmarked` | boolean | 북마크 아이콘을 채울지. 로그인한 회원이 이 기사를 담았으면 true, 손님이면 false(2026-10-26 Jira 114) | 계산 — 세션 회원의 `bookmark` |
 
 회원 정보 — A15 · A17 · A18 의 응답. A14 응답도 같은 모양

@@ -238,7 +238,7 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고른다. 맞출 값이 없으면 비운다 |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `released_at` | timestamptz | 아니오 | 서비스 투입 시각. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입은 수집 배치가 B1 을 불러서 한다(`docs/api-internal.md` 2절) |
+| `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
 - 필수 값이 빠진 기사는 저장하지 않고 이유를 남긴다(PRD FR-1). 실행 한 번에 몇 건 받았는지는 `ingest_run`, 기사마다의 이유는 수집 티켓(Jira 34)이 정한다
@@ -447,7 +447,7 @@ erDiagram
 | 2 | 어떤 사건 3개를 한 이슈로 묶나, 사건이 여러 이슈에 속하나, `issue_category` 를 무엇으로 채우나 | `ISSUE` 단계가 판단(제안). 사건 하나는 이슈 하나. `issue_category` 는 이슈 기사들의 대표 카테고리 | AI 실험 · SSOT 8절 |
 | 3 | 동일 사건 판정 기준, 기사가 몇 개 모여야 사건으로 보이나 | 판정 점수 칸 없음(판정 기록은 `analysis_job.result`). 대표 사건이 있는 기사는 하나로도 사건을 만든다 | AI 실험 (Q34) |
 | 7 | 원본 분류 → 5개 대응 행, 이슈가 카테고리 여러 개에 걸치나 | 행 없음. 맞출 값이 없으면 `category_code` 비움. NewsData 에서 본 값(2026-10-22 응답 50건, 여러 개가 같이 옴): `top` · `politics` · `business` · `technology` · `world` · `crime` · `domestic` · `health` · `environment` · `lifestyle` · `sports` · `entertainment`. `top` 은 주제가 아니라 비운다 | BE — 이 값으로 행을 채울 때 |
-| 8 | 기사가 언제 화면에 보이나(`released_at`) | B1 투입 때 바로 보이고, 분석이 끝나기 전에는 「분석 중」으로 보인다(`mindmapStatus`). 「분석이 끝난 기사부터 보이게」라는 사용자 제안(10-19)은 팀 확인 전이다. 그쪽으로 정하면 `released_at` 을 채우는 때와 B1 의 뜻을 바꾼다 | Q21 |
+| 8 | 기사가 언제 화면에 보이나(`released_at`) | **정함(2026-10-26 사용자, Jira 34)** — 분석이 끝난 뒤부터. EXTRACT 결과를 처음 저장한 때 `released_at` 을 채운다(2절). B1 은 분석만 건다 | Q21 |
 | 9 | 받은 기사 전부에 마인드맵을 만드나, 한 번에 몇 건 받나 | 투입한 기사 전부에 `EXTRACT` 를 건다(PRD FR-31 가정). GMS 예산 상한은 약 1만 7천 건(SSOT 3절). 몇 건 받을지는 AI 파트와 | Q27 · Q4 |
 | 10 | 본문을 화면에 얼마나 보여 주나 | `body` 는 저장만 하고 API 로 안 내보냄 | Q3 · Q28 |
 | 11 | 메인 · 서브 레인을 나누는 기준, 레인을 저장하나 | 기준 전에는 레인 값 없음(`docs/api-screen.md` A4) | 팀 |
