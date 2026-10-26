@@ -5,6 +5,7 @@ resources:
   - backend.yaml
   - frontend.yaml
   - routes.yaml
+  - netpol.yaml
   - sealed-postgres-auth.yaml
   - sealed-ghcr-pull.yaml
   - sealed-internal-api.yaml
