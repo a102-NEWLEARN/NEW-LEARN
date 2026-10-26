@@ -23,6 +23,11 @@ variables {
 run "워커_IP_가_없으면_WireGuard_포트를_열지_않는다" {
   command = plan
 
+  # 기본값에 기대지 않는다 — terraform test 는 커밋 안 하는 terraform.tfvars 도 읽어서, 거기 워커 IP 가 있으면 이 시험이 깨진다
+  variables {
+    worker_cidrs = []
+  }
+
   assert {
     condition     = length(aws_vpc_security_group_ingress_rule.worker_wireguard) == 0
     error_message = "워커 IP 를 넣기 전에는 WireGuard 포트를 열면 안 된다"
