@@ -54,8 +54,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `publisher` | 언론사 참조 | 언론사. 모든 기사 화면에 보인다(PRD FR-2) | `article.press_code` → `press` |
 | `publishedAt` | 시각 | 발행 시각 표시 · 정렬 | `article.published_at` |
 | `category` | 카테고리 참조 · null | 기사의 대표 카테고리 표시. 맞추지 못한 기사는 null | `article.category_code` → `category` |
-| `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이 있으면 그것, 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) NewsData 요약으로 대신한다(2026-10-21). 두 소스 모두 null·빈 문자열·공백뿐인 문자열은 없는 것으로 처리한다(2026-10-23 팀장 확인). 둘 다 AI 가 만든 요약이라 AI 생성 표시를 붙인다. 둘 다 없으면 null | `article_mindmap.summary`, 없으면 `article.source_summary` |
-| `summarySource` | enum · null | 요약을 어디서 가져왔나. `NEWLEARN` 우리 AI · `NEWSDATA` NewsData. 화면이 출처를 보이고 싶을 때 쓴다. `summary` 가 null 이면 null | 계산 |
+| `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이고 AI 생성 표시를 붙인다. 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) null 이다. 빈 문자열 · 공백뿐인 문자열도 없는 것으로 보고 null(2026-10-23 팀장 확인). NewsData 요약으로 대신하던 길은 없앴다 — 한국어 기사에는 NewsData 가 요약을 만들지 않는다(2026-10-26) | `article_mindmap.summary` |
 | `url` | string | *원문 보기* 링크 | `article.url` |
 | `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다) |
 
@@ -92,7 +91,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 | 인자 | 타입 | 용도 |
 |---|---|---|
-| `category` | enum · 선택 | 이 카테고리의 이슈만. 없으면 전체. 없는 코드면 404 `CATEGORY_NOT_FOUND` |
+| `category` | enum · 선택 | 이 카테고리의 이슈만. 보내지 않으면 전체. 없는 코드와 빈 문자열은 404 `CATEGORY_NOT_FOUND` |
 | `sort` | enum · 선택 | `lastEventAt`(기본) — 마지막 사건 발생 시점 최신순(PRD FR-4 가정). `createdAt` — 이슈가 만들어진 최신순, 검색창 아래 「새로 생성된 이슈」(2026-10-20). 같으면 `id` 내림차순. 그 밖의 값이면 400 `VALIDATION_FAILED` |
 | `page` · `size` | number · 선택 | 쪽 번호 · 크기 (`api.md` 1절). 검색창 아래는 `size` 로 개수를 정한다(몇 개인지는 미정) |
 
@@ -214,7 +213,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
     "id": 456, "title": "한빛반도체 텍사스 공장 첫 삽… \"2028년 양산 변함없다\"",
     "publisher": { "code": "garam", "name": "가람일보" }, "publishedAt": "2026-10-06T10:12:00+09:00",
     "category": { "code": "economy", "name": "경제" },
-    "summary": "한빛반도체가 텍사스 공장을 착공했다", "summarySource": "NEWLEARN", "url": "https://news.example.com/a/456",
+    "summary": "한빛반도체가 텍사스 공장을 착공했다", "url": "https://news.example.com/a/456",
     "mindmapStatus": "SUCCEEDED"
   }],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
@@ -239,7 +238,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
   "id": 456, "title": "…", "publisher": { "code": "garam", "name": "가람일보" }, "reporter": "김민정 기자",
   "publishedAt": "2026-10-06T10:12:00+09:00", "url": "https://news.example.com/a/456",
   "category": { "code": "economy", "name": "경제" },
-  "summary": "…", "summarySource": "NEWLEARN", "mindmapStatus": "SUCCEEDED", "eventMatchStatus": "SUCCEEDED",
+  "summary": "…", "mindmapStatus": "SUCCEEDED", "eventMatchStatus": "SUCCEEDED",
   "event": { "id": 97, "title": "한빛반도체 텍사스 공장 착공식", "label": "착공식", "occurredAt": "2026-10-06T00:00:00+09:00" },
   "issue": { "id": 12, "title": "한빛반도체 미국 공장 건설" }
 }

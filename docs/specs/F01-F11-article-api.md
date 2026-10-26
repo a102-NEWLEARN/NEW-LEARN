@@ -4,7 +4,7 @@
 [상태 계산](../api-internal.md#6-작업-상태와-화면용-상태), [데이터 모델](../data-model.md).
 
 - AC-1: A7은 투입 기사만 발행 시각·ID 내림차순으로 조회하고 카테고리·페이지 계약을 지킨다.
-- AC-2: 요약과 출처는 승인한 대체 규칙을 따르고, 마인드맵 결과 존재와 요약 존재를 구분한다.
+- AC-2: 요약은 우리 AI 요약만 쓰고 없으면 null 이다(NewsData 요약 대체 · `summarySource` 없앰, 2026-10-26). 마인드맵 결과 존재와 요약 존재를 구분한다.
 - AC-3: mindmapStatus·eventMatchStatus가 작업 없음·대기·성공·실패 및 기존 결과 우선 규칙과 같다.
 - AC-4: A8은 동일 기사 ID와 공통 필드에 reporter·eventMatchStatus·event·issue를 더한다.
   사건·이슈가 없거나 사건만 있어도 정상이며 body는 노출하지 않는다.
