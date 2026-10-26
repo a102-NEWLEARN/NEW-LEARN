@@ -5,7 +5,7 @@
 
 | 폴더 | 무엇 |
 |---|---|
-| `terraform/` | 관리 서버(쿠버네티스 컨트롤 플레인) EC2 · 보안 그룹 · 탄력적 IP · 예산 알림. Lightsail 은 SSAFY 소유라 대상이 아니다 |
+| `terraform/` | 관리 서버(쿠버네티스 컨트롤 플레인) EC2 · 보안 그룹 · 탄력적 IP · 예산 알림 · DB 백업 버킷. Lightsail 은 SSAFY 소유라 대상이 아니다 |
 | `terraform/iam/` | apply 전용 IAM 사용자에 붙일 정책 — EC2 는 서울 리전만, 예산, 상태 버킷(`newlearn-tfstate-*`) · DB 백업 버킷(`newlearn-pg-backup-*`, 지우기 없음)만. DB 백업을 올리기만 하는 사용자 정책 |
 | `kind/` | 내 PC 의 kind 리허설 클러스터 — 정의 · 올리기 · 지우기 · 무중단 교체 리허설 (아래 「kind 리허설」) |
 | `k8s/bootstrap/` | 클러스터를 만든 뒤 Helm 으로 한 번 까는 것 — Cilium · Argo CD 값, 루트 Application. 실제 서버도 같은 값을 쓰고 다른 것만 덮는다 |
