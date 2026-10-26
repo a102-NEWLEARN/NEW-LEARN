@@ -62,9 +62,6 @@ public class Article {
     @JdbcTypeCode(SqlTypes.ARRAY)
     private List<String> sourceTags;
 
-    // source_summary 칸(NewsData ai_summary)은 쓰지 않는다 — 한국어 기사에는 NewsData 가 요약을 만들지 않는다(2026-10-26).
-    // 칸은 다음 마이그레이션에서 지운다. ddl-auto validate 는 엔티티에 없는 칸을 막지 않는다
-
     private Instant releasedAt;
 
     @CreationTimestamp
