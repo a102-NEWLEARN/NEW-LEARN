@@ -72,7 +72,6 @@ erDiagram
     text category_code FK "대표 카테고리"
     text_array source_categories "원본 분류 목록"
     text_array source_tags "NewsData AI 태그"
-    text source_summary "안 씀, 다음 마이그레이션에서 지움"
     timestamptz released_at "서비스 투입 시각"
     timestamptz created_at "적재 시각"
   }
@@ -236,7 +235,6 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고른다. 맞출 값이 없으면 비운다 |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `source_summary` | text | 아니오 | **안 쓴다 — 다음 마이그레이션에서 지운다.** NewsData `ai_summary` 를 담으려던 칸이다. 한국어 기사에는 NewsData 가 요약을 만들지 않아서(`SSOT.md` 10절) 우리 요약이 없을 때 대신 쓰던 길을 없앴다(2026-10-26). 앱은 이 칸을 읽지도 쓰지도 않는다 |
 | `released_at` | timestamptz | 아니오 | 서비스 투입 시각. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입은 수집 배치가 B1 을 불러서 한다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
@@ -473,4 +471,5 @@ MVP 에 넣는다(2026-10-26, FE 프로토타입 v21 대로 — 기사 스크랩
 - 칸 · 테이블을 더할 때: 그 기능 티켓 MR 에 새 마이그레이션 파일과 이 문서 수정을 같이 넣는다. 이미 적용된 마이그레이션은 고치지 않는다(AGENTS.md)
 - 두 사람의 새 마이그레이션 번호가 겹치면 나중에 머지하는 쪽이 번호를 올린다. Flyway 가 같은 번호를 거부해 CI 가 잡는다
 - 배포 중에는 옛 버전과 새 버전이 같이 돈다(SSOT 6절 「무중단 배포 조건」). 칸 이름 바꾸기 · 지우기는 하위 호환이 되게 두 번에 나눈다
+- Jira 113은 읽기·쓰기 제거(Jira 112) 후 `V3__drop_article_source_summary.sql`로 `article.source_summary`를 삭제한다. 데이터 손실·잠금·운영 적용 전 확인과 복구 한계는 [113번 계획](plans/2026-10-26-drop-source-summary.md#위험과-운영-적용-전-확인)에 적었다.
 - 4절의 정한 것을 뒤집으면 FE · AI 에 알리고 `SSOT.md` 9절 「뒤집은 것」에 한 줄 남긴다
