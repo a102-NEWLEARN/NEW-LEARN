@@ -137,7 +137,7 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 
 ## 바꿀 파일
 
-- 새: `infra/k8s/services/ai/model-cache.yaml` · `infra/k8s/services/ai/sealed-gms-api.yaml`(사용자가 봉인)
+- 새: `infra/k8s/services/ai/model-cache.yaml` · `infra/server/ai-worker.md`(운영 메모) · `infra/k8s/services/ai/sealed-gms-api.yaml`(사용자가 봉인)
 - 고침: `infra/k8s/services/ai/ai.yaml` · `infra/k8s/services/ai/kustomization.yaml` · `infra/server/seal-secrets.sh` · `infra/server/README.md` · `SSOT.md` 6 · 10절(C 에서)
 - 승인한 계획 사본: `docs/plans/2026-10-26-ai-real-mode-infra.md`
 
@@ -209,4 +209,5 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 | 착수 조건 | AI 답 1~4번 | MR 1 은 다시 승인만 있으면 된다 | 막던 답(모델 · 입력 길이 · 워커 수)을 받음 |
 | 모델 경로 env | MR 1 에 넣음 | 이름을 받았을 때만 MR 1, 아니면 MR 2 | env 이름은 아직 답이 없다 |
 | 봉인 스크립트가 GMS 주소를 읽는 곳 (구현 때) | `ai.yaml` 파일 | 클러스터에 반영된 ai Deployment 의 env | EC2 에는 저장소를 클론하지 않고 `infra/server` 만 보낸다(`infra/server/README.md` 「서버로 보내기」). 값은 같은 `ai.yaml` 에서 온다 |
+| 운영 메모 자리 (구현 때) | `infra/server/README.md` 에 | 새 `infra/server/ai-worker.md`, README 에는 한 줄 | README 가 500줄 상한을 넘었다(499 → 512). `db-backup.md` 와 같은 방식 |
 | init 컨테이너 env (구현 때) | `HF_HOME` 없음 | `HF_HOME=/models/hf` · `HF_HUB_DISABLE_TELEMETRY=1` | `hf` 명령도 `HF_HOME` 에 확인 기록을 쓴다(관리자 PC 에서 1.33.0 으로 시험) |

@@ -269,19 +269,7 @@ PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · 
 - **태그 바꾸기**: 보통은 CI 가 한다 — dev 에서 이미지를 구우면 `w5:deploy-mr` 잡이 `deploy/app` · `deploy/ai` 로 태그 MR 을 연다(`SSOT.md` 6절 「배포 흐름」). 사람은 그 MR 을 확인하고 머지한다. 손으로 바꿀 때는 `infra/k8s/services/app · ai/kustomization.yaml` 의 `newTag` 를 바꾸는 MR — 태그는 **dev push 파이프라인이 GHCR 에 올린 것만** 쓴다(MR 파이프라인은 굽기만 하고 올리지 않는다, 2026-10-22 MR 의 커밋을 적었다가 ImagePullBackOff). 되돌리기는 그 MR 을 Revert
 - **태그 MR 토큰** (Maintainer, GitLab 화면): Settings › Access tokens — 이름 `deploy-mr-bot` · 역할 Developer · 범위 `api` · 만료 2026-11-30 → Settings › CI/CD › Variables 에 `DEPLOY_MR_TOKEN`(Masked and hidden · Protect). 토큰이 만료되면 dev 파이프라인의 `w5:deploy-mr` 가 401 로 빨개진다
 - **떠 있는 판**: `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'`
-- **ai 임베딩 모델** — init 컨테이너 `model` 이 PVC `ai-model-cache` 에 판(커밋)마다 폴더를 두고 한 번 받는다(약 2.3GB, 첫 Pod 만 1분 안팎 더). 앱은 고정 이름 링크 `/models/BGE-m3-ko` 로 읽는다. 왜 이 자리인지는 `docs/plans/2026-10-26-ai-real-mode-infra.md`
-  - 확인: `kubectl -n ai logs deploy/ai -c model`(「받음: … (N초)」 또는 「있음: …」) · `kubectl -n ai exec deploy/ai -c ai -- sh -c 'ls -l /models; du -sh /models/BGE-m3-ko/'`
-  - 판 바꾸기: `ai.yaml` 의 `MODEL_REVISION` 을 바꾸는 MR — 새 폴더에 받은 뒤 링크를 바꿔 끼운다. 옛 Pod 는 이미 읽은 모델로 돈다
-  - 옛 판 지우기: 링크가 새 판을 가리키는지 본 뒤 `kubectl -n ai exec deploy/ai -c ai -- rm -rf /models/BGE-m3-ko-<옛 커밋>`
-  - PVC 를 지우면 PV 와 워커 폴더가 남는다(Retain). 새 PVC 는 처음부터 다시 받는다. 남은 것은 `kubectl delete pv <이름>` 과 워커의 `/var/lib/newlearn/local-path/pvc-…_ai_ai-model-cache` 로 지운다
-- **GMS 키** (실제 모드로 바꿀 때, 관리자 PC 에서 — 값을 묻는다). 스크립트가 클러스터의 ai Deployment 에서 GMS 주소를 읽고, 그 키로 `GET /models` 가 200 인지 본 뒤 `ai` 에 봉인한다. 그래서 `GMS_BASE_URL` 이 든 `ai.yaml` 이 반영된 뒤에 돌린다
-
-  ```bash
-  ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh gms"
-  ssh ubuntu@<EC2 탄력적 IP> 'cat ~/sealed/sealed-gms-api.yaml' > infra/k8s/services/ai/sealed-gms-api.yaml
-  ```
-
-  그 MR 에서 `kustomization.yaml` 에 봉인 파일을 더하고, `ai.yaml` 에 `GMS_API_KEY`(`secretKeyRef` `gms-api` / `GMS_API_KEY`) · `LLM_MODE=gms` 를 넣는다. 키를 바꿀 때도 같다
+- **ai 임베딩 모델 · GMS 키** — 모델 캐시 확인 · 판 바꾸기 · 키 봉인은 `infra/server/ai-worker.md`
 - **DB · Redis 데이터 살리기**: PVC 를 지워도 PV 와 워커 폴더(`/var/lib/newlearn/local-path/pvc-…`)는 남는다(Retain) — 새 PVC 는 그것을 쓰지 않고 빈 DB 로 뜬다. 살리려면 PV 의 `spec.claimRef` 를 지워(`kubectl patch pv <이름> --type json -p '[{"op":"remove","path":"/spec/claimRef"}]'`) 새 PVC 가 그 PV 를 잡게 한다(PVC 에 `volumeName: <이름>`)
 - 백업(pg_dump) — 매일 관리 서버에 남긴다. 처음 한 번 · 확인 · 되살리는 법은 `infra/server/db-backup.md`
 
