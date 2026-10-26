@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 // Swagger 를 FE 가 읽기 좋게 — 한국어 태그, 명세대로 만들고 시험한 API 에 [확정], 인자 · 오류 설명 (Jira 112)
-// 아직 없는 API 는 문서에 넣지 않는다. 새 API 가 생겨도 이 시험은 여섯 개만 본다
+// 아직 없는 API 는 문서에 넣지 않는다. 확인한 API는 아래 CONFIRMED에 더한다
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -33,6 +33,8 @@ class OpenApiDocsTest {
             "/api/v1/issues", "A2",
             "/api/v1/issues/{issueId}", "A3",
             "/api/v1/issues/{issueId}/timeline", "A4",
+            "/api/v1/events/{eventId}", "A5",
+            "/api/v1/events/{eventId}/articles", "A6",
             "/api/v1/articles", "A7",
             "/api/v1/articles/{articleId}", "A8");
 
@@ -51,7 +53,8 @@ class OpenApiDocsTest {
     void tagsAreKoreanInScreenOrderAndLegendExplainsConfirmed() throws Exception {
         docs().andExpect(jsonPath("$.tags[0].name").value("카테고리"))
                 .andExpect(jsonPath("$.tags[1].name").value("이슈"))
-                .andExpect(jsonPath("$.tags[2].name").value("기사"))
+                .andExpect(jsonPath("$.tags[2].name").value("사건"))
+                .andExpect(jsonPath("$.tags[3].name").value("기사"))
                 .andExpect(jsonPath("$.tags[0].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[1].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[2].description", not(emptyOrNullString())))
@@ -69,6 +72,9 @@ class OpenApiDocsTest {
                             .exists());
         }
         result.andExpect(jsonPath(op("/api/v1/categories") + ".tags[0]").value("카테고리"))
+                .andExpect(jsonPath(op("/api/v1/events/{eventId}") + ".tags[0]").value("사건"))
+                .andExpect(jsonPath(op("/api/v1/events/{eventId}/articles") + ".tags[0]")
+                        .value("사건"))
                 .andExpect(jsonPath(op("/api/v1/issues/{issueId}/timeline") + ".tags[0]")
                         .value("이슈"))
                 .andExpect(jsonPath(op("/api/v1/articles/{articleId}") + ".tags[0]")
@@ -88,6 +94,19 @@ class OpenApiDocsTest {
                     .andExpect(jsonPath(op(path) + ".parameters[?(@.name == 'size')].schema.type", hasItem("integer")));
         }
         result.andExpect(jsonPath(op("/api/v1/issues") + ".parameters[*].name", hasItem("sort")))
+                .andExpect(jsonPath(
+                        op("/api/v1/events/{eventId}/articles") + ".parameters[*].name",
+                        hasItems("eventId", "page", "size")))
+                .andExpect(jsonPath(
+                        op("/api/v1/events/{eventId}/articles") + ".parameters[*].name", not(hasItem("query"))))
+                .andExpect(jsonPath(op("/api/v1/events/{eventId}/articles") + ".parameters[?(!@.description)]")
+                        .isEmpty())
+                .andExpect(jsonPath(
+                        op("/api/v1/events/{eventId}/articles") + ".parameters[?(@.name == 'page')].schema.type",
+                        hasItem("integer")))
+                .andExpect(jsonPath(
+                        op("/api/v1/events/{eventId}/articles") + ".parameters[?(@.name == 'size')].schema.type",
+                        hasItem("integer")))
                 .andExpect(jsonPath(op("/api/v1/articles/{articleId}") + ".parameters[?(!@.description)]")
                         .isEmpty());
     }
@@ -95,6 +114,13 @@ class OpenApiDocsTest {
     @Test
     void errorResponsesAreDocumentedAsProblemDetails() throws Exception {
         var result = docs();
+        for (String path : new String[] {"/api/v1/events/{eventId}", "/api/v1/events/{eventId}/articles"}) {
+            result.andExpect(jsonPath(op(path) + ".responses['404'].description", containsString("EVENT_NOT_FOUND")))
+                    .andExpect(jsonPath(op(path) + ".responses['400'].content['application/problem+json']")
+                            .exists())
+                    .andExpect(jsonPath(op(path) + ".responses['404'].content['application/problem+json']")
+                            .exists());
+        }
         for (String path : new String[] {"/api/v1/articles", "/api/v1/issues"}) {
             result.andExpect(jsonPath(op(path) + ".responses['400'].content['application/problem+json']")
                             .exists())
