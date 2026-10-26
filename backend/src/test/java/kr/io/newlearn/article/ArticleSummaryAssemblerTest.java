@@ -54,6 +54,39 @@ class ArticleSummaryAssemblerTest {
         verifyNoInteractions(mindmaps, jobs);
     }
 
+    // NOT_ANALYZABLE — 결과가 없고 EXTRACT 가 INPUT_NOT_ANALYZABLE 로 실패했을 때만. 결과가 있으면(다시 분석 실패) 그대로 SUCCEEDED
+    static Stream<Arguments> mindmapStatuses() {
+        return Stream.of(
+                Arguments.of(
+                        false, AnalysisJobStatus.FAILED, "INPUT_NOT_ANALYZABLE", ArticleAnalysisStatus.NOT_ANALYZABLE),
+                Arguments.of(false, AnalysisJobStatus.FAILED, "LLM_TIMEOUT", ArticleAnalysisStatus.FAILED),
+                Arguments.of(false, AnalysisJobStatus.QUEUED, "INPUT_NOT_ANALYZABLE", ArticleAnalysisStatus.QUEUED),
+                Arguments.of(true, AnalysisJobStatus.FAILED, "INPUT_NOT_ANALYZABLE", ArticleAnalysisStatus.SUCCEEDED),
+                Arguments.of(false, null, null, ArticleAnalysisStatus.NONE));
+    }
+
+    @ParameterizedTest
+    @MethodSource("mindmapStatuses")
+    void mindmapStatusComesFromResultThenExtractJob(
+            boolean hasResult, AnalysisJobStatus extract, String errorCode, ArticleAnalysisStatus expected) {
+        var article = article(1L);
+        if (hasResult) {
+            var result = mock(ArticleMindmapRepository.SummaryView.class);
+            when(result.getArticleId()).thenReturn(1L);
+            when(mindmaps.findSummariesByArticleIdIn(List.of(1L))).thenReturn(List.of(result));
+        }
+        if (extract != null) {
+            var state = mock(AnalysisJobRepository.StateView.class);
+            when(state.getArticleId()).thenReturn(1L);
+            when(state.getStatus()).thenReturn(extract);
+            when(state.getErrorCode()).thenReturn(errorCode);
+            when(jobs.findStatesByArticleIdInAndStage(List.of(1L), AnalysisStage.EXTRACT))
+                    .thenReturn(List.of(state));
+        }
+        assertThat(assembler.assemble(List.of(article)).getFirst().mindmapStatus())
+                .isEqualTo(expected);
+    }
+
     private Article article(long id) {
         var article = mock(Article.class);
         var press = mock(Press.class);
