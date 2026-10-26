@@ -126,6 +126,7 @@ grafana:
       auto_assign_org_role: Viewer
     # 팝업을 지난 아이디를 Envoy 가 이 머리로 넘긴다 — 그 아이디로 바로 들어간다(따로 로그인 화면 없음)
     # 손님이 같은 머리를 꾸며 보내면 Envoy 가 맨 앞에서 지운다 (infra/k8s/gateway/client-traffic.yaml)
+    # Envoy 를 거치지 않고 클러스터 안에서 오는 길은 네트워크 정책이 막는다 (infra/k8s/admin-ui/grafana-netpol.yaml)
     # 관리자(grafana-admin)는 머리 없이 들어오는 SSH 터널에서 로그인 화면으로
     auth.proxy:
       enabled: true
