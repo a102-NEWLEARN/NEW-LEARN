@@ -134,7 +134,13 @@ class SecurityRulesTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         // 정하지 않은 직원용 주소는 어느 키로도 못 연다
-        mockMvc.perform(post("/internal/v1/other").header(InternalKeyFilter.HEADER, WORKER_KEY))
+        for (String key : new String[] {WORKER_KEY, BATCH_KEY}) {
+            mockMvc.perform(post("/internal/v1/other").header(InternalKeyFilter.HEADER, key))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        }
+        // 대소문자를 바꾸면 직원용 체인이 아니라 손님용 체인으로 간다 — 번호표 · 로그인 규칙에 막혀 열리지 않는다
+        mockMvc.perform(post("/INTERNAL/v1/analysis-jobs/1/result").header(InternalKeyFilter.HEADER, WORKER_KEY))
                 .andExpect(status().isForbidden());
     }
 

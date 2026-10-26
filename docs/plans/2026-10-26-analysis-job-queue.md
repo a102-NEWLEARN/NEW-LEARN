@@ -99,6 +99,7 @@ MR C — Infra (출입증 넣을 자리)
 - 승인한 계획 사본(이 파일)은 MR B 가 아니라 MR A 에 같이 넣었다 — 팀원 · reviewer 가 먼저 볼 수 있게
 - 직원용 문의 401 · 403 설명 문구를 손님용 문과 다르게 했다(`SecurityErrorHandler.forInternalApi` — 「출입증(X-Internal-Key)이 없거나 맞지 않는다」 · 「이 출입증으로는 열 수 없는 주소다」). 워커가 「로그인이 필요한 주소다」를 받으면 헷갈려서다. 코드는 그대로 `UNAUTHORIZED` · `FORBIDDEN`
 - `.env.example` 에 `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` 빈 칸을 더했다(로컬에서 W1 · B1 을 불러 볼 때)
+- reviewer 조수(2026-10-26) 뒤 더한 것: 두 키가 같으면 API 가 뜨지 않게, 설정한 키의 앞뒤 공백 · 줄바꿈을 떼게, 인증을 요청 속성에도 두게(비동기 응답 대비) 했다. 키를 비운 시험은 로컬 `.env` 와 상관없게 값을 못 박았다. `compose.yaml` 의 backend 에 출입증 env 두 줄, F12 스펙 AC-10(「내부 API 는 잠긴 채」 → 「손님 · 로그인 세션으로는 안 열림」)을 고쳤다
 
 ## 되돌리는 법
 

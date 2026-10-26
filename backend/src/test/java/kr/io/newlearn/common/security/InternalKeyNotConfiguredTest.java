@@ -8,13 +8,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.RestController;
 
 // 출입증을 봉인하기 전(INTERNAL_WORKER_KEY · INTERNAL_BATCH_KEY 가 빔)에는 직원용 문이 모두 닫혀 있어야 한다 (Jira 30)
-// 빈 키와 빈 헤더가 「같다」고 통과하지 않는지 본다
+// 빈 키와 빈 헤더가 「같다」고 통과하지 않는지 본다. 로컬 .env 에 키를 채운 PC 에서도 빈 키로 보게 값을 못 박는다
 @WebMvcTest(controllers = InternalKeyNotConfiguredTest.NoEndpoints.class)
 @Import({SecurityConfig.class, InternalApiSecurityConfig.class})
+@TestPropertySource(properties = {"newlearn.internal.worker-key=", "newlearn.internal.batch-key= "})
 class InternalKeyNotConfiguredTest {
 
     @RestController

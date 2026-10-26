@@ -16,6 +16,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 // 직원용 문(/internal/**)의 출입증 검사 (Jira 30, docs/api.md 1절 「인증」)
@@ -27,15 +28,31 @@ final class InternalKeyFilter extends OncePerRequestFilter {
     static final String HEADER = "X-Internal-Key";
 
     private final SecurityContextHolderStrategy contexts = SecurityContextHolder.getContextHolderStrategy();
+    private final RequestAttributeSecurityContextRepository requestContexts =
+            new RequestAttributeSecurityContextRepository();
     private final List<Pass> passes = new ArrayList<>();
 
     InternalKeyFilter(String workerKey, String batchKey) {
-        addPass("WORKER", workerKey);
-        addPass("BATCH", batchKey);
+        String worker = clean(workerKey);
+        String batch = clean(batchKey);
+        // 두 키가 같으면 배치가 늘 워커로 들어와 B1 이 403 이 된다. 원인을 찾기 어려워 뜰 때 멈춘다(키 값은 적지 않는다)
+        if (worker != null && worker.equals(batch)) {
+            throw new IllegalStateException("직원용 문 출입증 두 장이 같다 — INTERNAL_WORKER_KEY · INTERNAL_BATCH_KEY 를 따로 만든다");
+        }
+        addPass("WORKER", worker);
+        addPass("BATCH", batch);
+    }
+
+    // Secret 값 끝에 줄바꿈이 붙는 실수가 흔하다. 헤더는 서버(Tomcat)가 앞뒤 공백을 떼어 주니 키도 같이 뗀다
+    private static String clean(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        return key.strip();
     }
 
     private void addPass(String role, String key) {
-        if (key != null && !key.isBlank()) {
+        if (key != null) {
             passes.add(new Pass(role, sha256(key)));
         }
     }
@@ -50,6 +67,8 @@ final class InternalKeyFilter extends OncePerRequestFilter {
             context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
                     role.toLowerCase(Locale.ROOT), null, AuthorityUtils.createAuthorityList("ROLE_" + role)));
             contexts.setContext(context);
+            // 요청 속성에도 둔다 — 컨트롤러가 비동기로 답하면 ASYNC 디스패치에서는 이 필터가 다시 돌지 않는데, 권한 검사는 다시 돈다
+            requestContexts.saveContext(context, request, response);
         }
         chain.doFilter(request, response);
     }
