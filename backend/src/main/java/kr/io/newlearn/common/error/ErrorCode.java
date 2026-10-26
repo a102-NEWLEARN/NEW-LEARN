@@ -18,6 +18,8 @@ public enum ErrorCode {
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED),
     FORBIDDEN(HttpStatus.FORBIDDEN),
+    // 로그인을 5번 연속 틀려 1분 잠겼다 (Jira 62, 2026-10-26)
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS),
     DICTIONARY_UNAVAILABLE(HttpStatus.BAD_GATEWAY),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
 
@@ -52,6 +54,7 @@ public enum ErrorCode {
             case 405 -> METHOD_NOT_ALLOWED;
             case 406 -> NOT_ACCEPTABLE;
             case 415 -> UNSUPPORTED_MEDIA_TYPE;
+            case 429 -> TOO_MANY_REQUESTS;
             default -> status.is5xxServerError() ? INTERNAL_ERROR : VALIDATION_FAILED;
         };
     }

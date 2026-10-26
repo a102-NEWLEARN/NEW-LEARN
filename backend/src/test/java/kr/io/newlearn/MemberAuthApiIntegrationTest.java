@@ -10,13 +10,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.servlet.http.Cookie;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -38,6 +43,9 @@ class MemberAuthApiIntegrationTest {
     @Autowired
     JdbcClient jdbc;
 
+    @Autowired
+    StringRedisTemplate redis;
+
     static String signUpBody(String loginId, String password, String name, String... categoryCodes) {
         String codes = Arrays.stream(categoryCodes).map(c -> "\"" + c + "\"").collect(Collectors.joining(","));
         return """
@@ -49,6 +57,36 @@ class MemberAuthApiIntegrationTest {
                 .filter(header -> header.startsWith("SESSION="))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("SESSION 쿠키가 없다: " + response.getHeaders("Set-Cookie")));
+    }
+
+    // Set-Cookie 머리에서 쿠키 값만 — 다음 요청에 그 세션으로 붙인다
+    static Cookie sessionCookie(MockHttpServletResponse response) {
+        String header = sessionSetCookie(response);
+        return new Cookie("SESSION", header.substring("SESSION=".length(), header.indexOf(';')));
+    }
+
+    static String loginBody(String loginId, String password) {
+        return """
+                {"loginId":"%s","password":"%s"}""".formatted(loginId, password);
+    }
+
+    ResultActions login(String loginId, String password, Cookie... cookies) throws Exception {
+        var request = post("/api/v1/auth/login")
+                .with(csrfToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginBody(loginId, password));
+        if (cookies.length > 0) {
+            request.cookie(cookies);
+        }
+        return mvc.perform(request);
+    }
+
+    ResultActions logout(Cookie... cookies) throws Exception {
+        var request = post("/api/v1/auth/logout").with(csrfToken());
+        if (cookies.length > 0) {
+            request.cookie(cookies);
+        }
+        return mvc.perform(request);
     }
 
     ResultActions signUp(String body) throws Exception {
@@ -134,5 +172,121 @@ class MemberAuthApiIntegrationTest {
         signUp(signUpBody("reader_03", "password2", "다른 독자", "world"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("LOGIN_ID_TAKEN"));
+    }
+
+    // ---- A15 로그인 · A16 로그아웃 · 실패 잠금 ----
+
+    @Test
+    void loginReturnsMemberAndIssuesNewSessionId() throws Exception {
+        var joined = signUp(signUpBody("login_01", "password1", "독자", "world")).andReturn();
+        Cookie before = sessionCookie(joined.getResponse());
+
+        // 이미 세션이 있는 채로 로그인해도 세션 ID 를 새로 낸다(세션 고정 막기)
+        var result = login("login_01", "password1", before)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loginId").value("login_01"))
+                .andExpect(jsonPath("$.name").value("독자"))
+                .andExpect(jsonPath("$.categories[*].code", contains("world")))
+                .andReturn();
+        Cookie after = sessionCookie(result.getResponse());
+        assertThat(after.getValue()).isNotEqualTo(before.getValue());
+        // 로그인 상태가 바뀌어 새 번호표가 함께 온다
+        assertThat(result.getResponse().getHeaders("Set-Cookie")).anyMatch(h -> h.startsWith("XSRF-TOKEN="));
+    }
+
+    @Test
+    void sessionLivesInRedisForOneDay() throws Exception {
+        var joined = signUp(signUpBody("login_02", "password1", "독자", "world")).andReturn();
+        // 쿠키 값은 세션 ID 를 Base64 로 감싼 것이다(Spring Session 기본)
+        String sessionId = new String(
+                Base64.getDecoder().decode(sessionCookie(joined.getResponse()).getValue()), StandardCharsets.UTF_8);
+        String key = "spring:session:sessions:" + sessionId;
+        assertThat(redis.hasKey(key)).isTrue();
+        assertThat(redis.getExpire(key, TimeUnit.SECONDS)).isBetween(86_000L, 86_400L);
+    }
+
+    @Test
+    void wrongPasswordAndUnknownIdLookTheSame() throws Exception {
+        signUp(signUpBody("login_03", "password1", "독자", "world")).andExpect(status().isCreated());
+        String wrongPassword = login("login_03", "password2")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("LOGIN_FAILED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        String unknownId = login("nobody_03", "password1")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("LOGIN_FAILED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        // 어느 쪽이 틀렸는지 알려 주지 않는다 — 아이디를 빼면 본문이 같다
+        assertThat(wrongPassword.replace("login_03", "")).isEqualTo(unknownId.replace("nobody_03", ""));
+    }
+
+    @Test
+    void fiveFailuresLockTheLoginIdForOneMinute() throws Exception {
+        signUp(signUpBody("login_04", "password1", "독자", "world")).andExpect(status().isCreated());
+        for (int i = 0; i < 5; i++) {
+            login("login_04", "wrong-pass").andExpect(status().isUnauthorized());
+        }
+        // 잠긴 동안은 비밀번호가 맞아도 429
+        login("login_04", "password1")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_REQUESTS"));
+        assertThat(redis.getExpire("login-lock:login_04", TimeUnit.SECONDS)).isBetween(1L, 60L);
+
+        // 1분이 지나 잠금 키가 사라지면 다시 된다(시간을 기다리는 대신 키를 지운다)
+        redis.delete("login-lock:login_04");
+        login("login_04", "password1").andExpect(status().isOk());
+    }
+
+    @Test
+    void successResetsTheFailureCount() throws Exception {
+        signUp(signUpBody("login_05", "password1", "독자", "world")).andExpect(status().isCreated());
+        for (int i = 0; i < 4; i++) {
+            login("login_05", "wrong-pass").andExpect(status().isUnauthorized());
+        }
+        login("login_05", "password1").andExpect(status().isOk());
+        for (int i = 0; i < 4; i++) {
+            login("login_05", "wrong-pass").andExpect(status().isUnauthorized());
+        }
+        login("login_05", "password1").andExpect(status().isOk());
+    }
+
+    @Test
+    void unknownIdIsCountedTooSoNothingLeaks() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            login("nobody_06", "wrong-pass").andExpect(status().isUnauthorized());
+        }
+        login("nobody_06", "wrong-pass").andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void loginRejectsMissingFields() throws Exception {
+        mvc.perform(post("/api/v1/auth/login")
+                        .with(csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("loginId", "password")));
+    }
+
+    @Test
+    void logoutEndsTheSession() throws Exception {
+        var joined = signUp(signUpBody("login_07", "password1", "독자", "world")).andReturn();
+        Cookie session = sessionCookie(joined.getResponse());
+        logout(session).andExpect(status().isNoContent());
+        // 끝난 세션으로는 다시 로그아웃할 수 없다 — 로그인이 필요하다
+        logout(session)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void logoutWithoutSessionIsUnauthorized() throws Exception {
+        logout().andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 }

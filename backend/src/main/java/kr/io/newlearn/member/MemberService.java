@@ -71,7 +71,7 @@ public class MemberService {
         return toResponse(member);
     }
 
-    static boolean tooLongForHash(String password) {
+    public static boolean tooLongForHash(String password) {
         return password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES;
     }
 

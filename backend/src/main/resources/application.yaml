@@ -16,6 +16,9 @@ spring:
     hibernate:
       # 스키마는 Flyway 마이그레이션(db/migration)만 바꾼다
       ddl-auto: validate
+  # Redis 세션의 만료 — Spring Session 은 server.servlet.session.timeout 을 읽지 않아 따로 둔다(없으면 30분)
+  session:
+    timeout: 1d
   data:
     redis:
       host: ${REDIS_HOST:localhost}
