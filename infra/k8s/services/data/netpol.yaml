@@ -1,0 +1,48 @@
+# PostgreSQL · Redis 로 들어오는 길 — 실제로 부르는 Pod 만 (Jira S15P31A102-121)
+# 정책이 없으면 클러스터 안 어느 Pod 든(러너 잡 · 시험 Pod 등) DB · Redis 에 바로 닿는다 — 비밀번호가 마지막 방어선이 된다
+# 부르는 쪽: backend(app/backend.yaml 의 DB_HOST · REDIS_HOST) · AI 워커(ai/ai.yaml 의 REDIS_HOST) · 매일 덤프 잡(postgres-backup.yaml)
+# 그대로 남는 길: 워커 노드 호스트에서 오는 것(kubelet · 호스트 네트워크 Pod) — Cilium 은 로컬 호스트 통신을 기본으로 허용한다 (admin-ui/grafana-netpol.yaml 과 같다)
+#   PostgreSQL · Redis 의 상태 확인은 컨테이너 안 exec(pg_isready · redis-cli ping)라 네트워크를 타지 않는다
+# 네임스페이스 이름표가 없는 규칙은 이 정책의 네임스페이스(data)로 한정된다
+# 수집 배치를 만들면(SSOT 8절, 보류) 그 Pod 를 여기와 app/netpol.yaml 에 더한다
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: app
+            app: backend
+        # 매일 04시 덤프 잡 — 관리 서버에 떠서 노드를 건넌다. 주간 S3 잡은 DB 에 붙지 않아 이름표가 없다
+        - matchLabels:
+            app: postgres-backup
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: redis-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: redis
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: app
+            app: backend
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai
+            app: ai
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
