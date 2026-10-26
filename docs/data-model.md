@@ -128,12 +128,14 @@ erDiagram
     text requested_by "누가 요청했나"
     int attempt "몇 번째 시도"
     jsonb candidates "MATCH_EVENT, ISSUE 에 보낸 후보"
-    jsonb result "판정 기록, 다음 마이그레이션에서 더함"
+    jsonb result "판정 기록 MATCH_EVENT, ISSUE"
     text error_code
     text error_message
     timestamptz created_at "작업을 만든 시각"
     timestamptz started_at
     timestamptz finished_at
+    timestamptz queued_at "이번 시도가 QUEUED 가 된 때"
+    timestamptz published_at "이번 시도를 큐에 넣은 때"
   }
   article_mindmap {
     bigint article_id PK, FK
@@ -325,13 +327,15 @@ erDiagram
 | `requested_by` | text | 예 | 누가 요청했나. 지금은 `BATCH`(수집 배치가 투입) 하나. 사용자 URL 입력은 뺐다(2026-10-20) |
 | `attempt` | int | 예 | 몇 번째 시도인가(1부터). 다시 돌리면 올린다. 늦게 온 옛 결과를 가르는 데 쓴다 |
 | `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다 |
-| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). **다음 마이그레이션에서 더한다** |
+| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). 칸은 V3 에서 더했고(Jira 30) 쓰는 일은 Jira 35 · 40 |
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
-| `started_at` · `finished_at` | timestamptz | 아니오 | 워커가 결과와 함께 보낸 시작 · 끝 시각 |
+| `started_at` · `finished_at` | timestamptz | 아니오 | 워커가 결과와 함께 보낸 시작 · 끝 시각. 늦춰 다시 걸 때 간격을 `finished_at` 부터 잰다 |
+| `queued_at` | timestamptz | 예 | 이번 시도가 `QUEUED` 가 된 때 — 처음 만들 때와 다시 걸 때. 큐에 못 넣은 작업을 찾는 기준(V3, Jira 30) |
+| `published_at` | timestamptz | 아니오 | 이번 시도를 큐에 넣은 때. 비어 있으면 아직 못 넣었다 — 1분 지나면 스케줄러가 다시 넣는다. 다시 걸면 비운다(V3, Jira 30) |
 
-- 기사 하나 · 단계 하나에 한 행이다. 다시 돌리면 같은 행의 `attempt` 를 올리고 `status` 를 `QUEUED` 로 되돌린다. 몇 번까지 다시 돌릴지는 Jira 30
+- 기사 하나 · 단계 하나에 한 행이다. 다시 돌리면 같은 행의 `attempt` 를 올리고 `status` 를 `QUEUED` 로 되돌린다. 몇 번까지 · 언제 다시 돌릴지는 `docs/api.md` 2절 「작업 실패 코드」(최대 3번)
 - 워커가 처리 시작을 알리지 않아서 「처리 중」 상태를 따로 두지 않았다. 단계별 진행 표시(PRD FR-32, P1)를 넣을 때 더한다
 - 데이터셋 검증용 실행을 따로 셀지는 AI 평가 방식과 같이 정한다(5절)
 
