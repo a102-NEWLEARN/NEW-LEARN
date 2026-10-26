@@ -46,8 +46,10 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 
 - 로그인 없이 여는 주소는 `common/security/SecurityConfig` 한 곳에 있다. 새 공개 API 를 만들면 이 파일과 `SecurityRulesTest` 를 같은 MR 에서 고친다
 - 인증 · 권한 코드를 고치면 사람이 최종 확인한다(`AGENTS.md`)
-- 로그인 · 세션(Redis) · CSRF 번호표 쿠키는 Jira 62 에서 정한다. 그때까지 CSRF 는 스프링 기본값이라, 로그인 없이 번호표 없는 POST 를 보내면 403 과 함께 세션이 생긴다
-- POST · PUT · DELETE 테스트에는 `.with(csrf())` 를 넣는다
+- 로그인은 세션(Redis, 하루)이고 CSRF 는 번호표 쿠키(`csrf.spa()`)다(`docs/api.md` 1절 「인증」, Jira 62). 세션을 여닫는 일은 `auth/LoginSessions` 한 곳이 한다 — 세션 ID 새로 내기 · 번호표 새로 주기가 거기 있다
+- 로그인한 회원은 컨트롤러 인자 `@AuthenticationPrincipal MemberPrincipal me` 로 받는다(`common/security/MemberPrincipal` — `id` · `loginId` · `name`). 로그인이 필요한 주소면 손님은 `SecurityConfig` 가 먼저 401 로 막는다. 로그인 없이 여는 주소에서는 `me` 가 null 일 수 있다
+- POST · PUT · DELETE 테스트에는 `.with(TestCsrf.csrfToken())` 을 넣는다(번호표 쿠키 + 같은 값의 헤더). spring-security-test 의 `.with(csrf())` 는 쓰지 않는다 — 공용 CSRF 필터의 저장소를 세션용으로 바꿔 놓아 뒤에 도는 테스트가 엉뚱하게 깨진다(2026-10-26)
+- 테스트에서 로그인 상태는 가입 · 로그인 API 를 실제로 불러 받은 `SESSION` 쿠키를 다음 요청에 붙여 만든다. 예시: `MemberAuthApiIntegrationTest` 의 `signUp` · `login` · `sessionCookie`. 쿠키 속성(`HttpOnly` · `Secure` · `Max-Age`)은 MockMvc 가 못 보므로 실제 서버로 띄우는 `SessionCookieHttpTest` 에서 본다
 
 ## 6. 조회 쿼리 · 트랜잭션
 
@@ -69,6 +71,6 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 작업마다 `@Operation(summary, description)`, 인자마다 `@Parameter(description)` 를 단다. 목록 인자는 `@ParameterObject @Valid PageQuery query` 로 받아 `page` · `size` 로 펼친다
 - 오류는 `@ApiResponse(responseCode = "404", description = "코드 — 언제", content = @Content(mediaType = OpenApiConfig.PROBLEM_JSON, schema = @Schema(implementation = ApiProblem.class)))` 로 적는다. 오류 응답을 하나라도 적으면 `@ApiResponse(responseCode = "200", description = "성공")` 도 적는다 — 안 적으면 성공 응답이 문서에서 빠진다
 - `@Parameter` 에 `schema = @Schema(…)` 를 직접 주면 자바 타입을 읽지 않고 문자열로 보인다. 숫자면 `type = "integer"` 를 같이 적는다
-- summary 앞 `[확정] A번호` 는 명세대로 만들고 시험을 마친 작업에만 붙인다. 붙일 때 `OpenApiDocsTest` 의 `CONFIRMED` 에 경로를 더한다. 표시가 없으면 「만드는 중이라 바뀔 수 있음」이다(`OpenApiConfig` 뜻풀이)
+- summary 앞 `[확정] A번호` 는 명세대로 만들고 시험을 마친 작업에만 붙인다. 붙일 때 `OpenApiDocsTest` 가 확인하게 한다 — GET 은 `CONFIRMED` 에 경로를 더하고, POST · PUT · DELETE 는 작업마다 응답 코드까지 보는 시험을 둔다(예: `memberApisAreConfirmedWithTheirResponses`). 표시가 없으면 「만드는 중이라 바뀔 수 있음」이다(`OpenApiConfig` 뜻풀이)
 - 내부 API(`/internal/**`)는 문서에 넣지 않는다(`application.yaml` 의 `springdoc.paths-to-exclude`)
 
