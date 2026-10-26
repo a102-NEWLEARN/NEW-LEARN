@@ -11,7 +11,7 @@
 | `ufw-worker.sh` | Lightsail 방화벽 — 22 · 80 · 443 · wg0 들이기, Pod 주소 범위 포워딩 | Lightsail |
 | `join-worker.sh` | 컨트롤 플레인이 찍은 토큰으로 kubeadm join | Lightsail |
 | `bootstrap-argocd.sh` | Argo CD → 저장소 읽기 Secret(배포 토큰) → kubeseal → 루트 Application. 그 뒤는 Argo CD 가 Git 을 따라 깐다 | EC2 (워커 join 뒤) |
-| `seal-secrets.sh` | 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) · `db`(DB 계정, 무작위) · `ghcr`(이미지 받기 토큰) · `gms`(AI 워커의 GMS 키) 등 — 전체는 스크립트 머리 | EC2 |
+| `seal-secrets.sh` | 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) · `db`(DB 계정, 무작위) · `ghcr`(이미지 받기 토큰) · `gms`(AI 워커의 GMS 키) · `internal-api`(직원용 문 출입증, 무작위) 등 — 전체는 스크립트 머리 | EC2 |
 
 설정 값은 스크립트 밖에 있다 — kubeadm 은 `infra/k8s/kubeadm/`, Cilium 은 `infra/k8s/bootstrap/cilium-values.yaml` 위에 `cilium-values.prod.yaml`, Argo CD 는 `argocd-values.yaml` 위에 `argocd-values.prod.yaml`, GitLab Runner 는 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 모니터링은 `monitoring-values.yaml` · `prometheus-pv.yaml` · `ci-exporter/`.
 쿠버네티스 판은 `infra/k8s/kubeadm/init.yaml` 의 `kubernetesVersion` 한 곳에만 적는다. `common.sh` 가 그 값을 읽어 패키지를 고정한다.
@@ -252,10 +252,10 @@ push 를 바로 반영하는 웹훅과 배포 알림. 설계는 `SSOT.md` 6절 �
 
 PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · ai(`ai`)는 Argo CD 앱이다. 사람이 하는 일은 처음 한 번 Secret 을 봉인하는 것과 태그를 바꾸는 MR 뿐이다. 설계는 `SSOT.md` 6절 「클러스터 구성」 · 「저장소·백업」.
 
-1. **DB 계정** (EC2, 묻지 않음) — 무작위 비밀번호로 `data` · `app` 에 봉인한다. 봉인 파일이 이미 있으면 건너뛴다(PostgreSQL 은 처음 초기화 때만 읽는다)
+1. **DB 계정 · 직원용 문 출입증** (EC2, 묻지 않음) — 무작위 값으로 봉인한다. DB 비밀번호는 `data` · `app` 에, 출입증(Jira 30)은 워커 · 배치 키 둘을 `app` 에 · 워커 키를 `ai` 에도. 봉인 파일이 이미 있으면 건너뛴다(PostgreSQL 은 처음 초기화 때만 읽고, 출입증은 한쪽만 바뀌면 backend 와 워커가 어긋난다). 출입증 봉인 전에는 backend 가 `/internal/v1` 을 모두 막는다
 
    ```bash
-   bash infra/server/seal-secrets.sh db
+   bash infra/server/seal-secrets.sh db && bash infra/server/seal-secrets.sh internal-api
    ```
 
 2. **이미지 받기 토큰** (관리자 PC 에서 — 값을 묻는다). GitHub › Settings › Developer settings › Personal access tokens › **Tokens (classic)** — `read:packages` 하나, 만료 2026-11-30. 사용자 이름은 이미지 창고 주인(`.gitlab-ci.yml` 의 `IMAGE_PREFIX`). 스크립트가 그 토큰으로 GHCR 에서 받을 수 있는지 먼저 본 뒤 `app` · `ai` 에 봉인한다. fine-grained 토큰은 GHCR 이 받지 않는다
@@ -264,7 +264,7 @@ PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · 
    ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh ghcr"
    ```
 
-3. **저장소로 가져오기** — `~/sealed/sealed-postgres-auth-data.yaml` → `infra/k8s/services/data/sealed-postgres-auth.yaml`, `…-app.yaml` → `services/app/`, `sealed-ghcr-pull-app.yaml` · `-ai.yaml` → `services/app/sealed-ghcr-pull.yaml` · `services/ai/sealed-ghcr-pull.yaml`. 커밋 · MR
+3. **저장소로 가져오기** — `~/sealed/sealed-postgres-auth-data.yaml` → `infra/k8s/services/data/sealed-postgres-auth.yaml`, `…-app.yaml` → `services/app/`, `sealed-ghcr-pull-app.yaml` · `-ai.yaml` → `services/app/sealed-ghcr-pull.yaml` · `services/ai/sealed-ghcr-pull.yaml`, `sealed-internal-api-app.yaml` · `-ai.yaml` → `services/app/sealed-internal-api.yaml` · `services/ai/sealed-internal-api.yaml`(두 `kustomization.yaml` 의 `resources` 에도 한 줄씩). 커밋 · MR. 출입증은 서비스가 뜬 뒤에 넣는 것이라 풀린 뒤 `kubectl -n app rollout restart deploy/backend` · `kubectl -n ai rollout restart deploy/ai`(env 는 뜰 때만 읽는다)
 
 - **태그 바꾸기**: 보통은 CI 가 한다 — dev 에서 이미지를 구우면 `w5:deploy-mr` 잡이 `deploy/app` · `deploy/ai` 로 태그 MR 을 연다(`SSOT.md` 6절 「배포 흐름」). 사람은 그 MR 을 확인하고 머지한다. 손으로 바꿀 때는 `infra/k8s/services/app · ai/kustomization.yaml` 의 `newTag` 를 바꾸는 MR — 태그는 **dev push 파이프라인이 GHCR 에 올린 것만** 쓴다(MR 파이프라인은 굽기만 하고 올리지 않는다, 2026-10-22 MR 의 커밋을 적었다가 ImagePullBackOff). 되돌리기는 그 MR 을 Revert
 - **태그 MR 토큰** (Maintainer, GitLab 화면): Settings › Access tokens — 이름 `deploy-mr-bot` · 역할 Developer · 범위 `api` · 만료 2026-11-30 → Settings › CI/CD › Variables 에 `DEPLOY_MR_TOKEN`(Masked and hidden · Protect). 토큰이 만료되면 dev 파이프라인의 `w5:deploy-mr` 가 401 로 빨개진다
