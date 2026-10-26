@@ -47,6 +47,9 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 이슈 헤더·타임라인(A3·A4)의 조회 계약과 빈 이슈 처리는 `docs/api-screen.md` 2절,
 구현 성공 기준은 `docs/specs/F07-issue-timeline-api.md`를 따른다.
 
+사건 패널·관련 기사(A5·A6)의 조회 계약은 `docs/api-screen.md` 1·2절,
+구현 성공 기준은 `docs/specs/F08-event-panel-api.md`를 따른다.
+
 ## 3. 분석 파이프라인
 
 > 이 절은 전부 초안이다. AI 담당(강유진, 황도경) 확인 필요.
@@ -296,7 +299,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
 | Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
-| API 인증을 둘지, 둔다면 어떻게 할지 (2026-10-22 Jira 100: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 열고 나머지는 로그인이 있어야 하게 막았다 — `backend` 의 `SecurityConfig`). 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지도 여기서 정한다. 화면 로그인은 세션 쿠키 · 세션은 Redis · CSRF 는 번호표 쿠키로 정했다(2026-10-21, `docs/api.md` 1절 「인증」) — 설정은 Jira 62. 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 요청 수 상한과 로그인 실패 잠금(무차별 대입 · 사전 하루 한도 소진 막기), `TOO_MANY_REQUESTS` 를 다시 둘지도 여기서 정한다 | BE | `docs/api.md` 1절 |
+| API 인증 — 남은 것은 둘이다. 워커 · 배치가 부르는 내부 API(`/internal/v1`)를 어떻게 막을지(Jira 30), 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 주소별 요청 수 상한(무차별 대입 · 사전 하루 한도 소진 막기 — 앱이 아니라 입구 Envoy 에서 하자는 안, Jira 62 에서 뺐다). 정한 것: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 연다(2026-10-22 Jira 100, `backend` 의 `SecurityConfig`). 화면 로그인은 세션 쿠키 · Redis 세션 · CSRF 번호표 쿠키(2026-10-21). 로그인 하루 유지 · 같은 아이디 5번 틀리면 1분 잠금(429 `TOO_MANY_REQUESTS`)은 2026-10-26 Jira 62 | BE · Infra | `docs/api.md` 1절, `docs/api-screen.md` A15 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — AI 는 워커 쪽 규칙에 동의했다(2026-10-23). FE 확인 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
 | 한 기사가 여러 사건에 속할 수 있는지 (PRD FR-9) | AI · BE | `docs/data-model.md` 5절 |

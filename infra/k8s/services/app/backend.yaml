@@ -50,6 +50,9 @@ spec:
               value: redis.data.svc
             - name: REDIS_PORT
               value: "6379"
+            # 로그인 세션 · CSRF 번호표 쿠키에 Secure 를 붙인다 — Envoy 가 TLS 를 풀어 앱은 http 로 받는다 (Jira 62)
+            - name: SESSION_COOKIE_SECURE
+              value: "true"
             # 컨테이너 상한(1Gi)의 70% 를 힙으로 — 자바 기본은 25% 다
             - name: JAVA_TOOL_OPTIONS
               value: -XX:MaxRAMPercentage=70

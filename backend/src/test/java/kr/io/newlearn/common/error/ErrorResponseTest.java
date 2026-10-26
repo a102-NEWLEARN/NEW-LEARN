@@ -1,8 +1,8 @@
 package kr.io.newlearn.common.error;
 
+import static kr.io.newlearn.common.security.TestCsrf.csrfToken;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,7 +65,7 @@ class ErrorResponseTest {
 
     @Test
     void wrongMethodIsMethodNotAllowed() throws Exception {
-        mockMvc.perform(delete("/probe/articles/1").with(csrf()))
+        mockMvc.perform(delete("/probe/articles/1").with(csrfToken()))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
@@ -73,7 +73,7 @@ class ErrorResponseTest {
     @Test
     void unsupportedContentTypeIsRejected() throws Exception {
         mockMvc.perform(post("/probe/members")
-                        .with(csrf())
+                        .with(csrfToken())
                         .contentType(MediaType.TEXT_PLAIN)
                         .content("loginId=ab"))
                 .andExpect(status().isUnsupportedMediaType())
@@ -91,7 +91,7 @@ class ErrorResponseTest {
     @Test
     void bodyValidationFillsErrorsWithKoreanReason() throws Exception {
         mockMvc.perform(post("/probe/members")
-                        .with(csrf())
+                        .with(csrfToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\": \"ab\"}"))
                 .andExpect(status().isBadRequest())
@@ -142,7 +142,7 @@ class ErrorResponseTest {
     @Test
     void wrongTypeInBodyPointsToField() throws Exception {
         mockMvc.perform(post("/probe/members")
-                        .with(csrf())
+                        .with(csrfToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\": {\"nested\": 1}}"))
                 .andExpect(status().isBadRequest())
@@ -155,7 +155,7 @@ class ErrorResponseTest {
     @Test
     void brokenJsonIsValidationFailed() throws Exception {
         mockMvc.perform(post("/probe/members")
-                        .with(csrf())
+                        .with(csrfToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{"))
                 .andExpect(status().isBadRequest())
