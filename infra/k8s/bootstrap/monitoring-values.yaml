@@ -161,6 +161,16 @@ kube-state-metrics:
 
 # node-exporter 는 차트 기본값이 NoSchedule taint 를 견딘다
 prometheus-node-exporter:
+  # NIC(ENA) 의 AWS 상한 초과 카운터 다섯 개만 모은다 — 받기 대역 · 패킷 수 상한에 걸려 줄 서거나 버려진 패킷 수(AWS 문서
+  # 「Monitor network performance for ENA settings」). `ethtool -S ens5` 누적값뿐이라 끊긴 시각과 맞출 수 없어서 넣었다 (Jira S15P31A102-116)
+  # 지표 이름은 node_ethtool_<카운터>. 두 노드 모두 ens5 다
+  # 목록은 덮어쓰기라 차트 92.10.1 기본값 두 줄(파일 시스템 빼기)을 그대로 옮겨 둔다 — `helm get values kps --all` 로 확인
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+    - --collector.ethtool
+    - --collector.ethtool.device-include=^ens5$
+    - --collector.ethtool.metrics-include=_allowance_exceeded$
   resources:
     requests:
       cpu: 10m
