@@ -197,6 +197,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 배포 설정: `infra/k8s/services/<네임스페이스>/`, Argo CD 앱 하나씩(`infra/k8s/apps/templates/`). 이미지 태그는 `infra/k8s/services/app · ai/kustomization.yaml`의 `images` 한 곳 — 바꾸는 길은 아래 「배포 흐름」의 태그 MR
   - 무중단 교체 조건(아래)을 backend · frontend · ai에 넣었다 — 새 Pod 먼저, 준비 확인(backend는 DB · Redis까지), 끝낼 때 10초. 살아 있는지는 포트만 본다(DB가 잠깐 끊겼다고 재시작하지 않게)
   - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
+  - 들어오는 길 네트워크 정책(CiliumNetworkPolicy, 2026-10-27, Jira S15P31A102-121): backend는 Envoy · AI 워커만, frontend는 Envoy만, AI 워커는 아무도(상태 확인은 kubelet), PostgreSQL은 backend · 매일 덤프 잡만, Redis는 backend · AI 워커만 받는다(`infra/k8s/services/<네임스페이스>/netpol.yaml`). 나가는 길은 막지 않는다. 그래서 클러스터 안 시험 Pod로 backend를 직접 부를 수 없다 — `kubectl -n app port-forward svc/backend`로 시험한다. 수집 배치를 만들면(8절) backend · PostgreSQL 길을 더한다
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
 - 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
 
