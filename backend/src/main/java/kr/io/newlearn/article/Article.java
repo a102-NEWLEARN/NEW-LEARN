@@ -22,7 +22,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 // 기사. 수집 배치가 적재하고(Jira 34), 투입(B1)하면 released_at 이 채워져 화면에 보인다 (data-model.md 2절)
-// 기자명 · 대표 카테고리 · 태그 · 투입 시각을 채우는 일은 수집 · 투입 티켓이 더한다
+// 기자명 · 대표 카테고리 · 태그를 채우는 일은 수집 티켓이 더한다. 공개 시각(released_at)은 markReleased 가 채운다
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -82,5 +82,13 @@ public class Article {
         this.body = body;
         this.publishedAt = publishedAt;
         this.sourceCategories = new ArrayList<>(sourceCategories);
+    }
+
+    // 화면에 내놓는다 — EXTRACT 결과를 처음 저장할 때 부른다(분석이 끝난 뒤부터 보인다, 2026-10-26 Jira 34)
+    // 이미 공개했으면 그대로 둔다. 다시 분석해도 처음 공개 시각이 남는다
+    public void markReleased(Instant now) {
+        if (releasedAt == null) {
+            this.releasedAt = now;
+        }
     }
 }
