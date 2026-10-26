@@ -52,12 +52,12 @@ MR C — Infra (출입증 넣을 자리)
 
 - [x] Jira 30 진행 중, 브랜치 `feat/backend/S15P31A102-30-internal-key` ← `origin/backend`
 - [x] A1 출입증 체인 · 필터 · 설정 + 시험 — 보안 시험 13개 통과, 되돌림 확인(빈 키 막기를 없애면 「401 이어야 하는데 404」, 키 검사를 끄면 12개 중 2개 실패), 로컬로 띄워 `curl` 로 401 · 403 · 404 와 쿠키 없음 확인
-- [ ] A2 문서(SSOT 8 → 9절 · api.md 1절 · 코드 약속 5절) → reviewer → MR A → backend → 🧑 사람 최종 확인 → 머지
-- [ ] B1 마이그레이션 · 엔티티 메서드 · 리포지토리 — 브랜치 `feat/backend/S15P31A102-30-job-queue`
-- [ ] B2 발행 · 그룹 만들기 · 커밋 뒤 발행 · `queueRelease` — 실제 Redis 시험(`ACKED` 자르기 포함)
-- [ ] B3 W1 · 봉투 검사 · 상태 바꾸기 · 처리기 넘기기
-- [ ] B4 다시 걸기 정책 · 스케줄러
-- [ ] B5 `NOT_ANALYZABLE`
+- [x] A2 문서(SSOT 8절 · api.md 1절 · 코드 약속 5절) → reviewer → MR A(!197) → backend — 🧑 사람 최종 확인 · 머지 남음
+- [x] B1 마이그레이션 · 엔티티 메서드 · 리포지토리 — 브랜치 `feat/backend/S15P31A102-30-job-queue`(MR A 위)
+- [x] B2 발행 · 그룹 만들기 · 커밋 뒤 발행 · `queueRelease` — 실제 Redis 시험(`ACKED` 자르기 포함)
+- [x] B3 W1 · 봉투 검사 · 상태 바꾸기 · 처리기 넘기기
+- [x] B4 다시 걸기 정책 · 스케줄러
+- [x] B5 `NOT_ANALYZABLE` — B1 ~ B5 확인: 새 시험 42개, 되돌림 확인 8곳 모두 단언에서 실패, 로컬로 띄워 W1 204 · 409 · 404 와 스케줄러가 1분 안에 시도 2 로 다시 걸어 큐에 넣는 것까지 봄
 - [ ] B6 문서 · 스펙 · 계획 사본 → reviewer → MR B → backend
 - [ ] C seal-secrets · 매니페스트 → MR C → infra
 - [ ] backend · infra → dev, 브랜치 맞추기, 태그 MR, 사이트 확인
@@ -101,9 +101,18 @@ MR C — Infra (출입증 넣을 자리)
 - `.env.example` 에 `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` 빈 칸을 더했다(로컬에서 W1 · B1 을 불러 볼 때)
 - reviewer 조수(2026-10-26) 뒤 더한 것: 두 키가 같으면 API 가 뜨지 않게, 설정한 키의 앞뒤 공백 · 줄바꿈을 떼게, 인증을 요청 속성에도 두게(비동기 응답 대비) 했다. 키를 비운 시험은 로컬 `.env` 와 상관없게 값을 못 박았다. `compose.yaml` 의 backend 에 출입증 env 두 줄, F12 스펙 AC-10(「내부 API 는 잠긴 채」 → 「손님 · 로그인 세션으로는 안 열림」)을 고쳤다
 
+- MR B 를 하며 바뀐 것
+  - 발행은 Lua 대신 Spring Data Redis 4.1.1 의 `XAddOptions.trim(TrimOptions.maxLen(N).approximate().deletionPolicy(removeAcknowledged()))` — 이 판이 `ACKED` 를 받는다(jar 에서 확인). 그룹 만들기는 `xGroupCreate(…, mkStream=true)` 에 BUSYGROUP 만 넘긴다
+  - 단계별 메시지는 `AnalysisMessageFactory`(EXTRACT · EMBED 는 이 티켓, MATCH_EVENT · ISSUE 는 35 · 40), 처리기는 `AnalysisResultHandlers` 묶음으로 찾는다 — 시험이 묶음을 가짜로 바꿔 끼워 56 · 35 · 40 이 처리기를 더해도 깨지지 않게
+  - 스케줄러가 못 넣은 작업을 넣을 때는 `published_at` 을 먼저 적고(차지) 넣는다. 넣다 실패하면 지운다. 차지한 뒤 넣기 전에 Pod 가 죽으면 그 작업은 `QUEUED` 로 남는다 — 드물어 손으로 다시 건다(한계)
+  - 봉투를 JSON 으로 못 읽으면 W1 컨트롤러가 400 `RESULT_SCHEMA_INVALID` 로 답한다(전역 처리기는 `VALIDATION_FAILED` 를 줘서)
+  - 시험은 `src/test/resources/config/application.yaml` 로 스케줄러를 끈다
+  - reviewer 조수 두 번째(2026-10-26) 뒤: ① 다시 걸지 않는 실패가 조회 조건에 남아 100개가 넘으면 다시 걸기 전체가 멈추던 것을 `retry_at` 칸(V4)으로 고침 — 이 시각이 지난 실패만 읽는다. 간격은 워커가 보낸 시각이 아니라 API 가 받은 때부터 ② 처리기의 예상 밖 오류는 `INTERNAL` 실패로 남김(QUEUED 로 남으면 워커가 GMS 를 끝없이 부름) ③ 스케줄러 차례를 행마다 · 일마다 감싸고, Redis 에 못 넣으면 그 차례를 끝냄 ④ 메시지 만드는 곳이 한 단계에 둘이면 뜨지 않음. 되돌림 확인 4곳 더(모두 단언에서 실패)
+  - 마이그레이션은 `V4__analysis_job_queue.sql` — BE 팀원의 113(!190)이 `V3__drop_article_source_summary.sql` 을 써서 계획대로 다음 번호로 옮겼다. 113 보다 먼저 머지하게 되면 다시 본다
+
 ## 되돌리는 법
 
 - MR 을 Revert(backend → dev). 코드는 바로 돌아간다
 - 🔴 마이그레이션은 되돌리지 않는다 — 칸 셋은 남는다(비어 있어도 해가 없음). 지우려면 새 마이그레이션
-- Redis 의 스트림 · 그룹은 남는다 — 필요하면 `DEL analysis.released analysis.match_event analysis.issue`
+- Redis 의 스트림 · 그룹은 남는다 — 필요하면 `DEL analysis.released analysis.match_event analysis.issue`. 그룹은 API 가 뜰 때만 만들므로 지운 뒤에는 API 를 다시 띄운다(안 그러면 다음 XADD 가 그룹 없는 스트림을 만들어 워커가 NOGROUP 을 받는다)
 - 봉인 Secret 은 매니페스트에서 빼면 Argo CD 가 지운다
