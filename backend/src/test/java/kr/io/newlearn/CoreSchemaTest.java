@@ -73,10 +73,12 @@ class CoreSchemaTest {
                 assertThat(articles).hasSize(11);
                 assertThat(mindmaps).hasSize(6);
 
+                // V3 까지만 올린다 — 뒤에 마이그레이션이 더 생겨도(V4 분석 작업 큐 등) 이 시험은 V3 만 본다
                 var result = Flyway.configure()
                         .dataSource(dataSource)
                         .schemas(schema)
                         .defaultSchema(schema)
+                        .target("3")
                         .load()
                         .migrate();
 
