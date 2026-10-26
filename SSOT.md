@@ -216,6 +216,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Prometheus 지표 `certmanager_certificate_expiration_timestamp_seconds`(만료) · `certmanager_certificate_renewal_timestamp_seconds`(다음 갱신) — cert-manager ServiceMonitor로 모은다
   - 바깥에서: `openssl s_client -connect newlearn.io.kr:443 -servername newlearn.io.kr`의 발급자 · 만료일
   - 갱신이 실패하면 `kubectl -n envoy-gateway-system describe certificate newlearn`과 `kubectl get order,challenge -A`의 이벤트를 본다
+- 응답 보안 머리: 화면(`/`, frontend) 응답에는 Envoy가 HSTS · `nosniff` · `X-Frame-Options: DENY` · `Referrer-Policy`를 붙이고, CSP는 아직 보고만(`Content-Security-Policy-Report-Only`) 보낸다(`infra/k8s/services/app/routes.yaml`, 2026-10-27, Jira S15P31A102-120). `/api` · Swagger에는 스프링 시큐리티가 HSTS · `nosniff` · `X-Frame-Options` 셋을 붙인다. CSP는 seed-design 플러그인이 `index.html`에 넣는 인라인 script를 해시로 허용한다 — 그 글은 `@seed-design/css`가 만들어서, 그 패키지 판이나 플러그인 설정(`colorMode` · `fontScaling`)이 바뀌면 해시도 같이 바꾼다. 강제로 바꿀지는 8절
 - 공개 화면: `/argocd` · `/grafana`는 Envoy 앞단의 브라우저 팝업(HTTP 기본 인증, `infra/k8s/admin-ui/`) 하나로 잠근다. 계정은 둘이 같이 쓰는 하나이고, 저장소에는 봉인한 htpasswd만 둔다(`infra/server/seal-secrets.sh basic-auth`, 아이디 · 비밀번호는 사람이 입력해 팀에 따로 알린다)
   - Grafana: Envoy가 팝업 아이디를 `X-WEBAUTH-USER`로 넘기고 Grafana 프록시 로그인이 그 아이디로 바로 들인다(보기 권한). 손님이 같은 머리를 꾸며 보내면 Envoy가 맨 앞에서 지운다(`infra/k8s/gateway/client-traffic.yaml`). Envoy를 거치지 않고 다른 Pod에서 Grafana로 오는 길은 CiliumNetworkPolicy가 막는다(받는 길은 `infra/k8s/admin-ui/grafana-netpol.yaml`, Jira S15P31A102-119). 관리 서버 호스트에서 오는 길(호스트 네트워크 Pod · API 서버 프록시 · 관리자 SSH 터널)은 Cilium 기본값으로 열려 있다. 팝업 아이디는 Grafana 관리자(`grafana-admin`) 아이디와 달라야 한다 — 같으면 그 관리자로 들어간다(2026-10-22 겪고 관리자 아이디를 바꿈)
   - Argo CD: 팝업 뒤 익명 읽기 전용. 동기화 · 설정 변경은 admin으로 한 번 더 로그인한다. admin 비밀번호는 인프라 담당만 안다. GitLab 웹훅 길(`/argocd/api/webhook` POST, GitLab 머리)만 팝업 밖이다 — 위 「배포 흐름」
@@ -294,6 +295,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다. 2026-10-25 사용자: 보류 — 수집 배치(CronJob)는 아직 만들지 않는다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
 | 배포 속도 줄이기 — 2026-10-23 ① 굽기 자리 ② 웹훅 ③ 태그 MR 머지 때 검사 ④ 굽기 재시도를 고쳤다(Jira S15P31A102-106, 6절 「굽기 러너」 · 「배포 흐름」, 10절). 남은 것: ai 굽기가 메모리 상한 3Gi 에 닿는다(oom 0, 커널이 캐시를 비운 횟수 382 ~ 16919) — 의존성이 늘면 상한 · Kaniko 캐시 압축을 다시 정한다 | Infra | 6절 「배포 흐름」 |
 | Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22, 2026-10-25 사용자 「일단 계속 열어 둔다」). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
+| 화면 CSP 를 보고만에서 강제로 바꿀 때 — 마인드맵 · 이슈 화면이 사이트에 올라간 뒤 콘솔 위반(`[Report Only]`)을 며칠 보고(2026-10-27 사이트 화면은 개발 확인 화면 하나뿐). 그때 `@seed-design/css` 판이 바뀌어 인라인 script 해시가 어긋나는 것을 CI 검사로 지킬지도 정한다 | Infra | 6절 「도메인 · HTTPS」, Jira S15P31A102-120 |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 입력 길이 — 모델은 BGE-m3-ko · 1024차원으로 정했다(2026-10-23, 3절). 남은 것은 제목 · 본문 앞부분 중 무엇을 넣을지다. CPU 2스레드에서 리드(제목 + 앞 두 문장)는 기사당 약 1.2초, 본문 앞 800자는 약 4.3초다(10절). `EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다. BE 안: 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
