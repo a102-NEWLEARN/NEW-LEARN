@@ -60,3 +60,15 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 실패하는 테스트를 먼저 쓴다(`AGENTS.md`)
 - 컨트롤러: `@WebMvcTest` + `@Import(SecurityConfig.class)` 로 응답 JSON 모양을 본다. `SecurityConfig` 를 빠뜨리면 스프링 기본 보안 위에서 돌아 엉뚱하게 통과한다. 예시: `common/error/ErrorResponseTest` · `common/security/SecurityRulesTest`
 - 쿼리 · 매핑: `@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)` + `@Import(TestcontainersConfiguration.class)` 로 실제 PostgreSQL 에서 본다(로컬 Testcontainers, CI 는 services). 저장한 뒤 `flush()` · `clear()` 하고 다시 읽는다. 예시: `CoreMappingTest`
+
+## 8. Swagger 문서
+
+`/swagger-ui.html` 은 컨트롤러 annotation 으로 만든 명세의 사본이다(원본은 `docs/api.md`). FE 가 이것을 보고 쓴다.
+
+- 컨트롤러 클래스에 `@Tag(name = OpenApiConfig.TAG_…)` 를 단다. 새 묶음이 필요하면 `OpenApiConfig` 의 `tags` 에 화면 순서로 더한다
+- 작업마다 `@Operation(summary, description)`, 인자마다 `@Parameter(description)` 를 단다. 목록 인자는 `@ParameterObject @Valid PageQuery query` 로 받아 `page` · `size` 로 펼친다
+- 오류는 `@ApiResponse(responseCode = "404", description = "코드 — 언제", content = @Content(mediaType = OpenApiConfig.PROBLEM_JSON, schema = @Schema(implementation = ApiProblem.class)))` 로 적는다. 오류 응답을 하나라도 적으면 `@ApiResponse(responseCode = "200", description = "성공")` 도 적는다 — 안 적으면 성공 응답이 문서에서 빠진다
+- `@Parameter` 에 `schema = @Schema(…)` 를 직접 주면 자바 타입을 읽지 않고 문자열로 보인다. 숫자면 `type = "integer"` 를 같이 적는다
+- summary 앞 `[확정] A번호` 는 명세대로 만들고 시험을 마친 작업에만 붙인다. 붙일 때 `OpenApiDocsTest` 의 `CONFIRMED` 에 경로를 더한다. 표시가 없으면 「만드는 중이라 바뀔 수 있음」이다(`OpenApiConfig` 뜻풀이)
+- 내부 API(`/internal/**`)는 문서에 넣지 않는다(`application.yaml` 의 `springdoc.paths-to-exclude`)
+

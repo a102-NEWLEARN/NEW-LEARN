@@ -4,7 +4,7 @@ NEW:LEARN 서비스 테이블의 설계다. 기능 티켓이 테이블을 만들
 
 - **v0 (2026-10-19, Jira S15P31A102-28)**: 확정 기능(F01~F08 · F11)만으로 짤 수 있는 것만 담았다
 - **v1 (2026-10-21, Jira S15P31A102-99)**: 10-19 테이블 검토 · 10-20 팀 회의 · 10-21 마인드맵 회의에서 정한 것을 더했다. 카테고리 5개 · 원본 분류 대응 · 언론사 명부 · 회원과 관심 분야 · 이슈를 만드는 길 · 사건 키워드 · 마인드맵 가지 4개 · 수집 실행 기록 · 사용자 URL 입력 삭제. 아직 정하지 못한 것은 5절 「미정 목록」에 있다
-- **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 V3 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다
+- **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 다음 마이그레이션 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다
 - 테이블은 아직 하나도 없다. 만들어진 테이블은 Flyway 마이그레이션(`backend/src/main/resources/db/migration/`)이 진실이다. 이 문서와 어긋나면 이 문서를 고친다
 - 화면 · 워커와 주고받는 모양은 `docs/api.md`(필드 상세는 `docs/api-screen.md` · `docs/api-internal.md`), 용어는 `docs/glossary.md`. 데이터셋 원본 필드는 PRD 폴더의 `addendum.md` 「데이터셋 구조」
 - 기능 번호와 이름은 `docs/mvp-overview.md` 3-1 표가 기준이다. F12 회원 · 관심 분야, F13 용어사전은 MVP 개요 MR(따로 올림)에서 제안하는 번호다
@@ -18,7 +18,7 @@ F09 주장 관계 및 변화 분석 · F10 근거 기반 변화 카드의 주장
 
 ```mermaid
 erDiagram
-  %% 미정: bookmark, interest_issue, event_relation
+  %% 점선: bookmark · interest_issue(MVP 확정 2026-10-26, 칸은 Jira 63 · 64 에서), event_relation(P1)
   category |o--o{ article : "대표 카테고리"
   category |o--o{ category_mapping : "대응"
   press ||--o{ article : "언론사"
@@ -35,10 +35,10 @@ erDiagram
   article ||--o| article_embedding : "임베딩"
   member ||--o{ member_category : "관심 분야"
   category ||--o{ member_category : "관심 분야"
-  member ||..o{ bookmark : "저장 (미정)"
-  article ||..o{ bookmark : "저장 (미정)"
-  member ||..o{ interest_issue : "관심 (미정)"
-  issue ||..o{ interest_issue : "관심 (미정)"
+  member ||..o{ bookmark : "저장 (Jira 63)"
+  article ||..o{ bookmark : "저장 (Jira 63)"
+  member ||..o{ interest_issue : "관심 (Jira 64)"
+  issue ||..o{ interest_issue : "관심 (Jira 64)"
 
   category {
     text code PK "economy 같은 영문 코드"
@@ -72,7 +72,7 @@ erDiagram
     text category_code FK "대표 카테고리"
     text_array source_categories "원본 분류 목록"
     text_array source_tags "NewsData AI 태그"
-    text source_summary "안 씀, V3 에서 지움"
+    text source_summary "안 씀, 다음 마이그레이션에서 지움"
     timestamptz released_at "서비스 투입 시각"
     timestamptz created_at "적재 시각"
   }
@@ -127,7 +127,7 @@ erDiagram
     text requested_by "누가 요청했나"
     int attempt "몇 번째 시도"
     jsonb candidates "MATCH_EVENT, ISSUE 에 보낸 후보"
-    jsonb result "판정 기록, V3 에서 더함"
+    jsonb result "판정 기록, 다음 마이그레이션에서 더함"
     text error_code
     text error_message
     timestamptz created_at "작업을 만든 시각"
@@ -138,7 +138,7 @@ erDiagram
     bigint article_id PK, FK
     text summary "우리 AI 기사 요약, 비워도 됨"
     jsonb content "가지 4개, 잎, 근거"
-    int primary_core_index "대표 사건 잎 번호, V3 에서 더함"
+    int primary_core_index "대표 사건 잎 번호, 다음 마이그레이션에서 더함"
     timestamptz occurred_at "대표 사건의 발생 시점"
     text schema_version "content 형식 버전"
     text model "LLM 모델 이름"
@@ -236,7 +236,7 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고른다. 맞출 값이 없으면 비운다 |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `source_summary` | text | 아니오 | **안 쓴다 — V3 마이그레이션에서 지운다.** NewsData `ai_summary` 를 담으려던 칸이다. 한국어 기사에는 NewsData 가 요약을 만들지 않아서(`SSOT.md` 10절) 우리 요약이 없을 때 대신 쓰던 길을 없앴다(2026-10-26). 앱은 이 칸을 읽지도 쓰지도 않는다 |
+| `source_summary` | text | 아니오 | **안 쓴다 — 다음 마이그레이션에서 지운다.** NewsData `ai_summary` 를 담으려던 칸이다. 한국어 기사에는 NewsData 가 요약을 만들지 않아서(`SSOT.md` 10절) 우리 요약이 없을 때 대신 쓰던 길을 없앴다(2026-10-26). 앱은 이 칸을 읽지도 쓰지도 않는다 |
 | `released_at` | timestamptz | 아니오 | 서비스 투입 시각. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입은 수집 배치가 B1 을 불러서 한다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
@@ -325,7 +325,7 @@ erDiagram
 | `requested_by` | text | 예 | 누가 요청했나. 지금은 `BATCH`(수집 배치가 투입) 하나. 사용자 URL 입력은 뺐다(2026-10-20) |
 | `attempt` | int | 예 | 몇 번째 시도인가(1부터). 다시 돌리면 올린다. 늦게 온 옛 결과를 가르는 데 쓴다 |
 | `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다 |
-| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). **V3 마이그레이션에서 더한다** |
+| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). **다음 마이그레이션에서 더한다** |
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
@@ -342,7 +342,7 @@ erDiagram
 | `article_id` | bigint | 기본 키 · 외래 키 | 어느 기사의 결과인가. 기사 하나에 결과 하나다 |
 | `summary` | text | 아니오 | 우리 AI 가 만든 기사 요약. 기사 목록 · 사건 패널에 쓰려고 jsonb 밖에 둔다. GMS 토큰을 아끼려고 나중에 만들지 않을 수 있어 비워도 된다(2026-10-19). 화면은 AI 생성 표시를 붙인다(PRD FR-2) |
 | `content` | jsonb | 예 | 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망)와 그 아래 잎(문장), 잎마다 선택 칸인 근거. 내용이 있는 가지만 들어간다(2026-10-21). 모양은 `docs/api-screen.md` 3절 |
-| `primary_core_index` | int | 아니오 | 대표 사건 — `content` 의 `CORE` 가지 잎 중 몇 번째인가(0부터). 비어 있으면 특정 사건이 없는 기사라 동일 사건 판정을 걸지 않는다(`docs/api-internal.md` 3절, 2026-10-26). **V3 마이그레이션에서 더한다** |
+| `primary_core_index` | int | 아니오 | 대표 사건 — `content` 의 `CORE` 가지 잎 중 몇 번째인가(0부터). 비어 있으면 특정 사건이 없는 기사라 동일 사건 판정을 걸지 않는다(`docs/api-internal.md` 3절, 2026-10-26). **다음 마이그레이션에서 더한다** |
 | `occurred_at` | timestamptz | 아니오 | 대표 사건의 발생 시점. 새 사건을 만들 때와 동일 사건 판정에 쓴다. 날짜까지만 있으면 그날 0시(`+09:00`)로 넣고 정밀도 칸은 두지 않는다 — 화면이 날짜만 보여서다. 시각을 보이는 화면이 생기면 더한다(2026-10-23 AI 동의). 못 뽑았거나 대표 사건이 없으면 비운다. 뽑는 규칙은 `docs/api-internal.md` 5절 `EXTRACT` |
 | `schema_version` | text | 예 | `content` 모양의 버전(`mindmap-v1`) |
 | `model` | text | 예 | 결과를 만든 LLM 모델 이름 |
@@ -383,9 +383,9 @@ erDiagram
 - 로그인 유지는 세션 방식이다(2026-10-21). 세션은 테이블이 아니라 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남게. 인증 코드는 사람이 최종 확인한다(AGENTS.md)
 - 둘러보기(이슈 · 기사 · 용어사전)는 로그인 없이 쓴다. 홈에서 관심 분야를 먼저 보여 주는 방식은 아직 생각 중이다(2026-10-20)
 
-### bookmark · interest_issue — 회원이 저장한 것 (미정)
+### bookmark · interest_issue — 회원이 저장한 것 (MVP 확정 2026-10-26)
 
-MVP 에 넣을지 미정이다(5절). 칸은 PRD FR-18 · FR-19 를 읽고 그린 자리일 뿐이다.
+MVP 에 넣는다(2026-10-26, FE 프로토타입 v21 대로 — 기사 스크랩 · 관심 이슈 핀). 아래 칸은 PRD FR-18 · FR-19 를 읽고 그린 자리다. 로그인(Jira 62) 뒤 Jira 63 · 64 에서 프로토타입과 맞춰 정하고 새 마이그레이션으로 만든다. `last_visited_at`(지난 방문 이후 새 사건)은 보류다(2026-10-26).
 
 | 칸 | 용도 |
 |---|---|
@@ -435,7 +435,6 @@ MVP 에 넣을지 미정이다(5절). 칸은 PRD FR-18 · FR-19 를 읽고 그�
 | 1 | 한 기사가 여러 사건에 속하나 | 하나 (PRD FR-9) | SSOT 8절 |
 | 2 | 어떤 사건 3개를 한 이슈로 묶나, 사건이 여러 이슈에 속하나, `issue_category` 를 무엇으로 채우나 | `ISSUE` 단계가 판단(제안). 사건 하나는 이슈 하나. `issue_category` 는 이슈 기사들의 대표 카테고리 | AI 실험 · SSOT 8절 |
 | 3 | 동일 사건 판정 기준, 기사가 몇 개 모여야 사건으로 보이나 | 판정 점수 칸 없음(판정 기록은 `analysis_job.result`). 대표 사건이 있는 기사는 하나로도 사건을 만든다 | AI 실험 (Q34) |
-| 6 | 북마크 · 관심 이슈를 MVP 에 넣나 | 점선, 칸은 자리만. 회원 · 관심 분야는 MVP(10-20) | SSOT 8절 |
 | 7 | 원본 분류 → 5개 대응 행, 이슈가 카테고리 여러 개에 걸치나 | 행 없음. 맞출 값이 없으면 `category_code` 비움. NewsData 에서 본 값(2026-10-22 응답 50건, 여러 개가 같이 옴): `top` · `politics` · `business` · `technology` · `world` · `crime` · `domestic` · `health` · `environment` · `lifestyle` · `sports` · `entertainment`. `top` 은 주제가 아니라 비운다 | BE — 이 값으로 행을 채울 때 |
 | 8 | 기사가 언제 화면에 보이나(`released_at`) | B1 투입 때 바로 보이고, 분석이 끝나기 전에는 「분석 중」으로 보인다(`mindmapStatus`). 「분석이 끝난 기사부터 보이게」라는 사용자 제안(10-19)은 팀 확인 전이다. 그쪽으로 정하면 `released_at` 을 채우는 때와 B1 의 뜻을 바꾼다 | Q21 |
 | 9 | 받은 기사 전부에 마인드맵을 만드나, 한 번에 몇 건 받나 | 투입한 기사 전부에 `EXTRACT` 를 건다(PRD FR-31 가정). GMS 예산 상한은 약 1만 7천 건(SSOT 3절). 몇 건 받을지는 AI 파트와 | Q27 · Q4 |
