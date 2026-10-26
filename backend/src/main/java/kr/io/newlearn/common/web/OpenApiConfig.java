@@ -17,12 +17,16 @@ import org.springframework.context.annotation.Configuration;
         tags = {
             @Tag(name = OpenApiConfig.TAG_CATEGORY, description = "카테고리 5개 — 카테고리 선택 · 사이드바 (F02)"),
             @Tag(name = OpenApiConfig.TAG_ISSUE, description = "이슈 목록 · 헤더 · 타임라인 (F02 · F07)"),
-            @Tag(name = OpenApiConfig.TAG_ARTICLE, description = "최신 기사 · 기사 상세와 소속 사건 · 이슈 (F01 · F11)")
+            @Tag(name = OpenApiConfig.TAG_ARTICLE, description = "최신 기사 · 기사 상세와 소속 사건 · 이슈 (F01 · F11)"),
+            @Tag(
+                    name = OpenApiConfig.TAG_MEMBER,
+                    description = "가입 · 로그인 · 로그아웃 (F12). 세션 쿠키 + CSRF 번호표 — POST 는 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로")
         })
 public class OpenApiConfig {
     public static final String TAG_CATEGORY = "카테고리";
     public static final String TAG_ISSUE = "이슈";
     public static final String TAG_ARTICLE = "기사";
+    public static final String TAG_MEMBER = "회원";
 
     // 오류 응답 본문 — RFC 9457 Problem Details 에 code 를 더한 모양 (docs/api.md 1절 「오류」)
     public static final String PROBLEM_JSON = "application/problem+json";
