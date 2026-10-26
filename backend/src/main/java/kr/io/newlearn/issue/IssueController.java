@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import kr.io.newlearn.common.web.ApiProblem;
 import kr.io.newlearn.common.web.OpenApiConfig;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.common.web.PageResponse;
@@ -15,7 +16,6 @@ import kr.io.newlearn.issue.dto.IssueCardResponse;
 import kr.io.newlearn.issue.dto.IssueHeaderResponse;
 import kr.io.newlearn.issue.dto.TimelineResponse;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,14 +38,14 @@ public class IssueController {
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
-                            schema = @Schema(implementation = ProblemDetail.class)))
+                            schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
             description = "ISSUE_NOT_FOUND — 없는 이슈",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
-                            schema = @Schema(implementation = ProblemDetail.class)))
+                            schema = @Schema(implementation = ApiProblem.class)))
     @GetMapping("/api/v1/issues/{issueId}")
     public IssueHeaderResponse get(
             @Parameter(description = "이슈 ID (A2 항목의 id)", example = "1") @PathVariable long issueId) {
@@ -62,14 +62,14 @@ public class IssueController {
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
-                            schema = @Schema(implementation = ProblemDetail.class)))
+                            schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
             description = "ISSUE_NOT_FOUND — 없는 이슈",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
-                            schema = @Schema(implementation = ProblemDetail.class)))
+                            schema = @Schema(implementation = ApiProblem.class)))
     @GetMapping("/api/v1/issues/{issueId}/timeline")
     public TimelineResponse timeline(
             @Parameter(description = "이슈 ID (A2 항목의 id)", example = "1") @PathVariable long issueId) {
@@ -82,18 +82,18 @@ public class IssueController {
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
-            description = "VALIDATION_FAILED — page · size 가 범위를 벗어났거나 sort 가 정해진 값이 아님. errors[] 에 칸 이름과 이유",
+            description = "VALIDATION_FAILED — page · size 가 숫자가 아니거나 범위를 벗어남, sort 가 정해진 값이 아님. errors[] 에 칸 이름과 이유",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
-                            schema = @Schema(implementation = ProblemDetail.class)))
+                            schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "CATEGORY_NOT_FOUND — 없는 카테고리 코드",
+            description = "CATEGORY_NOT_FOUND — 없는 카테고리 코드 · 빈 문자열",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
-                            schema = @Schema(implementation = ProblemDetail.class)))
+                            schema = @Schema(implementation = ApiProblem.class)))
     @GetMapping("/api/v1/issues")
     public PageResponse<IssueCardResponse> list(
             @Parameter(description = "카테고리 코드(A1 의 code). 보내지 않으면 전체", example = "economy")

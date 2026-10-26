@@ -233,7 +233,7 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고른다. 맞출 값이 없으면 비운다 |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `source_summary` | text | 아니오 | **안 쓴다 — V3 마이그레이션에서 지운다.** NewsData `ai_summary` 를 담으려던 칸이다. Basic 요금제 실제 응답 50건이 모두 null 이어서(2026-10-22, AI 확인) 우리 요약이 없을 때 대신 쓰던 길을 없앴다(2026-10-26). 앱은 이 칸을 읽지도 쓰지도 않는다 |
+| `source_summary` | text | 아니오 | **안 쓴다 — V3 마이그레이션에서 지운다.** NewsData `ai_summary` 를 담으려던 칸이다. 한국어 기사에는 NewsData 가 요약을 만들지 않아서(`SSOT.md` 10절) 우리 요약이 없을 때 대신 쓰던 길을 없앴다(2026-10-26). 앱은 이 칸을 읽지도 쓰지도 않는다 |
 | `released_at` | timestamptz | 아니오 | 서비스 투입 시각. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입은 수집 배치가 B1 을 불러서 한다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 

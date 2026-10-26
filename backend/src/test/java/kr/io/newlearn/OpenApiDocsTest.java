@@ -2,6 +2,7 @@ package kr.io.newlearn;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
@@ -63,8 +64,8 @@ class OpenApiDocsTest {
         for (var entry : CONFIRMED.entrySet()) {
             result.andExpect(jsonPath(op(entry.getKey()) + ".summary", startsWith("[확정] " + entry.getValue() + " ")))
                     .andExpect(jsonPath(op(entry.getKey()) + ".tags[0]", not(emptyOrNullString())))
-                    // 오류 응답을 적어도 성공 응답의 모양이 남아야 한다
-                    .andExpect(jsonPath(op(entry.getKey()) + ".responses['200'].content")
+                    // 오류 응답을 적어도 성공 응답의 모양이 남아야 한다. 본문은 JSON 이다
+                    .andExpect(jsonPath(op(entry.getKey()) + ".responses['200'].content['application/json']")
                             .exists());
         }
         result.andExpect(jsonPath(op("/api/v1/categories") + ".tags[0]").value("카테고리"))
@@ -81,7 +82,10 @@ class OpenApiDocsTest {
             result.andExpect(jsonPath(op(path) + ".parameters[*].name", hasItems("category", "page", "size")))
                     .andExpect(jsonPath(op(path) + ".parameters[*].name", not(hasItem("query"))))
                     .andExpect(jsonPath(op(path) + ".parameters[?(!@.description)]")
-                            .isEmpty());
+                            .isEmpty())
+                    // 명세(docs/api.md 1절)대로 숫자다
+                    .andExpect(jsonPath(op(path) + ".parameters[?(@.name == 'page')].schema.type", hasItem("integer")))
+                    .andExpect(jsonPath(op(path) + ".parameters[?(@.name == 'size')].schema.type", hasItem("integer")));
         }
         result.andExpect(jsonPath(op("/api/v1/issues") + ".parameters[*].name", hasItem("sort")))
                 .andExpect(jsonPath(op("/api/v1/articles/{articleId}") + ".parameters[?(!@.description)]")
@@ -109,5 +113,19 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath(op("/api/v1/issues/{issueId}")
                                 + ".responses['404'].content['application/problem+json']")
                         .exists());
+        // 오류 본문의 모양은 실제 응답과 같아야 한다 — 화면이 가르는 code 와 칸별 errors 가 맨 위에 있다
+        result.andExpect(jsonPath(
+                        op("/api/v1/articles") + ".responses['400'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")))
+                .andExpect(jsonPath(
+                        op("/api/v1/articles/{articleId}")
+                                + ".responses['404'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")))
+                .andExpect(
+                        jsonPath("$.components.schemas.Problem.properties.code").exists())
+                .andExpect(jsonPath("$.components.schemas.Problem.properties.errors")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.Problem.properties.properties")
+                        .doesNotExist());
     }
 }
