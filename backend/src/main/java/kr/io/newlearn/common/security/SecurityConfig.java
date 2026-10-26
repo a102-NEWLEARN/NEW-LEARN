@@ -22,14 +22,8 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain apiSecurityFilterChain(
-            HttpSecurity http,
-            JsonMapper jsonMapper,
-            @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie)
-            throws Exception {
+            HttpSecurity http, JsonMapper jsonMapper, CookieCsrfTokenRepository csrfTokens) throws Exception {
         SecurityErrorHandler errors = new SecurityErrorHandler(jsonMapper);
-        // 화면이 읽어야 해서 HttpOnly 가 아니다. Secure 는 세션 쿠키와 같은 설정을 따른다
-        CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        csrfTokens.setCookieCustomizer(cookie -> cookie.secure(secureCookie).sameSite("Lax"));
         http.authorizeHttpRequests(auth -> auth
                         // 오류 응답을 만드는 내부 전달(ERROR dispatch)은 막지 않는다
                         .dispatcherTypeMatchers(DispatcherType.ERROR)
@@ -70,6 +64,16 @@ public class SecurityConfig {
                 .exceptionHandling(
                         handling -> handling.authenticationEntryPoint(errors).accessDeniedHandler(errors));
         return http.build();
+    }
+
+    // CSRF 번호표 쿠키 저장소. 화면이 읽어야 해서 HttpOnly 가 아니다. Secure 는 세션 쿠키와 같은 설정을 따른다
+    // 로그인 · 로그아웃 때 번호표를 바꾸려고 빈으로 둔다(auth.LoginSessions)
+    @Bean
+    CookieCsrfTokenRepository csrfTokenRepository(
+            @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+        CookieCsrfTokenRepository tokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        tokens.setCookieCustomizer(cookie -> cookie.secure(secureCookie).sameSite("Lax"));
+        return tokens;
     }
 
     // 비밀번호 해시 — 지금 기본은 bcrypt. 저장값 앞에 {bcrypt} 가 붙어 나중에 다른 방식으로 바꿔도 옛 값을 읽는다 (Jira 62)
