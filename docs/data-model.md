@@ -4,7 +4,7 @@ NEW:LEARN 서비스 테이블의 설계다. 기능 티켓이 테이블을 만들
 
 - **v0 (2026-10-19, Jira S15P31A102-28)**: 확정 기능(F01~F08 · F11)만으로 짤 수 있는 것만 담았다
 - **v1 (2026-10-21, Jira S15P31A102-99)**: 10-19 테이블 검토 · 10-20 팀 회의 · 10-21 마인드맵 회의에서 정한 것을 더했다. 카테고리 5개 · 원본 분류 대응 · 언론사 명부 · 회원과 관심 분야 · 이슈를 만드는 길 · 사건 키워드 · 마인드맵 가지 4개 · 수집 실행 기록 · 사용자 URL 입력 삭제. 아직 정하지 못한 것은 5절 「미정 목록」에 있다
-- **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 V3 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다. 임베딩 차원은 모델 확정 뒤로 미뤘다
+- **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 V3 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다
 - 테이블은 아직 하나도 없다. 만들어진 테이블은 Flyway 마이그레이션(`backend/src/main/resources/db/migration/`)이 진실이다. 이 문서와 어긋나면 이 문서를 고친다
 - 화면 · 워커와 주고받는 모양은 `docs/api.md`(필드 상세는 `docs/api-screen.md` · `docs/api-internal.md`), 용어는 `docs/glossary.md`. 데이터셋 원본 필드는 PRD 폴더의 `addendum.md` 「데이터셋 구조」
 - 기능 번호와 이름은 `docs/mvp-overview.md` 3-1 표가 기준이다. F12 회원 · 관심 분야, F13 용어사전은 MVP 개요 MR(따로 올림)에서 제안하는 번호다
@@ -148,7 +148,7 @@ erDiagram
   article_embedding {
     bigint article_id PK, FK
     text model "임베딩 모델 이름"
-    vector embedding "차원은 모델 확정 뒤, BGE-m3-ko 1024 유력"
+    vector embedding "1024차원 (BGE-m3-ko)"
     timestamptz created_at
   }
   member {
@@ -351,7 +351,7 @@ erDiagram
 
 - 같은 `content` 를 화면이 두 보기로 그린다 — 흐름지도(위에서 아래로 읽는 목록, 질문형 가지 이름)와 마인드맵(가운데에서 퍼지는 그림, 명사형 가지 이름). 둘 다 가제다(2026-10-21)
 - 근거 문장은 화면에 보이지 않고 데이터로만 남긴다. AI 가 기사에 없는 말을 지었는지 평가할 때 쓰고, 나중에 노드 상세 창을 만들면 그때 쓴다(2026-10-21)
-- 다시 분석하면 덮어쓴다. 지난 결과를 남길지는 프롬프트를 바꿀 일이 생기면 정한다
+- 다시 분석해 성공하면 덮어쓴다. 실패하면(분석할 내용 없음 포함) 옛 결과를 그대로 두고 실패는 `analysis_job` 에만 남긴다. 다시 분석은 사건 연결(`article_event`)을 건드리지 않는다 — 새 `primary_core_index` 와 기존 연결이 어긋나면 프롬프트 판 비교에 쓴다(2026-10-26, `docs/api-internal.md` 3 · 6절). 지난 결과를 따로 남길지는 프롬프트를 바꿀 일이 생기면 정한다
 
 ### article_embedding — 기사 임베딩
 
@@ -359,7 +359,7 @@ erDiagram
 |---|---|---|---|
 | `article_id` | bigint | 기본 키 · 외래 키 | 어느 기사의 벡터 |
 | `model` | text | 예 | 임베딩 모델 이름. 모델이 바뀌면 다시 만든다 |
-| `embedding` | vector | 예 | 기사 벡터. 차원은 임베딩 모델을 확정(Jira 35)한 뒤 정한다. BGE-m3-ko(1024)가 유력하다(2026-10-23 AI 답, SSOT 3절). 정하면 `vector(N)` 으로 고정해 DB 가 막아 주고 인덱스를 바로 걸 수 있게 한다(2026-10-21 BE 안) |
+| `embedding` | vector | 예 | 기사 벡터. `vector(1024)` — 임베딩 모델 BGE-m3-ko 의 차원이다(2026-10-23 AI 결정, SSOT 3절). 차원을 고정해 DB 가 막아 주고 인덱스를 바로 걸 수 있게 한다(2026-10-21 BE 안) |
 | `created_at` | timestamptz | 예 | 만든 시각 |
 
 - 같은 사건 후보를 pgvector 로 찾을 때 쓴다(SSOT 3절). 후보 검색은 기사 임베딩끼리 비교해 그 기사의 사건으로 모은다

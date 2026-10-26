@@ -73,7 +73,8 @@ flowchart LR
 - API 는 DB 를 커밋한 **뒤** 큐에 넣는다. 그래서 정상 흐름에서 W1 이 404 를 받는 일은 없다. 큐에 넣다 실패해 오래 `QUEUED` 로 남은 작업은 다시 넣는다. 그 기준 시간 · 스트림 길이 상한 · 다시 가져가기 기준 시간은 Jira 30
 - `MATCH_EVENT` 는 한 번에 하나씩 발행 순서대로 돈다. API 는 앞 기사의 판정이 끝난 뒤 다음 기사의 판정을 건다. 같은 사건 기사 둘이 동시에 판정되면 서로를 후보로 못 봐 사건이 둘로 갈라지기 때문이다(PRD FR-31 「앞선 기사들과만 비교」)
 - `ISSUE` 도 한 번에 하나씩 돈다. API 는 앞 `ISSUE` 결과를 저장한 뒤 다음 작업을 걸고, **그때** 후보를 계산한다. 다시 돌릴 때(`attempt + 1`)도 후보를 새로 계산한다. 같은 사건들로 이슈가 둘 생기거나, 이미 이슈에 든 사건을 다른 이슈가 가져가지 않게 하려는 것이다
-- `MATCH_EVENT` 는 `EXTRACT` 와 `EMBED` 가 둘 다 끝나고 `EXTRACT` 결과의 `primaryCoreIndex` 가 null 이 아닐 때만 건다. 판정에 기사의 대표 사건 · 발생 시점과 벡터가 다 필요하다. 대표 사건이 없는 기사(운세 · 시세표 · 축사 · 해설)는 판정 · 이슈를 걸지 않는다 — 가짜 사건이 생기지 않고 GMS 호출이 두 번 준다. AI 실험 117건 중 10건이 이랬다. 이 기사는 마인드맵만 갖고, 화면에는 `eventMatchStatus` 가 `NO_EVENT` 로 보인다(6절)
+- `MATCH_EVENT` 는 `EXTRACT` 와 `EMBED` 가 둘 다 끝나고 `EXTRACT` 결과의 `primaryCoreIndex` 가 null 이 아닐 때만 건다. 판정에 기사의 대표 사건 · 발생 시점과 벡터가 다 필요하다. 대표 사건이 없는 기사(운세 · 시세표 · 축사 · 해설)는 판정 · 이슈를 걸지 않는다 — 가짜 사건이 생기지 않고 GMS 호출이 두 번 준다. AI 실험 117건 중 10건이 이랬다. 이 기사는 마인드맵만 갖고, 화면에는 `eventMatchStatus` 가 `NO_EVENT` 로 보인다(6절). `EMBED` 는 대표 사건과 상관없이 그대로 돈다 — 사건이 없는 기사는 후보 사건 계산에서 저절로 빠진다
+- **다시 분석(재분석)은 마인드맵만 바꾼다**(2026-10-26 BE 결정). 프롬프트 · 모델을 바꿔 이미 분석한 기사를 다시 돌릴 때, 이미 사건에 붙은 기사(`article_event` 가 있음)는 `MATCH_EVENT` 를 다시 걸지 않고 사건 연결도 그대로 둔다. 새 `primaryCoreIndex` 가 null 이거나 다른 잎을 가리켜도 연결은 남기고, 새 결과와 기존 연결이 어긋난 기사는 프롬프트 판끼리 비교하는 데 쓴다(`article_mindmap.prompt_version` · `analysis_job.result`). 사건에 다시 묶는 일은 판정을 따로 다시 돌릴 때만 한다(Jira 30)
 - `ISSUE` 는 `MATCH_EVENT` 가 새 사건을 만들었을 때만 건다(`decision` 이 `NEW`). 이슈 요약은 이슈에 **사건**이 붙을 때 다시 만들기 때문에(2026-10-20), 이미 있는 사건에 기사만 붙을 때는 걸지 않는다
 
 ## 4. 작업 메시지 — API → 큐 → 워커
@@ -107,7 +108,7 @@ flowchart LR
 | `extracted.mindmap` | object | 핵심 정보 추출 결과(가지 4개, 근거 포함). 판정에 핵심 내용(`CORE`)을 쓴다 | `article_mindmap.content` |
 | `extracted.primaryEvent` | `{ text, evidence[] }` | 이 기사의 대표 사건. `CORE` 가지에서 `primaryCoreIndex` 번째 잎을 그대로 꺼낸다(근거 모양은 `api-screen.md` 3절, 지워졌으면 없음). 판정은 이 사건이 후보와 같은지 본다 | `article_mindmap.content` 의 그 잎 |
 | `candidates[].eventId` · `title` · `label` · `summary` · `occurredAt` | 사건 | 같은 사건일지도 모르는 후보 | `event` |
-| `candidates[].evidence` | array(string) | 후보 사건 첫 기사의 대표 사건 잎 근거 원문, 최대 3문장. 지은 글(`title` · `label` · `summary`)만으로 판정하지 않게 한다 — AI 실험의 판정 점수가 이 근거를 넣은 조건에서 나왔다(2026-10-23). 근거가 없으면 빈 배열 | 그 사건 첫 기사의 `article_mindmap.content` 대표 잎 |
+| `candidates[].evidence` | array(string) | 후보 사건을 만든 기사(첫 기사)의 대표 사건 잎 근거 원문, 최대 3문장. 지은 글(`title` · `label` · `summary`)만으로 판정하지 않게 한다 — AI 실험의 판정 점수가 이 근거를 넣은 조건에서 나왔다(2026-10-23). 근거가 없으면(뽑지 않았거나 대조에서 지워짐) 빈 배열 `[]` | 그 사건을 만든 기사의 `article_mindmap.content` 대표 잎 |
 | `candidates[].similarity` | number | 비슷한 정도(0~1, 클수록 비슷). 높은 순서로 싣는다 | 계산 — pgvector 로 기사 벡터끼리 비교 |
 
 보낸 후보 사건 ID 는 `analysis_job.candidates` 에 남긴다. 판정이 후보 밖 사건을 고르면 거절하려는 것이다.
@@ -180,7 +181,7 @@ flowchart LR
 | 필드 | 타입 | 용도 | 저장하는 곳 |
 |---|---|---|---|
 | `model` | string | 임베딩 모델 이름 | `article_embedding.model` |
-| `dimension` | number | 벡터 길이. 칸의 차원과 다르면 400. 칸의 차원은 임베딩 모델을 확정(Jira 35)한 뒤 정한다. BGE-m3-ko(1024)가 유력하다(2026-10-23 AI 답, SSOT 3절). 384 는 시험 모델(SSOT 10절) 값이었다 | 대조만 한다 |
+| `dimension` | number | 벡터 길이. 칸의 차원과 다르면 400. BGE-m3-ko 라 1024(2026-10-23, SSOT 3절). 384 는 시험 모델(SSOT 10절) 값이었다 | 대조만 한다 |
 | `vector` | array(number) | 기사 벡터 | `article_embedding.embedding` |
 
 `MATCH_EVENT` 결과
@@ -215,7 +216,7 @@ API 응답
 | 상태 | 뜻 | 워커가 할 일 |
 |---|---|---|
 | 204 | 저장했다 | 메시지를 ack 한다 |
-| 400 `RESULT_SCHEMA_INVALID` | 형식이 틀렸다. 가지가 없는 마인드맵, 범위 밖이거나 `CORE` 가지 없이 온 `primaryCoreIndex`, 후보에 없는 `eventId` · `issueId`, 사건이 3개 안 되는 새 이슈도 여기 | ack 한다. 다시 생성할지는 Jira 30 재처리 정책 |
+| 400 `RESULT_SCHEMA_INVALID` | 형식이 틀렸다. 가지가 없는 마인드맵, 범위 밖이거나 `CORE` 가지 없이 온 `primaryCoreIndex`, 후보에 없는 `eventId` · `issueId`, 사건이 3개 안 되는 새 이슈도 여기 | ack 한다. API 는 그 시도를 `FAILED` · `error_code` `RESULT_SCHEMA_INVALID` 로 적고 바로 한 번 더 건다(`attempt + 1`). 두 번째도 400 이면 `FAILED` 로 멈춘다 — GMS 를 끝없이 부르지 않게(2026-10-26 BE 결정) |
 | 404 `ANALYSIS_JOB_NOT_FOUND` | 그런 작업이 없다. 정상 흐름에서는 나오지 않는다 | ack 하고 로그를 남긴다 |
 | 409 `JOB_STATE_CONFLICT` | 이미 끝난 작업이거나 `attempt` 가 다르다. `ISSUE` 결과의 사건이 그사이 다른 이슈에 들어간 때도 여기다(API 가 작업을 다시 건다) | ack 하고 넘어간다 |
 | 5xx · 연결 실패 | API 가 배포 중이거나 죽었다 | 결과를 들고 간격을 늘려 가며 몇 번 더 보낸다 — 배포 같은 짧은 끊김에 GMS 를 다시 부르지 않게(2026-10-21 BE 안). 그래도 안 되면 ack 하지 않는다. 메시지가 다시 오고 그때는 GMS 를 다시 부른다. 횟수 · 간격은 Jira 30 |
@@ -239,5 +240,5 @@ stateDiagram-v2
 
 | 화면 필드 | 어떻게 정하나 | 쓰는 곳 |
 |---|---|---|
-| `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업 상태를 그대로 반환한다(`QUEUED` · `SUCCEEDED` · `FAILED`). 결과 없이 작업만 성공이어도 `SUCCEEDED`이며 별도 저장 금지 규칙은 추가하지 않는다(2026-10-23 팀장 확인). `EXTRACT` 가 `INPUT_NOT_ANALYZABLE` 로 실패했으면 `FAILED` 대신 `NOT_ANALYZABLE` — 「분석하지 못했어요」와 「분석할 내용이 없는 기사」를 가른다(2026-10-26). 작업도 없으면 `NONE` | A6 · A7 · A8 |
+| `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업 상태를 그대로 반환한다(`QUEUED` · `SUCCEEDED` · `FAILED`). 결과 없이 작업만 성공이어도 `SUCCEEDED`이며 별도 저장 금지 규칙은 추가하지 않는다(2026-10-23 팀장 확인). 마인드맵 결과가 없는데 `EXTRACT` 가 `INPUT_NOT_ANALYZABLE` 로 실패했으면 `FAILED` 대신 `NOT_ANALYZABLE` — 「분석하지 못했어요」와 「분석할 내용이 없는 기사」를 가른다. 그래서 `NOT_ANALYZABLE` 은 첫 분석에서만 나온다. 다시 분석이 실패하면(이 코드 포함) 옛 마인드맵을 그대로 보이고 실패는 작업 장부(`analysis_job.error_code`)에만 남긴다 — GMS 여유가 있을 때 한꺼번에 다시 돌린다(2026-10-26 BE 결정). 작업도 없으면 `NONE` | A6 · A7 · A8 |
 | `eventMatchStatus` | `MATCH_EVENT` 작업의 상태. 작업이 없을 때, `EXTRACT` 가 성공했고 `primaryCoreIndex` 가 null 이면 `NO_EVENT`(대표 사건이 없어 판정을 걸지 않음), 그 밖에는 `NONE`(아직 걸지 않음 — `EXTRACT` · `EMBED` 를 기다리는 중) (2026-10-26) | A8 |
