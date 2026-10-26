@@ -13,7 +13,7 @@ public record EventPanelResponse(
         String title,
         String label,
         OffsetDateTime occurredAt,
-        String summary,
+        @Nullable String summary,
         OccurredAtBasis occurredAtBasis,
         @Nullable IssueRef issue,
         long articleCount,

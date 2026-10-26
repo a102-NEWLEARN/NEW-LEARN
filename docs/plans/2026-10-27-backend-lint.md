@@ -14,7 +14,7 @@
 | NullAway 범위 | main 의 `kr.io.newlearn` 아래 전부(`AnnotatedPackages=kr.io.newlearn`). 테스트 컴파일에서는 끈다 | 사용자 선택 「전체」. 접두어라 **새 패키지도 저절로 검사된다** — 그래서 「새 패키지에 `package-info.java` `@NullMarked`」 규칙(사용자 선택)을 파일로 강제하는 대신 설정으로 지킨다. 테스트는 일부러 null 을 넘기는 곳이 많다(75건 중 대부분) |
 | NullAway 옵션 | `CustomContractAnnotations=org.springframework.lang.Contract`(Spring 문서 권장). `ExcludedFieldAnnotations=jakarta.persistence.Id,org.hibernate.annotations.CreationTimestamp,org.hibernate.annotations.UpdateTimestamp` | DB 가 채우는 칸은 저장 전에만 null 이다. `@Nullable` 을 달면 Lombok 이 getter 에도 옮겨(`HandlerUtil.BASE_COPYABLE_ANNOTATIONS`) `getId()` 를 부르는 곳마다 null 확인이 번진다 |
 | null 표시 | `org.jspecify.annotations.Nullable` — 정말 비는 칸 · 인자 · 반환에만 | spring-core 가 jspecify 1.0.0 을 컴파일 범위로 끌어와 의존성을 더하지 않는다 |
-| JPA 기본 생성자 · 도우미 (구현 중 더함) | `ExternalInitAnnotations=jakarta.persistence.Entity,jakarta.persistence.Embeddable` — 인자 없는 생성자만 초기화 검사에서 뺀다. `ApiTime.toKst` · `IssueQueryRepository.toInstant` 에 `@Contract("!null -> !null")` | Lombok `@NoArgsConstructor` 로 만든 JPA 생성자가 복합 키에서 걸렸다. 「null 이면 null」 도우미에 `@Nullable` 만 달면 부르는 곳 수십 곳으로 번진다 |
+| JPA 기본 생성자 · 도우미 (구현 중 더함) | `ExternalInitAnnotations=jakarta.persistence.Entity,jakarta.persistence.Embeddable` — 인자 없는 생성자만 초기화 검사에서 뺀다. `ApiTime.toKst` 에 `@Contract("!null -> !null")` + `CheckContracts`. `IssueQueryRepository` 는 JDBC 값을 비는 칸(`nullableInstant`) · not null 칸(`instant`)으로 나눠 읽는다(리뷰 뒤 — 약속이 JDBC 의 null 을 가렸다) | Lombok `@NoArgsConstructor` 로 만든 JPA 생성자가 복합 키에서 걸렸다. 「null 이면 null」 도우미에 `@Nullable` 만 달면 부르는 곳 수십 곳으로 번진다 |
 | 게이트 명령 | `backend_LINT="./gradlew compileJava compileTestJava"` | 다음 단계 `./gradlew test` 가 컴파일 결과를 그대로 쓴다. CI 잡 `w3:backend` 는 같은 명령을 돈다(`.gitlab-ci.yml` 은 안 바뀐다) |
 
 잰 값(이 PC, `--rerun-tasks`, 데몬 데운 뒤 번갈아 3번 평균): 기준 17.3초, Error Prone 기본 +8.0초, NullAway 만 ±0, javac 경고 +0.9초. 지금 경고: javac 11(serial 8 · processing 1 · 테스트 unchecked 2), Error Prone 1, NullAway main 54(21파일).
@@ -31,6 +31,7 @@
 - `docs/backend-convention.md` — 새 절 「9. null · 컴파일 경고」: 모든 main 패키지를 NullAway 가 본다(새 패키지도) · 비는 곳에 jspecify `@Nullable` · DB 가 채우는 칸은 안 단다 · 테스트는 안 본다 · 경고는 실패라 끄려면 `@SuppressWarnings("<검사 이름>")` 에 까닭 한 줄 · `Serializable` 은 `serialVersionUID`
 - `SSOT.md` — 8절 「Java 린트 도구」 줄을 지우고, 7절에 정한 것 한 줄(무엇 · 왜 · 명령은 stack.md, 쓰는 법은 backend-convention.md), 10절에 잰 값 한 줄(위 숫자와 잰 방법)
 - `docs/plans/2026-10-27-backend-lint.md` — 승인한 계획 사본(이 파일 이름을 바꾼다)
+- 리뷰(2026-10-27, reviewer 조수) 뒤 더한 것 — DB 에서 비는 엔티티 칸 다섯(`Issue.summary` · `Event.summary` · `ArticleMindmap.summary` · `occurredAt` · `CategoryMapping.category`)과 그 값이 나가는 응답 칸(`IssueCardResponse` · `IssueHeaderResponse` 의 summary · firstEventAt · lastEventAt, `EventPanelResponse.summary`)에 `@Nullable`. `AnalysisJobService` 의 끄기를 람다 한 줄로 좁힘(본문은 `markAndBuild` 로)
 - `backend/Dockerfile` (구현 중 더함, 2026-10-27 사용자 승인) — 1단계 `DepsOnly` 를 패키지 `deps` 안에 둔다. 기본 패키지면 Error Prone `DefaultPackage` 경고가 `-Werror` 로 굽기를 깬다(임시 폴더에서 흉내 내 확인). Dockerfile 이 바뀌어 MR 파이프라인이 이미지를 실제로 굽는다
 
 ## 작업 순서

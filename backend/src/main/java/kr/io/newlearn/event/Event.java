@@ -38,7 +38,7 @@ public class Event {
 
     private String label;
 
-    private String summary;
+    private @Nullable String summary;
 
     private Instant occurredAt;
 
@@ -51,7 +51,8 @@ public class Event {
     @UpdateTimestamp
     private Instant updatedAt;
 
-    public Event(String title, String label, String summary, Instant occurredAt, OccurredAtBasis occurredAtBasis) {
+    public Event(
+            String title, String label, @Nullable String summary, Instant occurredAt, OccurredAtBasis occurredAtBasis) {
         this.title = title;
         this.label = label;
         this.summary = summary;

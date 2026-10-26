@@ -12,7 +12,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.lang.Contract;
 import org.springframework.stereotype.Repository;
 
 // 복잡한 집계는 네이티브 SQL로 읽는다. 카테고리 조인 대신 EXISTS로 필터해 행이 늘어나지 않게 한다.
@@ -90,9 +89,9 @@ public class IssueQueryRepository {
                 rs.getLong("event_count"),
                 rs.getLong("article_count"),
                 rs.getLong("publisher_count"),
-                toInstant(rs.getObject("first_event_at", OffsetDateTime.class)),
-                toInstant(rs.getObject("last_event_at", OffsetDateTime.class)),
-                toInstant(rs.getObject("created_at", OffsetDateTime.class)));
+                nullableInstant(rs, "first_event_at"),
+                nullableInstant(rs, "last_event_at"),
+                instant(rs, "created_at"));
     }
 
     public List<CategoryRow> findCategories(List<Long> issueIds) {
@@ -119,25 +118,31 @@ public class IssueQueryRepository {
                         rs.getLong("id"),
                         rs.getString("title"),
                         rs.getString("label"),
-                        toInstant(rs.getObject("occurred_at", OffsetDateTime.class))))
+                        instant(rs, "occurred_at")))
                 .list();
     }
 
-    // null 이 아니면 null 이 아니다 — 부르는 쪽마다 null 확인이 번지지 않게 NullAway 에 알린다
-    @Contract("!null -> !null")
-    private static @Nullable Instant toInstant(@Nullable OffsetDateTime time) {
+    // JDBC 값은 null 표시가 없어 NullAway 가 늘 non-null 로 본다 — 비는 칸과 not null 칸을 나눠 읽는다
+    // 비는 칸: 사건이 없는 이슈의 min · max(e.occurred_at)
+    private static @Nullable Instant nullableInstant(ResultSet rs, String column) throws SQLException {
+        OffsetDateTime time = rs.getObject(column, OffsetDateTime.class);
         return time == null ? null : time.toInstant();
+    }
+
+    // not null 칸(issue.created_at · event.occurred_at)
+    private static Instant instant(ResultSet rs, String column) throws SQLException {
+        return rs.getObject(column, OffsetDateTime.class).toInstant();
     }
 
     public record CardRow(
             long id,
             String title,
-            String summary,
+            @Nullable String summary,
             long eventCount,
             long articleCount,
             long publisherCount,
-            Instant firstEventAt,
-            Instant lastEventAt,
+            @Nullable Instant firstEventAt,
+            @Nullable Instant lastEventAt,
             Instant createdAt) {}
 
     public record CategoryRow(long issueId, String code, String name) {}

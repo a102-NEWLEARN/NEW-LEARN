@@ -82,9 +82,11 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - main 의 `kr.io.newlearn` 아래 모든 패키지를 NullAway 가 본다. 새 패키지도 따로 할 일 없이 들어간다. 표시가 없는 칸 · 인자 · 반환은 null 이 아니라고 본다
 - 비어 있을 수 있는 곳에만 `org.jspecify.annotations.Nullable` 을 단다. 자리는 타입 바로 앞이다: `private @Nullable Instant releasedAt;` · `@Nullable String detail` · `public @Nullable String problem()`. 안쪽 타입은 `AnalysisJobRepository.@Nullable StateView`
   - 엔티티: 마이그레이션에 `not null` 이 없는 칸에 단다. Lombok `@Getter` 가 getter 에도 옮긴다
-  - DB 가 채우는 칸(`@Id` · `@CreationTimestamp` · `@UpdateTimestamp`)과 엔티티의 인자 없는 생성자는 검사에서 뺐다. 달지 않는다
-  - 응답 record: null 로 나갈 수 있는 칸(예: `ArticleDetailResponse.event`)에 단다
-  - null 이 들어오면 null 을 돌려주는 도우미는 `@Contract("!null -> !null")`(`org.springframework.lang.Contract`)을 같이 단다 — 부르는 곳마다 null 확인이 번지지 않는다. 예: `ApiTime.toKst`
+  - DB 가 채우는 칸(`@Id` · `@CreationTimestamp` · `@UpdateTimestamp`)은 달지 않는다 — 「생성자가 채우나」 검사에서만 뺐다. 그래서 저장 전에 `getId()` 를 부르면 NullAway 가 못 잡는다. 엔티티의 인자 없는 생성자(JPA 용)도 그 검사에서 뺐다
+  - 응답 record: null 로 나갈 수 있는 칸(`docs/api-screen.md` 에 「· null」인 칸, 예: `ArticleDetailResponse.event` · `IssueCardResponse.firstEventAt`)에 단다
+  - null 이 들어오면 null 을 돌려주는 도우미는 `@Contract("!null -> !null")`(`org.springframework.lang.Contract`)을 같이 단다 — 부르는 곳마다 null 확인이 번지지 않는다. 본문이 약속을 지키는지도 검사한다. 예: `ApiTime.toKst`
+- JDBC · JDK 처럼 표시가 없는 라이브러리 값은 NullAway 가 non-null 로 본다. 비어 올 수 있는 칸은 받는 자리에서 `@Nullable` 로 받는다(예: `IssueQueryRepository` 의 `nullableInstant` — 사건이 없는 이슈의 `min(e.occurred_at)`). 그 값에 `@Contract` 도우미를 바로 씌우면 null 이 가려진다
+- 요청 record(JSON 으로 받는 칸) · `@RequestParam(required = false)` · Spring Data 조회 뷰의 칸은 아직 표시하지 않았다. 비어 올 수 있으니 쓰기 전에 확인한다(예: `JobResultRequest.problem()`)
 - 테스트(`src/test`)는 NullAway 가 보지 않는다 — 일부러 null 을 넘기는 시험이 많다. javac 경고 · Error Prone 은 본다
 - 검사를 꼭 꺼야 하면 가장 좁은 자리(메서드 · 지역 변수)에 `@SuppressWarnings("<검사 이름>")` 을 달고 바로 위에 까닭 한 줄을 쓴다. 예: `AnalysisJobService` 의 `NullAway`(제네릭 콜백의 null), `InternalKeyFilter` 의 `ArrayRecordComponent`
 - `Serializable` 을 구현하면 `@Serial private static final long serialVersionUID = 1L;` 을 둔다(예외 클래스 · 복합 키)

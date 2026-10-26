@@ -76,6 +76,8 @@ tasks.withType(JavaCompile).configureEach {
 		// kr.io.newlearn 아래 모든 패키지(새 패키지도)를 null 검사 대상으로 본다. 비는 곳은 org.jspecify.annotations.Nullable 로 표시
 		option('NullAway:AnnotatedPackages', 'kr.io.newlearn')
 		option('NullAway:CustomContractAnnotations', 'org.springframework.lang.Contract')
+		// @Contract 를 단 메서드 본문이 약속을 지키는지도 본다
+		option('NullAway:CheckContracts', 'true')
 		// DB 가 채우는 칸은 저장 전에만 비어 있다. @Nullable 을 달면 getId() 를 부르는 곳마다 null 확인이 번진다
 		option('NullAway:ExcludedFieldAnnotations',
 				'jakarta.persistence.Id,org.hibernate.annotations.CreationTimestamp,org.hibernate.annotations.UpdateTimestamp')

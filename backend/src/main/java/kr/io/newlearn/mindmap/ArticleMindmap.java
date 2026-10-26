@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.jspecify.annotations.Nullable;
 
 // 기사 하나의 마인드맵 결과(W1 의 EXTRACT 결과). 기사 하나에 결과 하나라 기본 키가 기사 키다 (data-model.md 2절)
 // 다시 분석하면 덮어쓰는 메서드는 마인드맵 저장 티켓(Jira 56)이 더한다
@@ -29,13 +30,13 @@ public class ArticleMindmap {
     @JoinColumn(name = "article_id")
     private Article article;
 
-    private String summary;
+    private @Nullable String summary;
 
     // jsonb 칸. 가지 4개와 잎을 JSON 글자 그대로 둔다 (docs/api-screen.md 3절). 모양을 정해 읽는 일은 Jira 56
     @JdbcTypeCode(SqlTypes.JSON)
     private String content;
 
-    private Instant occurredAt;
+    private @Nullable Instant occurredAt;
 
     private String schemaVersion;
 
@@ -47,9 +48,9 @@ public class ArticleMindmap {
 
     public ArticleMindmap(
             Article article,
-            String summary,
+            @Nullable String summary,
             String content,
-            Instant occurredAt,
+            @Nullable Instant occurredAt,
             String schemaVersion,
             String model,
             String promptVersion,

@@ -241,16 +241,9 @@ public class AnalysisJobService {
             String payload;
             try {
                 // execute 는 콜백이 돌려준 null 을 그대로 돌려준다(<T extends @Nullable Object>).
-                // NullAway 기본 모드는 제네릭의 null 을 못 읽어 콜백의 return null 을 잘못 막는다
+                // NullAway 기본 모드는 제네릭의 null 을 못 읽어 콜백의 null 반환을 잘못 막는다 — 끄는 곳은 이 한 줄뿐이다
                 @SuppressWarnings("NullAway")
-                String built = transaction.execute(status -> {
-                    if (jobs.markPublished(candidate.getId(), candidate.getAttempt(), AnalysisJobStatus.QUEUED, now)
-                            != 1) {
-                        return null; // 다른 Pod 가 먼저 넣었다
-                    }
-                    return factory.payload(
-                            List.of(jobs.findById(candidate.getId()).orElseThrow()));
-                });
+                String built = transaction.execute(status -> markAndBuild(candidate, factory, now));
                 payload = built;
             } catch (RuntimeException e) {
                 log.warn("큐에 다시 넣을 메시지를 못 만들었다: job={}", candidate.getId(), e);
@@ -270,5 +263,13 @@ public class AnalysisJobService {
             }
         }
         return published;
+    }
+
+    // 「내가 넣는다」를 적고 메시지를 만든다. 다른 Pod 가 먼저 넣었으면 null
+    private @Nullable String markAndBuild(AnalysisJob candidate, AnalysisMessageFactory factory, Instant now) {
+        if (jobs.markPublished(candidate.getId(), candidate.getAttempt(), AnalysisJobStatus.QUEUED, now) != 1) {
+            return null;
+        }
+        return factory.payload(List.of(jobs.findById(candidate.getId()).orElseThrow()));
     }
 }
