@@ -2,6 +2,7 @@
 import { seedDesignPlugin } from "@seed-design/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { msw } from "msw/vite";
 import {
   defaultClientConditions,
   defineConfig,
@@ -35,7 +36,17 @@ export default defineConfig(({ mode }) => {
     env.API_PROXY_TARGET ?? `http://localhost:${env.BACKEND_PORT ?? "8080"}`;
 
   return {
-    plugins: [injectLayerOrder(), react(), tailwindcss(), seedDesignPlugin()],
+    plugins: [
+      injectLayerOrder(),
+      react(),
+      tailwindcss(),
+      // NEW:LEARN 은 라이트 테마만 쓴다 (DESIGN.md). 이 플러그인이 <html data-seed-color-mode> 를
+      // 옵션 값으로 덮어쓰므로 index.html 이 아니라 여기서 고정한다
+      seedDesignPlugin({ colorMode: "light-only" }),
+      // 가짜 API(MSW) 의 서비스 워커를 개발 서버에서만 내준다. 빌드 결과에는 들어가지 않는다.
+      // 켜는 곳은 src/main.tsx (npm run dev:mock)
+      msw(),
+    ],
     resolve: {
       conditions: ["seed-layered", ...defaultClientConditions],
       tsconfigPaths: true,
