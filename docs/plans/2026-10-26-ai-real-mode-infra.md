@@ -114,16 +114,16 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 
 ### 0 — 착수 전
 - [x] AI 팀 답(2026-10-26) — 모델 · 커밋 고정, 입력 앞 800자 · 메모리 약 4GB, 워커 하나. 자원 값을 고쳤다(끝의 「계획 뒤 바뀐 것」)
-- [ ] 고친 계획을 사용자가 다시 승인
-- [ ] Jira 티켓 — 사용자 지시가 있을 때 만든다(스토리 포인트 칸 채움)
+- [x] 고친 계획을 사용자가 다시 승인(2026-10-26)
+- [x] Jira 티켓 — S15P31A102-115(작업, 상위 27, 라벨 infra · newlearn-mvp, 스토리 포인트 3)
 
 ### A — MR 1: 모델 자리 · 자원 · 봉인 스크립트 (LLM_MODE 는 mock 그대로)
-- [ ] `infra/k8s/services/ai/model-cache.yaml`(새) — PVC `ai-model-cache`
-- [ ] `infra/k8s/services/ai/ai.yaml` — init 컨테이너 `model`(위 「받는 법」, securityContext 는 본 컨테이너와 같게), 볼륨 `/models`, 본 컨테이너 env(`HF_HOME` · `HF_HUB_OFFLINE` · `GMS_BASE_URL` · `GMS_MODEL`, 모델 경로는 env 이름을 받았을 때만), 자원(요청 500m · 4Gi, 상한 5Gi), startupProbe. 머리 주석 두 줄 갱신
-- [ ] `infra/k8s/services/ai/kustomization.yaml` — resources 에 `model-cache.yaml`
-- [ ] `infra/server/seal-secrets.sh` — `gms` 기능, 머리 쓰는 법 한 줄(`usage()` 의 `sed -n '5,11p'` → `'5,12p'`)
-- [ ] `infra/server/README.md` — 「봉인한 Secret 만들기」에 `gms` 한 줄, ai 모델 캐시 확인 · 판 바꾸기 · 옛 판 지우기
-- [ ] 확인: `kubectl kustomize infra/k8s/services/ai` 렌더, EC2 에서 `kubectl apply --dry-run=server -k`, 커밋 게이트(infra 포맷 · 린트 · 테스트 — `bash -n` 포함), shellcheck
+- [x] `infra/k8s/services/ai/model-cache.yaml`(새) — PVC `ai-model-cache`
+- [x] `infra/k8s/services/ai/ai.yaml` — init 컨테이너 `model`(위 「받는 법」, securityContext 는 본 컨테이너와 같게), 볼륨 `/models`, 본 컨테이너 env(`HF_HOME` · `HF_HUB_OFFLINE` · `GMS_BASE_URL` · `GMS_MODEL`, 모델 경로는 env 이름을 받았을 때만), 자원(요청 500m · 4Gi, 상한 5Gi), startupProbe. 머리 주석 두 줄 갱신
+- [x] `infra/k8s/services/ai/kustomization.yaml` — resources 에 `model-cache.yaml`
+- [x] `infra/server/seal-secrets.sh` — `gms` 기능, 머리 쓰는 법 한 줄(`usage()` 의 `sed -n '5,11p'` → `'5,12p'`)
+- [x] `infra/server/README.md` — 「봉인한 Secret 만들기」에 `gms` 한 줄, ai 모델 캐시 확인 · 판 바꾸기 · 옛 판 지우기(→ `infra/server/ai-worker.md`, 아래 「계획 뒤 바뀐 것」)
+- [x] 확인: `kubectl kustomize infra/k8s/services/ai` 렌더, EC2 에서 `kubectl apply --dry-run=server`, 커밋 게이트(infra 포맷 · 린트 · 테스트 — `bash -n` 포함), shellcheck 0.11.0 경고 0. init 명령은 바탕 이미지에서 가짜 `hf` 로 다섯 경우를 돌림
 - [ ] MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 확인). 반영 뒤 검증 절 A
 
 ### B — 사용자가 봉인 (MR 1 이 EC2 저장소에 들어온 뒤)
