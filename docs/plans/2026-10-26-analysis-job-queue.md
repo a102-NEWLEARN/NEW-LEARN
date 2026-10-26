@@ -107,11 +107,12 @@ MR C — Infra (출입증 넣을 자리)
   - 스케줄러가 못 넣은 작업을 넣을 때는 `published_at` 을 먼저 적고(차지) 넣는다. 넣다 실패하면 지운다. 차지한 뒤 넣기 전에 Pod 가 죽으면 그 작업은 `QUEUED` 로 남는다 — 드물어 손으로 다시 건다(한계)
   - 봉투를 JSON 으로 못 읽으면 W1 컨트롤러가 400 `RESULT_SCHEMA_INVALID` 로 답한다(전역 처리기는 `VALIDATION_FAILED` 를 줘서)
   - 시험은 `src/test/resources/config/application.yaml` 로 스케줄러를 끈다
+  - reviewer 조수 두 번째(2026-10-26) 뒤: ① 다시 걸지 않는 실패가 조회 조건에 남아 100개가 넘으면 다시 걸기 전체가 멈추던 것을 `retry_at` 칸(V4)으로 고침 — 이 시각이 지난 실패만 읽는다. 간격은 워커가 보낸 시각이 아니라 API 가 받은 때부터 ② 처리기의 예상 밖 오류는 `INTERNAL` 실패로 남김(QUEUED 로 남으면 워커가 GMS 를 끝없이 부름) ③ 스케줄러 차례를 행마다 · 일마다 감싸고, Redis 에 못 넣으면 그 차례를 끝냄 ④ 메시지 만드는 곳이 한 단계에 둘이면 뜨지 않음. 되돌림 확인 4곳 더(모두 단언에서 실패)
   - 마이그레이션은 `V4__analysis_job_queue.sql` — BE 팀원의 113(!190)이 `V3__drop_article_source_summary.sql` 을 써서 계획대로 다음 번호로 옮겼다. 113 보다 먼저 머지하게 되면 다시 본다
 
 ## 되돌리는 법
 
 - MR 을 Revert(backend → dev). 코드는 바로 돌아간다
 - 🔴 마이그레이션은 되돌리지 않는다 — 칸 셋은 남는다(비어 있어도 해가 없음). 지우려면 새 마이그레이션
-- Redis 의 스트림 · 그룹은 남는다 — 필요하면 `DEL analysis.released analysis.match_event analysis.issue`
+- Redis 의 스트림 · 그룹은 남는다 — 필요하면 `DEL analysis.released analysis.match_event analysis.issue`. 그룹은 API 가 뜰 때만 만들므로 지운 뒤에는 API 를 다시 띄운다(안 그러면 다음 XADD 가 그룹 없는 스트림을 만들어 워커가 NOGROUP 을 받는다)
 - 봉인 Secret 은 매니페스트에서 빼면 Argo CD 가 지운다

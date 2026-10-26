@@ -144,7 +144,7 @@ class SecurityRulesTest {
                 .andExpect(status().isForbidden());
     }
 
-    // 맞는 키면 CSRF 번호표 없이 보안을 지난다(아직 컨트롤러가 없어 404). 세션 · 번호표 쿠키를 만들지 않는다
+    // 맞는 키면 CSRF 번호표 없이 보안을 지난다(이 시험 조각에는 컨트롤러를 넣지 않아 404). 세션 · 번호표 쿠키를 만들지 않는다
     @Test
     void matchingKeyPassesWithoutCsrfOrSession() throws Exception {
         MvcResult worker = mockMvc.perform(post(W1).header(InternalKeyFilter.HEADER, WORKER_KEY))

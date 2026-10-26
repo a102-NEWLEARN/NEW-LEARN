@@ -20,14 +20,16 @@
   — `successGoesThroughTheHandlerOnce` · `failureIsStoredAndLeftForTheScheduler`
 - AC-8: 처리기가 결과를 거절하거나 봉투 안끼리 안 맞으면 400 `RESULT_SCHEMA_INVALID` 다. 처리기가 쓴 것은 되돌리고, 작업은 실패를 남긴 뒤 바로 한 번(`attempt + 1`) 다시 건다. 다시 건 시도도 거절되면 멈춘다. 봉투를 못 읽거나 `attempt` 가 없으면 400 이고 작업은 그대로다
   — `rejectedResultIsRolledBackRetriedOnceThenStops` · `badEnvelopesAre400`
-- AC-9: 늦춰 거는 실패는 간격(`api.md` 2절)이 지나야 `attempt + 1` 로 다시 걸어 큐에 넣는다. 최대 시도 수(3) · 「한 번만 더」(시도 2) · 다시 걸지 않는 코드에서 멈춘다. 코드 · 시도별 판정은 표 그대로다
-  — `failureIsRetriedAfterItsDelayOnce` · `retriesStopWhereThePolicySays` · `RetryPolicyTest.decidesByCodeAndAttempt`
+- AC-9: 늦춰 거는 실패는 API 가 받은 때 + 간격(`api.md` 2절)을 `retry_at` 에 적고, 그때가 지나야 `attempt + 1` 로 다시 걸어 큐에 넣는다. 최대 시도 수(3) · 「한 번만 더」(시도 2) · 다시 걸지 않는 코드에서 멈추고 `retry_at` 을 비운다. 멈춘 실패가 한 차례(100개)보다 많이 쌓여도 때가 된 실패는 걸린다
+  — `failureIsStoredAndLeftForTheScheduler` · `failureIsRetriedAfterItsDelayOnce` · `retriesStopWhereThePolicySays` · `stoppedFailuresDoNotBlockDueRetries` · `RetryPolicyTest.decidesByCodeAndAttempt`
 - AC-10: 스케줄러 둘이 같이 돌아도(배포 중 Pod 둘) 한 번만 다시 건다
   — `concurrentSchedulersRetryOnce`
 - AC-11: 큐에 못 넣은 작업(`QUEUED` 인데 `published_at` 이 빔)은 1분 뒤 한 번만 넣는다. 넣은 작업은 다시 넣지 않는다
   — `unpublishedJobIsPublishedAfterAMinuteOnce`
 - AC-12: 기사의 `mindmapStatus` 는 결과가 없고 `EXTRACT` 가 `INPUT_NOT_ANALYZABLE` 로 실패했을 때 `NOT_ANALYZABLE` 이다. 결과가 있으면(다시 분석이 실패해도) `SUCCEEDED` 그대로다
   — `ArticleSummaryAssemblerTest.mindmapStatusComesFromResultThenExtractJob`
+- AC-13: 처리기의 예상 밖 오류(버그 · 처리기 없음)는 그 시도를 `INTERNAL` 실패로 남기고 500 이다. 같은 결과를 다시 보내면 409 — 작업이 `QUEUED` 로 남아 워커가 GMS 를 끝없이 부르지 않는다
+  — `unexpectedHandlerErrorIsRecordedAsInternal`
 
 ## 이 티켓에서 하지 않는 것
 

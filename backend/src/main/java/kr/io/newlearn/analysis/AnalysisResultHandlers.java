@@ -19,7 +19,8 @@ public class AnalysisResultHandlers {
         }
     }
 
-    // 아직 처리기가 없는 단계의 결과가 오면 500 — 그 단계의 작업을 거는 코드도 아직 없어 정상 흐름에서는 나지 않는다
+    // 아직 처리기가 없는 단계의 결과가 오면 500. 투입(34)은 EXTRACT · EMBED 를 같이 걸어서, 34 가 35(EMBED 처리기)보다
+    // 먼저 들어오면 EMBED 결과가 여기로 온다 — 그 시도는 INTERNAL 실패로 남고 한 번만 더 걸린다(AnalysisJobService)
     public AnalysisResultHandler forStage(AnalysisStage stage) {
         AnalysisResultHandler handler = byStage.get(stage);
         if (handler == null) {

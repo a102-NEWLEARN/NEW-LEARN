@@ -117,9 +117,9 @@ class AnalysisJobQueueIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.sql("delete from analysis_job where article_id between 3001 and 3099")
+        jdbc.sql("delete from analysis_job where article_id between 3001 and 3199")
                 .update();
-        jdbc.sql("delete from article where id between 3001 and 3099").update();
+        jdbc.sql("delete from article where id between 3001 and 3199").update();
         jdbc.sql("delete from press where code = :code").param("code", PRESS).update();
     }
 
@@ -196,12 +196,12 @@ class AnalysisJobQueueIntegrationTest {
     // 늦게 온 옛 결과 · 이미 끝난 작업 · 같은 결과 두 번째는 409 — 새 결과를 덮지 않는다
     @Test
     void wrongAttemptOrFinishedJobIs409() throws Exception {
-        long job = job(ARTICLE, "EXTRACT", "QUEUED", 2, null, null, T0, T0);
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 2, null, null, T0, T0, null);
         w1(job, envelope(1, "FAILED", "null", error("LLM_TIMEOUT")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("JOB_STATE_CONFLICT"));
 
-        long done = job(ARTICLE, "EMBED", "SUCCEEDED", 1, null, T0, T0, T0);
+        long done = job(ARTICLE, "EMBED", "SUCCEEDED", 1, null, T0, T0, T0, null);
         w1(done, envelope(1, "FAILED", "null", error("LLM_TIMEOUT")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("JOB_STATE_CONFLICT"));
@@ -210,14 +210,18 @@ class AnalysisJobQueueIntegrationTest {
     // 실패를 받으면 코드 · 설명을 남긴다. 늦춰 걸 코드는 지금 걸지 않고 스케줄러가 건다
     @Test
     void failureIsStoredAndLeftForTheScheduler() throws Exception {
-        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0);
-        Long before = redis.opsForStream().size(AnalysisStreams.RELEASED);
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        Instant before = Instant.now();
+        Long length = redis.opsForStream().size(AnalysisStreams.RELEASED);
         w1(job, envelope(1, "FAILED", "null", error("LLM_TIMEOUT"))).andExpect(status().isNoContent());
 
         Map<String, Object> row = row(job);
         assertThat(row).containsEntry("status", "FAILED").containsEntry("attempt", 1);
         assertThat(row).containsEntry("error_code", "LLM_TIMEOUT").containsEntry("error_message", "느림");
-        assertThat(redis.opsForStream().size(AnalysisStreams.RELEASED)).isEqualTo(before);
+        // 다시 걸 때는 API 가 받은 때부터 1분 뒤(워커가 보낸 finishedAt 이 아니라)
+        assertThat(((java.sql.Timestamp) row.get("retry_at")).toInstant())
+                .isBetween(before.plusSeconds(60), Instant.now().plusSeconds(60));
+        assertThat(redis.opsForStream().size(AnalysisStreams.RELEASED)).isEqualTo(length);
     }
 
     // 성공은 처리기에 넘겨 저장하고 SUCCEEDED. 같은 결과가 또 오면 409
@@ -225,7 +229,7 @@ class AnalysisJobQueueIntegrationTest {
     void successGoesThroughTheHandlerOnce() throws Exception {
         AtomicInteger saved = new AtomicInteger();
         handle(AnalysisStage.EXTRACT, (job, request) -> saved.incrementAndGet());
-        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0);
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
 
         String body = envelope(1, "SUCCEEDED", "{\"summary\":null}", "null");
         w1(job, body).andExpect(status().isNoContent());
@@ -245,7 +249,7 @@ class AnalysisJobQueueIntegrationTest {
                     .update();
             throw new ResultSchemaInvalidException("가지가 하나도 없다");
         });
-        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0);
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
 
         w1(job, envelope(1, "SUCCEEDED", "{}", "null"))
                 .andExpect(status().isBadRequest())
@@ -263,12 +267,33 @@ class AnalysisJobQueueIntegrationTest {
 
         w1(job, envelope(2, "SUCCEEDED", "{}", "null")).andExpect(status().isBadRequest());
         assertThat(row(job)).containsEntry("status", "FAILED").containsEntry("attempt", 2);
+        assertThat(row(job).get("retry_at")).isNull(); // 다시 걸지 않으니 스케줄러가 읽지 않는다
+    }
+
+    // 처리기의 예상 밖 오류(버그 · 처리기 없음)는 INTERNAL 로 실패를 남기고 500. 1분 뒤 한 번만 더 걸리고,
+    // 워커가 같은 결과를 다시 보내면 409 라 ack 한다 — QUEUED 로 남아 GMS 를 끝없이 부르지 않게
+    @Test
+    void unexpectedHandlerErrorIsRecordedAsInternal() throws Exception {
+        handle(AnalysisStage.EXTRACT, (job, request) -> {
+            throw new IllegalStateException("처리기 버그");
+        });
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        String body = envelope(1, "SUCCEEDED", "{}", "null");
+
+        w1(job, body).andExpect(status().isInternalServerError());
+        Map<String, Object> row = row(job);
+        assertThat(row)
+                .containsEntry("status", "FAILED")
+                .containsEntry("attempt", 1)
+                .containsEntry("error_code", "INTERNAL");
+        assertThat(row.get("retry_at")).isNotNull();
+        w1(job, body).andExpect(status().isConflict());
     }
 
     // 봉투 안끼리 안 맞으면(성공인데 result 없음) 처리기가 거절한 것과 같다. 봉투를 못 읽거나 attempt 가 없으면 작업은 그대로
     @Test
     void badEnvelopesAre400() throws Exception {
-        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0);
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
         w1(job, envelope(1, "SUCCEEDED", "null", "null"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
@@ -286,7 +311,7 @@ class AnalysisJobQueueIntegrationTest {
     // 간격(LLM_TIMEOUT 첫 실패 뒤 1분)이 지나기 전에는 안 걸고, 지나면 attempt + 1 로 한 번 걸어 큐에 넣는다
     @Test
     void failureIsRetriedAfterItsDelayOnce() {
-        long job = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0);
+        long job = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
 
         assertThat(service.retryDue(T0.plusSeconds(59))).isZero();
         assertThat(row(job)).containsEntry("status", "FAILED");
@@ -304,9 +329,9 @@ class AnalysisJobQueueIntegrationTest {
     // 최대 시도 수 · 「한 번만 더」 코드 · 다시 걸지 않는 코드는 아무리 지나도 그대로
     @Test
     void retriesStopWhereThePolicySays() {
-        long limit = job(ARTICLE, "EXTRACT", "FAILED", 3, "LLM_TIMEOUT", T0, T0, T0);
-        long once = job(ARTICLE, "EMBED", "FAILED", 2, "LLM_OUTPUT_INVALID", T0, T0, T0);
-        long refused = job(article(3002), "EXTRACT", "FAILED", 1, "LLM_REFUSED", T0, T0, T0);
+        long limit = job(ARTICLE, "EXTRACT", "FAILED", 3, "LLM_TIMEOUT", T0, T0, T0, null);
+        long once = job(ARTICLE, "EMBED", "FAILED", 2, "LLM_OUTPUT_INVALID", T0, T0, T0, null);
+        long refused = job(article(3002), "EXTRACT", "FAILED", 1, "LLM_REFUSED", T0, T0, T0, null);
 
         assertThat(service.retryDue(T0.plus(Duration.ofDays(1)))).isZero();
         assertThat(row(limit)).containsEntry("status", "FAILED").containsEntry("attempt", 3);
@@ -314,10 +339,29 @@ class AnalysisJobQueueIntegrationTest {
         assertThat(row(refused)).containsEntry("status", "FAILED").containsEntry("attempt", 1);
     }
 
+    // 다시 걸지 않는 실패가 아무리 쌓여도(한 차례 100개보다 많이) 때가 된 실패는 걸린다
+    @Test
+    void stoppedFailuresDoNotBlockDueRetries() {
+        jdbc.sql("""
+                insert into article(id,source,url,press_code,title,body,published_at,released_at,created_at)
+                select n,'NEWSDATA','https://fixture.invalid/queue30/' || n,:press,'멈춘 기사','본문',now(),now(),now()
+                from generate_series(3100, 3159) n
+                """).param("press", PRESS).update();
+        jdbc.sql("""
+                insert into analysis_job(article_id,stage,status,requested_by,attempt,error_code,created_at,finished_at)
+                select n, s, 'FAILED', 'BATCH', 2, 'LLM_OUTPUT_INVALID', now(), :t0
+                from generate_series(3100, 3159) n, (values ('EXTRACT'), ('EMBED')) as stages(s)
+                """).param("t0", java.sql.Timestamp.from(T0)).update();
+        long due = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
+
+        assertThat(service.retryDue(T0.plus(Duration.ofHours(1)))).isEqualTo(1);
+        assertThat(row(due)).containsEntry("status", "QUEUED").containsEntry("attempt", 2);
+    }
+
     // 배포 중 Pod 둘이 스케줄러를 같이 돌려도 한 번만 다시 건다
     @Test
     void concurrentSchedulersRetryOnce() throws Exception {
-        long job = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0);
+        long job = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
@@ -341,7 +385,7 @@ class AnalysisJobQueueIntegrationTest {
     // 큐에 못 넣은 작업 — 1분 기다렸다가 한 번만 넣는다. 넣은 작업은 다시 넣지 않는다
     @Test
     void unpublishedJobIsPublishedAfterAMinuteOnce() {
-        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null);
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
 
         assertThat(service.publishUnpublished(T0.plusSeconds(30))).isZero();
         assertThat(row(job).get("published_at")).isNull();
@@ -414,11 +458,12 @@ class AnalysisJobQueueIntegrationTest {
             String errorCode,
             Instant finishedAt,
             Instant queuedAt,
-            Instant publishedAt) {
+            Instant publishedAt,
+            Instant retryAt) {
         return jdbc.sql("""
                 insert into analysis_job(article_id,stage,status,requested_by,attempt,error_code,created_at,
-                    finished_at,queued_at,published_at)
-                values (:article,:stage,:status,'BATCH',:attempt,:code,now(),:finished,:queued,:published)
+                    finished_at,queued_at,published_at,retry_at)
+                values (:article,:stage,:status,'BATCH',:attempt,:code,now(),:finished,:queued,:published,:retry)
                 returning id
                 """)
                 .param("article", articleId)
@@ -429,13 +474,14 @@ class AnalysisJobQueueIntegrationTest {
                 .param("finished", finishedAt == null ? null : java.sql.Timestamp.from(finishedAt))
                 .param("queued", java.sql.Timestamp.from(queuedAt))
                 .param("published", publishedAt == null ? null : java.sql.Timestamp.from(publishedAt))
+                .param("retry", retryAt == null ? null : java.sql.Timestamp.from(retryAt))
                 .query(Long.class)
                 .single();
     }
 
     private Map<String, Object> row(long jobId) {
         return jdbc.sql("""
-                select status, attempt, error_code, error_message, published_at from analysis_job where id = :id
+                select status, attempt, error_code, error_message, published_at, retry_at from analysis_job where id = :id
                 """).param("id", jobId).query().singleRow();
     }
 

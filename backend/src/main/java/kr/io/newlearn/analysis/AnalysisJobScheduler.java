@@ -1,6 +1,8 @@
 package kr.io.newlearn.analysis;
 
 import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -14,16 +16,27 @@ import org.springframework.scheduling.annotation.Scheduled;
 @ConditionalOnProperty(name = "newlearn.analysis.scheduler.enabled", havingValue = "true", matchIfMissing = true)
 class AnalysisJobScheduler {
 
+    private static final Logger log = LoggerFactory.getLogger(AnalysisJobScheduler.class);
+
     private final AnalysisJobService service;
 
     AnalysisJobScheduler(AnalysisJobService service) {
         this.service = service;
     }
 
+    // 하나가 실패해도 다른 하나는 돈다
     @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT1M")
     void tick() {
         Instant now = Instant.now();
-        service.retryDue(now);
-        service.publishUnpublished(now);
+        try {
+            service.retryDue(now);
+        } catch (RuntimeException e) {
+            log.warn("실패 다시 걸기 차례를 건너뛴다", e);
+        }
+        try {
+            service.publishUnpublished(now);
+        } catch (RuntimeException e) {
+            log.warn("못 넣은 작업 넣기 차례를 건너뛴다", e);
+        }
     }
 }

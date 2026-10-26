@@ -70,6 +70,9 @@ public class AnalysisJob {
 
     private Instant publishedAt;
 
+    // 실패한 시도를 다시 걸 때. 다시 걸지 않으면 비어 있다 — 스케줄러는 이 시각이 지난 실패만 읽는다 (Jira 30)
+    private Instant retryAt;
+
     public AnalysisJob(Article article, AnalysisStage stage, RequestedBy requestedBy, String candidates) {
         this.article = article;
         this.stage = stage;
@@ -87,15 +90,18 @@ public class AnalysisJob {
         this.finishedAt = finishedAt;
         this.errorCode = null;
         this.errorMessage = null;
+        this.retryAt = null;
     }
 
-    // W1 FAILED, 또는 API 가 결과 저장을 거절했을 때(RESULT_SCHEMA_INVALID)
-    public void fail(String errorCode, String errorMessage, Instant startedAt, Instant finishedAt) {
+    // W1 FAILED, API 가 결과 저장을 거절했을 때(RESULT_SCHEMA_INVALID), 저장하다 예상 밖 오류가 났을 때(INTERNAL)
+    // retryAt: 다시 걸 때(RetryPolicy 로 정한다). 다시 걸지 않으면 null
+    public void fail(String errorCode, String errorMessage, Instant startedAt, Instant finishedAt, Instant retryAt) {
         this.status = AnalysisJobStatus.FAILED;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
         this.startedAt = startedAt;
         this.finishedAt = finishedAt;
+        this.retryAt = retryAt;
     }
 
     // 다시 돌리기 — 시도 번호를 올리고 다시 QUEUED. 큐에 넣는 일은 커밋 뒤에 한다(published_at 을 비운다)
@@ -104,6 +110,7 @@ public class AnalysisJob {
         this.attempt = attempt + 1;
         this.queuedAt = now;
         this.publishedAt = null;
+        this.retryAt = null;
     }
 
     public boolean isQueued() {

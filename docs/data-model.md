@@ -136,6 +136,7 @@ erDiagram
     timestamptz finished_at
     timestamptz queued_at "이번 시도가 QUEUED 가 된 때"
     timestamptz published_at "이번 시도를 큐에 넣은 때"
+    timestamptz retry_at "실패한 시도를 다시 걸 때"
   }
   article_mindmap {
     bigint article_id PK, FK
@@ -331,9 +332,10 @@ erDiagram
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
-| `started_at` · `finished_at` | timestamptz | 아니오 | 워커가 결과와 함께 보낸 시작 · 끝 시각. 늦춰 다시 걸 때 간격을 `finished_at` 부터 잰다 |
+| `started_at` · `finished_at` | timestamptz | 아니오 | 워커가 결과와 함께 보낸 시작 · 끝 시각 |
 | `queued_at` | timestamptz | 예 | 이번 시도가 `QUEUED` 가 된 때 — 처음 만들 때와 다시 걸 때. 큐에 못 넣은 작업을 찾는 기준(V4, Jira 30) |
 | `published_at` | timestamptz | 아니오 | 이번 시도를 큐에 넣은 때. 비어 있으면 아직 못 넣었다 — 1분 지나면 스케줄러가 다시 넣는다. 다시 걸면 비운다(V4, Jira 30) |
+| `retry_at` | timestamptz | 아니오 | 실패한 시도를 다시 걸 때 — API 가 실패를 받은 때 + 간격(`docs/api.md` 2절). 다시 걸지 않으면 비운다. 스케줄러는 이 시각이 지난 실패만 읽어, 멈춘 실패가 아무리 쌓여도 앞을 막지 않는다(V4, Jira 30) |
 
 - 기사 하나 · 단계 하나에 한 행이다. 다시 돌리면 같은 행의 `attempt` 를 올리고 `status` 를 `QUEUED` 로 되돌린다. 몇 번까지 · 언제 다시 돌릴지는 `docs/api.md` 2절 「작업 실패 코드」(최대 3번)
 - 워커가 처리 시작을 알리지 않아서 「처리 중」 상태를 따로 두지 않았다. 단계별 진행 표시(PRD FR-32, P1)를 넣을 때 더한다
