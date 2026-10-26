@@ -19,10 +19,10 @@ SSOT 2절 3~6번(배치가 적재 · 투입, 작업 큐 등록, 워커 분석, �
 
 ```mermaid
 flowchart TD
-  B["수집 배치 — CronJob 하루 두 번, 발행 순서대로"] -->|"B1 투입"| A1["API 서버 — released_at 채우고 EXTRACT · EMBED 작업을 만든 뒤 큐에 넣음"]
+  B["수집 배치 — CronJob 하루 두 번, 발행 순서대로"] -->|"B1 투입"| A1["API 서버 — EXTRACT · EMBED 작업을 만든 뒤 큐에 넣음(아직 화면에 안 보임)"]
   A1 -->|"analysis.released"| Q1[("Redis 작업 큐")]
   Q1 -->|"그룹 extract · embed 가 각자 읽음"| W1["AI 워커 — 핵심 정보 추출 · 임베딩"]
-  W1 -->|"W1 결과 — 마인드맵 · 요약 · 발생 시점 / 벡터"| A2["API 서버 — 저장하고 비슷한 기사로 후보 사건 최대 5개를 찾음"]
+  W1 -->|"W1 결과 — 마인드맵 · 요약 · 발생 시점 / 벡터"| A2["API 서버 — 저장하고(EXTRACT 처음이면 기사 공개) 비슷한 기사로 후보 사건 최대 5개를 찾음"]
   A2 -->|"analysis.match_event (후보 포함)"| Q2[("Redis 작업 큐")]
   Q2 -->|"그룹 match_event 가 하나씩 읽음"| W2["AI 워커 — 동일 사건 판정"]
   W2 -->|"W1 결과 — 기존 사건 또는 새 사건(이름 · 키워드 · 요약)"| A3["API 서버 — 기사를 사건에 붙이거나 새 사건을 만듦"]
@@ -52,7 +52,7 @@ flowchart LR
 
 ## 2. B1. 기사 투입 — `POST /internal/v1/articles/{articleId}/release`
 
-수집 배치가 적재해 둔 기사를 서비스에 내놓는다. 실서비스 수집 배치는 NewsData.io 를 k8s CronJob 으로 하루 두 번(00 · 12시, `Asia/Seoul`) 돈다(2026-10-20). API 는 `EXTRACT` · `EMBED` 작업 행을 만들고 커밋 뒤 큐에 넣는다 — 분석만 건다. **기사가 화면에 보이는 때(`article.released_at`)는 EXTRACT 결과를 처음 저장한 때다.** 분석이 끝난 기사부터 보이게 하려는 것이다(2026-10-26 사용자, Jira 34). EXTRACT 가 끝내 실패한 기사(분석할 내용 없음 · 거절 등)는 화면에 나오지 않는다. 같은 기사 투입 둘이 동시에 와도 기사 행을 잠그고 보아 하나만 202 다.
+수집 배치가 적재해 둔 기사에 분석을 건다. 적재할 때 `released_at` 은 비워 둔다 — 공개는 API 가 한다. 실서비스 수집 배치는 NewsData.io 를 k8s CronJob 으로 하루 두 번(00 · 12시, `Asia/Seoul`) 돈다(2026-10-20). API 는 `EXTRACT` · `EMBED` 작업 행을 만들고 커밋 뒤 큐에 넣는다 — 분석만 건다. **기사가 화면에 보이는 때(`article.released_at`)는 EXTRACT 결과를 처음 저장한 때다.** 분석이 끝난 기사부터 보이게 하려는 것이다(2026-10-26 사용자, Jira 34). EXTRACT 가 끝내 실패한 기사(분석할 내용 없음 · 거절 등)는 화면에 나오지 않는다. 같은 기사 투입 둘이 동시에 와도 기사 행을 잠그고 보아 하나만 202 다.
 
 | 인자 | 타입 | 용도 |
 |---|---|---|
@@ -64,7 +64,7 @@ flowchart LR
 | 401 `UNAUTHORIZED` | 배치 출입증(`X-Internal-Key`)이 없거나 틀렸다. 다시 보내도 같다 — 설정을 고친다 |
 | 403 `FORBIDDEN` | 배치 출입증이 아니다(워커 키 등) |
 | 404 `ARTICLE_NOT_FOUND` | 그런 기사가 없다 |
-| 409 `ALREADY_RELEASED` | 이미 투입했다(그 기사의 `EXTRACT` 작업이 있다) 또는 이미 화면에 있다(`released_at` 이 있다). 배치는 건너뛴다 |
+| 409 `ALREADY_RELEASED` | 이미 투입했다(그 기사의 분석 작업이 있다) 또는 이미 화면에 있다(`released_at` 이 있다). 배치는 건너뛴다 |
 
 - 기사를 적재하는 길(배치가 DB 에 바로 넣나, API 를 부르나)은 수집 배치 구현 언어와 같이 정한다(`SSOT.md` 8절)
 - 실행 한 번의 기록은 `ingest_run` 에 남긴다(`data-model.md` 2절). 데이터셋은 검증용이라(SSOT 5절) 서비스에 투입할지는 정하지 않았다(`data-model.md` 5절 17번)

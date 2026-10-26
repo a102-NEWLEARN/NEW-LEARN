@@ -85,12 +85,14 @@ class ArticleReleaseIntegrationTest {
     // 202 와 만든 작업 둘. 커밋 뒤 투입 메시지 하나가 큐에 들어가고, 기사는 아직 화면에 없다(분석이 끝나야 보인다)
     @Test
     void releaseQueuesExtractAndEmbedButKeepsTheArticleHidden() throws Exception {
+        Long before = redis.opsForStream().size(AnalysisStreams.RELEASED);
         String body = b1(ARTICLE, BATCH_KEY)
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.articleId").value(ARTICLE))
                 .andExpect(jsonPath("$.jobs[0].stage").value("EXTRACT"))
                 .andExpect(jsonPath("$.jobs[1].stage").value("EMBED"))
                 .andExpect(jsonPath("$.jobs[0].attempt").value(1))
+                .andExpect(jsonPath("$.jobs[1].attempt").value(1))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -100,6 +102,7 @@ class ArticleReleaseIntegrationTest {
         long embed = response.get("jobs").get(1).get("jobId").asLong();
         assertThat(jobIds(ARTICLE)).containsExactlyInAnyOrder(extract, embed);
 
+        assertThat(redis.opsForStream().size(AnalysisStreams.RELEASED)).isEqualTo(before + 1); // 메시지 하나
         JsonNode message = lastReleasedMessage();
         assertThat(message.get("articleId").asLong()).isEqualTo(ARTICLE);
         assertThat(message.get("jobs").get("EXTRACT").asLong()).isEqualTo(extract);

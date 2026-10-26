@@ -24,8 +24,8 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> 
             "select j.article.id as articleId, j.status as status, j.errorCode as errorCode from AnalysisJob j where j.article.id in :articleIds and j.stage = :stage")
     List<StateView> findStatesByArticleIdInAndStage(Collection<Long> articleIds, AnalysisStage stage);
 
-    // B1 — 이미 투입한 기사인가(EXTRACT 작업이 있다)
-    boolean existsByArticle_IdAndStage(Long articleId, AnalysisStage stage);
+    // B1 — 이미 투입한 기사인가(분석 작업이 하나라도 있다)
+    boolean existsByArticle_Id(Long articleId);
 
     // W1 — 같은 작업의 결과 두 개가 동시에 와도 한 번만 저장하게 행을 잠그고 읽는다
     @Lock(LockModeType.PESSIMISTIC_WRITE)

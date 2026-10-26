@@ -8,7 +8,7 @@
 
 - AC-1: B1 은 배치 출입증으로 202 와 건 작업(`EXTRACT` · `EMBED`, 작업 ID · 시도 1)을 준다. 커밋 뒤 투입 메시지 하나가 `analysis.released` 에 들어가고, 기사는 아직 화면에 없다(A8 404)
   — `releaseQueuesExtractAndEmbedButKeepsTheArticleHidden`
-- AC-2: 이미 투입한 기사(EXTRACT 작업이 있음)나 이미 화면에 있는 기사(`released_at` 있음)는 409 `ALREADY_RELEASED` 이고 작업을 더 만들지 않는다
+- AC-2: 이미 투입한 기사(분석 작업이 있음)나 이미 화면에 있는 기사(`released_at` 있음)는 409 `ALREADY_RELEASED` 이고 작업을 더 만들지 않는다
   — `secondReleaseIs409` · `alreadyPublicArticleIs409`
 - AC-3: 없는 기사는 404 `ARTICLE_NOT_FOUND`
   — `unknownArticleIs404`

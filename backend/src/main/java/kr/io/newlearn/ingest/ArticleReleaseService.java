@@ -2,7 +2,6 @@ package kr.io.newlearn.ingest;
 
 import kr.io.newlearn.analysis.AnalysisJobRepository;
 import kr.io.newlearn.analysis.AnalysisJobService;
-import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.article.Article;
 import kr.io.newlearn.article.ArticleRepository;
 import kr.io.newlearn.common.error.ApiException;
@@ -33,7 +32,7 @@ public class ArticleReleaseService {
     public ArticleReleaseResponse release(long articleId) {
         Article article = articles.findForUpdate(articleId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ARTICLE_NOT_FOUND, "기사가 없다: " + articleId));
-        if (article.getReleasedAt() != null || jobs.existsByArticle_IdAndStage(articleId, AnalysisStage.EXTRACT)) {
+        if (article.getReleasedAt() != null || jobs.existsByArticle_Id(articleId)) {
             throw new ApiException(ErrorCode.ALREADY_RELEASED, "이미 투입한 기사다: " + articleId);
         }
         return ArticleReleaseResponse.of(articleId, analysis.queueRelease(article));

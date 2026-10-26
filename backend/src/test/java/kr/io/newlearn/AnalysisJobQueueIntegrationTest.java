@@ -291,7 +291,7 @@ class AnalysisJobQueueIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
         assertThat(title(ARTICLE)).isEqualTo("큐 기사 3001");
-        assertThat(releasedAt(ARTICLE)).isNull(); // 처리기와 같이 되돌아가 공개되지 않는다
+        assertThat(releasedAt(ARTICLE)).isNull(); // 거절되면 공개 단계까지 가지 않는다
         assertThat(row(job))
                 .containsEntry("status", "QUEUED")
                 .containsEntry("attempt", 2)

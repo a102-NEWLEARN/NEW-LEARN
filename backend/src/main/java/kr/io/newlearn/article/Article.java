@@ -21,8 +21,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-// 기사. 수집 배치가 적재하고(Jira 34), 투입(B1)하면 released_at 이 채워져 화면에 보인다 (data-model.md 2절)
-// 기자명 · 대표 카테고리 · 태그를 채우는 일은 수집 티켓이 더한다. 공개 시각(released_at)은 markReleased 가 채운다
+// 기사. 수집 배치가 적재하고(보류), 투입(B1)하면 분석이 걸린다. 화면에 보이는 때(released_at)는 EXTRACT 결과를 처음
+// 저장할 때 markReleased 가 채운다 (data-model.md 2절, Jira 34). 기자명 · 대표 카테고리 · 태그를 채우는 일은 수집 티켓이 더한다
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

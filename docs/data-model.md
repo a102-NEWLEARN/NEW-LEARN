@@ -73,7 +73,7 @@ erDiagram
     text category_code FK "대표 카테고리"
     text_array source_categories "원본 분류 목록"
     text_array source_tags "NewsData AI 태그"
-    timestamptz released_at "서비스 투입 시각"
+    timestamptz released_at "공개 시각, EXTRACT 결과를 처음 저장한 때"
     timestamptz created_at "적재 시각"
   }
   ingest_run {
@@ -243,7 +243,7 @@ erDiagram
 
 - 필수 값이 빠진 기사는 저장하지 않고 이유를 남긴다(PRD FR-1). 실행 한 번에 몇 건 받았는지는 `ingest_run`, 기사마다의 이유는 수집 티켓(Jira 34)이 정한다
 - NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 실제 응답(2026-10-22, 한국어 최신 50건, AI 확인)에서는 49건에 오고 1건은 비었다. 본문에 줄바꿈이 없어 문단이 하나라 근거의 `paragraphIndex` 는 늘 0이다. 저작권 · 안내 문구가 본문 앞뒤에 붙어 오지만 원문 그대로 저장한다(워커가 문장을 나눌 때 그 구간을 뺀다). `pubDate` 에는 시간대가 없고 `pubDateTZ` 가 50건 모두 UTC 라 적재할 때 `+09:00` 으로 바꾼다. `duplicate: true` 가 2건 있었다. 2024 데이터셋 필드는 아직 못 봤다
-- 언제 투입하나(무엇이 끝나야 화면에 보이나)는 5절
+- 언제 공개하나(무엇이 끝나야 화면에 보이나)는 5절 8번 — 분석이 끝난 뒤(EXTRACT 결과를 처음 저장할 때). 적재할 때는 `released_at` 을 비워 둔다
 
 ### ingest_run — 수집 실행 기록 (F01, 2026-10-19)
 
