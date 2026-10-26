@@ -20,7 +20,7 @@
   — `sessionLivesInRedisForOneDay` · `SessionCookieHttpTest.sessionAndCsrfCookiesCarryTheirAttributes`
 - AC-9: 번호표 쿠키 `XSRF-TOKEN` 은 첫 POST 전에 아무 응답에서나 받고 화면이 읽을 수 있다(`HttpOnly` 아님). 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보내야 POST 가 통과하고, 없거나 틀리면 403 `FORBIDDEN`. 가입 · 로그인 · 로그아웃 때 번호표가 바뀐다
   — `SecurityRulesTest.anyResponseHandsOutCsrfTokenCookie` · `csrfTokenCookieMustComeBackAsHeader` · `signupWithoutCsrfTokenIsForbidden` · `SessionCookieHttpTest.sessionAndCsrfCookiesCarryTheirAttributes`(가입) · `MemberAuthApiIntegrationTest.loginReturnsMemberAndIssuesNewSessionId`(로그인) · `logoutEndsTheSession`(로그아웃)
-- AC-10: 둘러보기는 그대로 로그인 없이 열리고 내부 API 는 잠긴 채다
-  — `SecurityRulesTest.browseApisAreOpenWithoutLogin` · `internalApisStayLocked` · `memberApisNeedLogin`
+- AC-10: 둘러보기는 그대로 로그인 없이 열린다. 손님 · 로그인 세션으로는 내부 API 가 열리지 않는다(내부 API 출입증은 Jira 30, `docs/api.md` 1절)
+  — `SecurityRulesTest.browseApisAreOpenWithoutLogin` · `internalApisWithoutValidKeyAreUnauthorized` · `internalKeyIsNotALoginForPublicApis` · `memberApisNeedLogin`
 - AC-11: Swagger 에 「회원」 태그와 `[확정] A14 · A15 · A16`, 성공 응답과 오류 코드(Problem Details)가 보인다
   — `OpenApiDocsTest.memberApisAreConfirmedWithTheirResponses`

@@ -49,7 +49,8 @@ public class SecurityConfig {
                         // 가입(A14) · 로그인(A15)
                         .requestMatchers(HttpMethod.POST, "/api/v1/members", "/api/v1/auth/login")
                         .permitAll()
-                        // 나머지 — 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18), 내부 API(/internal/v1)
+                        // 나머지 — 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) 등. 직원용 문(/internal/**)은 이 체인에 오지 않는다
+                        // (InternalApiSecurityConfig 가 먼저 맡는다, Jira 30)
                         .anyRequest()
                         .authenticated())
                 // 스프링 기본 /logout 을 끈다. 로그인 · 로그아웃은 Jira 62 의 API(A15 · A16)다
