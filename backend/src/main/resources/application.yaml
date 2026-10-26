@@ -26,7 +26,23 @@ spring:
 
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
+# 로그인 세션(Jira 62) — 로그인한 때부터 하루. Redis 세션 만료와 쿠키 Max-Age 를 같이 하루로 둔다
+# 사이트는 Envoy 가 TLS 를 풀고 앱은 http 로 받아서, Secure 는 env 로 직접 켠다(infra/k8s/services/app/backend.yaml)
+server:
+  servlet:
+    session:
+      timeout: 1d
+      cookie:
+        max-age: 1d
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
 springdoc:
   paths-to-exclude: /internal/**
+  # Swagger 화면에서 POST 를 누를 때 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로 붙여 준다
+  swagger-ui:
+    csrf:
+      enabled: true
   # 응답 본문 종류를 */* 가 아니라 실제와 같게 보인다
   default-produces-media-type: application/json

@@ -1,8 +1,8 @@
 package kr.io.newlearn.common.web;
 
+import static kr.io.newlearn.common.security.TestCsrf.csrfToken;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,7 +54,7 @@ class TimeFormatTest {
     @Test
     void bodyTimeInUtcIsAccepted() throws Exception {
         mockMvc.perform(post("/probe/times")
-                        .with(csrf())
+                        .with(csrfToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"occurredAt\": \"2026-10-06T00:30:00Z\"}"))
                 .andExpect(status().isOk())
@@ -64,7 +64,7 @@ class TimeFormatTest {
     @Test
     void bodyTimeWithoutOffsetIsRejected() throws Exception {
         mockMvc.perform(post("/probe/times")
-                        .with(csrf())
+                        .with(csrfToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"occurredAt\": \"2026-10-06T09:30:00\"}"))
                 .andExpect(status().isBadRequest())
