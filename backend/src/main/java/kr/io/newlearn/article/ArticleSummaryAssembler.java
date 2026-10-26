@@ -28,8 +28,7 @@ public class ArticleSummaryAssembler {
         var results = mindmaps.findSummariesByArticleIdIn(ids).stream()
                 .collect(Collectors.toMap(ArticleMindmapRepository.SummaryView::getArticleId, r -> r));
         var states = jobs.findStatesByArticleIdInAndStage(ids, AnalysisStage.EXTRACT).stream()
-                .collect(Collectors.toMap(
-                        AnalysisJobRepository.StateView::getArticleId, AnalysisJobRepository.StateView::getStatus));
+                .collect(Collectors.toMap(AnalysisJobRepository.StateView::getArticleId, s -> s));
         return articles.stream()
                 .map(article -> {
                     var result = results.get(article.getId());
@@ -48,9 +47,15 @@ public class ArticleSummaryAssembler {
                             article.getUrl(),
                             result != null
                                     ? ArticleAnalysisStatus.SUCCEEDED
-                                    : ArticleAnalysisStatus.from(states.get(article.getId())));
+                                    : mindmapStatusWithoutResult(states.get(article.getId())));
                 })
                 .toList();
+    }
+
+    private static ArticleAnalysisStatus mindmapStatusWithoutResult(AnalysisJobRepository.StateView extract) {
+        return extract == null
+                ? ArticleAnalysisStatus.NONE
+                : ArticleAnalysisStatus.forMindmapWithoutResult(extract.getStatus(), extract.getErrorCode());
     }
 
     private boolean present(String value) {

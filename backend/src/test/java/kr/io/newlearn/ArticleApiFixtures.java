@@ -10,9 +10,9 @@ final class ArticleApiFixtures {
         for (int n = 1; n <= 11; n++) {
             jdbc.sql("""
                     insert into article(id,source,url,press_code,title,reporter,body,published_at,
-                        category_code,source_summary,released_at,created_at)
+                        category_code,released_at,created_at)
                     values (:id,'NEWSDATA',:url,'article42',:title,:reporter,'노출하면 안 되는 본문',
-                        cast(:published as timestamptz),:category,:summary,
+                        cast(:published as timestamptz),:category,
                         case when :released then now() else null end,now())
                     """)
                     .param("id", 4200 + n)
@@ -23,7 +23,6 @@ final class ArticleApiFixtures {
                             "published",
                             n == 1 ? "2026-10-23T00:00:00Z" : n == 11 ? "2026-10-01T00:00:00Z" : "2026-10-22T00:00:00Z")
                     .param("category", n == 3 || n == 11 ? null : n == 2 ? "politics" : "economy")
-                    .param("summary", n == 1 || n == 2 || n == 4 ? "NewsData 요약" : n == 5 ? "  " : null)
                     .param("released", n != 10)
                     .update();
         }

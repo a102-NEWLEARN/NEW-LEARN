@@ -1,0 +1,7 @@
+# 시험에만 덧씌우는 설정 — src/main/resources/application.yaml 위에 얹힌다(classpath:/config/ 가 더 앞선다)
+# 분석 작업 스케줄러(Jira 30)는 끈다. 1분마다 돌면 시험이 보고 있는 작업을 다시 걸 수 있어서다
+# 스케줄러가 하는 일은 AnalysisJobService.retryDue · publishUnpublished 에 시각을 넘겨 시험한다
+newlearn:
+  analysis:
+    scheduler:
+      enabled: false
