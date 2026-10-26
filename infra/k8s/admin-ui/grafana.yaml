@@ -1,6 +1,7 @@
 # https://newlearn.io.kr/grafana — 브라우저 팝업(기본 인증) 하나로 끝. 팝업 아이디로 Grafana 에 바로 들어간다 (보기 권한)
 # Envoy 가 확인한 아이디를 X-WEBAUTH-USER 머리로 넘기고 Grafana 프록시 로그인이 그 머리를 읽는다 (monitoring-values.yaml 의 auth.proxy)
 # 손님이 같은 머리를 꾸며 보내도 Envoy 가 맨 앞에서 지운다 (gateway/client-traffic.yaml)
+# Envoy 를 거치지 않고 클러스터 안에서 Grafana 로 오는 길은 grafana-netpol.yaml 이 막는다
 # Grafana 와 Prometheus 는 Helm 그대로(Argo CD 밖)이고, 여기는 입구만 둔다. Prometheus 는 열지 않는다
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
