@@ -46,8 +46,10 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 
 - 로그인 없이 여는 주소는 `common/security/SecurityConfig` 한 곳에 있다. 새 공개 API 를 만들면 이 파일과 `SecurityRulesTest` 를 같은 MR 에서 고친다
 - 인증 · 권한 코드를 고치면 사람이 최종 확인한다(`AGENTS.md`)
-- 로그인 · 세션(Redis) · CSRF 번호표 쿠키는 Jira 62 에서 정한다. 그때까지 CSRF 는 스프링 기본값이라, 로그인 없이 번호표 없는 POST 를 보내면 403 과 함께 세션이 생긴다
-- POST · PUT · DELETE 테스트에는 `.with(csrf())` 를 넣는다
+- 로그인은 세션(Redis, 하루)이고 CSRF 는 번호표 쿠키(`csrf.spa()`)다(`docs/api.md` 1절 「인증」, Jira 62). 세션을 여닫는 일은 `auth/LoginSessions` 한 곳이 한다 — 세션 ID 새로 내기 · 번호표 새로 주기가 거기 있다
+- 로그인한 회원은 컨트롤러 인자 `@AuthenticationPrincipal MemberPrincipal me` 로 받는다(`common/security/MemberPrincipal` — `id` · `loginId` · `name`). 로그인이 필요한 주소면 손님은 `SecurityConfig` 가 먼저 401 로 막는다. 로그인 없이 여는 주소에서는 `me` 가 null 일 수 있다
+- POST · PUT · DELETE 테스트에는 `.with(TestCsrf.csrfToken())` 을 넣는다(번호표 쿠키 + 같은 값의 헤더). spring-security-test 의 `.with(csrf())` 는 쓰지 않는다 — 공용 CSRF 필터의 저장소를 세션용으로 바꿔 놓아 뒤에 도는 테스트가 엉뚱하게 깨진다(2026-10-26)
+- 테스트에서 로그인 상태는 가입 · 로그인 API 를 실제로 불러 받은 `SESSION` 쿠키를 다음 요청에 붙여 만든다. 예시: `MemberAuthApiIntegrationTest` 의 `signUp` · `login` · `sessionCookie`. 쿠키 속성(`HttpOnly` · `Secure` · `Max-Age`)은 MockMvc 가 못 보므로 실제 서버로 띄우는 `SessionCookieHttpTest` 에서 본다
 
 ## 6. 조회 쿼리 · 트랜잭션
 
