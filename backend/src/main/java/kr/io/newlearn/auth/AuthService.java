@@ -40,12 +40,13 @@ public class AuthService {
 
     public MemberResponse login(LoginRequest request) {
         String loginId = request.loginId();
-        if (guard.isLocked(loginId)) {
+        long attempt = guard.reserveAttempt(loginId);
+        if (attempt == 0) {
             throw new ApiException(ErrorCode.TOO_MANY_REQUESTS, "로그인을 5번 틀려 1분 동안 잠겼다");
         }
         Optional<Member> member = members.findByLoginId(loginId);
         if (!passwordMatches(request.password(), member)) {
-            guard.recordFailure(loginId);
+            guard.recordFailure(loginId, attempt);
             throw new ApiException(ErrorCode.LOGIN_FAILED, LOGIN_FAILED_DETAIL);
         }
         guard.recordSuccess(loginId);

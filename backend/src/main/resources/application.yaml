@@ -16,7 +16,8 @@ spring:
     hibernate:
       # 스키마는 Flyway 마이그레이션(db/migration)만 바꾼다
       ddl-auto: validate
-  # Redis 세션의 만료 — Spring Session 은 server.servlet.session.timeout 을 읽지 않아 따로 둔다(없으면 30분)
+  # Redis 세션의 만료. 내장 서버로 뜰 때는 server.servlet.session.timeout 을 대신 쓰지만, 내장 서버 없이 도는
+  # MockMvc 시험에서는 그러지 않아 30분이 된다 — 둘을 같이 하루로 둔다(Spring Boot 4.1.1)
   session:
     timeout: 1d
   data:
@@ -27,8 +28,6 @@ spring:
     livereload:
       enabled: false
 
-# Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
-# 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
 # 로그인 세션(Jira 62) — 로그인한 때부터 하루. Redis 세션 만료와 쿠키 Max-Age 를 같이 하루로 둔다
 # 사이트는 Envoy 가 TLS 를 풀고 앱은 http 로 받아서, Secure 는 env 로 직접 켠다(infra/k8s/services/app/backend.yaml)
 server:
@@ -41,6 +40,8 @@ server:
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
 
+# Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
+# 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
 springdoc:
   paths-to-exclude: /internal/**
   # Swagger 화면에서 POST 를 누를 때 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로 붙여 준다

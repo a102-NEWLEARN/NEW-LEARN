@@ -14,8 +14,14 @@ import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,7 +36,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 // 가입(A14) · 로그인(A15) · 로그아웃(A16) — 실제 PostgreSQL · Redis(세션) 위에서 (Jira 62, docs/api-screen.md A14 ~ A16)
-// 시험마다 DB 는 되돌리고(@Transactional), 세션은 Redis 에 남지만 하루 뒤 만료된다
+// 시험마다 DB 는 되돌리고(@Transactional), 세션은 Redis 에 남지만 하루 뒤 만료된다. 실패 횟수 · 잠금 키는 시험마다 지운다
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,6 +51,12 @@ class MemberAuthApiIntegrationTest {
 
     @Autowired
     StringRedisTemplate redis;
+
+    // 같은 Redis 로 다시 돌려도 앞 시험의 실패 횟수 · 잠금이 남지 않게
+    @AfterEach
+    void forgetLoginAttempts() {
+        redis.delete(redis.keys("login-*"));
+    }
 
     static String signUpBody(String loginId, String password, String name, String... categoryCodes) {
         String codes = Arrays.stream(categoryCodes).map(c -> "\"" + c + "\"").collect(Collectors.joining(","));
@@ -140,6 +152,23 @@ class MemberAuthApiIntegrationTest {
                 .andExpect(jsonPath("$.errors[?(@.field == 'name')].reason").value(hasItem("이름을 입력해 주세요")))
                 .andExpect(jsonPath("$.errors[?(@.field == 'categoryCodes')].reason")
                         .value(hasItem("관심 분야를 1개 이상 골라 주세요")));
+    }
+
+    @Test
+    void signUpRejectsLongNameBlankPasswordAndPasswordOver72Bytes() throws Exception {
+        // 이름은 세션에도 실려 하루 동안 Redis 에 남는다 — 20자까지
+        signUp(signUpBody("reader_04", "password1", "가".repeat(21), "economy"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field == 'name')].reason").value(hasItem("이름은 20자까지예요")));
+        signUp(signUpBody("reader_04", "password1", "가".repeat(20), "economy")).andExpect(status().isCreated());
+        // 공백만으로 된 비밀번호는 로그인에서 「비었음」이 되므로 가입에서 막는다
+        signUp(signUpBody("reader_05", " ".repeat(8), "독자", "economy"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[*].field", contains("password")));
+        // 64자 안이어도 UTF-8 로 72바이트를 넘으면 bcrypt 가 못 읽는다(한글 30자 = 90바이트)
+        signUp(signUpBody("reader_06", "비".repeat(30), "독자", "economy"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[?(@.field == 'password')].reason").value(hasItem("비밀번호가 너무 길어요")));
     }
 
     @Test
@@ -262,6 +291,35 @@ class MemberAuthApiIntegrationTest {
         login("nobody_06", "wrong-pass").andExpect(status().isTooManyRequests());
     }
 
+    // 한꺼번에 보내도 비밀번호를 맞춰 보는 것은 5번까지 — 나머지는 비교 전에 429 (리뷰 2026-10-26)
+    // 시험 트랜잭션 밖의 스레드에서 부르므로 DB 에 없는 아이디로 본다(없는 아이디도 똑같이 센다)
+    @Test
+    void concurrentAttemptsStillCompareAtMostFiveTimes() throws Exception {
+        int requests = 20;
+        ExecutorService pool = Executors.newFixedThreadPool(requests);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<Integer>> statuses = java.util.stream.IntStream.range(0, requests)
+                    .mapToObj(i -> pool.submit(() -> {
+                        start.await();
+                        return login("race_08", "guess-" + i)
+                                .andReturn()
+                                .getResponse()
+                                .getStatus();
+                    }))
+                    .toList();
+            start.countDown();
+            List<Integer> codes = new java.util.ArrayList<>();
+            for (Future<Integer> status : statuses) {
+                codes.add(status.get(60, TimeUnit.SECONDS));
+            }
+            assertThat(codes).filteredOn(code -> code == 401).hasSize(5);
+            assertThat(codes).filteredOn(code -> code == 429).hasSize(requests - 5);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     @Test
     void loginRejectsMissingFields() throws Exception {
         mvc.perform(post("/api/v1/auth/login")
@@ -277,7 +335,9 @@ class MemberAuthApiIntegrationTest {
     void logoutEndsTheSession() throws Exception {
         var joined = signUp(signUpBody("login_07", "password1", "독자", "world")).andReturn();
         Cookie session = sessionCookie(joined.getResponse());
-        logout(session).andExpect(status().isNoContent());
+        var loggedOut = logout(session).andExpect(status().isNoContent()).andReturn();
+        // 로그인 상태가 바뀌어 새 번호표가 함께 온다
+        assertThat(loggedOut.getResponse().getHeaders("Set-Cookie")).anyMatch(h -> h.startsWith("XSRF-TOKEN="));
         // 끝난 세션으로는 다시 로그아웃할 수 없다 — 로그인이 필요하다
         logout(session)
                 .andExpect(status().isUnauthorized())

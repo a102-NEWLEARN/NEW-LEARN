@@ -81,5 +81,7 @@ A14 가입 · A15 로그인 · A16 로그아웃을 만든다(F12 회원 · 관�
 - 번호표 쿠키 필터는 만들지 않았다 — `csrf.spa()` 만으로 번호표 쿠키가 없는 요청의 응답마다 `XSRF-TOKEN` 이 붙는 것을 시험으로 확인했다(`SecurityRulesTest.anyResponseHandsOutCsrfTokenCookie`)
 - `LoginAttemptGuardTest` 를 따로 두지 않았다 — 잠금 · 초기화 · 없는 아이디 세기를 실제 Redis 로 `MemberAuthApiIntegrationTest` 가 본다
 - spring-security-test 의 `.with(csrf())` 가 공용 CSRF 필터를 바꿔 뒤 시험을 깨뜨려, 쿠키 + 헤더를 붙이는 `TestCsrf.csrfToken()` 으로 바꿨다(`docs/backend-convention.md` 5절)
-- Spring Session 은 `server.servlet.session.timeout` 을 읽지 않아 `spring.session.timeout: 1d` 를 따로 두었다(없으면 Redis 세션이 30분)
+- `spring.session.timeout: 1d` 를 따로 두었다. Spring Boot 4.1.1 은 내장 서버로 뜰 때만 `server.servlet.session.timeout` 을 Redis 세션 만료로 대신 쓰고, 내장 서버 없는 MockMvc 시험에서는 30분이 되어 시험이 잡았다
 - 쿠키 속성은 MockMvc 에 안 보여 실제 서버로 띄우는 `SessionCookieHttpTest` 를 더했다
+- 칸별 입력 오류를 서비스에서도 내려고 공용 `common/error/ApiException` 에 `errors` 를 실을 수 있게 하고 `GlobalExceptionHandler` 가 그것을 응답에 넣게 했다(계획의 「바꿀 파일」에 없던 공용 파일, 기존 생성자는 그대로)
+- 리뷰(2026-10-26)로 고친 것: ① 한꺼번에 보낸 로그인이 잠금 확인을 함께 지나 모두 비밀번호를 맞춰 봤다 → 맞춰 보기 전에 Redis 스크립트 하나로 시도를 예약해 5번까지만 비교 ② 이름 상한이 없어 큰 이름이 하루 동안 Redis 세션에 남을 수 있었다 → 20자 ③ 공백만으로 된 비밀번호는 가입되지만 로그인은 400 → 가입에서 막음 ④ 로그아웃 때 번호표 교체를 보는 시험이 없었다 → 더함. 요청 본문이 로그에 찍힐 때 비밀번호를 가리게 `toString` 도 바꿨다

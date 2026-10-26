@@ -9,4 +9,11 @@ public record LoginRequest(
         String loginId,
 
         @NotBlank(message = "비밀번호를 입력해 주세요") @Size(max = 128, message = "비밀번호가 너무 길어요")
-        String password) {}
+        String password) {
+
+    // 비밀번호가 로그에 찍히지 않게 — 스프링은 DEBUG 로그에 읽은 요청 본문을 toString 으로 찍는다
+    @Override
+    public String toString() {
+        return "LoginRequest[loginId=" + loginId + ", password=(가림)]";
+    }
+}

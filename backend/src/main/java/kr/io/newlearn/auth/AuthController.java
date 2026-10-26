@@ -32,11 +32,12 @@ public class AuthController {
     // A15 로그인 — 맞으면 회원 정보와 새 세션
     @Operation(
             summary = "[확정] A15 로그인",
-            description = "맞으면 회원 정보와 새 세션(SESSION 쿠키, 하루) · 새 CSRF 번호표를 줍니다. 같은 아이디로 5번 연속 틀리면 1분 동안 잠깁니다.")
+            description =
+                    "맞으면 회원 정보와 새 세션(SESSION 쿠키, 하루) · 새 CSRF 번호표를 줍니다. 같은 아이디로 5번 연속 틀리면 1분 동안 잠깁니다. 한꺼번에 보내도 비밀번호를 맞춰 보는 것은 5번까지입니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
-            description = "VALIDATION_FAILED — 아이디 · 비밀번호가 비었음",
+            description = "VALIDATION_FAILED — 아이디 · 비밀번호가 비었거나 너무 김(64자 · 128자 넘음)",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,

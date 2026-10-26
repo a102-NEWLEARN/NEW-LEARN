@@ -35,7 +35,7 @@ public class MemberController {
     @Operation(
             summary = "[확정] A14 가입",
             description =
-                    "아이디(영문 소문자 · 숫자 · _ 4~20자) · 비밀번호(8~64자) · 이름 · 관심 분야(1개 이상)로 가입하고 바로 로그인된 세션(SESSION 쿠키, 하루)을 엽니다.")
+                    "아이디(영문 소문자 · 숫자 · _ 4~20자) · 비밀번호(8~64자) · 이름(20자까지) · 관심 분야(1개 이상)로 가입하고 바로 로그인된 세션(SESSION 쿠키, 하루)을 엽니다.")
     @ApiResponse(
             responseCode = "201",
             description = "가입했다. Location: /api/v1/members/me",

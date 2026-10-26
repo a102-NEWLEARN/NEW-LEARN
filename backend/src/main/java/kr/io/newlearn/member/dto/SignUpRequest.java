@@ -15,9 +15,20 @@ public record SignUpRequest(
         String loginId,
 
         // 64자 상한: bcrypt 는 72바이트까지만 읽는다. 바이트 수는 서비스가 한 번 더 본다
-        @NotNull(message = "비밀번호를 입력해 주세요") @Size(min = 8, max = 64, message = "비밀번호는 8~64자여야 해요")
+        // 공백만으로 된 값은 막는다 — 로그인(LoginRequest)이 「비었음」으로 거절해 다시 들어올 길이 없어진다
+        @NotBlank(message = "비밀번호를 입력해 주세요") @Size(min = 8, max = 64, message = "비밀번호는 8~64자여야 해요")
         String password,
 
-        @NotBlank(message = "이름을 입력해 주세요") String name,
+        // 20자 상한: 이름은 세션(MemberPrincipal)에도 실려 하루 동안 Redis 에 남는다
+        @NotBlank(message = "이름을 입력해 주세요") @Size(max = 20, message = "이름은 20자까지예요")
+        String name,
 
-        @NotEmpty(message = "관심 분야를 1개 이상 골라 주세요") List<@NotBlank(message = "관심 분야 코드가 비었어요") String> categoryCodes) {}
+        @NotEmpty(message = "관심 분야를 1개 이상 골라 주세요") List<@NotBlank(message = "관심 분야 코드가 비었어요") String> categoryCodes) {
+
+    // 비밀번호가 로그에 찍히지 않게 — 스프링은 DEBUG 로그에 읽은 요청 본문을 toString 으로 찍는다
+    @Override
+    public String toString() {
+        return "SignUpRequest[loginId=" + loginId + ", password=(가림), name=" + name + ", categoryCodes=" + categoryCodes
+                + "]";
+    }
+}
