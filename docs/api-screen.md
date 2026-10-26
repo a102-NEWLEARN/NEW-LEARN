@@ -7,7 +7,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 - **타입**: `number` · `string` · `boolean` · `시각`(ISO 8601 + `+09:00` 문자열) · `enum`(정해진 값 중 하나) · `object` · `array`. 「· null」은 값이 없을 수 있다는 뜻이다
 - **용도**: 화면 어디에 쓰나
-- **어디서**: `테이블.칸` 은 그 칸을 그대로 준다. 「계산」은 조회할 때 셈한다. 투입 전 기사는 모든 계산에서 뺀다(`api.md` 1절)
+- **어디서**: `테이블.칸` 은 그 칸을 그대로 준다. 「계산」은 조회할 때 셈한다. 공개 전 기사는 모든 계산에서 뺀다(`api.md` 1절)
 
 ---
 
@@ -56,7 +56,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `category` | 카테고리 참조 · null | 기사의 대표 카테고리 표시. 맞추지 못한 기사는 null | `article.category_code` → `category` |
 | `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이고 AI 생성 표시를 붙인다. 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) null 이다. 빈 문자열 · 공백뿐인 문자열도 없는 것으로 보고 null(2026-10-23 팀장 확인). NewsData 요약으로 대신하던 길은 없앴다 — 한국어 기사에는 NewsData 가 요약을 만들지 않는다(2026-10-26) | `article_mindmap.summary` |
 | `url` | string | *원문 보기* 링크 | `article.url` |
-| `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다) |
+| `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다). 기사는 마인드맵 결과가 생긴 뒤부터 보여서(2026-10-26, Jira 34) 목록 · 상세의 기사는 사실상 늘 `SUCCEEDED` 다 |
 | `bookmarked` | boolean | 북마크 아이콘을 채울지. 로그인한 회원이 이 기사를 담았으면 true, 손님이면 false(2026-10-26 Jira 114) | 계산 — 세션 회원의 `bookmark` |
 
 회원 정보 — A15 · A17 · A18 의 응답. A14 응답도 같은 모양
@@ -80,7 +80,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 |---|---|---|---|
 | `items[].code` · `items[].name` | 카테고리 참조 | 카테고리 탭 | `category` |
 | `items[].issueCount` | number | 「이 분야의 이슈가 아직 없어요」를 보일지(0이면) | 계산 — 이 카테고리에 걸린 이슈 수 (`issue_category`) |
-| `items[].articleCount` | number | 분야별 기사 수 표시 | 계산 — 대표 카테고리가 이것인 투입 기사 수 |
+| `items[].articleCount` | number | 분야별 기사 수 표시 | 계산 — 대표 카테고리가 이것인 공개 기사 수 |
 
 ```json
 { "items": [{ "code": "economy", "name": "경제", "issueCount": 3, "articleCount": 1520 }] }
@@ -104,7 +104,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `summary` | string · null | 카드의 한두 문장(AI 생성) | `issue.summary` |
 | `categories` | array(카테고리 참조) | 카드의 분야 표시. 여러 개일 수 있다 | `issue_category` → `category`, `sort_order` 순서(`data-model.md` 2절) |
 | `eventCount` | number | 「사건 8개」 | 계산 — 이 이슈의 사건 수 |
-| `articleCount` | number | 「기사 23개」 | 계산 — 이 이슈 사건들에 묶인 투입 기사 수 (`article_event`) |
+| `articleCount` | number | 「기사 23개」 | 계산 — 이 이슈 사건들에 묶인 공개 기사 수 (`article_event`) |
 | `publisherCount` | number | 「언론사 5곳」 | 계산 — 그 기사들의 언론사(`press_code`) 수 |
 | `firstEventAt` · `lastEventAt` | 시각 | 기간 「08.04 ~ 10.09」, 정렬 | 계산 — 사건 `occurred_at` 의 가장 이른 값 · 늦은 값 |
 | `createdAt` | 시각 | 「새로 생성된 이슈」 정렬 · 표시 | `issue.created_at` |
@@ -139,7 +139,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 이슈 에볼루션 맵의 사건 노드를 그린다(F07, Jira 48). 이슈의 사건을 페이지 없이 한 번에 준다. 정렬은 `occurredAt` 오름차순, 같으면 `id` 오름차순. 화면은 사건을 **메인 흐름 · 서브 흐름 두 레인**에 놓는다(2026-10-20).
 
 없는 이슈는 404 `ISSUE_NOT_FOUND`, 존재하지만 사건이 0개면 200과 `{ "issueId": …, "events": [] }`다.
-기사가 없거나 투입 전 기사만 있는 사건도 타임라인에 남기고 기사·언론사 수는 0으로 반환한다.
+기사가 없거나 공개 전 기사만 있는 사건도 타임라인에 남기고 기사·언론사 수는 0으로 반환한다.
 사건 발생 시각으로 정렬하며 기사 발행 시각을 대신 쓰지 않는다(2026-10-23 사용자 승인).
 
 | 필드 | 타입 | 용도 | 어디서 |
@@ -148,7 +148,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `events[].id` · `title` · `label` · `occurredAt` | 사건 참조 | 점 옆 키워드(`label`)와 가로 위치(발생 시점) | `event` |
 | `events[].lane` | enum · null | `MAIN` 메인 흐름 · `SUB` 서브 흐름. 나누는 기준을 정하기 전에는 null(`data-model.md` 5절 11번) | 기준이 정해지면 계산 또는 칸 |
 | `events[].occurredAtBasis` | enum | 발생 시점을 본문에서 뽑았나(`EXTRACTED`) · 첫 기사 발행 시각으로 채웠나(`FIRST_PUBLISHED`). 뒤의 것이면 「추정」 표시를 붙일 수 있다 | `event.occurred_at_basis` |
-| `events[].articleCount` | number | 점에 마우스를 올리면 보이는 기사 수 | 계산 — 이 사건의 투입 기사 수 |
+| `events[].articleCount` | number | 점에 마우스를 올리면 보이는 기사 수 | 계산 — 이 사건의 공개 기사 수 |
 | `events[].publisherCount` | number | 마우스를 올리면 보이는 언론사 수 | 계산 |
 
 사건 사이 선(후속 · 반응 · 반박 같은 관계)과 새 정보 같은 사건 태그는 그리지 않는다(2026-10-20). 그래서 응답에 관계 칸이 없다. 화면이 선을 그리기로 하면 그때 `relations[]`(`{ fromEventId, toEventId, type }`, `event_relation` P1)를 더한다(2026-10-21). 언론사 필터(PRD FR-23)는 P1 이다.
@@ -171,11 +171,11 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `occurredAtBasis` | enum | A4 와 같다 | `event.occurred_at_basis` |
 | `issue` | 이슈 참조 · null | 속한 이슈. null 이면 아직 이슈로 묶이지 않은 사건 | `event.issue_id` → `issue` |
 | `articleCount` | number | 「관련 기사 4건」 | 계산 |
-| `publishers` | array(언론사 참조) | 이 사건을 보도한 언론사 전부(PRD FR-11). 중복 제거 후 `press.code` 오름차순(2026-10-26 사용자 승인) | 계산 — 투입 기사들의 `press_code` |
+| `publishers` | array(언론사 참조) | 이 사건을 보도한 언론사 전부(PRD FR-11). 중복 제거 후 `press.code` 오름차순(2026-10-26 사용자 승인) | 계산 — 공개 기사들의 `press_code` |
 | `previousEvent` · `nextEvent` | 사건 참조 · null | *이전 · 다음 사건* 이동. 같은 이슈 안에서 A4와 같은 `occurredAt` · `id` 오름차순의 인접 사건. 시각이 같아도 ID로 가른다(2026-10-26 사용자 승인). 없으면 null | 계산 |
 
 없는 사건은 404 `EVENT_NOT_FOUND`다. 이슈 밖 사건은 `issue` · `previousEvent` · `nextEvent`가 모두 null이다.
-투입 기사 0건인 사건도 200이며 `articleCount`는 0, `publishers`는 빈 배열이다.
+공개 기사 0건인 사건도 200이며 `articleCount`는 0, `publishers`는 빈 배열이다.
 
 관점(PRD FR-24~26, P2)과 이 사건의 변화(F09 · F10)는 빠져 있다.
 
@@ -202,7 +202,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 응답은 목록 모양이고 항목은 기사 요약(1절)이다. 정렬은 발행 시각 오름차순, 같으면 `id` 오름차순. 특정 언론사를 앞세우지 않는다(PRD 4.11).
 
-투입 전 기사는 목록과 전체 개수에서 제외한다. 사건이 없으면 404 `EVENT_NOT_FOUND`, 사건은 있지만 관련 투입 기사가 없으면 200과 빈 목록이다.
+공개 전 기사는 목록과 전체 개수에서 제외한다. 사건이 없으면 404 `EVENT_NOT_FOUND`, 사건은 있지만 관련 공개 기사가 없으면 200과 빈 목록이다.
 페이지 인자 기본값·범위는 `api.md` 1절을 따른다. A6는 기존 `ArticleSummaryResponse`와 `ArticleSummaryAssembler`를 재사용한다.
 
 ### A7. 최신 기사 — `GET /api/v1/articles`
@@ -375,7 +375,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | 결과 | 상태 |
 |---|---|
 | 담았다(A20) · 뺐다(A21). 응답은 바뀐 뒤의 상태다(아래 표). 이미 담긴 기사를 또 담거나 안 담긴 기사를 빼도 같은 응답이다 — 버튼을 빠르게 두 번 눌러 요청이 동시에 와도 오류가 없다. 이미 담긴 기사를 또 담으면 담은 시각은 그대로다(뺐다가 다시 담으면 새 시각) | 200 |
-| 없는 기사 · 투입 전 기사를 담으려 했다(A20 만. A21 은 기사를 확인하지 않고 없는 기사여도 200) | 404 `ARTICLE_NOT_FOUND` |
+| 없는 기사 · 공개 전 기사를 담으려 했다(A20 만. A21 은 기사를 확인하지 않고 없는 기사여도 200) | 404 `ARTICLE_NOT_FOUND` |
 | `articleId` 가 숫자가 아니다 | 400 `VALIDATION_FAILED` |
 | 번호표가 없다(세션과 관계없이) · 번호표는 있는데 로그인하지 않았다 | 403 `FORBIDDEN` · 401 `UNAUTHORIZED` |
 
