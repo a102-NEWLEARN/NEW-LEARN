@@ -124,7 +124,8 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 - [x] `infra/server/seal-secrets.sh` — `gms` 기능, 머리 쓰는 법 한 줄(`usage()` 의 `sed -n '5,11p'` → `'5,12p'`)
 - [x] `infra/server/README.md` — 「봉인한 Secret 만들기」에 `gms` 한 줄, ai 모델 캐시 확인 · 판 바꾸기 · 옛 판 지우기(→ `infra/server/ai-worker.md`, 아래 「계획 뒤 바뀐 것」)
 - [x] 확인: `kubectl kustomize infra/k8s/services/ai` 렌더, EC2 에서 `kubectl apply --dry-run=server`, 커밋 게이트(infra 포맷 · 린트 · 테스트 — `bash -n` 포함), shellcheck 0.11.0 경고 0. init 명령은 바탕 이미지에서 가짜 `hf` 로 다섯 경우를 돌림
-- [ ] MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 확인). 반영 뒤 검증 절 A
+- [x] MR → infra → dev(!159, 2026-10-26). 반영 뒤 검증 절 A — 확인한 것: Argo CD `ai` Synced · Healthy(dev `a60567e`), PVC `ai-model-cache` Bound 10Gi, Pod 재시작 0, init 컨테이너 `model`, 자원 요청 500m · 4Gi · 상한 5Gi, `/models` 2.2G(`BGE-m3-ko` 링크 · 커밋 폴더 · `hf`), `LLM_MODE=mock`. 다시 띄울 때 init 시간 · init 메모리 최대 · 노드 요청 합 · 교체 중 health 는 아직 안 쟀다
+- [ ] EC2 의 `infra/server` 사본을 저장소 판으로 — 2026-10-26 확인 때 `seal-secrets.sh` · `README.md` 는 10-25 · 10-23 판(`gms` 없음), `ai-worker.md` · `db-backup.md` 는 없었다. 관리자 PC 에서 `tar -C infra -cf - server | ssh ubuntu@<EC2 탄력적 IP> 'tar -C infra -xf -'`(`infra/server/README.md` 의 복사 줄과 같은 방식)
 
 ### B — 사용자가 봉인 (MR 1 이 EC2 저장소에 들어온 뒤)
 - [ ] 🧑 사용자 — EC2 에서 `bash infra/server/seal-secrets.sh gms`(`ssh -t`). 200 이 나와야 봉인한다
