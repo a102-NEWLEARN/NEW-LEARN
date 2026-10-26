@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
 import kr.io.newlearn.analysis.queue.AnalysisMessageFactory;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
@@ -14,6 +15,7 @@ import kr.io.newlearn.article.Article;
 import kr.io.newlearn.common.error.ApiException;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.NotFoundException;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -177,9 +179,16 @@ public class AnalysisJobService {
     // 실패를 남기고 다시 걸 때(retry_at)를 정한다. 바로 걸 코드(RESULT_SCHEMA_INVALID)면 그 자리에서 건다.
     // 간격은 API 가 실패를 받은 때부터 잰다 — 워커 시계가 틀려도 밀리지 않게
     private void recordFailure(
-            AnalysisJob job, String code, String message, Instant startedAt, Instant finishedAt, Instant now) {
+            AnalysisJob job,
+            String code,
+            @Nullable String message,
+            Instant startedAt,
+            Instant finishedAt,
+            Instant now) {
         RetryPolicy.Decision decision = RetryPolicy.decide(code, job.getAttempt());
-        Instant retryAt = decision.kind() == RetryPolicy.Kind.STOP ? null : now.plus(decision.delay());
+        // STOP 이 아니면 delay 가 있다 (RetryPolicy.decide)
+        Instant retryAt =
+                decision.kind() == RetryPolicy.Kind.STOP ? null : now.plus(Objects.requireNonNull(decision.delay()));
         job.fail(code, message, startedAt, finishedAt, retryAt);
         if (decision.kind() == RetryPolicy.Kind.NOW) {
             job.requeue(now);
@@ -231,7 +240,10 @@ public class AnalysisJobService {
             }
             String payload;
             try {
-                payload = transaction.execute(status -> {
+                // execute 는 콜백이 돌려준 null 을 그대로 돌려준다(<T extends @Nullable Object>).
+                // NullAway 기본 모드는 제네릭의 null 을 못 읽어 콜백의 return null 을 잘못 막는다
+                @SuppressWarnings("NullAway")
+                String built = transaction.execute(status -> {
                     if (jobs.markPublished(candidate.getId(), candidate.getAttempt(), AnalysisJobStatus.QUEUED, now)
                             != 1) {
                         return null; // 다른 Pod 가 먼저 넣었다
@@ -239,6 +251,7 @@ public class AnalysisJobService {
                     return factory.payload(
                             List.of(jobs.findById(candidate.getId()).orElseThrow()));
                 });
+                payload = built;
             } catch (RuntimeException e) {
                 log.warn("큐에 다시 넣을 메시지를 못 만들었다: job={}", candidate.getId(), e);
                 continue;

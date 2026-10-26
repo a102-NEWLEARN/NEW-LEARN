@@ -3,6 +3,7 @@ package kr.io.newlearn.issue.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 import kr.io.newlearn.category.dto.CategoryRef;
+import org.jspecify.annotations.Nullable;
 
 public record IssueCardResponse(
         long id,
@@ -15,4 +16,4 @@ public record IssueCardResponse(
         OffsetDateTime firstEventAt,
         OffsetDateTime lastEventAt,
         OffsetDateTime createdAt,
-        EventRef lastEvent) {}
+        @Nullable EventRef lastEvent) {}

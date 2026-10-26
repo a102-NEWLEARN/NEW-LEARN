@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 // 실패한 분석 작업을 다시 걸지, 언제 걸지 (docs/api.md 2절 「작업 실패 코드」, Jira 30)
 // 다시 걸지는 워커가 아니라 API 가 실패 코드와 시도 번호로 정한다. 최대 시도 수는 3(첫 시도 포함)이다
@@ -19,7 +20,8 @@ public final class RetryPolicy {
         STOP // 다시 걸지 않는다
     }
 
-    public record Decision(Kind kind, Duration delay) {}
+    // STOP 이면 delay 가 없다
+    public record Decision(Kind kind, @Nullable Duration delay) {}
 
     // 코드 → 이 시도까지만 다시 건다, 시도 번호별 간격(1번째 실패 뒤, 2번째 실패 뒤)
     private record Rule(int lastAttempt, List<Duration> delays) {}

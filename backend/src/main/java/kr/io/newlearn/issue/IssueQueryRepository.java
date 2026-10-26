@@ -7,10 +7,12 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.lang.Contract;
 import org.springframework.stereotype.Repository;
 
 // 복잡한 집계는 네이티브 SQL로 읽는다. 카테고리 조인 대신 EXISTS로 필터해 행이 늘어나지 않게 한다.
@@ -121,7 +123,9 @@ public class IssueQueryRepository {
                 .list();
     }
 
-    private static Instant toInstant(OffsetDateTime time) {
+    // null 이 아니면 null 이 아니다 — 부르는 쪽마다 null 확인이 번지지 않게 NullAway 에 알린다
+    @Contract("!null -> !null")
+    private static @Nullable Instant toInstant(@Nullable OffsetDateTime time) {
         return time == null ? null : time.toInstant();
     }
 

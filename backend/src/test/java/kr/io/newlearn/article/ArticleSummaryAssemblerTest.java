@@ -49,7 +49,9 @@ class ArticleSummaryAssemblerTest {
         assertThat(assembler.assemble(List.of(article(1L), article(2L)))).hasSize(2);
         verify(mindmaps).findSummariesByArticleIdIn(List.of(1L, 2L));
         verify(jobs).findStatesByArticleIdInAndStage(List.of(1L, 2L), AnalysisStage.EXTRACT);
-        clearInvocations(mindmaps, jobs);
+        // 하나씩 — 둘을 같이 넘기면 서로 다른 제네릭 타입의 가변 인자 배열이 생겨 unchecked 경고가 난다
+        clearInvocations(mindmaps);
+        clearInvocations(jobs);
         assertThat(assembler.assemble(List.of())).isEmpty();
         verifyNoInteractions(mindmaps, jobs);
     }
