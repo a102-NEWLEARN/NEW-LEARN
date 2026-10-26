@@ -9,6 +9,7 @@
 #   bash infra/server/seal-secrets.sh argocd-webhook  GitLab 웹훅 토큰 — 무작위로 만들어 봉인한다(묻지 않음) → argocd
 #   bash infra/server/seal-secrets.sh mattermost    Argo CD 배포 알림을 받을 Mattermost 들어오는 웹훅 주소 → argocd
 #   bash infra/server/seal-secrets.sh pg-backup-s3  DB 주간 백업을 S3 에 올리는 키(올리기만 되는 IAM 사용자) · 버킷 이름 → data
+#   bash infra/server/seal-secrets.sh gms           AI 워커가 SSAFY GMS 를 부를 키 — 봉인 전에 그 키로 GMS 를 불러 본다 → ai
 # 만든 파일은 관리자 PC 로 가져와 저장소의 자리에 넣고 커밋한다 (봉인 파일은 저장소에 둬도 된다)
 #   ssh <EC2> 'cat ~/sealed/sealed-basic-auth-argocd.yaml' > infra/k8s/admin-ui/sealed-basic-auth-argocd.yaml
 # 봉인은 Secret 이름 · 네임스페이스에 묶인다(strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다
@@ -17,7 +18,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,11p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,12p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -163,6 +164,28 @@ case "${1:-}" in
       | kubeseal --controller-namespace "$CONTROLLER_NS" --format yaml >"$OUT/sealed-pg-backup-s3.yaml"
     unset key_id secret
     echo "봉인: $OUT/sealed-pg-backup-s3.yaml — 관리자 PC 로 가져와 infra/k8s/services/data/sealed-pg-backup-s3.yaml 로"
+    ;;
+  gms)
+    need_tty
+    # AI 워커가 SSAFY GMS(OpenAI 호환 API)를 부를 키 — ai Deployment 의 GMS_API_KEY 가 이 이름 · 키를 읽는다
+    # 주소는 비밀이 아니라 매니페스트(infra/k8s/services/ai/ai.yaml)에 있다. 같은 값을 두 곳에 적지 않게 클러스터에 반영된 값을 읽는다
+    base="$(kubectl -n ai get deploy ai -o jsonpath='{.spec.template.spec.containers[?(@.name=="ai")].env[?(@.name=="GMS_BASE_URL")].value}' 2>/dev/null || true)"
+    [[ "$base" =~ ^https://[A-Za-z0-9./_-]+$ ]] || { echo "❌ ai Deployment 에 GMS_BASE_URL 이 없다 — ai.yaml 의 주소가 클러스터에 반영된 뒤 돌린다" >&2; exit 1; }
+    echo "GMS 주소: $base"
+    read -rsp "GMS 키 (화면에 안 보인다): " key
+    echo
+    # 복사해 붙이면 눈에 안 보이는 공백이 따라온다 — 키에 쓰는 글자를 몰라 공백만 지운다
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    [ -n "$key" ] || { echo "❌ 키가 비었다" >&2; exit 2; }
+    # 봉인하기 전에 이 키로 모델 목록(GET /models — 답을 만드는 호출이 아니다)을 불러 200 인지 본다
+    # 키는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임)
+    code="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
+      | curl -s -o /dev/null -w '%{http_code}' --max-time 15 -K - "$base/models" || true)"
+    [ "$code" = 200 ] || { unset key; echo "❌ 이 키로 GMS 를 못 불렀다 (HTTP $code) — 키 확인" >&2; exit 1; }
+    echo "GMS 키 확인 (HTTP 200)"
+    printf '%s' "$key" | seal gms-api ai GMS_API_KEY "$OUT/sealed-gms-api.yaml"
+    unset key
+    echo "관리자 PC 로 가져와 infra/k8s/services/ai/sealed-gms-api.yaml 로"
     ;;
   *)
     usage
