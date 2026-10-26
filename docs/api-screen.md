@@ -1,6 +1,6 @@
 # 화면용 API 상세 (v1)
 
-화면이 부르는 A1 ~ A9 · A13 ~ A19 의 인자 · 응답 필드 · 예시다. 공통 규칙 · 오류 코드 · 엔드포인트 목록은 `docs/api.md`, 테이블은 `docs/data-model.md`.
+화면이 부르는 A1 ~ A9 · A13 ~ A25 의 인자 · 응답 필드 · 예시다. 공통 규칙 · 오류 코드 · 엔드포인트 목록은 `docs/api.md`, 테이블은 `docs/data-model.md`.
 A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로 MVP 에서 빼서 비워 둔다.
 
 표 읽는 법
@@ -45,7 +45,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `label` | string | 사건 키워드(「첫 목격」). 타임라인 점 · 「최근 · 첫 목격」 같은 짧은 표시 | `event.label` |
 | `occurredAt` | 시각 | 「10.06 착공식」 같은 날짜 표시 | `event.occurred_at` |
 
-기사 요약 — A6 · A7 의 항목, A8 의 바탕
+기사 요약 — A6 · A7 · A22 의 항목, A8 의 바탕
 
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
@@ -57,6 +57,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `summary` | string · null | 목록의 한두 줄 요약. 우리 AI 요약이고 AI 생성 표시를 붙인다. 없으면(분석 전 · 실패 · 우리 요약을 끈 동안) null 이다. 빈 문자열 · 공백뿐인 문자열도 없는 것으로 보고 null(2026-10-23 팀장 확인). NewsData 요약으로 대신하던 길은 없앴다 — 한국어 기사에는 NewsData 가 요약을 만들지 않는다(2026-10-26) | `article_mindmap.summary` |
 | `url` | string | *원문 보기* 링크 | `article.url` |
 | `mindmapStatus` | enum | *마인드맵 보기* 를 켤지 · 「분석 중」을 보일지 | 계산 (`api-internal.md` 6절) — `NONE` · `QUEUED` · `SUCCEEDED` · `FAILED` · `NOT_ANALYZABLE`(분석할 내용이 없는 기사, W1 구현 때부터 나온다) |
+| `bookmarked` | boolean | 북마크 아이콘을 채울지. 로그인한 회원이 이 기사를 담았으면 true, 손님이면 false(2026-10-26 Jira 114) | 계산 — 세션 회원의 `bookmark` |
 
 회원 정보 — A15 · A17 · A18 의 응답. A14 응답도 같은 모양
 
@@ -108,6 +109,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `firstEventAt` · `lastEventAt` | 시각 | 기간 「08.04 ~ 10.09」, 정렬 | 계산 — 사건 `occurred_at` 의 가장 이른 값 · 늦은 값 |
 | `createdAt` | 시각 | 「새로 생성된 이슈」 정렬 · 표시 | `issue.created_at` |
 | `lastEvent` | 사건 참조 | 카드의 「최근 · 인력 수급 우려」(`label`) | 계산 — `occurred_at` 내림차순, 같으면 사건 `id` 내림차순으로 하나 선택(2026-10-23 팀장 승인) |
+| `interested` | boolean | 별표를 채울지. 로그인한 회원이 이 이슈를 관심 이슈로 저장했으면 true, 손님이면 false(2026-10-26 Jira 114) | 계산 — 세션 회원의 `interest_issue` |
 
 ```json
 {
@@ -117,7 +119,8 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
     "eventCount": 8, "articleCount": 23, "publisherCount": 5,
     "firstEventAt": "2026-08-04T00:00:00+09:00", "lastEventAt": "2026-10-09T08:41:00+09:00",
     "createdAt": "2026-08-21T12:30:00+09:00",
-    "lastEvent": { "id": 98, "title": "텍사스 공장 엔지니어 수급 우려 보도", "label": "인력 수급 우려", "occurredAt": "2026-10-09T08:41:00+09:00" }
+    "lastEvent": { "id": 98, "title": "텍사스 공장 엔지니어 수급 우려 보도", "label": "인력 수급 우려", "occurredAt": "2026-10-09T08:41:00+09:00" },
+    "interested": false
   }],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
 }
@@ -220,7 +223,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
     "publisher": { "code": "garam", "name": "가람일보" }, "publishedAt": "2026-10-06T10:12:00+09:00",
     "category": { "code": "economy", "name": "경제" },
     "summary": "한빛반도체가 텍사스 공장을 착공했다", "url": "https://news.example.com/a/456",
-    "mindmapStatus": "SUCCEEDED"
+    "mindmapStatus": "SUCCEEDED", "bookmarked": false
   }],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
 }
@@ -244,7 +247,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
   "id": 456, "title": "…", "publisher": { "code": "garam", "name": "가람일보" }, "reporter": "김민정 기자",
   "publishedAt": "2026-10-06T10:12:00+09:00", "url": "https://news.example.com/a/456",
   "category": { "code": "economy", "name": "경제" },
-  "summary": "…", "mindmapStatus": "SUCCEEDED", "eventMatchStatus": "SUCCEEDED",
+  "summary": "…", "mindmapStatus": "SUCCEEDED", "bookmarked": true, "eventMatchStatus": "SUCCEEDED",
   "event": { "id": 97, "title": "한빛반도체 텍사스 공장 착공식", "label": "착공식", "occurredAt": "2026-10-06T00:00:00+09:00" },
   "issue": { "id": 12, "title": "한빛반도체 미국 공장 건설" }
 }
@@ -364,6 +367,39 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 ```json
 { "query": "구원투수", "items": [{ "word": "구원^투수", "pos": "명사", "definition": "…" }], "source": "표준국어대사전" }
 ```
+
+### A20 · A21. 북마크 담기 · 빼기 — `PUT` · `DELETE /api/v1/members/me/bookmarks/{articleId}`
+
+기사 옆 북마크 아이콘(홈 최신 기사 · 기사 미리보기 · 마인드맵 머리 · 사건 패널 · 나의 뉴스함)이 부른다(PRD FR-18, Jira 63). 로그인이 필요하고 CSRF 번호표를 붙인다. 본문은 없다. 화면 이름은 「북마크」다 — 「스크랩」은 쓰지 않는다(UX 문서 규칙, 2026-10-26).
+
+| 결과 | 상태 |
+|---|---|
+| 담았다(A20) · 뺐다(A21). 이미 담긴 기사를 또 담거나 안 담긴 기사를 빼도 같다 — 버튼을 빠르게 두 번 눌러 요청이 동시에 와도 오류가 없다. 이미 담긴 기사를 또 담으면 담은 시각은 그대로다(뺐다가 다시 담으면 새 시각) | 204 |
+| 없는 기사 · 투입 전 기사를 담으려 했다(A20 만. A21 은 기사를 확인하지 않고 없는 기사여도 204) | 404 `ARTICLE_NOT_FOUND` |
+| `articleId` 가 숫자가 아니다 | 400 `VALIDATION_FAILED` |
+| 번호표가 없다(세션과 관계없이) · 번호표는 있는데 로그인하지 않았다 | 403 `FORBIDDEN` · 401 `UNAUTHORIZED` |
+
+저장은 `insert … on conflict (member_id, article_id) do nothing` 처럼 한 문장으로 한다 — 「먼저 읽고 없으면 넣기」나 JPA `save()`(합치기)로 하면 동시에 온 두 요청이 기본 키에 부딪쳐 500 이 나거나 담은 시각을 덮는다. A23 도 같다
+
+화면은 성공하면 아이콘을 바꾸고 「나의 뉴스함에 담았어요 / 뺐어요」를 띄운다(프로토타입 v21). 손님이 누르면 로그인 창을 열고 로그인 뒤 다시 부른다(화면 몫).
+
+### A22. 나의 뉴스함 — `GET /api/v1/members/me/bookmarks`
+
+헤더 · 사이드바의 *나의 뉴스함* 이 부른다(PRD FR-18, Jira 63). 로그인이 필요하다. 인자는 없다. 쪽을 나누지 않고 담은 기사를 전부 `items` 로 준다 — 분야 탭 「전체 N · 경제 N」은 화면이 이 목록으로 센다(2026-10-26). 한 사람이 수백 개를 넘게 담아 느려지면 `page` 인자를 더한다. 인자 없는 호출은 그때도 전부다. 정렬은 담은 시각 최신순, 같으면 기사 `id` 내림차순.
+
+항목은 기사 요약(1절, `bookmarked` 는 늘 true)에 `bookmarkedAt`(담은 시각, `bookmark.created_at`)을 더한다. 담은 기사가 없으면 200 과 빈 `items`(화면: 「아직 담은 기사가 없어요」).
+
+```json
+{ "items": [{ "id": 456, "title": "…", "publisher": { "code": "garam", "name": "가람일보" }, "publishedAt": "2026-10-06T10:12:00+09:00", "category": { "code": "economy", "name": "경제" }, "summary": "…", "url": "https://news.example.com/a/456", "mindmapStatus": "SUCCEEDED", "bookmarked": true, "bookmarkedAt": "2026-10-26T14:03:00+09:00" }] }
+```
+
+### A23 · A24. 관심 이슈 저장 · 해제 — `PUT` · `DELETE /api/v1/members/me/interest-issues/{issueId}`
+
+이슈 이름 옆 별표(사이드바 이슈 줄 · 이슈 머리)가 부른다(PRD FR-19, Jira 64). 규칙은 A20 · A21 과 같다 — 204, 겹쳐도 그대로, 없는 이슈를 저장하려 하면(A23 만) 404 `ISSUE_NOT_FOUND`, 로그인 · 번호표가 필요하다. 사건이 0개인 이슈도 저장할 수 있다. 숫자가 아닌 `issueId` 는 400 `VALIDATION_FAILED`. 화면 문구는 「관심 이슈로 저장했어요 / 뺐어요」.
+
+### A25. 관심 이슈 목록 — `GET /api/v1/members/me/interest-issues`
+
+마이페이지의 *관심 이슈* 가 부른다(PRD FR-19, Jira 64). 로그인이 필요하다. A22 처럼 쪽 없이 전부 `items` 로 주고, 정렬은 저장한 시각 최신순, 같으면 이슈 `id` 내림차순. 항목은 A2 이슈 카드(`interested` 는 늘 true)에 `interestedAt`(저장한 시각, `interest_issue.created_at`)을 더한다. 사건이 0개인 이슈도 나온다 — 집계는 0, `firstEventAt` · `lastEventAt` · `lastEvent` 는 null 이다(키를 빼지 않는다). 「지난 방문 이후 새 사건 N」은 보류라 없다(2026-10-26). 없으면 200 과 빈 `items`(화면: 「아직 저장한 이슈가 없어요」).
 
 ---
 
