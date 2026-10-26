@@ -18,7 +18,7 @@ F09 주장 관계 및 변화 분석 · F10 근거 기반 변화 카드의 주장
 
 ```mermaid
 erDiagram
-  %% 점선: bookmark · interest_issue(MVP 확정 2026-10-26, 칸은 Jira 63 · 64 에서), event_relation(P1)
+  %% 점선: event_relation(P1)
   category |o--o{ article : "대표 카테고리"
   category |o--o{ category_mapping : "대응"
   press ||--o{ article : "언론사"
@@ -35,10 +35,10 @@ erDiagram
   article ||--o| article_embedding : "임베딩"
   member ||--o{ member_category : "관심 분야"
   category ||--o{ member_category : "관심 분야"
-  member ||..o{ bookmark : "저장 (Jira 63)"
-  article ||..o{ bookmark : "저장 (Jira 63)"
-  member ||..o{ interest_issue : "관심 (Jira 64)"
-  issue ||..o{ interest_issue : "관심 (Jira 64)"
+  member ||--o{ bookmark : "북마크 (Jira 63)"
+  article ||--o{ bookmark : "북마크 (Jira 63)"
+  member ||--o{ interest_issue : "관심 이슈 (Jira 64)"
+  issue ||--o{ interest_issue : "관심 이슈 (Jira 64)"
 
   category {
     text code PK "economy 같은 영문 코드"
@@ -170,7 +170,6 @@ erDiagram
   interest_issue {
     bigint member_id PK, FK
     bigint issue_id PK, FK
-    timestamptz last_visited_at
     timestamptz created_at
   }
 ```
@@ -383,17 +382,22 @@ erDiagram
 - 로그인 유지는 세션 방식이다(2026-10-21). 세션은 테이블이 아니라 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남게. 인증 코드는 사람이 최종 확인한다(AGENTS.md)
 - 둘러보기(이슈 · 기사 · 용어사전)는 로그인 없이 쓴다. 홈에서 관심 분야를 먼저 보여 주는 방식은 아직 생각 중이다(2026-10-20)
 
-### bookmark · interest_issue — 회원이 저장한 것 (MVP 확정 2026-10-26)
+### bookmark · interest_issue — 회원이 저장한 것 (확정 2026-10-26)
 
-MVP 에 넣는다(2026-10-26, FE 프로토타입 v21 대로 — 기사 스크랩 · 관심 이슈 핀). 아래 칸은 PRD FR-18 · FR-19 를 읽고 그린 자리다. 로그인(Jira 62) 뒤 Jira 63 · 64 에서 프로토타입과 맞춰 정하고 새 마이그레이션으로 만든다. `last_visited_at`(지난 방문 이후 새 사건)은 보류다(2026-10-26).
+기사 북마크와 관심 이슈(별표)다. 프로토타입 v21 과 대조해 정했다(Jira 114). API 는 `api-screen.md` A20 ~ A25 다. 표는 Jira 63 · 64 가 새 마이그레이션으로 만든다 — 번호는 만들 때 dev 의 가장 큰 번호 다음이다.
 
-| 칸 | 용도 |
-|---|---|
-| `bookmark.member_id` · `article_id` | 누가 어느 기사를 저장했나. 둘이 기본 키라 같은 기사를 두 번 담지 못한다(Jira 63) |
-| `bookmark.created_at` | 담은 시각. 나의 뉴스함을 최근 순으로 보여 줄 때(PRD FR-18) |
-| `interest_issue.member_id` · `issue_id` | 누가 어느 이슈를 관심 이슈로 저장했나 |
-| `interest_issue.last_visited_at` | 그 이슈를 마지막으로 연 시각. 「지난 방문 이후 새 사건 N」을 셀 때(PRD FR-19 가정) |
-| `interest_issue.created_at` | 저장한 시각 |
+| 칸 | 타입 | 필수 | 용도 · 규칙 |
+|---|---|---|---|
+| `bookmark.member_id` | bigint | 기본 키 · 외래 키 | 누가. 회원이 지워지면 같이 지운다(`on delete cascade`) |
+| `bookmark.article_id` | bigint | 기본 키 · 외래 키 | 어느 기사. 둘을 합친 기본 키라 같은 기사를 두 번 담지 못한다. 기사가 지워지면 같이 지운다 |
+| `bookmark.created_at` | timestamptz | 예 | 담은 시각. 나의 뉴스함(A22) 정렬. 다시 담아도 바꾸지 않는다 |
+| `interest_issue.member_id` | bigint | 기본 키 · 외래 키 | 누가. 회원이 지워지면 같이 지운다 |
+| `interest_issue.issue_id` | bigint | 기본 키 · 외래 키 | 어느 이슈. 이슈가 지워지면 같이 지운다 — 이슈를 합치며 하나를 지우면 그 이슈의 별표도 사라진다(한계) |
+| `interest_issue.created_at` | timestamptz | 예 | 저장한 시각. 관심 이슈 목록(A25) 정렬 |
+
+- 「지난 방문 이후 새 사건」(`last_visited_at`)은 보류라 칸을 만들지 않는다(2026-10-26). 다시 넣게 되면 새 마이그레이션으로 칸을 더한다
+- 정렬용 인덱스는 두지 않는다. 회원 한 명의 행은 많아야 수십 ~ 수백이고, 기본 키 앞자리(`member_id`)로 찾는다. 기사 · 이슈 응답의 `bookmarked` · `interested` 는 그 쪽의 id 들을 모아 기본 키로 한 번에 찾는다(`member_id = ? and article_id in (…)`)
+- 투입 전 기사는 담을 수 없다(A20 이 404)
 
 ### 용어사전 — 테이블 없음 (F13, 2026-10-21)
 
@@ -462,7 +466,7 @@ MVP 에 넣는다(2026-10-26, FE 프로토타입 v21 대로 — 기사 스크랩
 | F07 사건 중심 이슈 에볼루션 맵 | `issue` · `issue_category` · `event` · `analysis_job`(`ISSUE`) · `event_relation`(P1) | A3 · A4, W1 (`ISSUE`) |
 | F08 사건별 관련 기사 조회 | `event` · `article_event` · `article` · `article_mindmap.summary` | A5 · A6 |
 | F11 기사·이슈 양방향 연결 | `article_event` → `event` → `issue` | A8(소속 사건 · 이슈) · A6 |
-| F12 회원 · 관심 분야 (제안) | `member` · `member_category` | A14 ~ A18 |
+| F12 회원 · 관심 분야 (제안) | `member` · `member_category` · `bookmark` · `interest_issue` | A14 ~ A18 · A20 ~ A25 |
 | F13 용어사전 (제안) | 없음(Redis 에 결과를 잠깐 둔다) | A19 |
 
 ---
