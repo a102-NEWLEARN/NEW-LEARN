@@ -40,6 +40,13 @@ server:
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
 
+# 직원용 문(/internal/**) 출입증 두 장 (Jira 30) — 워커 키는 W1, 배치 키는 B1 만 연다. 비어 있으면 모두 막는다
+# 사이트는 봉인 Secret internal-api 를 env 로 넣는다(Jira 30 의 Infra 작업, 넣기 전에는 비어 모두 막힘). 로컬은 루트 .env
+newlearn:
+  internal:
+    worker-key: ${INTERNAL_WORKER_KEY:}
+    batch-key: ${INTERNAL_BATCH_KEY:}
+
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
 springdoc:
