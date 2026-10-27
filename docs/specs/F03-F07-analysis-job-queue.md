@@ -33,6 +33,6 @@
 
 ## 이 티켓에서 하지 않는 것
 
-- `eventMatchStatus` 의 `NO_EVENT` — `article_mindmap.primary_core_index` 칸이 생기는 Jira 56 에서 한다
+- `eventMatchStatus` 의 `NO_EVENT` — `article_mindmap.primary_core_index` 칸이 생긴 Jira 56 에서 했다(`F03-F04-mindmap.md` AC-8)
 - 단계별 결과 저장 · `MATCH_EVENT` · `ISSUE` 메시지 만들기와 한 번에 하나씩 돌리기 — Jira 56 · 35 · 40
 - 워커 쪽(스트림 읽기 · W1 다시 보내기 · `XAUTOCLAIM`) — AI 팀. 숫자는 BE 안으로 `api-internal.md` 3 · 5절에 두고 `api.md` 4절 AI 9번으로 묻는다

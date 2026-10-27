@@ -15,11 +15,13 @@ init 컨테이너 `model` 이 PVC `ai-model-cache`(`model-cache.yaml`)에 판(�
 
 ## GMS 키
 
-실제 모드로 바꿀 때 한 번 (관리자 PC 에서 — 값을 묻는다). 스크립트가 클러스터의 ai Deployment 에서 GMS 주소(`GMS_BASE_URL`)를 읽고, 그 키로 `GET /models` 가 200 인지 본 뒤 `ai` 에 봉인한다. 그래서 `GMS_BASE_URL` 이 든 `ai.yaml` 이 반영된 뒤에 돌린다.
+실제 모드로 바꿀 때 한 번 (관리자 PC 에서 — 값을 묻는다). 넣는 키는 팀 공용 GMS 키다 — SSAFY GMS 는 한 팀에 키를 하나만 준다(2026-10-27). 그래서 팀원 개발 환경과 같은 키이고, 키가 바뀌면 여기서 다시 봉인한다.
+
+스크립트가 클러스터의 ai Deployment 에서 GMS 주소 · 모델(`GMS_BASE_URL` · `GMS_MODEL`)을 읽고, 그 키로 메시지가 빈 요청을 보내 GMS 를 지나는지 본 뒤 `ai` 에 봉인한다. 키가 맞으면 HTTP 400(모델 API 가 빈 메시지를 거절 — 답을 만들지 않음), 틀리면 401 이다. `GET /models` 는 GMS 가 키와 상관없이 500 을 줘서 쓰지 않는다. 그래서 두 env 가 든 `ai.yaml` 이 반영된 뒤에 돌린다.
 
 ```bash
 ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh gms"
 ssh ubuntu@<EC2 탄력적 IP> 'cat ~/sealed/sealed-gms-api.yaml' > infra/k8s/services/ai/sealed-gms-api.yaml
 ```
 
-그 MR 에서 `kustomization.yaml` 에 봉인 파일을 더하고, `ai.yaml` 에 `GMS_API_KEY`(`secretKeyRef` `gms-api` / `GMS_API_KEY`) · `LLM_MODE=gms` 를 넣는다. 키를 바꿀 때도 같다.
+봉인 파일은 `kustomization.yaml` 에 넣어 Secret `gms-api` 만 먼저 만든다(2026-10-27 봉인 · 반영). ai 가 그 키를 쓰게 하는 것은 실제 모드로 바꾸는 MR 에서 한다 — `ai.yaml` 에 `GMS_API_KEY`(`secretKeyRef` `gms-api` / `GMS_API_KEY`) · `LLM_MODE=gms`. 키를 바꿀 때는 위 두 명령으로 봉인 파일만 바꿔 커밋한다(ai 는 다시 띄워야 새 키를 읽는다).
