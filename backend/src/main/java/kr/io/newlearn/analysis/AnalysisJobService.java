@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
+import kr.io.newlearn.analysis.match.MatchDispatcher;
 import kr.io.newlearn.analysis.queue.AnalysisMessageFactory;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
 import kr.io.newlearn.analysis.queue.JobPublisher;
@@ -47,6 +48,7 @@ public class AnalysisJobService {
     private final Map<AnalysisStage, AnalysisMessageFactory> messages = new EnumMap<>(AnalysisStage.class);
     private final ApplicationEventPublisher events;
     private final JobPublisher publisher;
+    private final MatchDispatcher matches;
     private final TransactionTemplate transaction;
 
     public AnalysisJobService(
@@ -55,9 +57,11 @@ public class AnalysisJobService {
             List<AnalysisMessageFactory> factories,
             ApplicationEventPublisher events,
             JobPublisher publisher,
+            MatchDispatcher matches,
             PlatformTransactionManager transactions) {
         this.jobs = jobs;
         this.handlers = handlers;
+        this.matches = matches;
         for (AnalysisMessageFactory factory : factories) {
             for (AnalysisStage stage : factory.stages()) {
                 if (messages.put(stage, factory) != null) {
@@ -142,6 +146,9 @@ public class AnalysisJobService {
         } catch (RuntimeException e) {
             recordUnexpected(jobId, attempt, request, now, e);
             throw e;
+        } finally {
+            // 성공 · 실패 모두 — 판정이 끝났거나 멈췄으면 다음 기사를, EXTRACT · EMBED 가 끝났으면 이 기사를 걸 차례일 수 있다
+            dispatchMatchQuietly();
         }
     }
 
@@ -174,6 +181,20 @@ public class AnalysisJobService {
                     ErrorCode.JOB_STATE_CONFLICT, "시도 번호가 다르다: 지금 " + job.getAttempt() + ", 받은 값 " + attempt);
         }
         return job;
+    }
+
+    // 다음 판정 고르기(Jira 35) — 고른 판정 작업을 커밋 뒤 큐에 넣는다. W1 을 처리한 뒤와 1분 스케줄러가 부른다
+    public void dispatchMatch() {
+        transaction.executeWithoutResult(status -> matches.next().ifPresent(job -> queueAfterCommit(List.of(job))));
+    }
+
+    // W1 뒤에 고르다 실패해도 W1 응답은 그대로 둔다 — 1분 스케줄러가 다시 고른다
+    private void dispatchMatchQuietly() {
+        try {
+            dispatchMatch();
+        } catch (RuntimeException e) {
+            log.warn("W1 뒤 판정 고르기를 건너뛴다 — 1분 스케줄러가 다시 고른다", e);
+        }
     }
 
     // 실패를 남기고 다시 걸 때(retry_at)를 정한다. 바로 걸 코드(RESULT_SCHEMA_INVALID)면 그 자리에서 건다.
@@ -231,8 +252,9 @@ public class AnalysisJobService {
     // 이번 차례를 끝낸다 — Redis 가 끊겼으면 나머지도 못 넣는다
     public int publishUnpublished(Instant now) {
         int published = 0;
-        List<AnalysisJob> candidates = jobs.findByStatusAndPublishedAtIsNullAndQueuedAtBeforeOrderByQueuedAtAsc(
-                AnalysisJobStatus.QUEUED, now.minus(UNPUBLISHED_AFTER), Limit.of(BATCH));
+        List<AnalysisJob> candidates =
+                jobs.findByStatusAndPublishedAtIsNullAndQueuedAtBeforeAndStageInOrderByQueuedAtAsc(
+                        AnalysisJobStatus.QUEUED, now.minus(UNPUBLISHED_AFTER), messages.keySet(), Limit.of(BATCH));
         for (AnalysisJob candidate : candidates) {
             AnalysisMessageFactory factory = messages.get(candidate.getStage());
             if (factory == null) {
