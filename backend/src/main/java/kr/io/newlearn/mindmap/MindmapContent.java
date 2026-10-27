@@ -36,6 +36,18 @@ public record MindmapContent(@Nullable String title, List<Branch> branches) {
 
     public record Evidence(String text, int paragraphIndex, int sentenceIndex) {}
 
+    // CORE 가지의 index 번째 잎 — 대표 사건(primary_core_index). 없으면 null (Jira 35, 판정 메시지)
+    public @Nullable Item core(int index) {
+        for (Branch branch : branches) {
+            if (branch.type() == BranchType.CORE
+                    && index >= 0
+                    && index < branch.items().size()) {
+                return branch.items().get(index);
+            }
+        }
+        return null;
+    }
+
     // 본문과 맞지 않는 근거만 지운다. 잎은 근거가 없어도 남긴다(2026-10-23 AI 동의)
     MindmapContent retainEvidence(EvidenceChecker checker) {
         return new MindmapContent(
