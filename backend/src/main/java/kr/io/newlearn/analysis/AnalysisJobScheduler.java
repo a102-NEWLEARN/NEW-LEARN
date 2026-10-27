@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
-// 1분마다 간격이 지난 실패를 다시 걸고, 큐에 못 넣은 작업을 넣는다 (Jira 30)
+// 1분마다 간격이 지난 실패를 다시 걸고, 큐에 못 넣은 작업을 넣고(Jira 30), 다음 판정을 고른다(Jira 35)
 // 배포 중 Pod 둘이 같이 돌아도 조건부 갱신이라 한 번만 된다. 시험에서는 끄고(newlearn.analysis.scheduler.enabled=false)
 // AnalysisJobService 의 메서드에 시각을 넘겨 부른다
 @Configuration
@@ -37,6 +37,11 @@ class AnalysisJobScheduler {
             service.publishUnpublished(now);
         } catch (RuntimeException e) {
             log.warn("못 넣은 작업 넣기 차례를 건너뛴다", e);
+        }
+        try {
+            service.dispatchMatch();
+        } catch (RuntimeException e) {
+            log.warn("판정 고르기 차례를 건너뛴다", e);
         }
     }
 }
