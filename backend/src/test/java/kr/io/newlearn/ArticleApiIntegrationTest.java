@@ -109,6 +109,10 @@ class ArticleApiIntegrationTest {
         mvc.perform(get("/api/v1/articles/4211"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mindmapStatus").value("QUEUED"));
+        // 마인드맵은 있고 대표 사건 번호가 비었는데 판정 작업이 없다 — 판정을 걸지 않는 기사 (Jira 56)
+        mvc.perform(get("/api/v1/articles/4204"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventMatchStatus").value("NO_EVENT"));
         mvc.perform(get("/api/v1/articles/4202"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventMatchStatus").value("QUEUED"));

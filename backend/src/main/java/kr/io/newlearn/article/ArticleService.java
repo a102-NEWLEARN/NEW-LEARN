@@ -15,6 +15,7 @@ import kr.io.newlearn.common.web.PageResponse;
 import kr.io.newlearn.event.ArticleEventRepository;
 import kr.io.newlearn.issue.dto.EventRef;
 import kr.io.newlearn.issue.dto.IssueRef;
+import kr.io.newlearn.mindmap.ArticleMindmapRepository;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -28,18 +29,21 @@ public class ArticleService {
     private final ArticleSummaryAssembler summaries;
     private final AnalysisJobRepository jobs;
     private final ArticleEventRepository links;
+    private final ArticleMindmapRepository mindmaps;
 
     public ArticleService(
             ArticleRepository articles,
             CategoryRepository categories,
             ArticleSummaryAssembler summaries,
             AnalysisJobRepository jobs,
-            ArticleEventRepository links) {
+            ArticleEventRepository links,
+            ArticleMindmapRepository mindmaps) {
         this.articles = articles;
         this.categories = categories;
         this.summaries = summaries;
         this.jobs = jobs;
         this.links = links;
+        this.mindmaps = mindmaps;
     }
 
     public PageResponse<ArticleSummaryResponse> list(String category, PageQuery query) {
@@ -61,7 +65,7 @@ public class ArticleService {
         var matchStatus = jobs.findStatesByArticleIdInAndStage(List.of(articleId), AnalysisStage.MATCH_EVENT).stream()
                 .findFirst()
                 .map(s -> ArticleAnalysisStatus.from(s.getStatus()))
-                .orElse(ArticleAnalysisStatus.NONE);
+                .orElseGet(() -> withoutMatchJob(articleId));
         var link = links.findByArticleId(articleId);
         var event = link.map(l -> l.getEvent()).orElse(null);
         var issue = event == null ? null : event.getIssue();
@@ -77,5 +81,14 @@ public class ArticleService {
                                 event.getLabel(),
                                 ApiTime.toKst(event.getOccurredAt())),
                 issue == null ? null : new IssueRef(issue.getId(), issue.getTitle()));
+    }
+
+    // 판정 작업이 없을 때 — 마인드맵이 있는데 대표 사건이 비었으면 판정을 걸지 않는 기사(NO_EVENT),
+    // 그 밖에는 아직 걸지 않음(NONE, EXTRACT · EMBED 를 기다리는 중) (api-internal.md 6절, Jira 56)
+    private ArticleAnalysisStatus withoutMatchJob(long articleId) {
+        return mindmaps.findById(articleId)
+                .filter(mindmap -> mindmap.getPrimaryCoreIndex() == null)
+                .map(mindmap -> ArticleAnalysisStatus.NO_EVENT)
+                .orElse(ArticleAnalysisStatus.NONE);
     }
 }

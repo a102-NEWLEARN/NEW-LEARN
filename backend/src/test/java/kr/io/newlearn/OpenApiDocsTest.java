@@ -36,7 +36,8 @@ class OpenApiDocsTest {
             "/api/v1/events/{eventId}", "A5",
             "/api/v1/events/{eventId}/articles", "A6",
             "/api/v1/articles", "A7",
-            "/api/v1/articles/{articleId}", "A8");
+            "/api/v1/articles/{articleId}", "A8",
+            "/api/v1/articles/{articleId}/mindmap", "A9");
 
     @Autowired
     MockMvc mvc;

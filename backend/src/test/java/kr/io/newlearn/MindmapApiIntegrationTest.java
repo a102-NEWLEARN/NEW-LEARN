@@ -1,6 +1,7 @@
 package kr.io.newlearn;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,7 +24,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-// W1 EXTRACT 결과 저장 → 마인드맵 (Jira 56, docs/specs/F03-F04-mindmap.md). 진짜 처리기와 실제 PostgreSQL · Redis 로 본다
+// W1 EXTRACT 결과 저장 → A9 마인드맵 · A8 사건 판정 상태 (Jira 56, docs/specs/F03-F04-mindmap.md). 진짜 처리기와 실제 PostgreSQL · Redis 로 본다
 // W1 은 커밋까지 가야 결과가 보여서 @Transactional 을 붙이지 않고, 만든 행은 끝날 때 지운다
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -187,6 +188,105 @@ class MindmapApiIntegrationTest {
                 .containsEntry("occurred_at", null);
         assertThat(content().get("branches").get(0).get("type").asString()).isEqualTo("CAUSE");
         assertThat(releasedAt()).isEqualTo(Instant.parse("2026-10-06T02:00:00Z"));
+    }
+
+    // AC-6 — A9 는 근거를 뺀 가지 · 잎을 준다. 가운데 글자는 비면 기사 제목, 시각은 한국 시간
+    @Test
+    void mindmapReturnsBranchesWithoutEvidence() throws Exception {
+        long job = extractJob(1);
+        w1(job, envelope(1, "\"gpt-6-luna\"", """
+                        {"schemaVersion": "mindmap-v1", "mindmap": {"title": null, "branches": [
+                          {"type": "CORE", "items": [{"text": "착공식을 열었다", "evidence": [
+                            {"text": "6일 텍사스 공장 착공식을 열었다", "paragraphIndex": 0, "sentenceIndex": 0}]}]},
+                          {"type": "OUTLOOK", "items": [{"text": "2028년 양산"}]}]},
+                         "primaryCoreIndex": 0, "occurredAt": null}""")).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", ARTICLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.articleId").value(ARTICLE))
+                .andExpect(jsonPath("$.schemaVersion").value("mindmap-v1"))
+                .andExpect(jsonPath("$.generatedAt").value("2026-10-26T09:00:30+09:00"))
+                .andExpect(jsonPath("$.aiGenerated").value(true))
+                .andExpect(jsonPath("$.title").value("마인드맵 기사"))
+                .andExpect(jsonPath("$.branches.length()").value(2))
+                .andExpect(jsonPath("$.branches[0].type").value("CORE"))
+                .andExpect(jsonPath("$.branches[0].items[0].text").value("착공식을 열었다"))
+                .andExpect(jsonPath("$.branches[0].items[0].evidence").doesNotExist())
+                .andExpect(jsonPath("$.branches[1].type").value("OUTLOOK"));
+    }
+
+    // AC-6 — AI 가 지은 가운데 글자가 있으면 그것을 쓴다
+    @Test
+    void mindmapTitleComesFromTheContentWhenPresent() throws Exception {
+        release();
+        mindmapRow("{\"title\": \"AI 가 지은 제목\", \"branches\": [{\"type\": \"CORE\", \"items\": [{\"text\": \"잎\"}]}]}");
+
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", ARTICLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("AI 가 지은 제목"))
+                .andExpect(jsonPath("$.branches[0].items[0].text").value("잎"));
+    }
+
+    // AC-7 — 없거나 공개 전인 기사는 ARTICLE_NOT_FOUND, 공개됐는데 결과가 없으면 MINDMAP_NOT_FOUND
+    @Test
+    void mindmapNotFoundCases() throws Exception {
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", 999999))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ARTICLE_NOT_FOUND"));
+        // 공개 전 기사는 결과가 있어도 없는 기사로 본다(A8 과 같다)
+        mindmapRow("{\"title\": null, \"branches\": [{\"type\": \"CORE\", \"items\": [{\"text\": \"잎\"}]}]}");
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", ARTICLE))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ARTICLE_NOT_FOUND"));
+
+        jdbc.sql("delete from article_mindmap where article_id = :id")
+                .param("id", ARTICLE)
+                .update();
+        release();
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", ARTICLE))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MINDMAP_NOT_FOUND"));
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    // AC-8 — 판정 작업이 없을 때, 대표 사건이 없으면 NO_EVENT, 있으면 NONE(아직 걸지 않음)
+    @Test
+    void eventMatchStatusIsNoEventOnlyWithoutAPrimaryCore() throws Exception {
+        long job = extractJob(1);
+        String withoutCore = """
+                {"schemaVersion": "mindmap-v1", "mindmap": {"branches": [{"type": "CAUSE", "items": [{"text": "배경"}]}]},
+                 "primaryCoreIndex": null}""";
+        w1(job, envelope(1, "\"gpt-6-luna\"", withoutCore)).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/articles/{id}", ARTICLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventMatchStatus").value("NO_EVENT"));
+
+        // 다시 분석해 대표 사건이 생기면 아직 판정을 걸지 않은 NONE
+        jdbc.sql("update analysis_job set status = 'QUEUED', attempt = 2 where id = :id")
+                .param("id", job)
+                .update();
+        String withCore = """
+                {"schemaVersion": "mindmap-v1", "mindmap": {"branches": [{"type": "CORE", "items": [{"text": "착공"}]}]},
+                 "primaryCoreIndex": 0}""";
+        w1(job, envelope(2, "\"gpt-6-luna\"", withCore)).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/articles/{id}", ARTICLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventMatchStatus").value("NONE"));
+    }
+
+    private void release() {
+        jdbc.sql("update article set released_at = '2026-10-06T02:00:00Z' where id = :id")
+                .param("id", ARTICLE)
+                .update();
+    }
+
+    private void mindmapRow(String content) {
+        jdbc.sql("""
+                insert into article_mindmap(article_id,content,schema_version,model,prompt_version,generated_at)
+                values (:id,cast(:content as jsonb),'mindmap-v1','gpt-6-luna','extract-v1','2026-10-26T00:00:30Z')
+                """).param("id", ARTICLE).param("content", content).update();
     }
 
     private long extractJob(int attempt) {
