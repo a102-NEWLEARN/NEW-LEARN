@@ -120,6 +120,11 @@ public class AnalysisJob {
         this.retryAt = null;
     }
 
+    // 판정 기록 { reason, model, promptVersion } — MATCH_EVENT(Jira 35) · ISSUE(Jira 40) 처리기가 결과를 저장할 때 쓴다
+    public void recordResult(String result) {
+        this.result = result;
+    }
+
     public boolean isQueued() {
         return status == AnalysisJobStatus.QUEUED;
     }

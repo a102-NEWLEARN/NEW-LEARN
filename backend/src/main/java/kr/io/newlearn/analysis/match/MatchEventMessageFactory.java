@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,8 +72,7 @@ class MatchEventMessageFactory implements AnalysisMessageFactory {
 
     // candidates 칸 순서(가까운 순서) 그대로. 사건이 없어졌으면 뺀다
     private List<CandidateEvent> candidates(AnalysisJob job) {
-        List<CandidateEventFinder.Candidate> picked = List.of(jsonMapper.readValue(
-                Objects.requireNonNullElse(job.getCandidates(), "[]"), CandidateEventFinder.Candidate[].class));
+        List<CandidateEventFinder.Candidate> picked = CandidateEventFinder.read(jsonMapper, job.getCandidates());
         Map<Long, Event> byId =
                 events
                         .findAllById(picked.stream()

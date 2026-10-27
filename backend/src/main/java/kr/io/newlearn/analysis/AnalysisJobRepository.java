@@ -54,9 +54,10 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> 
             "update AnalysisJob j set j.status = :queued, j.attempt = j.attempt + 1, j.queuedAt = :now, j.publishedAt = null, j.retryAt = null where j.id = :id and j.attempt = :attempt and j.status = :failed")
     int requeueFailed(Long id, int attempt, AnalysisJobStatus failed, AnalysisJobStatus queued, Instant now);
 
-    // 큐에 못 넣은 작업 — QUEUED 인데 넣었다는 표시가 없고 QUEUED 가 된 지 오래됐다
-    List<AnalysisJob> findByStatusAndPublishedAtIsNullAndQueuedAtBeforeOrderByQueuedAtAsc(
-            AnalysisJobStatus status, Instant queuedBefore, Limit limit);
+    // 큐에 못 넣은 작업 — QUEUED 인데 넣었다는 표시가 없고 QUEUED 가 된 지 오래됐다.
+    // 메시지를 만들 수 있는 단계만 읽는다 — 공장이 없는 단계(ISSUE, Jira 40 전)의 작업이 한 번에 읽는 수를 채우면 다른 단계가 막힌다
+    List<AnalysisJob> findByStatusAndPublishedAtIsNullAndQueuedAtBeforeAndStageInOrderByQueuedAtAsc(
+            AnalysisJobStatus status, Instant queuedBefore, Collection<AnalysisStage> stages, Limit limit);
 
     // 다시 걸 때가 된 실패 — 다시 걸지 않는 실패는 retry_at 이 비어 있어 읽히지 않는다(앞을 막지 않는다)
     List<AnalysisJob> findByStatusAndRetryAtLessThanEqualOrderByRetryAtAsc(

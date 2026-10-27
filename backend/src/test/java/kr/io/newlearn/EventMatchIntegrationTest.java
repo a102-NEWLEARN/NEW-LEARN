@@ -1,10 +1,13 @@
 package kr.io.newlearn;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -77,10 +80,20 @@ class EventMatchIntegrationTest {
 
     @AfterEach
     void cleanUp() {
+        // 판정(NEW)이 만든 사건은 DB 가 번호를 매겨 3501 ~ 3599 밖이다 — 연결을 지우기 전에 번호를 모아 둔다
+        List<Long> created = jdbc.sql("""
+                select event_id from article_event
+                where article_id between 3501 and 3599 and event_id not between 3501 and 3599
+                """).query(Long.class).list();
         // 외래 키에 on delete 가 없어 기사 · 사건보다 먼저 지운다
         jdbc.sql("delete from article_event where article_id between 3501 and 3599")
                 .update();
         jdbc.sql("delete from event where id between 3501 and 3599").update();
+        if (!created.isEmpty()) {
+            jdbc.sql("delete from event where id in (:ids)")
+                    .param("ids", created)
+                    .update();
+        }
         jdbc.sql("delete from article_embedding where article_id between 3501 and 3599")
                 .update();
         jdbc.sql("delete from article_mindmap where article_id between 3501 and 3599")
@@ -332,6 +345,171 @@ class EventMatchIntegrationTest {
         assertThat(matchJobs(ARTICLE)).isEqualTo(1);
     }
 
+    // ── 커밋 3: 판정 결과 저장 ──
+
+    // AC-5 · AC-7 · AC-9 — EXISTING 이면 그 사건에 붙고 이름 · 키워드 · 요약은 그대로. 본문에서 뽑은 시점(EXTRACTED)은
+    // 더 이른 기사가 붙어도 당기지 않는다. 판정 기록이 남고, ISSUE 는 걸지 않고, A8 에 사건이 보인다
+    @Test
+    void existingLinksTheArticleAndKeepsTheEvent() throws Exception {
+        ready(ARTICLE, 0);
+        article(3510, "2026-10-05T00:00:00Z");
+        embedding(3510, 10);
+        long eventId = event(3551, "한빛반도체 착공식", "2026-10-08T00:00:00Z", "EXTRACTED");
+        link(3510, eventId, "2026-10-05T00:30:00Z");
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", existing(eventId))).andExpect(status().isNoContent());
+
+        assertThat(linkedEvent(ARTICLE)).isEqualTo(eventId);
+        assertThat(eventColumn(eventId, "title")).isEqualTo("한빛반도체 착공식");
+        assertThat(eventColumn(eventId, "label")).isEqualTo("착공식");
+        assertThat(eventColumn(eventId, "summary")).isEqualTo("사건 요약");
+        assertThat(occurredAt(eventId)).isEqualTo(Instant.parse("2026-10-08T00:00:00Z"));
+        assertThat(matchStatus(ARTICLE)).isEqualTo("SUCCEEDED");
+        JsonNode record = matchRecord(ARTICLE);
+        assertThat(record.get("reason").asString()).isEqualTo("같은 착공식이다");
+        assertThat(record.get("model").asString()).isEqualTo("gpt-6-luna");
+        assertThat(record.get("promptVersion").asString()).isEqualTo("match-v1");
+        assertThat(count("select count(*) from analysis_job where stage = 'ISSUE' and article_id = " + ARTICLE))
+                .isZero();
+        jdbc.sql("update article set released_at = now() where id = :id")
+                .param("id", ARTICLE)
+                .update();
+        mvc.perform(get("/api/v1/articles/{id}", ARTICLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventMatchStatus").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.event.id").value(eventId));
+    }
+
+    // AC-5 — 발행 시각으로 채운 시점(FIRST_PUBLISHED)은 더 이른 기사가 붙으면 그 발행 시각으로 당긴다
+    @Test
+    void existingPullsAFirstPublishedOccurredAtEarlier() throws Exception {
+        ready(ARTICLE, 0); // 2026-10-06T01:00Z 발행
+        article(3510, "2026-10-07T00:00:00Z");
+        embedding(3510, 10);
+        long eventId = event(3551, "한빛반도체 착공식", "2026-10-07T00:00:00Z", "FIRST_PUBLISHED");
+        link(3510, eventId, "2026-10-07T00:30:00Z");
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", existing(eventId))).andExpect(status().isNoContent());
+
+        assertThat(occurredAt(eventId)).isEqualTo(Instant.parse("2026-10-06T01:00:00Z"));
+        assertThat(eventColumn(eventId, "occurred_at_basis")).isEqualTo("FIRST_PUBLISHED");
+    }
+
+    // AC-6 · AC-7 — NEW 면 사건을 만들고(발생 시점 = 뽑은 시점) 기사를 붙이고 ISSUE 작업을 만든다.
+    // ISSUE 메시지 공장은 Jira 40 이라 큐에는 아직 안 들어간다(published_at 이 빔)
+    @Test
+    void newCreatesTheEventAndAnIssueJob() throws Exception {
+        ready(ARTICLE, 0); // 마인드맵의 occurred_at 은 2026-10-05T15:00Z
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", created("착공식"))).andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventId).as("기사가 새 사건에 붙었다").isNotZero();
+        assertThat(eventColumn(eventId, "title")).isEqualTo("한빛반도체 텍사스 공장 착공식");
+        assertThat(eventColumn(eventId, "label")).isEqualTo("착공식");
+        assertThat(eventColumn(eventId, "summary")).isEqualTo("한빛반도체가 착공식을 열었다.");
+        assertThat(occurredAt(eventId)).isEqualTo(Instant.parse("2026-10-05T15:00:00Z"));
+        assertThat(eventColumn(eventId, "occurred_at_basis")).isEqualTo("EXTRACTED");
+        assertThat(count("select count(*) from event where issue_id is null and id = " + eventId))
+                .isEqualTo(1);
+        assertThat(jdbc.sql("""
+                        select status || ' ' || coalesce(published_at::text, '안 넣음') from analysis_job
+                        where article_id = :id and stage = 'ISSUE'
+                        """).param("id", ARTICLE).query(String.class).single())
+                .isEqualTo("QUEUED 안 넣음");
+        assertThat(matchRecord(ARTICLE).get("reason").asString()).isEqualTo("후보와 다른 사건이다");
+    }
+
+    // AC-6 — 뽑은 시점이 없으면 이 기사의 발행 시각으로 채우고 FIRST_PUBLISHED 로 적는다
+    @Test
+    void newWithoutAnExtractedTimeUsesThePublishedTime() throws Exception {
+        ready(ARTICLE, 0);
+        jdbc.sql("update article_mindmap set occurred_at = null where article_id = :id")
+                .param("id", ARTICLE)
+                .update();
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", created("착공식"))).andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventId).as("기사가 새 사건에 붙었다").isNotZero();
+        assertThat(occurredAt(eventId)).isEqualTo(Instant.parse("2026-10-06T01:00:00Z"));
+        assertThat(eventColumn(eventId, "occurred_at_basis")).isEqualTo("FIRST_PUBLISHED");
+    }
+
+    // AC-8 — 보낸 후보에 없는 사건을 고르면 400, 붙이지 않고 한 번 다시 건다
+    @Test
+    void existingOutsideTheCandidatesIsRejected() throws Exception {
+        ready(ARTICLE, 0);
+        long eventId = event(3551, "묶인 기사가 없는 사건"); // 기사 벡터로 못 재서 후보에 안 들어간다
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", existing(eventId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(count("select count(*) from article_event where article_id = " + ARTICLE))
+                .isZero();
+        assertThat(count("select attempt from analysis_job where id = " + match))
+                .isEqualTo(2);
+        assertThat(matchStatus(ARTICLE)).isEqualTo("QUEUED");
+    }
+
+    // AC-8 — NEW 의 이름 · 키워드 · 요약에 빈 값이 있으면 400, 사건 · ISSUE 작업을 만들지 않는다
+    @Test
+    void newWithABlankLabelIsRejected() throws Exception {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", created(" ")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(count("select count(*) from article_event where article_id = " + ARTICLE))
+                .isZero();
+        assertThat(count("select count(*) from analysis_job where stage = 'ISSUE' and article_id = " + ARTICLE))
+                .isZero();
+        assertThat(count("select attempt from analysis_job where id = " + match))
+                .isEqualTo(2);
+    }
+
+    // AC-3 · AC-5 — 판정이 끝나면 바로 다음 기사가 걸리고, 앞 기사가 만든 사건이 후보에 든다.
+    // 나중에 발행된 기사가 붙어도 FIRST_PUBLISHED 시점을 늦추지 않는다
+    @Test
+    void theNextArticleSeesTheEventTheFirstOneCreated() throws Exception {
+        ready(ARTICLE, 0); // 01:00 발행
+        jdbc.sql("update article_mindmap set occurred_at = null where article_id = :id")
+                .param("id", ARTICLE)
+                .update();
+        article(3502, "2026-10-06T02:00:00Z");
+        ready(3502, 5);
+        long first = queuedMatch(ARTICLE);
+        assertThat(matchJobs(3502)).isZero();
+
+        w1(first, envelope(1, "match-v1", created("착공식"))).andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventId).as("기사가 새 사건에 붙었다").isNotZero();
+        assertThat(matchJobs(3502)).isEqualTo(1);
+        JsonNode candidates = jsonMapper.readTree(
+                jdbc.sql("select candidates::text from analysis_job where article_id = 3502 and stage = 'MATCH_EVENT'")
+                        .query(String.class)
+                        .single());
+        assertThat(candidates.findValues("eventId").stream().map(JsonNode::asLong))
+                .containsExactly(eventId);
+
+        w1(matchJobId(3502), envelope(1, "match-v1", existing(eventId))).andExpect(status().isNoContent());
+
+        assertThat(linkedEvent(3502)).isEqualTo(eventId);
+        assertThat(occurredAt(eventId)).isEqualTo(Instant.parse("2026-10-06T01:00:00Z"));
+        assertThat(count(
+                        "select count(*) from analysis_job where stage = 'ISSUE' and article_id between 3501 and 3502"))
+                .isEqualTo(1);
+    }
+
     // ── 도우미 ──
 
     private void article(long id, String publishedAt) {
@@ -381,10 +559,19 @@ class EventMatchIntegrationTest {
     }
 
     private long event(long id, String title) {
+        return event(id, title, "2026-10-05T00:00:00Z", "EXTRACTED");
+    }
+
+    private long event(long id, String title, String occurredAt, String basis) {
         jdbc.sql("""
                 insert into event(id,title,label,summary,occurred_at,occurred_at_basis,created_at,updated_at)
-                values (:id,:title,'착공식','사건 요약','2026-10-05T00:00:00Z','EXTRACTED',now(),now())
-                """).param("id", id).param("title", title).update();
+                values (:id,:title,'착공식','사건 요약',cast(:at as timestamptz),:basis,now(),now())
+                """)
+                .param("id", id)
+                .param("title", title)
+                .param("at", occurredAt)
+                .param("basis", basis)
+                .update();
         return id;
     }
 
@@ -432,6 +619,56 @@ class EventMatchIntegrationTest {
 
     private long count(String sql) {
         return jdbc.sql(sql).query(Long.class).single();
+    }
+
+    // 판정할 준비가 된 기사에 판정을 걸고 그 작업 ID
+    private long queuedMatch(long articleId) {
+        service.dispatchMatch();
+        return matchJobId(articleId);
+    }
+
+    private long matchJobId(long articleId) {
+        return count("select id from analysis_job where article_id = " + articleId + " and stage = 'MATCH_EVENT'");
+    }
+
+    // 기사가 붙은 사건. 안 붙었으면 0 — 「결과 없음」 예외가 아니라 단언에서 갈리게
+    private long linkedEvent(long articleId) {
+        return count("select coalesce(max(event_id), 0) from article_event where article_id = " + articleId);
+    }
+
+    private Instant occurredAt(long eventId) {
+        return jdbc.sql("select occurred_at from event where id = :id")
+                .param("id", eventId)
+                .query(OffsetDateTime.class)
+                .single()
+                .toInstant();
+    }
+
+    private String eventColumn(long eventId, String column) {
+        return jdbc.sql("select " + column + " from event where id = :id")
+                .param("id", eventId)
+                .query(String.class)
+                .single();
+    }
+
+    // 판정 기록 analysis_job.result — { reason, model, promptVersion }
+    private JsonNode matchRecord(long articleId) {
+        return jsonMapper.readTree(
+                jdbc.sql("select result::text from analysis_job where article_id = :id and stage = 'MATCH_EVENT'")
+                        .param("id", articleId)
+                        .query(String.class)
+                        .single());
+    }
+
+    private static String existing(long eventId) {
+        return """
+                {"decision": "EXISTING", "eventId": %d, "newEvent": null, "reason": "같은 착공식이다"}""".formatted(eventId);
+    }
+
+    private static String created(String label) {
+        return """
+                {"decision": "NEW", "eventId": null, "reason": "후보와 다른 사건이다",
+                 "newEvent": {"title": "한빛반도체 텍사스 공장 착공식", "label": "%s", "summary": "한빛반도체가 착공식을 열었다."}}""".formatted(label);
     }
 
     private ResultActions w1(long jobId, String body) throws Exception {

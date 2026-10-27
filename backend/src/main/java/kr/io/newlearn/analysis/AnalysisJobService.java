@@ -252,8 +252,9 @@ public class AnalysisJobService {
     // 이번 차례를 끝낸다 — Redis 가 끊겼으면 나머지도 못 넣는다
     public int publishUnpublished(Instant now) {
         int published = 0;
-        List<AnalysisJob> candidates = jobs.findByStatusAndPublishedAtIsNullAndQueuedAtBeforeOrderByQueuedAtAsc(
-                AnalysisJobStatus.QUEUED, now.minus(UNPUBLISHED_AFTER), Limit.of(BATCH));
+        List<AnalysisJob> candidates =
+                jobs.findByStatusAndPublishedAtIsNullAndQueuedAtBeforeAndStageInOrderByQueuedAtAsc(
+                        AnalysisJobStatus.QUEUED, now.minus(UNPUBLISHED_AFTER), messages.keySet(), Limit.of(BATCH));
         for (AnalysisJob candidate : candidates) {
             AnalysisMessageFactory factory = messages.get(candidate.getStage());
             if (factory == null) {
