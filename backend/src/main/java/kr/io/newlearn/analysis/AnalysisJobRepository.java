@@ -61,4 +61,30 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> 
     // 다시 걸 때가 된 실패 — 다시 걸지 않는 실패는 retry_at 이 비어 있어 읽히지 않는다(앞을 막지 않는다)
     List<AnalysisJob> findByStatusAndRetryAtLessThanEqualOrderByRetryAtAsc(
             AnalysisJobStatus status, Instant now, Limit limit);
+
+    // 판정 고르기(MatchDispatcher, Jira 35) — 진행 중인 판정 작업. QUEUED, 또는 실패했는데 다시 걸 예정이면 진행 중이다.
+    // 다시 걸지 않는 실패(retry_at 이 빔)는 진행 중이 아니다 — 뒤 기사를 막지 않는다
+    @Query(nativeQuery = true, value = """
+            select id from analysis_job
+            where stage = 'MATCH_EVENT' and (status = 'QUEUED' or (status = 'FAILED' and retry_at is not null))
+            order by id limit 1
+            """)
+    Optional<Long> findMatchInFlight();
+
+    // 판정 고르기 — 판정할 기사 중 발행 시각이 가장 이른 것. EXTRACT · EMBED 가 둘 다 성공했고, 대표 사건이 있고,
+    // 판정 작업이 아직 없고, 사건에 안 묶인 기사다. 후보를 재려면 벡터가 있어야 해서 벡터 행도 본다
+    @Query(nativeQuery = true, value = """
+            select a.id from article a
+            join article_mindmap m on m.article_id = a.id and m.primary_core_index is not null
+            join article_embedding e on e.article_id = a.id
+            where exists (select 1 from analysis_job j
+                          where j.article_id = a.id and j.stage = 'EXTRACT' and j.status = 'SUCCEEDED')
+              and exists (select 1 from analysis_job j
+                          where j.article_id = a.id and j.stage = 'EMBED' and j.status = 'SUCCEEDED')
+              and not exists (select 1 from analysis_job j where j.article_id = a.id and j.stage = 'MATCH_EVENT')
+              and not exists (select 1 from article_event l where l.article_id = a.id)
+            order by a.published_at, a.id
+            limit 1
+            """)
+    Optional<Long> findNextMatchArticle();
 }

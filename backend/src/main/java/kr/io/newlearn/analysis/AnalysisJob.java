@@ -45,7 +45,8 @@ public class AnalysisJob {
 
     private int attempt;
 
-    // jsonb 칸. MATCH_EVENT · ISSUE 에 보낸 후보를 JSON 글자 그대로 둔다. 모양을 정해 읽는 일은 Jira 35 · 40
+    // jsonb 칸. MATCH_EVENT · ISSUE 에 보낸 후보를 JSON 글자 그대로 둔다.
+    // MATCH_EVENT 는 [{eventId, similarity}](MatchDispatcher, Jira 35), ISSUE 는 Jira 40
     @JdbcTypeCode(SqlTypes.JSON)
     private @Nullable String candidates;
 
