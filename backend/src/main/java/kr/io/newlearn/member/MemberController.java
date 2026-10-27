@@ -1,6 +1,7 @@
 package kr.io.newlearn.member;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -13,10 +14,14 @@ import kr.io.newlearn.auth.LoginSessions;
 import kr.io.newlearn.common.security.MemberPrincipal;
 import kr.io.newlearn.common.web.ApiProblem;
 import kr.io.newlearn.common.web.OpenApiConfig;
+import kr.io.newlearn.member.dto.ChangeCategoriesRequest;
 import kr.io.newlearn.member.dto.MemberResponse;
 import kr.io.newlearn.member.dto.SignUpRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -70,5 +75,53 @@ public class MemberController {
         loginSessions.open(
                 new MemberPrincipal(member.id(), member.loginId(), member.name()), httpRequest, httpResponse);
         return ResponseEntity.created(URI.create("/api/v1/members/me")).body(member);
+    }
+
+    @Operation(
+            summary = "[확정] A17 내 정보",
+            description = "로그인한 회원 정보와 현재 관심 분야를 카테고리 탭 순서로 줍니다. 손님의 401은 화면의 손님 판정에 씁니다.")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "401",
+            description = "UNAUTHORIZED — 로그인 세션이 없거나 세션의 회원이 없음",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @GetMapping("/api/v1/members/me")
+    public MemberResponse me(@Parameter(hidden = true) @AuthenticationPrincipal MemberPrincipal me) {
+        return service.profile(me.id());
+    }
+
+    @Operation(
+            summary = "[확정] A18 관심 분야 바꾸기",
+            description = "본인의 관심 분야를 보낸 목록으로 통째로 바꾸고 회원 정보를 줍니다. 1개 이상 골라야 하며 중복은 합칩니다. 로그인·CSRF 규칙은 A14~A16과 같습니다.")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "400",
+            description = "VALIDATION_FAILED — 관심 분야가 비었거나 없는 코드. errors[]에 칸과 한국어 문장",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "UNAUTHORIZED — 유효한 CSRF 번호표가 있으나 로그인 세션이 없거나 세션의 회원이 없음",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "403",
+            description = "FORBIDDEN — CSRF 번호표가 없거나 틀림. 세션도 없으면 이 검사가 먼저임",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @PutMapping("/api/v1/members/me/categories")
+    public MemberResponse changeCategories(
+            @Parameter(hidden = true) @AuthenticationPrincipal MemberPrincipal me,
+            @Valid @RequestBody ChangeCategoriesRequest request) {
+        return service.changeCategories(me.id(), request);
     }
 }
