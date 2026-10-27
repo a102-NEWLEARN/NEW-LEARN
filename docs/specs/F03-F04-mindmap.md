@@ -9,7 +9,7 @@
 - AC-2: 근거는 본문과 대조해 맞는 것만 남긴다. 범위 밖 문단 · 한 글자라도 다른 근거만 지우고 잎은 남긴다. 지운 개수는 로그에 남긴다. 문단은 빈 줄 · 공백만 있는 줄 · `\r\n` 을 같은 규칙으로 나눈다
   — `EvidenceCheckerTest`(공백은 Python `str.strip()` 과 같게 — `paragraphsTrimTheSameWhitespaceAsPythonStrip`) · `MindmapContentTest.retainEvidenceKeepsOnlyEvidenceFoundInTheBodyAndKeepsEveryLeaf` · `extractSuccessStoresTheMindmapAndReleasesTheArticle`(지운 개수 로그까지)
 - AC-3: 명세의 400(가지 없음 · 범위 밖 번호 · `CORE` 없이 번호)과 `api-internal.md` 5절 「API 가 EXTRACT 결과를 받을 때」의 거절 경우는 400 `RESULT_SCHEMA_INVALID` 다. 행은 저장되지 않고(다시 분석이면 옛 마인드맵 그대로) 기사는 공개되지 않으며 한 번 다시 걸린다
-  — `rejectedResultStoresNothingAndRetriesOnce` · `rejectedReanalysisKeepsTheOldMindmap` · `extractWithoutModelIsRejected` · `extractWithBlankPromptVersionIsRejected` · `ExtractResultTest.rejectsWhatTheScreenCannotDraw`(19가지)
+  — `rejectedResultStoresNothingAndRetriesOnce` · `rejectedReanalysisKeepsTheOldMindmap` · `extractWithoutModelIsRejected` · `extractWithBlankPromptVersionIsRejected` · `extractWithNulInTheEnvelopeIsRejected` · `ExtractResultTest.rejectsWhatTheScreenCannotDraw`(19가지)
 - AC-4: 고쳐 받는 경우(가지 순서 · 모양이 틀린 근거 · 번호 없이 온 `occurredAt` · 문자열이 아닌 `title`)는 고친 모양으로 저장된다
   — `ExtractResultTest.branchesAreSortedIntoTableOrder` · `malformedEvidenceIsDroppedAndCountedButTheLeafStays` · `occurredAtIsDroppedWithoutPrimaryCore` · `nonStringTitleIsDropped` · `optionalFieldsMayBeAbsent`
 - AC-5: 이미 마인드맵이 있는 기사에 성공이 오면 덮어쓴다(새 결과에 없는 대표 사건 · 시점도 비우고, `generated_at` 도 새 값). 공개 시각은 그대로다
