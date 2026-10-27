@@ -10,6 +10,7 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 // 수집 배치(CronJob)가 NewsData 를 한 번 부른 기록. 실행 한 번이 한 행이다 (data-model.md 2절)
 @Entity
@@ -26,11 +27,11 @@ public class IngestRun {
 
     private Instant startedAt;
 
-    private Instant finishedAt;
+    private @Nullable Instant finishedAt;
 
-    private Integer fetchedCount;
+    private @Nullable Integer fetchedCount;
 
-    private String nextCursor;
+    private @Nullable String nextCursor;
 
     @Enumerated(EnumType.STRING)
     private IngestRunStatus status;

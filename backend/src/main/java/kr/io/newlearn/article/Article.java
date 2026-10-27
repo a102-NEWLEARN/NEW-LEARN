@@ -20,6 +20,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.jspecify.annotations.Nullable;
 
 // 기사. 수집 배치가 적재하고(보류), 투입(B1)하면 분석이 걸린다. 화면에 보이는 때(released_at)는 EXTRACT 결과를 처음
 // 저장할 때 markReleased 가 채운다 (data-model.md 2절, Jira 34). 기자명 · 대표 카테고리 · 태그를 채우는 일은 수집 티켓이 더한다
@@ -43,7 +44,7 @@ public class Article {
 
     private String title;
 
-    private String reporter;
+    private @Nullable String reporter;
 
     private String body;
 
@@ -52,7 +53,7 @@ public class Article {
     // 비어 있으면 대표 카테고리를 맞추지 못한 기사다
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_code")
-    private Category category;
+    private @Nullable Category category;
 
     // text[] 칸. Hibernate 7 은 List<String> 을 원래 배열로 다루지만 칸 타입이 보이게 적어 둔다
     // DB 기본값 '{}' 은 Hibernate 가 칸 값을 직접 넣어서 쓰이지 않으므로 빈 목록으로 시작한다
@@ -60,9 +61,9 @@ public class Article {
     private List<String> sourceCategories = new ArrayList<>();
 
     @JdbcTypeCode(SqlTypes.ARRAY)
-    private List<String> sourceTags;
+    private @Nullable List<String> sourceTags;
 
-    private Instant releasedAt;
+    private @Nullable Instant releasedAt;
 
     @CreationTimestamp
     private Instant createdAt;

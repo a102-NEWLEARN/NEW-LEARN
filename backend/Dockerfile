@@ -9,9 +9,10 @@ WORKDIR /src
 
 # 의존성만 먼저 받아 층으로 남긴다 — build.gradle 이 그대로면 다음 빌드는 이 층을 다시 쓴다.
 # 빈 main 클래스 하나로 bootJar 를 돌려야 실행 · 컴파일에 쓰는 jar 까지 받는다 (dependencies 작업은 목록만 받는다)
+# 패키지 안에 둔다 — 기본 패키지면 Error Prone 경고(DefaultPackage)가 컴파일 실패가 된다 (build.gradle 「린트」)
 COPY build.gradle settings.gradle ./
-RUN mkdir -p src/main/java \
- && echo 'class DepsOnly { public static void main(String[] a) {} }' > src/main/java/DepsOnly.java \
+RUN mkdir -p src/main/java/deps \
+ && echo 'package deps; class DepsOnly { public static void main(String[] a) {} }' > src/main/java/deps/DepsOnly.java \
  && gradle --no-daemon -q bootJar \
  && rm -rf src build
 
