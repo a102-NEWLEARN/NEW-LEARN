@@ -37,4 +37,22 @@ class MindmapContentTest {
         assertThat(content.evidenceCount()).isEqualTo(4);
         assertThat(kept.evidenceCount()).isEqualTo(1);
     }
+
+    // 대표 사건 = CORE 가지의 primary_core_index 번째 잎 — 판정 메시지가 꺼낸다 (Jira 35, api-internal.md 4절)
+    @Test
+    void coreReturnsTheCoreLeafAtTheIndexOrNull() {
+        var first = new Item("착공식을 열었다", List.of());
+        var second = new Item("2028년 양산", List.of());
+        var content = new MindmapContent(
+                null,
+                List.of(
+                        new Branch(BranchType.CAUSE, List.of(new Item("원인 잎", List.of()))),
+                        new Branch(BranchType.CORE, List.of(first, second))));
+
+        assertThat(content.core(0)).isEqualTo(first);
+        assertThat(content.core(1)).isEqualTo(second);
+        assertThat(content.core(2)).isNull();
+        assertThat(content.core(-1)).isNull();
+        assertThat(new MindmapContent(null, List.of()).core(0)).isNull();
+    }
 }
