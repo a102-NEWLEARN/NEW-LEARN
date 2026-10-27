@@ -70,16 +70,17 @@ class MatchEventMessageFactory implements AnalysisMessageFactory {
                 new MatchMessage(article.getId(), job.getId(), job.getAttempt(), info, extracted, candidates(job)));
     }
 
-    // candidates 칸 순서(가까운 순서) 그대로. 사건이 없어졌으면 뺀다
+    // candidates 칸 순서(가까운 순서) 그대로. 사건이 없어졌으면 뺀다.
+    // 후보가 몇 개든 쿼리는 셋이다 — 사건, 사건마다 첫 기사, 그 기사들의 마인드맵 (docs/backend-convention.md 6절)
     private List<CandidateEvent> candidates(AnalysisJob job) {
         List<CandidateEventFinder.Candidate> picked = CandidateEventFinder.read(jsonMapper, job.getCandidates());
+        List<Long> eventIds =
+                picked.stream().map(CandidateEventFinder.Candidate::eventId).toList();
         Map<Long, Event> byId =
-                events
-                        .findAllById(picked.stream()
-                                .map(CandidateEventFinder.Candidate::eventId)
-                                .toList())
-                        .stream()
-                        .collect(Collectors.toMap(Event::getId, Function.identity()));
+                events.findAllById(eventIds).stream().collect(Collectors.toMap(Event::getId, Function.identity()));
+        Map<Long, Long> firstArticles = finder.firstArticleIds(eventIds);
+        Map<Long, ArticleMindmap> firstMindmaps = mindmaps.findAllById(firstArticles.values()).stream()
+                .collect(Collectors.toMap(ArticleMindmap::getArticleId, Function.identity()));
         List<CandidateEvent> candidates = new ArrayList<>();
         for (CandidateEventFinder.Candidate candidate : picked) {
             Event event = byId.get(candidate.eventId());
@@ -92,19 +93,18 @@ class MatchEventMessageFactory implements AnalysisMessageFactory {
                     event.getLabel(),
                     event.getSummary(),
                     ApiTime.toKst(event.getOccurredAt()),
-                    evidence(event.getId()),
+                    evidence(firstMindmaps.get(firstArticles.get(event.getId()))),
                     candidate.similarity()));
         }
         return candidates;
     }
 
     // 사건을 만든 기사(가장 먼저 묶인 기사)의 대표 잎 근거 원문, 최대 3문장. 없으면 빈 목록
-    private List<String> evidence(long eventId) {
-        var first = finder.firstArticleId(eventId).flatMap(mindmaps::findById);
-        if (first.isEmpty()) {
+    private List<String> evidence(@Nullable ArticleMindmap first) {
+        if (first == null) {
             return List.of();
         }
-        MindmapContent.Item leaf = primaryEvent(first.get(), read(first.get()));
+        MindmapContent.Item leaf = primaryEvent(first, read(first));
         if (leaf == null) {
             return List.of();
         }

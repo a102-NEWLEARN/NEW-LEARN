@@ -333,7 +333,7 @@ erDiagram
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
 | `started_at` · `finished_at` | timestamptz | 아니오 | 워커가 결과와 함께 보낸 시작 · 끝 시각 |
 | `queued_at` | timestamptz | 예 | 이번 시도가 `QUEUED` 가 된 때 — 처음 만들 때와 다시 걸 때. 큐에 못 넣은 작업을 찾는 기준(V4, Jira 30) |
-| `published_at` | timestamptz | 아니오 | 이번 시도를 큐에 넣은 때. 비어 있으면 아직 못 넣었다 — 1분 지나면 스케줄러가 다시 넣는다. 다시 걸면 비운다(V4, Jira 30) |
+| `published_at` | timestamptz | 아니오 | 이번 시도를 큐에 넣은 때. 비어 있으면 아직 못 넣었다 — 1분 지나면 스케줄러가 다시 넣는다(메시지를 만들 수 있는 단계만. Jira 40 전의 `ISSUE` 대기 작업은 그대로 둔다, `api-internal.md` 3절). 다시 걸면 비운다(V4, Jira 30) |
 | `retry_at` | timestamptz | 아니오 | 실패한 시도를 다시 걸 때 — API 가 실패를 받은 때 + 간격(`docs/api.md` 2절). 다시 걸지 않으면 비운다. 스케줄러는 이 시각이 지난 실패만 읽어, 멈춘 실패가 아무리 쌓여도 앞을 막지 않는다(V4, Jira 30) |
 
 - 기사 하나 · 단계 하나에 한 행이다. 다시 돌리면 같은 행의 `attempt` 를 올리고 `status` 를 `QUEUED` 로 되돌린다. 몇 번까지 · 언제 다시 돌릴지는 `docs/api.md` 2절 「작업 실패 코드」(최대 3번)

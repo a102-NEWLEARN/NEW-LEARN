@@ -1,5 +1,7 @@
 package kr.io.newlearn.analysis.match;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import kr.io.newlearn.analysis.AnalysisJob;
@@ -27,6 +29,9 @@ public class MatchDispatcher {
     // 판정 고르기를 줄 세우는 트랜잭션 잠금(pg_advisory_xact_lock)의 키. 이 앱이 쓰는 advisory lock 은 이것 하나다
     static final long LOCK = 35L;
 
+    // 판정이 이만큼 QUEUED 면 멈춘 것으로 보고 WARN. 건강한 판정은 다시 가져가기(10분) + W1 다시 보내기(약 1분) 안에 끝난다
+    static final Duration STUCK_AFTER = Duration.ofMinutes(30);
+
     private final JdbcClient jdbc;
     private final AnalysisJobRepository jobs;
     private final ArticleRepository articles;
@@ -52,17 +57,32 @@ public class MatchDispatcher {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("판정 고르기는 트랜잭션 안에서 불러야 한다");
         }
-        // API Pod 둘이 같이 골라도 하나씩 고른다. 기사 · 작업 행은 잠그지 않아 W1 의 행 잠금과 부딪히지 않는다
+        // API Pod 둘이 같이 골라도 하나씩 고른다. 기사 · 작업 행을 FOR UPDATE 로 잠그지 않는다 — 작업을 넣을 때
+        // 외래 키 검사가 기사 행에 KEY SHARE 를 잡을 뿐이라 W1 의 작업 행 잠금 · 기사 공개(UPDATE)와 서로 기다리지 않는다
         jdbc.sql("select 1 from pg_advisory_xact_lock(:key)")
                 .param("key", LOCK)
                 .query(Integer.class)
                 .single();
         Optional<Long> inFlight = jobs.findMatchInFlight();
         if (inFlight.isPresent()) {
-            log.info("판정 고르기 기다림: 판정 작업 {}", inFlight.get());
+            logWaiting(inFlight.get());
             return Optional.empty();
         }
         return jobs.findNextMatchArticle().map(this::create);
+    }
+
+    // QUEUED 인 판정에 W1 이 끝내 안 오면(넣은 뒤 메시지를 잃음 · 워커가 W1 없이 ack) 판정 줄 전체가 멈춘다(api-internal.md 3절).
+    // 찾을 수 있게 오래된 QUEUED 는 WARN 으로 남긴다 — W1 이 와야 풀리고, 메시지를 잃었으면 손으로 published_at 을 비운다
+    private void logWaiting(long jobId) {
+        Instant stuckBefore = Instant.now().minus(STUCK_AFTER);
+        boolean stuck = jobs.findById(jobId)
+                .filter(job -> job.isQueued() && job.getQueuedAt().isBefore(stuckBefore))
+                .isPresent();
+        if (stuck) {
+            log.warn("판정 줄이 멈췄을 수 있다: 판정 작업 {} 이 {}분 넘게 QUEUED", jobId, STUCK_AFTER.toMinutes());
+        } else {
+            log.info("판정 고르기 기다림: 판정 작업 {}", jobId);
+        }
     }
 
     // 후보는 지금 계산해 작업에 남긴다. 후보가 없어도 건다 — 새 사건의 이름 · 키워드 · 요약은 판정이 짓는다

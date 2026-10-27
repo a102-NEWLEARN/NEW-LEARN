@@ -20,7 +20,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 // W1 MATCH_EVENT 결과 — 기사를 고른 사건에 붙이거나, 새 사건을 만들어 붙인다 (Jira 35, docs/api-internal.md 5절)
 // AnalysisJobService.receiveResult 가 작업 행을 잠근 트랜잭션 안에서 부른다. 판정은 한 번에 하나씩이라(MatchDispatcher)
-// 판정끼리 같은 사건을 두고 다투지 않는다. 기사 · 사건 행은 잠그지 않는다(AnalysisResultHandler 의 잠금 순서)
+// 판정끼리 같은 사건을 두고 다투지 않는다. 잠금 순서는 작업 행 → 사건 행이다 — 시점을 당길 때(pullOccurredAt) 사건 행을
+// UPDATE 로 잠그고, 연결 · ISSUE 작업을 넣을 때 외래 키 검사가 기사 · 사건 행에 KEY SHARE 를 잡는다.
+// 이슈 붙이기(Jira 40)가 같은 사건 행을 고칠 때 이 순서를 맞춘다(AnalysisResultHandler 의 잠금 순서)
 @Component
 class MatchEventResultHandler implements AnalysisResultHandler {
 
@@ -52,6 +54,8 @@ class MatchEventResultHandler implements AnalysisResultHandler {
 
     @Override
     public void save(AnalysisJob job, JobResultRequest request) {
+        storable(request.model(), "model");
+        storable(request.promptVersion(), "promptVersion");
         // 성공인데 result 가 없으면 receiveResult 가 problem() 으로 먼저 거절했다
         var match = MatchEventResult.read(request.result());
         Article article = job.getArticle();
@@ -62,8 +66,8 @@ class MatchEventResultHandler implements AnalysisResultHandler {
         };
         links.save(new ArticleEvent(article, event));
         if (match.decision() == MatchEventResult.Decision.NEW) {
-            // 새 사건만 이슈에 붙일지 묻는다(api-internal.md 3절). ISSUE 메시지 공장은 Jira 40 이라 지금은 만들기만 한다 —
-            // 공장이 생기면 1분 스케줄러(못 넣은 작업 넣기)가 큐에 넣는다
+            // 새 사건만 이슈에 붙일지 묻는다(api-internal.md 3절). 큐에는 넣지 않는다 — 「걸 차례를 기다리는」 표시다.
+            // ISSUE 도 한 번에 하나씩이라 Jira 40 이 이 작업을 하나씩 골라 그때 후보를 계산해 넣는다
             jobs.save(new AnalysisJob(article, AnalysisStage.ISSUE, RequestedBy.BATCH, null));
         }
         job.recordResult(
@@ -97,6 +101,13 @@ class MatchEventResultHandler implements AnalysisResultHandler {
         Instant occurredAt = extracted == null ? article.getPublishedAt() : extracted;
         OccurredAtBasis basis = extracted == null ? OccurredAtBasis.FIRST_PUBLISHED : OccurredAtBasis.EXTRACTED;
         return events.save(new Event(created.title(), created.label(), created.summary(), occurredAt, basis));
+    }
+
+    // 판정 기록(jsonb)은 U+0000 을 받지 않는다 — 저장에서 500 이 나지 않게 받을 때 거절한다. 비어 있으면 null 로 남긴다
+    private static void storable(@Nullable String value, String field) {
+        if (value != null && value.indexOf('\u0000') >= 0) {
+            throw new ResultSchemaInvalidException("봉투의 " + field + " 에 U+0000 이 있다");
+        }
     }
 
     // analysis_job.result 의 모양 — 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다

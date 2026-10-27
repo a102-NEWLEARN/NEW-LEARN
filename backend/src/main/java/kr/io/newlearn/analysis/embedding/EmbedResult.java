@@ -30,9 +30,12 @@ public record EmbedResult(String model, List<Double> vector) {
         }
         var values = new ArrayList<Double>(DIMENSION);
         for (var value : vector.values()) {
-            // 1e400 처럼 double 을 넘는 수는 무한대로 읽힌다 — DB 가 받지 않는다
-            if (!value.isNumber() || !Double.isFinite(value.doubleValue())) {
-                throw invalid("vector 에 유한한 숫자가 아닌 값이 있다: " + value);
+            // 1e400 처럼 double 을 넘는 수는 무한대로 읽힌다. 3.5e38 처럼 double 로는 유한해도 pgvector 칸(float4)을 넘으면
+            // DB 가 받지 않는다 — 둘 다 거절한다. float4 아래로 내려가는 작은 수(1e-50)는 pgvector 가 받는다
+            if (!value.isNumber()
+                    || !Double.isFinite(value.doubleValue())
+                    || Math.abs(value.doubleValue()) > Float.MAX_VALUE) {
+                throw invalid("vector 에 float4 로 담을 수 있는 숫자가 아닌 값이 있다: " + value);
             }
             values.add(value.doubleValue());
         }

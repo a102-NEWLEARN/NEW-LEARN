@@ -31,7 +31,9 @@ public record MatchEventResult(
         return switch (decision.stringValue()) {
             case "EXISTING" -> new MatchEventResult(Decision.EXISTING, eventId(result.path("eventId")), null, reason);
             case "NEW" -> new MatchEventResult(Decision.NEW, null, newEvent(result.path("newEvent")), reason);
-            default -> throw invalid("decision 이 EXISTING · NEW 가 아니다: " + decision.stringValue());
+            // 받은 글자는 JSON 노드로 찍는다(U+0000 이 \u0000 으로 이스케이프된다). 날것으로 붙이면 이 문구를 실패 기록
+            // (error_message)에 넣다 DB 가 거절해 400 이 아니라 500 이 된다
+            default -> throw invalid("decision 이 EXISTING · NEW 가 아니다: " + decision);
         };
     }
 

@@ -64,7 +64,14 @@ class EmbedResultTest {
                         result("\"BGE-m3-ko\"", "1024", vector(1023).replace("]", ",\"0.5\"]"))),
                 Arguments.of(
                         "벡터에 무한대(1e400)",
-                        result("\"BGE-m3-ko\"", "1024", vector(1023).replace("]", ",1e400]"))));
+                        result("\"BGE-m3-ko\"", "1024", vector(1023).replace("]", ",1e400]"))),
+                // double 로는 유한하지만 pgvector 칸(float4)에 못 담는다 — 그대로 두면 DB 에서 터져 500
+                Arguments.of(
+                        "벡터에 float4 를 넘는 값(3.5e38)",
+                        result("\"BGE-m3-ko\"", "1024", vector(1023).replace("]", ",3.5e38]"))),
+                Arguments.of(
+                        "벡터에 float4 를 넘는 음수(-3.5e38)",
+                        result("\"BGE-m3-ko\"", "1024", vector(1023).replace("]", ",-3.5e38]"))));
     }
 
     @ParameterizedTest(name = "{0}")

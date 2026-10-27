@@ -22,8 +22,11 @@ import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Range;
@@ -43,6 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
 // 만든 행은 끝날 때 지운다. 시험 설정은 1분 스케줄러를 꺼 두었다 — 판정 고르기는 W1 뒤와 dispatchMatch() 로 부른다
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(OutputCaptureExtension.class)
 @Import(TestcontainersConfiguration.class)
 @TestPropertySource(
         properties = {
@@ -232,16 +236,17 @@ class EventMatchIntegrationTest {
     @Test
     void candidatesAreTheNearestFiveEvents() throws Exception {
         ready(ARTICLE, 0);
-        // 사건 7개를 0° ~ 60° 에 하나씩. 3551 에는 먼 기사(80°)도 하나 더 — 가까운 기사(0°)로 잰다
+        // 사건 7개를 0° ~ 60° 에 하나씩. 사건 번호는 각도와 거꾸로(0° 가 3557) — 거리 대신 번호로 줄 세우면 갈린다.
+        // 3557 에는 먼 기사(80°)도 하나 더 — 가까운 기사(0°)로 잰다
         for (int i = 0; i < 7; i++) {
             long articleId = 3510L + i;
             article(articleId, "2026-10-05T0" + i + ":00:00Z");
             embedding(articleId, 10.0 * i);
-            link(articleId, event(3551 + i, "사건 " + i), "2026-10-05T0" + i + ":30:00Z");
+            link(articleId, event(3557L - i, "사건 " + i), "2026-10-05T0" + i + ":30:00Z");
         }
         article(3520, "2026-10-05T08:00:00Z");
         embedding(3520, 80);
-        link(3520, 3551, "2026-10-05T08:30:00Z");
+        link(3520, 3557, "2026-10-05T08:30:00Z");
 
         service.dispatchMatch();
 
@@ -252,7 +257,7 @@ class EventMatchIntegrationTest {
                         .single());
         assertThat(candidates.size()).isEqualTo(5);
         assertThat(candidates.findValues("eventId").stream().map(JsonNode::asLong))
-                .containsExactly(3551L, 3552L, 3553L, 3554L, 3555L);
+                .containsExactly(3557L, 3556L, 3555L, 3554L, 3553L);
         assertThat(candidates.get(0).get("similarity").asDouble()).isCloseTo(1.0, Offset.offset(1e-4));
         assertThat(candidates.get(1).get("similarity").asDouble())
                 .isCloseTo(Math.cos(Math.toRadians(10)), Offset.offset(1e-4));
@@ -510,7 +515,134 @@ class EventMatchIntegrationTest {
                 .isEqualTo(1);
     }
 
+    // ── 리뷰 뒤 더함 ──
+
+    // AC-3 — 판정 하나가 W1 없이 30분 넘게 QUEUED 면 판정 줄 전체가 멈춘 것일 수 있다 — 고르기가 WARN 을 남긴다.
+    // 30분 안이면 평소처럼 「기다림」만 남긴다
+    @Test
+    void aJudgmentStuckInQueuedIsWarned(CapturedOutput output) {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+
+        service.dispatchMatch();
+        assertThat(output.toString()).contains("판정 고르기 기다림: 판정 작업 " + match).doesNotContain("판정 줄이 멈췄을 수 있다");
+
+        jdbc.sql("update analysis_job set queued_at = now() - interval '31 minutes' where id = :id")
+                .param("id", match)
+                .update();
+        service.dispatchMatch();
+
+        assertThat(output.toString()).contains("판정 줄이 멈췄을 수 있다: 판정 작업 " + match);
+    }
+
+    // AC-3 — 판정이 멈추는 실패로 끝나면(W1 FAILED, 다시 걸지 않는 코드) 그 W1 뒤에 바로 다음 기사가 걸린다
+    @Test
+    void aStoppedJudgmentLetsTheNextArticleGo() throws Exception {
+        ready(ARTICLE, 0);
+        article(3502, "2026-10-06T02:00:00Z");
+        ready(3502, 5);
+        long first = queuedMatch(ARTICLE);
+        assertThat(matchJobs(3502)).isZero();
+
+        w1(first, failed(1, "INPUT_NOT_ANALYZABLE")).andExpect(status().isNoContent());
+
+        assertThat(matchStatus(ARTICLE)).isEqualTo("FAILED");
+        assertThat(matchJobs(3502)).isEqualTo(1);
+    }
+
+    // AC-3 · AC-4 — 400 으로 거절한 판정을 다시 걸면 메시지는 같은 작업 · 시도 2 이고 처음 고른 후보 그대로다
+    @Test
+    void aRejectedJudgmentIsRequeuedWithTheSameCandidates() throws Exception {
+        ready(ARTICLE, 0);
+        article(3510, "2026-10-05T00:00:00Z");
+        embedding(3510, 10);
+        link(3510, event(3551, "후보 사건"), "2026-10-05T00:30:00Z");
+        long outside = event(3552, "후보 밖 사건");
+        long match = queuedMatch(ARTICLE);
+        JsonNode first = lastMessage(AnalysisStreams.MATCH_EVENT);
+
+        w1(match, envelope(1, "match-v1", existing(outside))).andExpect(status().isBadRequest());
+
+        JsonNode again = lastMessage(AnalysisStreams.MATCH_EVENT);
+        assertThat(again.get("jobId").asLong()).isEqualTo(match);
+        assertThat(again.get("attempt").asInt()).isEqualTo(2);
+        assertThat(again.get("candidates")).isEqualTo(first.get("candidates"));
+        assertThat(again.get("candidates").findValues("eventId").stream().map(JsonNode::asLong))
+                .containsExactly(3551L);
+    }
+
+    // AC-8 — 모르는 decision 에 U+0000 이 있어도 400 이다. 오류 문구에 받은 글자를 날것으로 붙이면 실패를 적다 DB 에서 터져 500
+    @Test
+    void unknownDecisionWithNulIsRejectedNotA500() throws Exception {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", "{\"decision\": \"EXI\\u0000STING\", \"eventId\": 1, \"reason\": \"까닭\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(count("select attempt from analysis_job where id = " + match))
+                .isEqualTo(2);
+    }
+
+    // AC-8 — 봉투의 model · promptVersion 에 U+0000 이 있으면 400. 판정 기록(jsonb)이 받지 않아 그대로 두면 500
+    @Test
+    void envelopeModelWithNulIsRejected() throws Exception {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+        String body = envelope(1, "match-v1", created("착공식")).replace("\"gpt-6-luna\"", "\"gpt\\u0000luna\"");
+
+        w1(match, body)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(linkedEvent(ARTICLE)).isZero();
+        assertThat(count("select attempt from analysis_job where id = " + match))
+                .isEqualTo(2);
+    }
+
+    // AC-1 — float4 를 넘는 값은 400. double 로는 유한해도 pgvector 칸(float4)에 못 담아 그대로 두면 DB 에서 터진다
+    @Test
+    void embedWithAValueBeyondFloat4IsRejected() throws Exception {
+        long job = job(ARTICLE, "EMBED", "QUEUED", 1);
+
+        w1(job, envelope(1, null, embedEndingWith("3.5e38")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(count("select count(*) from article_embedding where article_id = " + ARTICLE))
+                .isZero();
+    }
+
+    // AC-1 — 아주 작은 값(float4 아래로 내려가는 수)은 받아 저장한다
+    @Test
+    void embedKeepsTinyValues() throws Exception {
+        long job = job(ARTICLE, "EMBED", "QUEUED", 1);
+
+        w1(job, envelope(1, null, embedEndingWith("1e-50"))).andExpect(status().isNoContent());
+
+        assertThat(count("select count(*) from article_embedding where article_id = " + ARTICLE))
+                .isEqualTo(1);
+    }
+
     // ── 도우미 ──
+
+    // 1023칸은 0.001 · i, 마지막 칸만 last
+    private static String embedEndingWith(String last) {
+        String vector = IntStream.range(0, 1023)
+                .mapToObj(i -> String.valueOf(0.001 * i))
+                .collect(Collectors.joining(",", "[", "," + last + "]"));
+        return """
+                {"model": "BGE-m3-ko", "dimension": 1024, "vector": %s}""".formatted(vector);
+    }
+
+    private static String failed(int attempt, String code) {
+        return """
+                {"attempt": %d, "status": "FAILED", "model": "gpt-6-luna", "promptVersion": "match-v1",
+                 "startedAt": "2026-10-26T09:00:00+09:00", "finishedAt": "2026-10-26T09:00:30+09:00",
+                 "result": null, "error": {"code": "%s", "message": "멈춤"}}
+                """.formatted(attempt, code);
+    }
 
     private void article(long id, String publishedAt) {
         jdbc.sql("""
