@@ -170,20 +170,31 @@ case "${1:-}" in
     need_tty
     # AI 워커가 SSAFY GMS(OpenAI 호환 API)를 부를 키 — ai Deployment 의 GMS_API_KEY 가 이 이름 · 키를 읽는다
     # 주소는 비밀이 아니라 매니페스트(infra/k8s/services/ai/ai.yaml)에 있다. 같은 값을 두 곳에 적지 않게 클러스터에 반영된 값을 읽는다
-    base="$(kubectl -n ai get deploy ai -o jsonpath='{.spec.template.spec.containers[?(@.name=="ai")].env[?(@.name=="GMS_BASE_URL")].value}' 2>/dev/null || true)"
+    env_of() { kubectl -n ai get deploy ai -o jsonpath="{.spec.template.spec.containers[?(@.name==\"ai\")].env[?(@.name==\"$1\")].value}" 2>/dev/null || true; }
+    base="$(env_of GMS_BASE_URL)"
+    model="$(env_of GMS_MODEL)"
     [[ "$base" =~ ^https://[A-Za-z0-9./_-]+$ ]] || { echo "❌ ai Deployment 에 GMS_BASE_URL 이 없다 — ai.yaml 의 주소가 클러스터에 반영된 뒤 돌린다" >&2; exit 1; }
-    echo "GMS 주소: $base"
+    [[ "$model" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "❌ ai Deployment 에 GMS_MODEL 이 없다" >&2; exit 1; }
+    echo "GMS 주소: $base · 모델: $model"
     read -rsp "GMS 키 (화면에 안 보인다): " key
     echo
     # 복사해 붙이면 눈에 안 보이는 공백이 따라온다 — 키에 쓰는 글자를 몰라 공백만 지운다
     key="$(printf '%s' "$key" | tr -d '[:space:]')"
     [ -n "$key" ] || { echo "❌ 키가 비었다" >&2; exit 2; }
-    # 봉인하기 전에 이 키로 모델 목록(GET /models — 답을 만드는 호출이 아니다)을 불러 200 인지 본다
-    # 키는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임)
-    code="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
-      | curl -s -o /dev/null -w '%{http_code}' --max-time 15 -K - "$base/models" || true)"
-    [ "$code" = 200 ] || { unset key; echo "❌ 이 키로 GMS 를 못 불렀다 (HTTP $code) — 키 확인" >&2; exit 1; }
-    echo "GMS 키 확인 (HTTP 200)"
+    # 봉인하기 전에 이 키가 GMS 를 지나는지 본다 — 메시지가 빈 요청을 보내 답을 만들지 않게 한다
+    # GMS 는 키가 틀리면 401(「Invalid or expired GMS key」), 맞으면 모델 API 로 넘기고 모델 API 가 빈 메시지를 400 으로 거절한다
+    # GET /models 는 GMS 가 본문의 model 을 먼저 읽어서 키와 상관없이 500 이라 쓸 수 없다 (2026-10-27 가짜 키로 확인)
+    # 키는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임). 본문에는 비밀이 없다
+    resp="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
+      | curl -s -w '\n%{http_code}' --max-time 15 -K - -H 'Content-Type: application/json' \
+          -d "{\"model\":\"$model\",\"messages\":[]}" "$base/chat/completions" || true)"
+    code="${resp##*$'\n'}"
+    msg="$(printf '%s' "${resp%$'\n'*}" | tr -d '\n' | cut -c1-200)"
+    case "$code" in
+      400) echo "GMS 키 확인 — GMS 를 지났다 (모델 API 가 빈 메시지를 거절: HTTP 400)" ;;
+      401 | 403) unset key; echo "❌ GMS 가 이 키를 받지 않았다 (HTTP $code) — 키 확인: $msg" >&2; exit 1 ;;
+      *) unset key; echo "❌ 알 수 없는 답 (HTTP $code) — 봉인하지 않는다: $msg" >&2; exit 1 ;;
+    esac
     printf '%s' "$key" | seal gms-api ai GMS_API_KEY "$OUT/sealed-gms-api.yaml"
     unset key
     echo "관리자 PC 로 가져와 infra/k8s/services/ai/sealed-gms-api.yaml 로"
