@@ -181,6 +181,21 @@ flowchart LR
 | `occurredAt` | 시각 · null | 대표 사건(`primaryCoreIndex` 가 가리킨 잎)의 발생 시점. `primaryCoreIndex` 가 null 이면 null. 시각까지 있으면 시각까지, 날짜까지만 있으면 그날 0시(`+09:00`). 「지난 6일」 · 「어제」 같은 상대 날짜는 메시지의 `publishedAt` 을 기준으로 푼다. 「현지시간 6일」처럼 해외 날짜는 한국 시간으로 옮기지 않고 적힌 날짜 그대로. 「지난달」 · 「올해 초」처럼 날짜보다 흐리거나 못 뽑았으면 null — API 가 첫 기사 발행 시각으로 채운다(2026-10-21 BE 안). 이미 일어난 일인데 계산한 시점이 발행일보다 뒤면 잘못 뽑은 것으로 보고 null(2026-10-23 AI 안) | `article_mindmap.occurred_at` |
 
 - 본문은 있지만 분석할 문장이 없으면(저작권 · 안내 문구뿐, 너무 짧음) 워커가 GMS 를 부르기 전에 거르고 `status: FAILED` · `error.code: INPUT_NOT_ANALYZABLE` 로 보낸다. 기준 값(안내 문구를 뺀 뒤 남은 문장 수 · 길이)은 워커 한 곳에서 데이터로 정한다. `[영상]` · `[포토]` 같은 제목 표시만으로는 거르지 않는다 — NewsData 의 `[영상]` 기사에도 본문이 1,255자 있었다(2026-10-23 AI 안). 본문이 아예 빈 기사는 수집 배치가 저장하지 않아 워커까지 오지 않는다
+- API 가 EXTRACT 결과를 받을 때 보는 것(2026-10-27 BE 안, Jira 56). 위 표와 `api-screen.md` 3절이 정하지 않은 경우를 한 기준으로 정했다 — 화면을 그리거나 판정에 쓸 값을 못 읽으면 400 `RESULT_SCHEMA_INVALID`(한 번 다시 건다), 버려도 화면이 같으면 고쳐서 받는다. 다시 걸면 GMS 를 한 번 더 부르기 때문이다
+
+| 경우 | API |
+|---|---|
+| `schemaVersion` 이 없거나 `mindmap-v1` 이 아님 | 400 |
+| `mindmap` 이 없음 · `branches` 가 빔 · 모르는 `type` · 같은 `type` 두 번 · `items` 가 빔 · 잎 `text` 가 없거나 공백뿐 | 400 |
+| `primaryCoreIndex` 가 정수가 아님(`"0"` 같은 글자 포함) | 400 |
+| `primaryCoreIndex` 가 있는데 `occurredAt` 을 시각으로 못 읽음 | 400 — 흐린 날짜는 null 로 보내기로 했다(위 표) |
+| `summary` 가 문자열도 null 도 아님 | 400 |
+| 성공인데 봉투의 `model` · `promptVersion` 이 없음 | 400 — `article_mindmap` 에서 필수 칸이다 |
+| 가지 순서가 `api-screen.md` 3절 표와 다름 | 표 순서로 바꿔 저장 |
+| `evidence` 가 배열이 아님, 또는 근거 하나에 `text`(글자) · `paragraphIndex` · `sentenceIndex`(정수) 중 빠지거나 타입이 틀린 칸 | 그 근거만 지운다. 본문과 맞지 않는 근거와 같이 세어 로그에 남긴다 |
+| `primaryCoreIndex` 가 null 인데 `occurredAt` 이 옴 | `occurredAt` 을 읽지 않고 null 로 저장 |
+| `mindmap.title` 이 문자열이 아님 | null 로 저장 — 화면은 기사 제목을 쓴다 |
+| 위 모양에 없는 칸 | 저장하지 않는다. 모양이 바뀌면 `schemaVersion` 을 올린다 |
 
 `EMBED` 결과
 
