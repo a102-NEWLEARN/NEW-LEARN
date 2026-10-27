@@ -4,6 +4,7 @@ NEW:LEARN 서비스 테이블의 설계다. 기능 티켓이 테이블을 만들
 
 - **v0 (2026-10-19, Jira S15P31A102-28)**: 확정 기능(F01~F08 · F11)만으로 짤 수 있는 것만 담았다
 - **v1 (2026-10-21, Jira S15P31A102-99)**: 10-19 테이블 검토 · 10-20 팀 회의 · 10-21 마인드맵 회의에서 정한 것을 더했다. 카테고리 5개 · 원본 분류 대응 · 언론사 명부 · 회원과 관심 분야 · 이슈를 만드는 길 · 사건 키워드 · 마인드맵 가지 4개 · 수집 실행 기록 · 사용자 URL 입력 삭제. 아직 정하지 못한 것은 5절 「미정 목록」에 있다
+- **v1.3 (2026-10-27, Jira S15P31A102-35)**: 기사 벡터 표(`article_embedding`)를 V6 으로 만들었다. 판정 작업의 후보 칸 모양(`[{ eventId, similarity }]`)을 정하고, 판정 결과로 사건을 만들고 붙이고 발생 시점을 당기는 일을 구현했다
 - **v1.2 (2026-10-26, Jira S15P31A102-114)**: 북마크(`bookmark`) · 관심 이슈(`interest_issue`) 칸을 프로토타입 v21 과 대조해 확정했다. `last_visited_at` 은 만들지 않는다
 - **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 다음 마이그레이션 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다
 - 테이블은 아직 하나도 없다. 만들어진 테이블은 Flyway 마이그레이션(`backend/src/main/resources/db/migration/`)이 진실이다. 이 문서와 어긋나면 이 문서를 고친다
@@ -325,8 +326,8 @@ erDiagram
 | `status` | text | 예 | `QUEUED`(대기 또는 처리 중) → `SUCCEEDED` · `FAILED`. 바뀌는 길은 `docs/api-internal.md` 6절 |
 | `requested_by` | text | 예 | 누가 요청했나. 지금은 `BATCH`(수집 배치가 투입) 하나. 사용자 URL 입력은 뺐다(2026-10-20) |
 | `attempt` | int | 예 | 몇 번째 시도인가(1부터). 다시 돌리면 올린다. 늦게 온 옛 결과를 가르는 데 쓴다 |
-| `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다 |
-| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). 칸은 V4 에서 더했고(Jira 30) 쓰는 일은 Jira 35 · 40 |
+| `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다. `MATCH_EVENT` 는 `[{ eventId, similarity }]`(가까운 순서) — 다시 걸 때 이 후보로 메시지를 다시 만든다(2026-10-27 Jira 35) |
+| `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). 칸은 V4 에서 더했고(Jira 30) `MATCH_EVENT` 는 Jira 35 가, `ISSUE` 는 Jira 40 이 쓴다 |
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
@@ -368,7 +369,8 @@ erDiagram
 
 - 같은 사건 후보를 pgvector 로 찾을 때 쓴다(SSOT 3절). 후보 검색은 기사 임베딩끼리 비교해 그 기사의 사건으로 모은다
 - 모델을 바꾸면 차원이 바뀌므로 `article` 에 넣지 않고 따로 둔다. 바꿀 때는 새 마이그레이션으로 칸을 바꾸고 모든 기사를 다시 임베딩한다
-- 검색은 처음엔 인덱스 없이 정확 검색으로 한다 — pgvector 의 기본이고 재현율이 100% 다. 실제 데이터로 재서 느리면 HNSW 인덱스를 건다(`vector` 는 2,000차원까지). 예산 기준 기사는 최대 약 1만 7천 건이다(2026-10-21 BE 안)
+- 검색은 처음엔 인덱스 없이 정확 검색으로 한다 — pgvector 의 기본이고 재현율이 100% 다. 실제 데이터로 재서 느리면 HNSW 인덱스를 건다(`vector` 는 2,000차원까지). 예산 기준 기사는 최대 약 1만 7천 건이다(2026-10-21 BE 안). 1만 7천 건으로 잰 후보 찾기는 약 77ms 라 인덱스 없이 둔다(2026-10-27, SSOT 10절)
+- 표는 V6(2026-10-27 Jira 35). 벡터 칸은 엔티티로 매핑하지 않고 SQL(`JdbcClient`, pgvector 글자 표기 `'[0.1,0.2,…]'` 와 `cast`)로 저장 · 비교한다. EMBED 결과가 다시 오면 덮어쓴다
 
 ### member · member_category — 회원과 관심 분야 (F12, 2026-10-20)
 
@@ -469,7 +471,7 @@ erDiagram
 | F03 기사 핵심 정보 구조화 | `analysis_job`(`EXTRACT`) · `article_mindmap` | W1 (`EXTRACT`) |
 | F04 기사 마인드맵 생성 | `article_mindmap.content` | A9 (흐름지도 · 마인드맵 두 보기) |
 | F05 노드 상세 및 근거 확인 | 추후(2026-10-21). 근거는 `article_mindmap.content` 에 데이터로만 | — |
-| F06 동일 사건 기사 클러스터링 | `article_embedding`(미정) · `analysis_job`(`EMBED` · `MATCH_EVENT`) · `event` · `article_event` | W1 (`EMBED` · `MATCH_EVENT`) |
+| F06 동일 사건 기사 클러스터링 | `article_embedding`(V6) · `analysis_job`(`EMBED` · `MATCH_EVENT`) · `event` · `article_event` | W1 (`EMBED` · `MATCH_EVENT`) |
 | F07 사건 중심 이슈 에볼루션 맵 | `issue` · `issue_category` · `event` · `analysis_job`(`ISSUE`) · `event_relation`(P1) | A3 · A4, W1 (`ISSUE`) |
 | F08 사건별 관련 기사 조회 | `event` · `article_event` · `article` · `article_mindmap.summary` | A5 · A6 |
 | F11 기사·이슈 양방향 연결 | `article_event` → `event` → `issue` | A8(소속 사건 · 이슈) · A6 |
