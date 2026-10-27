@@ -128,11 +128,12 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 - [ ] EC2 의 `infra/server` 사본을 저장소 판으로 — 2026-10-26 확인 때 `seal-secrets.sh` · `README.md` 는 10-25 · 10-23 판(`gms` 없음), `ai-worker.md` · `db-backup.md` 는 없었다. 관리자 PC 에서 `tar -C infra -cf - server | ssh ubuntu@<EC2 탄력적 IP> 'tar -C infra -xf -'`(`infra/server/README.md` 의 복사 줄과 같은 방식)
 
 ### B — 사용자가 봉인 (MR 1 이 EC2 저장소에 들어온 뒤)
-- [ ] 🧑 사용자 — EC2 에서 `bash infra/server/seal-secrets.sh gms`(`ssh -t`). 200 이 나와야 봉인한다
-- [ ] 봉인 파일을 관리자 PC 로 가져와 `infra/k8s/services/ai/sealed-gms-api.yaml` 로 둔다
+- [x] 🧑 사용자 — EC2 에서 `bash infra/server/seal-secrets.sh gms`(`ssh -t`). 키 확인을 지나야 봉인한다 — 2026-10-27 팀 공용키로 400(통과) · 봉인
+- [x] 봉인 파일을 관리자 PC 로 가져와 `infra/k8s/services/ai/sealed-gms-api.yaml` 로 둔다 — `kubeseal --validate` 로 컨트롤러가 풀 수 있음 확인
+- [ ] 봉인 파일을 `kustomization.yaml` 에 넣어 Secret `gms-api` 만 먼저 만든다 — 키 확인을 고친 MR 에 같이(사용자, 2026-10-27). 반영 뒤 `kubectl -n ai get secret gms-api` 가 있는지 본다
 
 ### C — MR 2: 실제 모드 (AI 코드가 dev 에 들어오고 AI 팀이 켜자고 한 뒤)
-- [ ] `kustomization.yaml` 에 `sealed-gms-api.yaml`, `ai.yaml` 에 `GMS_API_KEY`(secretKeyRef) · `LLM_MODE=gms`. MR 1 에서 모델 경로 env 를 못 넣었으면 AI 코드가 읽는 이름으로 여기서 더한다
+- [ ] `ai.yaml` 에 `GMS_API_KEY`(secretKeyRef `gms-api`) · `LLM_MODE=gms`(봉인 파일은 B 에서 이미 넣음). MR 1 에서 모델 경로 env 를 못 넣었으면 AI 코드가 읽는 이름으로 여기서 더한다
 - [ ] MR → infra → dev. 반영 뒤 검증 절 C
 - [ ] `SSOT.md` 6절(ai 자리 · 키) · 10절(잰 값) — 메인 세션의 BE 문서 작업과 겹치지 않을 때 같은 MR 이나 다음 MR 로
 
@@ -213,4 +214,5 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 | 운영 메모 자리 (구현 때) | `infra/server/README.md` 에 | 새 `infra/server/ai-worker.md`, README 에는 한 줄 | README 가 500줄 상한을 넘었다(499 → 512). `db-backup.md` 와 같은 방식 |
 | init 컨테이너 env (구현 때) | `HF_HOME` 없음 | `HF_HOME=/models/hf` · `HF_HUB_DISABLE_TELEMETRY=1` | `hf` 명령도 `HF_HOME` 에 확인 기록을 쓴다(관리자 PC 에서 1.33.0 으로 시험) |
 | 서버 GMS 키 (2026-10-27) | 누구 키인지 미정 | 팀 공용 GMS 키 | 사용자 결정. SSAFY GMS 는 한 팀에 키를 하나만 준다 — 서버 전용 키는 없다. 팀원 `.env` 와 같은 키라 키가 바뀌면 다시 봉인하고, GMS 사용 현황에서 서버 · 개발 사용분이 섞인다 |
+| 봉인 파일을 넣는 때 (2026-10-27) | MR 2(실제 모드)에 env 와 같이 | 키 확인을 고친 MR 에 먼저 — Secret 만 만들고 ai 는 아직 안 씀 | 사용자 결정. 컨트롤러가 실제로 푸는지 미리 보고, EC2 의 봉인 파일을 잃어도 저장소에 남게 |
 | 봉인 전 키 확인 호출 (2026-10-27) | `GET /models` 가 200 | `POST /chat/completions` 에 메시지가 빈 요청 — 400 이면 통과, 401 · 403 이면 키가 틀림, 그 밖은 봉인 안 함 | 사용자가 공용키로 돌렸더니 500. 가짜 키로 재 보니 `/models` 는 GMS 가 본문의 `model` 을 먼저 읽어 키와 상관없이 500(「Cannot read properties of undefined (reading 'model')」), `/chat/completions` 는 가짜 키에 401(「Invalid or expired GMS key」). 진짜 키로 400 이 나오는지는 사용자가 다시 돌려 확인한다 |

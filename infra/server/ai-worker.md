@@ -24,4 +24,4 @@ ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh gms"
 ssh ubuntu@<EC2 탄력적 IP> 'cat ~/sealed/sealed-gms-api.yaml' > infra/k8s/services/ai/sealed-gms-api.yaml
 ```
 
-그 MR 에서 `kustomization.yaml` 에 봉인 파일을 더하고, `ai.yaml` 에 `GMS_API_KEY`(`secretKeyRef` `gms-api` / `GMS_API_KEY`) · `LLM_MODE=gms` 를 넣는다. 키를 바꿀 때도 같다.
+봉인 파일은 `kustomization.yaml` 에 넣어 Secret `gms-api` 만 먼저 만든다(2026-10-27 봉인 · 반영). ai 가 그 키를 쓰게 하는 것은 실제 모드로 바꾸는 MR 에서 한다 — `ai.yaml` 에 `GMS_API_KEY`(`secretKeyRef` `gms-api` / `GMS_API_KEY`) · `LLM_MODE=gms`. 키를 바꿀 때는 위 두 명령으로 봉인 파일만 바꿔 커밋한다(ai 는 다시 띄워야 새 키를 읽는다).
