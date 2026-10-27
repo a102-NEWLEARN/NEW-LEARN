@@ -200,7 +200,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - 서비스 Pod는 전부 워커에서 돈다. 네임스페이스: ai, ingress·web, app, data·batch, monitoring(Prometheus·Grafana), argocd (+kube-system)
   - 실제 이름(2026-10-22, Jira S15P31A102-105): `app`(backend · frontend) · `ai` · `data`(PostgreSQL · Redis) · `envoy-gateway-system`(입구) · `argocd` · `sealed-secrets` · `cert-manager` · `local-path-storage` · `monitoring`. 배치는 아직 없다(만들 때 `data`나 따로)
   - 배포 설정: `infra/k8s/services/<네임스페이스>/`, Argo CD 앱 하나씩(`infra/k8s/apps/templates/`). 이미지 태그는 `infra/k8s/services/app · ai/kustomization.yaml`의 `images` 한 곳 — 바꾸는 길은 아래 「배포 흐름」의 태그 MR
-  - 무중단 교체 조건(아래)을 backend · frontend · ai에 넣었다 — 새 Pod 먼저, 준비 확인(backend는 DB · Redis까지), 끝낼 때 10초. 살아 있는지는 포트만 본다(DB가 잠깐 끊겼다고 재시작하지 않게)
+  - 무중단 교체 조건(아래)을 backend · frontend · ai에 넣었다 — 새 Pod 먼저, 준비 확인(backend는 DB · Redis까지), 끝낼 때 10초. 살아 있는지는 DB를 보지 않는다(DB가 잠깐 끊겼다고 재시작하지 않게). backend는 스프링 전용 주소 `/actuator/health/readiness`(앱 상태 · DB · Redis) · `/liveness`(앱 상태만)에 묻는다(2026-10-28, Jira S15P31A102-29). frontend · ai는 살아 있는지를 포트로 본다
   - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
   - 들어오는 길 네트워크 정책(CiliumNetworkPolicy, 2026-10-27, Jira S15P31A102-121): backend는 Envoy · AI 워커만, frontend는 Envoy만, AI 워커는 아무도(상태 확인은 kubelet), PostgreSQL은 backend · 매일 덤프 잡만, Redis는 backend · AI 워커만 받는다(`infra/k8s/services/<네임스페이스>/netpol.yaml`). 나가는 길은 막지 않는다. 그래서 클러스터 안 시험 Pod로 backend를 직접 부를 수 없다 — `kubectl -n app port-forward svc/backend`로 시험한다. 수집 배치를 만들면(8절) backend · PostgreSQL 길을 더한다
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
@@ -252,7 +252,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - Deployment 기본값 RollingUpdate. Pod가 1개여도 maxSurge 올림·maxUnavailable 내림이라 새 Pod가 먼저 뜬다
 - readiness probe 필수
 - 끝낼 때 preStop으로 잠깐 기다려 Envoy가 그 Pod를 목록에서 뺄 시간을 준다. kind 리허설에서 preStop 10초로 확인했고, 빼면 요청이 실패했다(10절)
-- Spring graceful shutdown(기본 켜짐)
+- Spring graceful shutdown(기본 켜짐). 받은 요청을 마무리하는 상한은 20초 — preStop 10초 + 20초 = 30초가 쿠버네티스 유예 40초 안에 든다. 기본 30초면 40초에 딱 맞물려 강제 종료와 겹친다(2026-10-28, Jira S15P31A102-29, backend `application.yaml`)
 - 배포 중에는 구버전·신버전이 같이 돈다 → DB 변경은 하위 호환으로
 - 배포 순간 Pod 1개 분량의 메모리 여유를 남긴다
 
@@ -344,6 +344,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 숫자 | 어떻게 |
 |---|---|---|---|
+| 2026-10-28 | DB · Redis 가 끊길 때 backend 프로브 답 (Jira S15P31A102-29) | 평소 liveness · readiness 200. DB 를 멈추면 liveness 200(0.003초), readiness 는 1초 안에 답이 없고 30.0초 뒤 503 DOWN. Redis 를 멈추면 readiness 60.0초 뒤 503 DOWN, liveness 200. 다시 켜면 readiness 200 | 관리자 PC 에서 확인용 compose(DB · Redis)에 `bootRun` 을 붙이고 `docker stop` · `start` 하며 `curl --max-time 1`(쿠버네티스 readinessProbe 기본 timeout 과 같게) · `--max-time 90` 으로 잼. 30 · 60초는 Hikari 연결 대기 · Redis 명령 대기 기본값과 같음 |
 | 2026-10-27 | 같은 사건 후보 찾기 — 새 기사 하나에 가까운 사건 5개, 인덱스 없이 (Jira S15P31A102-35, `CandidateEventFinder`) | 사건에 묶인 기사 17,000개(사건 5,000개) · 1024차원: 데워진 뒤 6번 75.8 ~ 81.7ms(중앙값 약 77ms), DB 를 다시 띄운 직후 첫 번 141.9ms. 벡터 표 91 MB, 한 번에 약 10만 8천 페이지를 읽는다(벡터가 TOAST 에 있음). 판정 한 번(GMS 약 6초, 10-23 줄)의 1 ~ 2% 라 HNSW 인덱스는 걸지 않는다 | 이 PC 의 Docker 에서 사이트와 같은 이미지(`pgvector/pgvector:0.8.7-pg18`)를 `--cpus 1.6 --memory 1g`(워커가 계속 쓸 수 있는 CPU · DB Pod 메모리 상한)로, 설정은 기본값(`shared_buffers` 128MB). 무작위 벡터로 채우고 코드와 같은 SQL 을 `EXPLAIN (ANALYZE, BUFFERS)`. 사이트에서는 아직 못 잼(판정할 기사 0건) |
 | 2026-10-27 | 백엔드 린트 후보 여섯 개 — 그때 코드(`backend` 6fd0fec, Java 145개)의 경고 수 · 컴파일 시간 (Jira S15P31A102-124) | 기준 17.3초. Error Prone 기본 +8.0초 · 1건, NullAway ±0 · main 54건(모든 패키지를 볼 때), javac `-Xlint:all` +0.9초 · 11건, Checkstyle(google_checks) +4.3초 · 3620건(3316 이 들여쓰기 · 줄 길이 · 텍스트 블록), PMD(quickstart) +9.4초 · 34건, SpotBugs +17.4초 · 38건(26 이 생성자 주입 오탐). 고른 셋을 붙이고 고친 뒤: 검사를 끈 같은 빌드 9.9초 → 17.3초(**+7.4초**), 경고 0, 테스트 197개 그대로 통과, `/v3/api-docs` 전 · 뒤 같음 | 이 PC(Windows, 데몬 데움)에서 `./gradlew compileJava compileTestJava [+도구 태스크] --rerun-tasks` 를 번갈아 3번 평균. 후보는 임시 init 스크립트로 붙였다. 고친 뒤 기준은 init 스크립트로 Error Prone · 경고 옵션만 끔. 앞 기준(17.3초)과 뒤 기준(9.9초)이 다른 것은 잰 때가 달라서다(앞은 그날 첫 측정들, 뒤는 빌드 캐시 · 데몬이 데워진 뒤) — 늘어난 몫은 같은 회차 안에서 번갈아 잰 값끼리만 견준다 |
 | 2026-10-26 | 직원용 문 출입증 Secret 반영 (!193, Jira S15P31A102-30) | 머지(15:13:47) → app · ai 앱 Synced · Healthy 까지 25초 안. Secret `internal-api` 와 새 backend · ai Pod 가 같은 초(06:13:50Z)에 생겼는데 Pod 안 키 길이 64 · 64 · 64 — 다시 띄우지 않아도 읽었다. 교체 동안 사이트 health 219번 실패 0 · 중앙값 83ms · p99 358ms | 서버에서 `kubectl` 로 Secret · Pod 시각, Pod 안에서는 키 길이와 ai · backend 키의 sha256 같음만 봄(값은 안 찍음). 반영은 5초 간격으로 봄. health 는 관리자 PC 에서 1초마다 `curl`(15:13:26 ~ 15:18:25) |
