@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.jspecify.annotations.Nullable;
 
 // 이슈. 사건 3개가 모이면 ISSUE 단계가 만들고, 이름은 그때 한 번 짓는다 (data-model.md 2절)
 // 요약은 AI 가 만들다 실패하면 비어 있을 수 있다
@@ -24,7 +25,7 @@ public class Issue {
 
     private String title;
 
-    private String summary;
+    private @Nullable String summary;
 
     @CreationTimestamp
     private Instant createdAt;
@@ -32,7 +33,7 @@ public class Issue {
     @UpdateTimestamp
     private Instant updatedAt;
 
-    public Issue(String title, String summary) {
+    public Issue(String title, @Nullable String summary) {
         this.title = title;
         this.summary = summary;
     }
