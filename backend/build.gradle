@@ -3,6 +3,8 @@ plugins {
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'com.diffplug.spotless' version '8.10.4'
+	// 린트 — Error Prone(버그 패턴)과 그 위에 붙는 NullAway(null 검사)를 컴파일 안에서 돌린다 (Jira 124)
+	id 'net.ltgt.errorprone' version '5.1.1'
 }
 
 group = 'kr.io.newlearn'
@@ -48,6 +50,8 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	errorprone 'com.google.errorprone:error_prone_core:2.51.0'
+	errorprone 'com.uber.nullaway:nullaway:0.14.3'
 }
 
 // compose 의 backend 컨테이너는 산출물을 연결한 폴더 밖(볼륨)에 쓴다.
@@ -60,6 +64,31 @@ spotless {
 	java {
 		palantirJavaFormat('2.102.0')
 	}
+}
+
+// 린트 — javac 경고 · Error Prone · NullAway 의 경고는 모두 컴파일 실패다. 쓰는 법 · 끄는 법은 docs/backend-convention.md 9절
+// processing 은 주석 처리기(Lombok)가 받지 않은 주석의 목록일 뿐이라 끈다
+tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs += ['-Xlint:all,-processing', '-Werror']
+	options.errorprone {
+		disableWarningsInGeneratedCode = true
+		check('NullAway', net.ltgt.gradle.errorprone.CheckSeverity.ERROR)
+		// kr.io.newlearn 아래 모든 패키지(새 패키지도)를 null 검사 대상으로 본다. 비는 곳은 org.jspecify.annotations.Nullable 로 표시
+		option('NullAway:AnnotatedPackages', 'kr.io.newlearn')
+		option('NullAway:CustomContractAnnotations', 'org.springframework.lang.Contract')
+		// @Contract 를 단 메서드 본문이 약속을 지키는지도 본다
+		option('NullAway:CheckContracts', 'true')
+		// DB 가 채우는 칸은 저장 전에만 비어 있다. @Nullable 을 달면 getId() 를 부르는 곳마다 null 확인이 번진다
+		option('NullAway:ExcludedFieldAnnotations',
+				'jakarta.persistence.Id,org.hibernate.annotations.CreationTimestamp,org.hibernate.annotations.UpdateTimestamp')
+		// 엔티티의 인자 없는 생성자는 JPA 만 쓰고 칸은 JPA 가 채운다 — 그 생성자만 초기화 검사에서 뺀다(다른 생성자는 본다)
+		option('NullAway:ExternalInitAnnotations', 'jakarta.persistence.Entity,jakarta.persistence.Embeddable')
+	}
+}
+
+// 테스트는 일부러 null 을 넘기는 곳이 많아 NullAway 를 끈다. javac 경고 · Error Prone 기본 검사는 본다
+tasks.named('compileTestJava') {
+	options.errorprone.check('NullAway', net.ltgt.gradle.errorprone.CheckSeverity.OFF)
 }
 
 tasks.named('test') {
