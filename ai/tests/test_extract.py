@@ -79,6 +79,15 @@ def test_resolve_occurred_at(text, expected):
     assert resolve_occurred_at(text, PUB)[0] == expected
 
 
+@pytest.mark.parametrize(
+    "text",
+    ["오는 11월 2일", "오는 28일", "11월 2일", "내일", "다음 주 월요일", "28일 예정"],
+)
+def test_future_expressions_are_not_turned_into_past_dates(text):
+    # MR !272 리뷰: 10/27 기사의 '오는 11월 2일'이 2025-11-02, '오는 28일'이 9/28 로 계산됐다
+    assert resolve_occurred_at(text, "2026-10-27T10:00:00+09:00")[0] is None
+
+
 def test_occurred_at_year_rollover():
     jan = "2027-01-03T09:00:00+09:00"
     assert resolve_occurred_at("지난달 28일", jan)[0] == "2026-12-28T00:00:00+09:00"

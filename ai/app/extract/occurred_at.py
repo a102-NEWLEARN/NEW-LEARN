@@ -4,7 +4,8 @@
 - 「지난 6일」 · 「어제」 같은 상대 날짜는 메시지의 publishedAt 기준. 연도가 바뀌는 경우도 푼다
 - 「현지시간 6일」은 한국 시간으로 옮기지 않고 적힌 날짜 그대로
 - 「지난달」 · 「올해 초」처럼 날짜보다 흐리거나 못 뽑으면 null (API 가 첫 기사 발행 시각으로 채운다)
-- 이미 일어난 일인데 발행 시각보다 뒤로 계산되면 null
+- 이미 일어난 일인데 발행 시각보다 뒤로 계산되거나, 「오는 28일」 · 「내일」처럼 앞일 표현이면 null
+- 연도 없는 날짜는 발행 달보다 6달 넘게 뒤일 때만 지난해로 본다(1월 기사의 「12월 28일」)
 """
 
 import re
@@ -23,6 +24,8 @@ _FUZZY = re.compile(
     r"지난주|이번\s*주|지난달|이달|올해|지난해|작년|최근|연초|연말"
     r"|초순|중순|하순|상반기|하반기|분기|무렵|께$"
 )
+# 대표 사건은 이미 일어난 행위다. 앞일을 가리키는 표현은 날짜를 풀지 않는다
+_FUTURE = re.compile(r"오는|다음\s*(?:달|주)|내달|내주|내일|모레|내년|예정")
 _RELATIVE_DAYS = (
     ("그저께", 2),
     ("그제", 2),
@@ -67,9 +70,17 @@ def _clock(text: str) -> tuple[int, int] | None:
     return None
 
 
+def _year_of(month: int, pub: datetime) -> int:
+    # 발행 달보다 6달 넘게 뒤인 달이면 지난해(1월 기사의 '12월 28일'). 가까운 뒤 달은 올해로 두어
+    # 발행 뒤 날짜 검사에서 null 이 되게 한다(10월 기사의 '11월 2일'을 지난해로 돌리지 않는다)
+    return pub.year - (month - pub.month > 6)
+
+
 def _date(text: str, pub: datetime) -> tuple[int, int, int]:
-    """(연, 월, 일). 못 풀거나 흐리면 _Unresolved."""
+    """(연, 월, 일). 못 풀거나 흐리거나 앞일이면 _Unresolved."""
     t = text.replace("현지시간", "").replace("현지 시간", "")
+    if _FUTURE.search(t):
+        raise _Unresolved("앞일 표현")
     md = list(_MD.finditer(t))
     days = list(_D.finditer(_MD.sub(" ", t)))
     slash = list(_SLASH.finditer(t))
@@ -79,21 +90,18 @@ def _date(text: str, pub: datetime) -> tuple[int, int, int]:
         m = md[0]
         if m[1]:
             y = int(m[1])
+        elif re.search("지난해|작년", t):
+            y = pub.year - 1
         else:
-            y = pub.year - bool(re.search("지난해|작년", t)) + ("내년" in t)
-            # 연도 없는 1월 기사의 '12월 28일' — 발행일보다 뒤인 달이면 지난해
-            if not re.search("지난해|작년|내년", t) and int(m[2]) > pub.month:
-                y -= 1
+            y = _year_of(int(m[2]), pub)
         return y, int(m[2]), int(m[3])
     if slash:
         mo, d = int(slash[0][1]), int(slash[0][2])
-        return pub.year - (mo > pub.month), mo, d
+        return _year_of(mo, pub), mo, d
     if days:
         d = int(days[0][1])
         if "지난달" in t:
             y, mo = _shift_month(pub.year, pub.month, -1)
-        elif re.search(r"다음\s*달|내달", t):
-            y, mo = _shift_month(pub.year, pub.month, 1)
         elif d > pub.day:
             # '지난 28일'이 발행일보다 큰 날이면 지난달(1월 기사면 연도도 바뀐다)
             y, mo = _shift_month(pub.year, pub.month, -1)
