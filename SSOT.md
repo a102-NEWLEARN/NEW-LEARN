@@ -50,6 +50,10 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 사건 패널·관련 기사(A5·A6)의 조회 계약은 `docs/api-screen.md` 1·2절,
 구현 성공 기준은 `docs/specs/F08-event-panel-api.md`를 따른다.
 
+내 정보·관심 분야 교체(A17·A18)의 계약은 `docs/api-screen.md` 1·2절,
+성공 기준은 `docs/specs/F12-member-profile-api.md`를 따른다. 인증 기반은 Jira 62의
+`MemberPrincipal`·회원 응답과 `docs/backend-convention.md` 5절을 재사용한다.
+
 ## 3. 분석 파이프라인
 
 > 이 절은 전부 초안이다. AI 담당(강유진, 황도경) 확인 필요.

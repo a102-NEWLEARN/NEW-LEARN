@@ -38,7 +38,9 @@ class OpenApiDocsTest {
             "/api/v1/events/{eventId}/articles", "A6",
             "/api/v1/articles", "A7",
             "/api/v1/articles/{articleId}", "A8",
-            "/api/v1/articles/{articleId}/mindmap", "A9");
+            "/api/v1/articles/{articleId}/mindmap", "A9",
+            // Map.of 는 10쌍까지다 — 더 늘리면 Map.ofEntries 로 바꾼다
+            "/api/v1/members/me", "A17");
 
     @Autowired
     MockMvc mvc;
@@ -200,5 +202,35 @@ class OpenApiDocsTest {
         result.andExpect(jsonPath(signUp + ".responses['409'].description", containsString("LOGIN_ID_TAKEN")))
                 .andExpect(jsonPath(login + ".responses['401'].description", containsString("LOGIN_FAILED")))
                 .andExpect(jsonPath(login + ".responses['429'].description", containsString("TOO_MANY_REQUESTS")));
+    }
+
+    @Test
+    void memberProfileApisReuseMemberSchemaAndHidePrincipal() throws Exception {
+        String profile = op("/api/v1/members/me");
+        String change = op("put", "/api/v1/members/me/categories");
+        var result = docs();
+        result.andExpect(jsonPath(change + ".summary", startsWith("[확정] A18 ")))
+                .andExpect(jsonPath(profile + ".parameters").doesNotExist())
+                .andExpect(jsonPath(change + ".parameters").doesNotExist())
+                .andExpect(jsonPath(change + ".requestBody.required").value(true))
+                .andExpect(jsonPath(profile + ".tags[0]").value("회원"))
+                .andExpect(jsonPath(change + ".tags[0]").value("회원"));
+        for (String operation : new String[] {profile, change}) {
+            result.andExpect(jsonPath(
+                            operation + ".responses['200'].content['application/json'].schema['$ref']",
+                            endsWith("/MemberResponse")))
+                    .andExpect(jsonPath(operation + ".responses['401'].description", containsString("UNAUTHORIZED")))
+                    .andExpect(jsonPath(
+                            operation + ".responses['401'].content['application/problem+json'].schema['$ref']",
+                            endsWith("/Problem")));
+        }
+        result.andExpect(jsonPath(change + ".responses['400'].description", containsString("VALIDATION_FAILED")))
+                .andExpect(jsonPath(change + ".responses['403'].description", containsString("FORBIDDEN")))
+                .andExpect(jsonPath(
+                        change + ".responses['400'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")))
+                .andExpect(jsonPath(
+                        change + ".responses['403'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")));
     }
 }
