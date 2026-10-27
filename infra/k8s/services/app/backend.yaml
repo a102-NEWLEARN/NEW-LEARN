@@ -74,24 +74,29 @@ spec:
           envFrom:
             - secretRef:
                 name: postgres-auth
+          # 프로브는 스프링 전용 주소에 묻는다 (Jira 29). 무엇을 보는지는 backend 의 application.yaml 「management」
           # 처음 뜰 때 Flyway 마이그레이션까지 3분 안
           startupProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
             failureThreshold: 36
-          # DB · Redis 가 안 되면 요청을 받지 않는다 (health 에 둘 다 들어 있다)
+          # DB · Redis 가 안 되면 요청을 받지 않는다 (readiness 그룹에 둘 다 들어 있다). 끊기면 앱이 30 · 60초 붙잡아
+          # 기본 timeout 1초에 실패로 잡힌다 — 두 번(10초)이면 Envoy 목록에서 빠진다 (SSOT 10절 2026-10-28)
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 5
             failureThreshold: 2
-          # 프로세스가 멈췄을 때만 다시 띄운다 — DB 가 잠깐 끊겼다고 재시작하지 않게 포트만 본다
+          # 앱이 망가졌을 때만 다시 띄운다 — liveness 그룹은 DB · Redis 를 보지 않아 DB 가 잠깐 끊겼다고 재시작하지 않는다
+          # 포트만 보던 것을 앱이 실제로 답하는지로 바꿨다. 잠깐 느려도 재시작하지 않게 timeout 3초 · 20초마다 3번
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/liveness
               port: http
+            timeoutSeconds: 3
             periodSeconds: 20
             failureThreshold: 3
           lifecycle:
