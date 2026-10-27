@@ -2,6 +2,7 @@ package kr.io.newlearn.analysis.dto;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
 // W1 봉투 — 모든 단계가 같은 봉투를 쓰고 result 만 단계마다 다르다 (docs/api-internal.md 5절)
@@ -25,7 +26,7 @@ public record JobResultRequest(
     public record JobError(String code, String message) {}
 
     // 봉투 안끼리 맞지 않는 곳. 맞으면 null
-    public String problem() {
+    public @Nullable String problem() {
         if (status == null) {
             return "status 가 없다";
         }

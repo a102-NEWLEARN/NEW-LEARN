@@ -3,6 +3,7 @@ package kr.io.newlearn.press;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import java.io.Serial;
 import java.io.Serializable;
 import kr.io.newlearn.common.MappingSource;
 import lombok.AccessLevel;
@@ -16,6 +17,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode
 public class PressMappingId implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @Enumerated(EnumType.STRING)
     private MappingSource source;

@@ -1,6 +1,7 @@
 package kr.io.newlearn.issue;
 
 import jakarta.persistence.Embeddable;
+import java.io.Serial;
 import java.io.Serializable;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -13,6 +14,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode
 public class IssueCategoryId implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     private Long issueId;
 

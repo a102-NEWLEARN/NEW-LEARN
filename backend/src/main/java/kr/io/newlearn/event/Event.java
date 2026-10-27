@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.jspecify.annotations.Nullable;
 
 // 사건. 동일 사건 판정(MATCH_EVENT)이 새 사건이라고 하면 이름 · 키워드 · 요약과 함께 만든다 (data-model.md 2절)
 // 처음엔 이슈 밖에 있고(issue 가 비어 있음), ISSUE 단계가 이슈에 붙인다
@@ -31,13 +32,13 @@ public class Event {
     // LAZY: 사건을 읽을 때 이슈까지 같이 읽지 않고, getIssue() 로 이슈 칸을 처음 쓸 때 읽는다
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "issue_id")
-    private Issue issue;
+    private @Nullable Issue issue;
 
     private String title;
 
     private String label;
 
-    private String summary;
+    private @Nullable String summary;
 
     private Instant occurredAt;
 
@@ -50,7 +51,8 @@ public class Event {
     @UpdateTimestamp
     private Instant updatedAt;
 
-    public Event(String title, String label, String summary, Instant occurredAt, OccurredAtBasis occurredAtBasis) {
+    public Event(
+            String title, String label, @Nullable String summary, Instant occurredAt, OccurredAtBasis occurredAtBasis) {
         this.title = title;
         this.label = label;
         this.summary = summary;
