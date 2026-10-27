@@ -141,7 +141,7 @@ erDiagram
     bigint article_id PK, FK
     text summary "우리 AI 기사 요약, 비워도 됨"
     jsonb content "가지 4개, 잎, 근거"
-    int primary_core_index "대표 사건 잎 번호, 다음 마이그레이션에서 더함"
+    int primary_core_index "대표 사건 잎 번호 (V5)"
     timestamptz occurred_at "대표 사건의 발생 시점"
     text schema_version "content 형식 버전"
     text model "LLM 모델 이름"
@@ -346,7 +346,7 @@ erDiagram
 | `article_id` | bigint | 기본 키 · 외래 키 | 어느 기사의 결과인가. 기사 하나에 결과 하나다 |
 | `summary` | text | 아니오 | 우리 AI 가 만든 기사 요약. 기사 목록 · 사건 패널에 쓰려고 jsonb 밖에 둔다. GMS 토큰을 아끼려고 나중에 만들지 않을 수 있어 비워도 된다(2026-10-19). 화면은 AI 생성 표시를 붙인다(PRD FR-2) |
 | `content` | jsonb | 예 | 가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망)와 그 아래 잎(문장), 잎마다 선택 칸인 근거. 내용이 있는 가지만 들어간다(2026-10-21). 모양은 `docs/api-screen.md` 3절 |
-| `primary_core_index` | int | 아니오 | 대표 사건 — `content` 의 `CORE` 가지 잎 중 몇 번째인가(0부터). 비어 있으면 특정 사건이 없는 기사라 동일 사건 판정을 걸지 않는다(`docs/api-internal.md` 3절, 2026-10-26). **다음 마이그레이션에서 더한다** |
+| `primary_core_index` | int | 아니오 | 대표 사건 — `content` 의 `CORE` 가지 잎 중 몇 번째인가(0부터). 비어 있으면 특정 사건이 없는 기사라 동일 사건 판정을 걸지 않는다(`docs/api-internal.md` 3절, 2026-10-26). V5 에서 더했다(2026-10-27, Jira 56). 0 이상 |
 | `occurred_at` | timestamptz | 아니오 | 대표 사건의 발생 시점. 새 사건을 만들 때와 동일 사건 판정에 쓴다. 날짜까지만 있으면 그날 0시(`+09:00`)로 넣고 정밀도 칸은 두지 않는다 — 화면이 날짜만 보여서다. 시각을 보이는 화면이 생기면 더한다(2026-10-23 AI 동의). 못 뽑았거나 대표 사건이 없으면 비운다. 뽑는 규칙은 `docs/api-internal.md` 5절 `EXTRACT` |
 | `schema_version` | text | 예 | `content` 모양의 버전(`mindmap-v1`) |
 | `model` | text | 예 | 결과를 만든 LLM 모델 이름 |

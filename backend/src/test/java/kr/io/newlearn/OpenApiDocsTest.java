@@ -1,5 +1,6 @@
 package kr.io.newlearn;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
@@ -36,7 +37,8 @@ class OpenApiDocsTest {
             "/api/v1/events/{eventId}", "A5",
             "/api/v1/events/{eventId}/articles", "A6",
             "/api/v1/articles", "A7",
-            "/api/v1/articles/{articleId}", "A8");
+            "/api/v1/articles/{articleId}", "A8",
+            "/api/v1/articles/{articleId}/mindmap", "A9");
 
     @Autowired
     MockMvc mvc;
@@ -145,6 +147,13 @@ class OpenApiDocsTest {
                         containsString("ISSUE_NOT_FOUND")))
                 .andExpect(jsonPath(op("/api/v1/issues/{issueId}")
                                 + ".responses['404'].content['application/problem+json']")
+                        .exists())
+                // A9 는 404 가 둘이다 — 기사가 없음과 결과가 없음
+                .andExpect(jsonPath(
+                        op("/api/v1/articles/{articleId}/mindmap") + ".responses['404'].description",
+                        allOf(containsString("ARTICLE_NOT_FOUND"), containsString("MINDMAP_NOT_FOUND"))))
+                .andExpect(jsonPath(op("/api/v1/articles/{articleId}/mindmap")
+                                + ".responses['400'].content['application/problem+json']")
                         .exists());
         // 오류 본문의 모양은 실제 응답과 같아야 한다 — 화면이 가르는 code 와 칸별 errors 가 맨 위에 있다
         result.andExpect(jsonPath(
