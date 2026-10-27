@@ -206,7 +206,7 @@ flowchart LR
 | `primaryCoreIndex` 가 정수가 아님(`"0"` 같은 글자 포함) | 400 |
 | `primaryCoreIndex` 가 있는데 `occurredAt` 을 시각으로 못 읽음 | 400 — 흐린 날짜는 null 로 보내기로 했다(위 표) |
 | `summary` 가 문자열도 null 도 아님 | 400 |
-| 저장하는 글자(`summary` · `mindmap.title` · 잎 `text`)에 U+0000 | 400 — PostgreSQL text · jsonb 가 받지 않아 그대로 두면 저장 때 500 이다 |
+| 저장하는 글자(`summary` · `mindmap.title` · 잎 `text` · 봉투의 `model` · `promptVersion`)에 U+0000 | 400 — PostgreSQL text · jsonb 가 받지 않아 그대로 두면 저장 때 500 이다 |
 | `occurredAt` 의 연도가 1 ~ 9999 밖 | 400 — 같은 까닭(timestamptz 범위) |
 | 성공인데 봉투의 `model` · `promptVersion` 이 없음 | 400 — `article_mindmap` 에서 필수 칸이다 |
 | 가지 순서가 `api-screen.md` 3절 표와 다름 | 표 순서로 바꿔 저장 |
