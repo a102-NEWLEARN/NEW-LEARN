@@ -108,6 +108,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
     - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. Lightsail 공인 IP에서 오는 WireGuard 51820/udp 하나만 더 연다. 쿠버네티스 포트(6443·10250·Cilium)는 WireGuard 터널 안으로만 다녀서 밖에 열지 않는다(아래 「노드 사이 — 호스트 WireGuard」). kubectl은 SSH 터널로 6443에 붙는다
     - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다. 2026-10-22 받은 날 확인: 돌아오는 WireGuard UDP가 지나가고, SSAFY 쪽 방화벽에서 80 · 443이 열려 있다(아래 「현재 상태」). 서버 안 방화벽(ufw)은 지급 때 22만 열려 있다
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
+    - SSH 22는 출발지를 좁히지 않는다(2026-10-27 사용자 결정, Jira S15P31A102-122). 관리 서버와 달리 SSAFY가 만든 서버이고 접속 키(pem)를 팀 방에 공유받아 팀원 · SSAFY도 같은 키로 들어온다 — 최근 7일 키 로그인 출발지 3곳 중 1곳이 관리자 IP 밖이었다. Lightsail 콘솔이 없어 잘못 잠그면 되살릴 화면도 없다. 대신 sshd는 키 로그인만 받는다(비밀번호 · 키보드 입력 로그인 꺼짐, root는 키로만). 바깥에서 22가 열려 있는 것(관리 서버에서 대조로 2222는 닫힘)과 하루 낯선 시도 3번은 확인했다. 더 지킨다면 문보다 키 쪽 — 공유된 키를 바꾸는 일은 SSAFY · 팀과 함께 정한다
 - 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버의 클러스터 안 Pod — Kubernetes executor)
   - SSAFY GitLab은 Community Edition 18.11.5다(2026-10-18 API, 2026-10-20 Help 화면으로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서(인스턴스 · 그룹 러너 0개) CI는 러너를 직접 둬야 돈다
   - 러너는 서버에 Docker를 깔지 않고 Pod로 띄운다 — Docker를 깔면 kubelet과 containerd를 같이 쓰고, Docker의 iptables 규칙이 Cilium(호스트 라우팅 Legacy · iptables 마스커레이드)과 같은 표를 만진다. 잡도 잡마다 Pod로 떴다 사라진다(2026-10-20 결정, Jira S15P31A102-89)

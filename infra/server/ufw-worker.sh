@@ -26,6 +26,7 @@ ufw status verbose
 
 log "1/4 SSH 를 켜기 전에 연다"
 # 켤 때 지금 SSH 가 끊길 수 있다 — ufw(8): 「it may drop existing connections (eg ssh)」
+# 출발지는 일부러 좁히지 않는다 — SSAFY 서버 · 팀이 같이 쓰는 키라서 (SSOT.md 6절 「서비스 서버(워커)」, Jira S15P31A102-122)
 ufw allow 22/tcp
 
 log "2/4 80 · 443 · wg0"
