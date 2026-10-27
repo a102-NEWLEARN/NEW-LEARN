@@ -12,8 +12,11 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -34,6 +37,7 @@ import tools.jackson.databind.json.JsonMapper;
             "newlearn.internal.worker-key=" + MindmapApiIntegrationTest.WORKER_KEY,
             "newlearn.internal.batch-key=batch-key-for-mindmap-test"
         })
+@ExtendWith(OutputCaptureExtension.class)
 class MindmapApiIntegrationTest {
 
     static final String WORKER_KEY = "worker-key-for-mindmap-test";
@@ -79,7 +83,7 @@ class MindmapApiIntegrationTest {
 
     // AC-1 · AC-2 · AC-4 — 저장하고 공개한다. 본문과 맞는 근거만 남고 잎은 다 남는다. 가지는 표 순서로
     @Test
-    void extractSuccessStoresTheMindmapAndReleasesTheArticle() throws Exception {
+    void extractSuccessStoresTheMindmapAndReleasesTheArticle(CapturedOutput output) throws Exception {
         long job = extractJob(1);
 
         w1(job, envelope(1, "\"gpt-6-luna\"", """
@@ -125,6 +129,8 @@ class MindmapApiIntegrationTest {
 
         assertThat(releasedAt()).isNotNull();
         assertThat(jobStatus(job)).isEqualTo("SUCCEEDED");
+        // 지운 근거 = 한 글자 다름 · 범위 밖 문단 · 모양 틀림 3개. 평가에 쓰는 로그다
+        assertThat(output.getOut()).contains("articleId=" + ARTICLE, "근거 남김=2 지움=3");
     }
 
     // AC-3 — 거절이면 아무것도 저장하지 않고 공개하지 않는다. 시도 2 를 바로 건다
@@ -159,6 +165,43 @@ class MindmapApiIntegrationTest {
         assertThat(mindmapCount()).isZero();
     }
 
+    @Test
+    void extractWithBlankPromptVersionIsRejected() throws Exception {
+        long job = extractJob(1);
+        String body = envelope(1, "\"gpt-6-luna\"", """
+                        {"schemaVersion": "mindmap-v1", "mindmap": {"branches": [{"type": "CORE", "items": [{"text": "잎"}]}]}}""").replace("\"extract-v1\"", "\"  \"");
+
+        w1(job, body)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(mindmapCount()).isZero();
+    }
+
+    // AC-3 · AC-5 — 다시 분석 결과가 거절되면 옛 마인드맵을 그대로 둔다 (data-model.md article_mindmap)
+    @Test
+    void rejectedReanalysisKeepsTheOldMindmap() throws Exception {
+        release();
+        mindmapRow("{\"title\": null, \"branches\": [{\"type\": \"CORE\", \"items\": [{\"text\": \"옛 잎\"}]}]}");
+        long job = extractJob(1);
+
+        w1(job, envelope(1, "\"gpt-6-luna\"", """
+                        {"schemaVersion": "mindmap-v2", "mindmap": {"branches": [{"type": "CORE", "items": [{"text": "새 잎"}]}]}}""")).andExpect(status().isBadRequest());
+
+        assertThat(mindmapCount()).isEqualTo(1);
+        assertThat(content()
+                        .get("branches")
+                        .get(0)
+                        .get("items")
+                        .get(0)
+                        .get("text")
+                        .asString())
+                .isEqualTo("옛 잎");
+        mvc.perform(get("/api/v1/articles/{id}/mindmap", ARTICLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.branches[0].items[0].text").value("옛 잎"));
+    }
+
     // AC-5 · AC-4 — 이미 마인드맵이 있으면 덮어쓴다. 공개 시각은 그대로. 대표 사건이 없으면 시점도 비운다
     @Test
     void successOverwritesAnExistingMindmapAndKeepsTheReleaseTime() throws Exception {
@@ -187,6 +230,7 @@ class MindmapApiIntegrationTest {
                 .containsEntry("primary_core_index", null)
                 .containsEntry("occurred_at", null);
         assertThat(content().get("branches").get(0).get("type").asString()).isEqualTo("CAUSE");
+        assertThat(instant("generated_at")).isEqualTo(Instant.parse("2026-10-26T00:00:30Z"));
         assertThat(releasedAt()).isEqualTo(Instant.parse("2026-10-06T02:00:00Z"));
     }
 

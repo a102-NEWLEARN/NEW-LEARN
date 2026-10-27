@@ -11,9 +11,8 @@ final class EvidenceChecker {
     private final List<String> paragraphs;
 
     EvidenceChecker(String body) {
-        // \r\n 의 \r 은 strip() 이 지운다
         this.paragraphs = Arrays.stream(body.split("\n"))
-                .map(String::strip)
+                .map(EvidenceChecker::strip)
                 .filter(line -> !line.isEmpty())
                 .toList();
     }
@@ -28,5 +27,24 @@ final class EvidenceChecker {
             return false;
         }
         return paragraphs.get(paragraphIndex).contains(text);
+    }
+
+    // Python str.strip() 과 같은 글자를 지운다. String.strip() 은 줄바꿈 없는 공백(U+00A0 · U+2007 · U+202F)과
+    // U+0085 를 남겨서, 그 글자만 있는 줄이 문단으로 세어지면 뒤 문단 번호가 워커와 어긋난다(리뷰, 2026-10-27)
+    private static String strip(String line) {
+        int start = 0;
+        int end = line.length();
+        while (start < end && isPythonSpace(line.charAt(start))) {
+            start++;
+        }
+        while (end > start && isPythonSpace(line.charAt(end - 1))) {
+            end--;
+        }
+        return line.substring(start, end);
+    }
+
+    // Python str.isspace() 와 같은 판정 — 2026-10-27 Python 3.11 과 글자 21개로 대조했다 (EvidenceCheckerTest)
+    private static boolean isPythonSpace(char c) {
+        return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '\u0085';
     }
 }

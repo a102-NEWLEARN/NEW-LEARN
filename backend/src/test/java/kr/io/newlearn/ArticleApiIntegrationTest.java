@@ -119,6 +119,8 @@ class ArticleApiIntegrationTest {
         mvc.perform(get("/api/v1/articles/4206"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.event.id").value(4201))
+                // 사건에 이미 묶였으면 대표 사건 번호가 비어도 NO_EVENT 가 아니다 (Jira 56 리뷰)
+                .andExpect(jsonPath("$.eventMatchStatus").value("NONE"))
                 .andExpect(jsonPath("$.issue").isEmpty());
     }
 

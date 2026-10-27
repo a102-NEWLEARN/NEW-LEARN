@@ -25,7 +25,7 @@ public class MindmapController {
     @Operation(
             summary = "[확정] A9 기사 마인드맵",
             description = "가지(CORE 핵심 내용 · CAUSE 원인·배경 · REACTION 반응 · OUTLOOK 전망)와 잎을 줍니다. "
-                    + "내용이 있는 가지만, 이 순서대로 옵니다. 가운데 글자는 기사 제목이고, 근거 문장은 내보내지 않습니다.")
+                    + "내용이 있는 가지만, 이 순서대로 옵니다. 가운데 글자는 AI 가 지은 제목이 없으면 기사 제목이고, 근거 문장은 내보내지 않습니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",

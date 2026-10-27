@@ -106,6 +106,14 @@ class ExtractResultTest {
     }
 
     @Test
+    void nonStringTitleIsDropped() {
+        var read = ExtractResult.read(json("""
+                {"schemaVersion": "mindmap-v1", "mindmap": {"title": 3, "branches": [%s]}}""".formatted(CORE_TWO)));
+
+        assertThat(read.mindmap().title()).isNull();
+    }
+
+    @Test
     void occurredAtIsDroppedWithoutPrimaryCore() {
         var read = ExtractResult.read(json(result("[" + CORE_TWO + "]", "null", "\"2026-10-06T00:00:00+09:00\"")));
 
@@ -135,6 +143,14 @@ class ExtractResultTest {
                         [{"type": "CAUSE", "items": [{"text": "배경"}]}]""", "0", "null")),
                 Arguments.of("번호가 정수가 아님", result("[" + CORE_TWO + "]", "\"0\"", "null")),
                 Arguments.of("시점을 시각으로 못 읽음", result("[" + CORE_TWO + "]", "0", "\"지난달\"")),
+                // DB 가 받지 못하는 값 — 그대로 두면 저장(커밋) 때 500 이 된다 (리뷰, 2026-10-27)
+                Arguments.of("시점 연도가 9999 밖", result("[" + CORE_TWO + "]", "0", "\"+300000-01-01T00:00:00+09:00\"")),
+                Arguments.of("잎 글자에 NUL", result("""
+                        [{"type": "CORE", "items": [{"text": "잎\\u0000"}]}]""", "null", "null")),
+                Arguments.of("요약에 NUL", """
+                        {"summary": "요약\\u0000", "schemaVersion": "mindmap-v1", "mindmap": {"branches": [%s]}}""".formatted(CORE_TWO)),
+                Arguments.of("가운데 글자에 NUL", """
+                        {"schemaVersion": "mindmap-v1", "mindmap": {"title": "제목\\u0000", "branches": [%s]}}""".formatted(CORE_TWO)),
                 Arguments.of("요약이 문자열이 아님", """
                         {"summary": 3, "schemaVersion": "mindmap-v1", "mindmap": {"branches": [%s]}}""".formatted(CORE_TWO)));
     }

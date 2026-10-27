@@ -14,6 +14,16 @@ class EvidenceCheckerTest {
         assertThat(checker.paragraphs()).containsExactly("첫 문단입니다.", "둘째 문단", "셋째 문단");
     }
 
+    // 워커(Python)의 str.strip() 과 같은 글자를 공백으로 본다 — 줄바꿈 없는 공백만 있는 줄도 빈 줄이다.
+    // 기대값은 Python 으로 같은 본문을 나눈 결과다(2026-10-27). 폭 없는 공백(U+200B)은 Python 도 남긴다
+    @Test
+    void paragraphsTrimTheSameWhitespaceAsPythonStrip() {
+        var checker = new EvidenceChecker("  첫 문단\n \n둘째 문단\n　\n\u0085\n 셋째 \n​\n");
+
+        assertThat(checker.paragraphs()).containsExactly("첫 문단", "둘째 문단", "셋째", "​");
+        assertThat(checker.matches(2, "셋째")).isTrue();
+    }
+
     @Test
     void bodyWithoutLineBreaksIsOneParagraph() {
         var checker = new EvidenceChecker("NewsData 본문은 줄바꿈이 없다. 그래서 문단이 하나다.");

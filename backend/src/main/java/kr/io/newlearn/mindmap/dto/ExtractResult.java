@@ -56,12 +56,13 @@ public record ExtractResult(
             }
             // 가운데 글자는 비어도 화면이 기사 제목을 쓴다 — 모양이 틀리면 버린다
             var title = mindmap.path("title");
-            var content = new MindmapContent(title.isString() ? title.stringValue() : null, branches(mindmap));
+            var content = new MindmapContent(
+                    title.isString() ? storable(title.stringValue(), "mindmap.title") : null, branches(mindmap));
             var primaryCoreIndex = primaryCoreIndex(result.path("primaryCoreIndex"), content);
             // 대표 사건이 없으면 그 시점도 없다 — 온 값은 읽지 않는다
             var occurredAt = primaryCoreIndex == null ? null : occurredAt(result.path("occurredAt"));
             return new ExtractResult(
-                    summary.isString() ? summary.stringValue() : null,
+                    summary.isString() ? storable(summary.stringValue(), "summary") : null,
                     SCHEMA_VERSION,
                     content,
                     primaryCoreIndex,
@@ -109,7 +110,7 @@ public record ExtractResult(
                 if (!text.isString() || text.stringValue().isBlank()) {
                     throw invalid(type + " 가지 " + items.size() + "번 잎의 text 가 비었다");
                 }
-                items.add(new Item(text.stringValue(), evidence(item.path("evidence"))));
+                items.add(new Item(storable(text.stringValue(), type + " 가지 잎"), evidence(item.path("evidence"))));
             }
             return List.copyOf(items);
         }
@@ -161,12 +162,25 @@ public record ExtractResult(
             if (absent(node)) {
                 return null;
             }
+            OffsetDateTime at;
             try {
-                return OffsetDateTime.parse(node.isString() ? node.stringValue() : "")
-                        .toInstant();
+                at = OffsetDateTime.parse(node.isString() ? node.stringValue() : "");
             } catch (DateTimeParseException e) {
                 throw invalid("occurredAt 을 시각으로 읽지 못했다: " + node);
             }
+            // PostgreSQL timestamptz 보다 넓게 읽혀서(+300000년 등) 그대로 두면 저장 때 500 이다
+            if (at.getYear() < 1 || at.getYear() > 9999) {
+                throw invalid("occurredAt 의 연도가 1 ~ 9999 밖이다: " + node);
+            }
+            return at.toInstant();
+        }
+
+        // PostgreSQL 의 text · jsonb 는 U+0000 을 받지 않는다 — 그대로 두면 저장(커밋) 때 500 이다
+        private static String storable(String value, String field) {
+            if (value.indexOf('\u0000') >= 0) {
+                throw invalid(field + " 에 DB 에 넣을 수 없는 글자(U+0000)가 있다");
+            }
+            return value;
         }
 
         private static boolean absent(JsonNode node) {

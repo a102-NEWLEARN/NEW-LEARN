@@ -190,6 +190,8 @@ flowchart LR
 | `primaryCoreIndex` 가 정수가 아님(`"0"` 같은 글자 포함) | 400 |
 | `primaryCoreIndex` 가 있는데 `occurredAt` 을 시각으로 못 읽음 | 400 — 흐린 날짜는 null 로 보내기로 했다(위 표) |
 | `summary` 가 문자열도 null 도 아님 | 400 |
+| 저장하는 글자(`summary` · `mindmap.title` · 잎 `text`)에 U+0000 | 400 — PostgreSQL text · jsonb 가 받지 않아 그대로 두면 저장 때 500 이다 |
+| `occurredAt` 의 연도가 1 ~ 9999 밖 | 400 — 같은 까닭(timestamptz 범위) |
 | 성공인데 봉투의 `model` · `promptVersion` 이 없음 | 400 — `article_mindmap` 에서 필수 칸이다 |
 | 가지 순서가 `api-screen.md` 3절 표와 다름 | 표 순서로 바꿔 저장 |
 | `evidence` 가 배열이 아님, 또는 근거 하나에 `text`(글자) · `paragraphIndex` · `sentenceIndex`(정수) 중 빠지거나 타입이 틀린 칸 | 그 근거만 지운다. 본문과 맞지 않는 근거와 같이 세어 로그에 남긴다 |
@@ -263,4 +265,4 @@ stateDiagram-v2
 | 화면 필드 | 어떻게 정하나 | 쓰는 곳 |
 |---|---|---|
 | `mindmapStatus` | 마인드맵 결과(`article_mindmap`)가 있으면 다시 분석하는 중이어도 `SUCCEEDED`. 없으면 `EXTRACT` 작업 상태를 그대로 반환한다(`QUEUED` · `SUCCEEDED` · `FAILED`). 결과 없이 작업만 성공이어도 `SUCCEEDED`이며 별도 저장 금지 규칙은 추가하지 않는다(2026-10-23 팀장 확인). 마인드맵 결과가 없는데 `EXTRACT` 가 `INPUT_NOT_ANALYZABLE` 로 실패했으면 `FAILED` 대신 `NOT_ANALYZABLE` — 「분석하지 못했어요」와 「분석할 내용이 없는 기사」를 가른다. 그래서 `NOT_ANALYZABLE` 은 첫 분석에서만 나온다. 다시 분석이 실패하면(이 코드 포함) 옛 마인드맵을 그대로 보이고 실패는 작업 장부(`analysis_job.error_code`)에만 남긴다 — GMS 여유가 있을 때 한꺼번에 다시 돌린다(2026-10-26 BE 결정). 작업도 없으면 `NONE` | A6 · A7 · A8 |
-| `eventMatchStatus` | `MATCH_EVENT` 작업의 상태. 작업이 없을 때, `EXTRACT` 가 성공했고 `primaryCoreIndex` 가 null 이면 `NO_EVENT`(대표 사건이 없어 판정을 걸지 않음), 그 밖에는 `NONE`(아직 걸지 않음 — `EXTRACT` · `EMBED` 를 기다리는 중) (2026-10-26) | A8 |
+| `eventMatchStatus` | `MATCH_EVENT` 작업의 상태. 작업이 없을 때, 마인드맵 결과(`article_mindmap`)가 있고 그 `primary_core_index` 가 null 이며 사건에 묶이지 않았으면 `NO_EVENT`(대표 사건이 없어 판정을 걸지 않음), 그 밖에는 `NONE`(아직 걸지 않음 — `EXTRACT` · `EMBED` 를 기다리는 중) (2026-10-26, 조건은 2026-10-27 Jira 56). 다시 분석하는 중에는 옛 결과로 정한다 — `mindmapStatus` 와 같다 | A8 |
