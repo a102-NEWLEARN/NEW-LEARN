@@ -8,6 +8,7 @@ import kr.io.newlearn.category.dto.CategoryRef;
 import kr.io.newlearn.common.error.ApiException;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.FieldErrorItem;
+import kr.io.newlearn.member.dto.ChangeCategoriesRequest;
 import kr.io.newlearn.member.dto.MemberResponse;
 import kr.io.newlearn.member.dto.SignUpRequest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,12 +48,7 @@ public class MemberService {
         if (tooLongForHash(request.password())) {
             throw invalid("password", "비밀번호가 너무 길어요");
         }
-        // 같은 코드가 두 번 오면 하나로 합친다. 하나라도 없는 코드면 요청 본문 값이라 400(404 아님)
-        List<String> codes = request.categoryCodes().stream().distinct().toList();
-        List<Category> chosen = categories.findAllById(codes);
-        if (chosen.size() != codes.size()) {
-            throw invalid("categoryCodes", "없는 관심 분야가 있어요");
-        }
+        List<Category> chosen = chosenCategories(request.categoryCodes());
         Member member;
         try {
             member = members.saveAndFlush(
@@ -69,6 +65,33 @@ public class MemberService {
         Member member = members.findById(memberId)
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "세션의 회원이 없다: " + memberId));
         return toResponse(member);
+    }
+
+    @Transactional
+    public MemberResponse changeCategories(long memberId, ChangeCategoriesRequest request) {
+        Member member = members.findForUpdateById(memberId)
+                .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "세션의 회원이 없다: " + memberId));
+        List<Category> chosen = chosenCategories(request.categoryCodes());
+        memberCategories.deleteForMember(memberId);
+        memberCategories.saveAllAndFlush(chosen.stream()
+                .map(category -> new MemberCategory(member, category))
+                .toList());
+        return toResponse(member);
+    }
+
+    // 가입과 관심 분야 교체가 같은 코드 검증·한국어 필드 오류를 쓴다.
+    private List<Category> chosenCategories(List<String> requested) {
+        List<String> codes = requested.stream().distinct().toList();
+        // 분야 수보다 많으면 없는 코드가 섞인 것이다. DB 에 묻기 전에 끊는다 — 수만 개를 그대로 넘기면
+        // findAllById 가 PostgreSQL 매개변수 한도(65,535)를 넘어 500 이 된다 (Jira 65 리뷰)
+        if (codes.size() > categories.count()) {
+            throw invalid("categoryCodes", "없는 관심 분야가 있어요");
+        }
+        List<Category> chosen = categories.findAllById(codes);
+        if (chosen.size() != codes.size()) {
+            throw invalid("categoryCodes", "없는 관심 분야가 있어요");
+        }
+        return chosen;
     }
 
     public static boolean tooLongForHash(String password) {
