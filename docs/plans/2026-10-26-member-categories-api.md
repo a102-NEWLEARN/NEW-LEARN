@@ -3,7 +3,7 @@
 2026-10-26 최초 사용자 승인으로 `3f65733` 기준에서 구현·검증했던 변경을 재사용한다.
 113번 병합 커밋 `1083ee3`과 V3, 작업 큐 V4를 포함한 `origin/backend`의
 `ab98f34dc748aef93b91560c745cae66cb185b65`를 재개 기준으로 확인했다.
-승인한 재개 작업은 `.worktrees/issue65`의 `feat/backend/S15P31A102-65-member-categories-api`에서 진행한다.
+작업 브랜치는 `feat/backend/S15P31A102-65-member-categories-api`다.
 62번의 `MemberPrincipal`, `MemberResponse`, `MemberService.profile`,
 정렬된 관심 분야 조회와 `ApiException.errors`를 재사용한다.
 
@@ -11,29 +11,24 @@
 성공 기준은 [기능 스펙](../specs/F12-member-profile-api.md)이다.
 확정한 응답 순서와 인증·CSRF 오류 우선순위는 계약 원본에만 적는다.
 
-## 원본 보존과 기준 반영
+## 기준 반영
 
-원본의 미커밋 변경 11개와 `.vscode/` 파일 2개를 `.worktrees/issue65-preserved/files`에 복사하고
-SHA-256 대조와 manifest, 수정 파일의 binary patch를 남겼다. 신규 파일 4개도 포함한다.
-원본 작업 폴더는 `3f65733`의 detached HEAD로 두고 파일과 기존 검증 결과를 유지한다.
-65번 브랜치는 원래 HEAD가 최신 backend의 조상임을 확인한 뒤 기존 값 일치 조건으로 fast-forward하고
-새 worktree에서 체크아웃했다. 같은 브랜치를 두 곳에 체크아웃하지 않았으며 커밋·stash·reset·clean을 사용하지 않았다.
-113번 worktree도 보존한다. 114번 북마크·관심 이슈 계약과 최신 SSOT·분석 큐·투입 규칙은 재개 기준 그대로 유지한다.
+65번 브랜치를 최신 backend로 fast-forward한 뒤 작업했다.
+114번 북마크·관심 이슈 계약과 최신 SSOT·분석 큐·투입 규칙은 그 기준 그대로 따른다.
 
 ## 바꿀 파일
 
 - `member/MemberController`, `MemberService`: A17 조회와 A18 전체 교체.
 - 새 `member/dto/ChangeCategoriesRequest`: 62번 가입 요청과 같은 한국어 목록·요소 검증.
 - `MemberCategoryRepository`, `MemberRepository`: 회원별 교체와 같은 회원의 쓰기 직렬화.
-- 회원 조회·교체의 통합·서비스·컨트롤러 테스트, `OpenApiDocsTest`.
+- 회원 조회·교체 통합 시험(`MemberCategoriesApiIntegrationTest`), `OpenApiDocsTest`.
 - 이 계획, 기능 스펙, `docs/api-screen.md`, `SSOT.md`의 해당 참조.
 
 ## 안 바꿀 것
 
-`.vscode/`·`backend/build/` 생성물과 다른 티켓 작업은 보존한다.
+다른 티켓 작업은 건드리지 않는다.
 로그인·가입·로그아웃 정책, principal·회원 응답 모양, Redis 세션·CSRF 설정,
 비밀번호·이름 변경·탈퇴·홈 정렬·북마크·관심 이슈·DB 스키마는 바꾸지 않는다.
-65번 커밋·push·MR·Jira 변경·병합·브랜치 삭제는 승인 범위 밖이다.
 
 ## 리스크
 
@@ -55,12 +50,9 @@ PostgreSQL `pg_blocking_pids`에서 직접 관측한다. 대기 중 이전 목�
 명령은 `.claude/stack.md` §3의 backend 포맷·전체 테스트·bootJar·bootRun을 따른다.
 실제 HTTP와 새 테스트의 되돌림 확인도 수행한다.
 
-기존 150개 전체 시험과 HTTP 46건의 증거는 원본 `backend/build/member65-*`에 보존한다.
-재개 후 결과는 새 worktree의 `backend/build/member65-*`에 별도로 남기며 과거 결과를 새 기준의 통과로 간주하지 않는다.
-
 ## 되돌리는 법
 
-원본 파일·검증 결과와 백업을 유지하고 새 worktree의 65번 변경만 분리해 복구한다.
+65번 MR을 Revert한다.
 65번 자체에는 마이그레이션이 없으며 이미 backend에 병합된 V1~V4와 Flyway 이력은 건드리지 않는다.
 이미 성공한 관심 분야 변경 데이터는 코드 되돌림으로 복구되지 않는다.
 
@@ -73,8 +65,11 @@ PostgreSQL `pg_blocking_pids`에서 직접 관측한다. 대기 중 이전 목�
 - 새 임시 DB·Redis와 bootRun 서버에서 실제 HTTP 46건이 통과했다. 회원 2명·세션 2개로 본인만 변경·최신 조회·인증·CSRF와 DB 실패 rollback을 확인했다.
   V3의 source_summary 컬럼 부재와 V4 성공 이력, Swagger 회원 태그·확정 A17/A18·PUT 응답 코드도 확인했다.
 - 독립 읽기 전용 리뷰에서 수정 필요 사항이 없었다. 기존 테스트용 비밀번호·PRD 길이 경고는 그대로 두었다.
-- 증거는 새 worktree의 `backend/build/member65-*`에 보존했다. 전체 XML 32개는 `member65-resumed-full-results`,
-  HTML은 `member65-resumed-full-report`, 게이트와 HTTP 로그는 `member65-resumed-gates.log`·`member65-resumed-http.log`다.
-  원본 150개 시험·HTTP 46건 결과와 분리해 기록하며 생성물은 커밋 대상이 아니다.
 
-이번 재개에서는 로컬 수정·격리 DB 검증만 수행한다. 커밋·push·MR 생성·Jira 변경·배포·브랜치 삭제는 별도 승인 전 하지 않는다.
+## 리뷰 반영 (2026-10-27)
+
+- MR 리뷰: 서로 다른 코드를 수만 개 보내면 `findAllById`가 PostgreSQL 매개변수 한도(65,535)를 넘어 500이었다.
+  중복을 합친 코드가 분야 수보다 많으면 DB를 부르기 전에 400 `VALIDATION_FAILED`로 끊는다(가입 A14도 같은 도우미).
+  시험 `MemberCategoriesApiIntegrationTest.tooManyDistinctCodesAre400BeforeQueryingCategories`
+- 이 문서에서 작업 폴더 사정(보존 폴더 · 로컬 증거 경로)과 지금과 맞지 않는 승인 범위 문장을 뺐다
+- Jira 56(마인드맵)과 `OpenApiDocsTest` 확정 목록이 겹쳐 두 줄(A9 · A17)을 다 남겼다

@@ -82,6 +82,11 @@ public class MemberService {
     // 가입과 관심 분야 교체가 같은 코드 검증·한국어 필드 오류를 쓴다.
     private List<Category> chosenCategories(List<String> requested) {
         List<String> codes = requested.stream().distinct().toList();
+        // 분야 수보다 많으면 없는 코드가 섞인 것이다. DB 에 묻기 전에 끊는다 — 수만 개를 그대로 넘기면
+        // findAllById 가 PostgreSQL 매개변수 한도(65,535)를 넘어 500 이 된다 (Jira 65 리뷰)
+        if (codes.size() > categories.count()) {
+            throw invalid("categoryCodes", "없는 관심 분야가 있어요");
+        }
         List<Category> chosen = categories.findAllById(codes);
         if (chosen.size() != codes.size()) {
             throw invalid("categoryCodes", "없는 관심 분야가 있어요");

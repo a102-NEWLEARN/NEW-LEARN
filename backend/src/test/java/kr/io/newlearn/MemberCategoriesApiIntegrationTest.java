@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.sql.DataSource;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
@@ -131,6 +133,23 @@ class MemberCategoriesApiIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.categories[*].code", contains("economy", "world")));
         }
+    }
+
+    // 서로 다른 코드를 아주 많이 보내도 500 이 아니라 400 이다. 끊지 않으면 findAllById 가 PostgreSQL 매개변수 한도
+    // (65,535)를 넘어 INTERNAL_ERROR 가 났다 — 분야 수보다 많으면 DB 를 부르기 전에 끊는다 (Jira 65 리뷰, 가입 A14 도 같은 도우미)
+    @Test
+    void tooManyDistinctCodesAre400BeforeQueryingCategories() throws Exception {
+        Cookie session = join("profile65_many", "economy", "world");
+        String codes =
+                IntStream.range(0, 70_000).mapToObj(i -> "\"c" + i + "\"").collect(Collectors.joining(","));
+
+        change(session, "{\"categoryCodes\":[" + codes + "]}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field", startsWith("categoryCodes")));
+        me(session)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[*].code", contains("economy", "world")));
     }
 
     @Test
