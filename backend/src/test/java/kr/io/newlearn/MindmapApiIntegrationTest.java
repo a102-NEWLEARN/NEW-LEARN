@@ -178,6 +178,30 @@ class MindmapApiIntegrationTest {
         assertThat(mindmapCount()).isZero();
     }
 
+    // AC-3 — 봉투의 model · promptVersion 에 U+0000 이 있으면 400. text 칸이 받지 않아 그대로 두면 저장에서 500
+    @Test
+    void extractWithNulInTheEnvelopeIsRejected() throws Exception {
+        long job = extractJob(1);
+        String result = """
+                {"schemaVersion": "mindmap-v1", "mindmap": {"branches": [{"type": "CORE", "items": [{"text": "잎"}]}]}}""";
+
+        w1(job, envelope(1, "\"gpt\\u0000luna\"", result))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+        assertThat(jdbc.sql("select attempt from analysis_job where id = :id")
+                        .param("id", job)
+                        .query(Integer.class)
+                        .single())
+                .isEqualTo(2);
+
+        w1(job, envelope(2, "\"gpt-6-luna\"", result).replace("\"extract-v1\"", "\"extract\\u0000v1\""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(mindmapCount()).isZero();
+        assertThat(releasedAt()).isNull();
+    }
+
     // AC-3 · AC-5 — 다시 분석 결과가 거절되면 옛 마인드맵을 그대로 둔다 (data-model.md article_mindmap)
     @Test
     void rejectedReanalysisKeepsTheOldMindmap() throws Exception {

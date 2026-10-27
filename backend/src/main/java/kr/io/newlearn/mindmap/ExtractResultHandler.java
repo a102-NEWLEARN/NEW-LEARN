@@ -7,6 +7,7 @@ import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
 import kr.io.newlearn.mindmap.dto.ExtractResult;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -35,12 +36,8 @@ class ExtractResultHandler implements AnalysisResultHandler {
 
     @Override
     public void save(AnalysisJob job, JobResultRequest request) {
-        // DB 칸이 not null 이라 비어 오면 저장에서 500 이 난다 — 워커 잘못으로 보고 거절한다
-        var model = request.model();
-        var promptVersion = request.promptVersion();
-        if (model == null || model.isBlank() || promptVersion == null || promptVersion.isBlank()) {
-            throw new ResultSchemaInvalidException("EXTRACT 인데 model · promptVersion 이 없다");
-        }
+        var model = storable(request.model(), "model");
+        var promptVersion = storable(request.promptVersion(), "promptVersion");
         // 성공인데 result 가 없으면 receiveResult 가 problem() 으로 먼저 거절했다
         var extract = ExtractResult.read(request.result());
         var article = job.getArticle();
@@ -77,5 +74,16 @@ class ExtractResultHandler implements AnalysisResultHandler {
                 job.getId(),
                 content.evidenceCount(),
                 dropped);
+    }
+
+    // DB 칸이 not null 인 text 라 비거나 U+0000 이 있으면 저장에서 500 이 난다 — 워커 잘못으로 보고 받을 때 거절한다
+    private static String storable(@Nullable String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new ResultSchemaInvalidException("EXTRACT 인데 봉투의 " + field + " 이 없다");
+        }
+        if (value.indexOf('\u0000') >= 0) {
+            throw new ResultSchemaInvalidException("봉투의 " + field + " 에 U+0000 이 있다");
+        }
+        return value;
     }
 }
