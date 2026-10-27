@@ -66,7 +66,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `id` | number | 회원 ID | `member.id` |
 | `loginId` | string | 로그인 아이디 표시 | `member.login_id` |
 | `name` | string | 「OO님」 표시 | `member.name` |
-| `categories` | array(카테고리 참조) | 관심 분야. 홈 · 마이페이지 관심사 설정에 쓴다 | `member_category` → `category` |
+| `categories` | array(카테고리 참조) | 관심 분야. 홈 · 마이페이지 관심사 설정에 쓴다. A1과 같은 `category.sort_order` 순서(2026-10-26 사용자 승인) | `member_category` → `category` |
 
 ---
 
@@ -345,6 +345,14 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `categoryCodes` | array(string) | 새 관심 분야 코드. 1개 이상(v17), 5개 중에서. 같은 코드가 두 번 오면 하나로 합친다 |
 
 성공하면 200 과 바뀐 회원 정보(1절). 0개이거나 없는 코드면 400 `VALIDATION_FAILED`.
+
+누락·null 목록과 비어 있는 코드도 400이며 `errors[]`에 칸과 한국어 이유를 준다.
+중복을 합친 고유 코드가 5개 중 하나인지 검사하므로 같은 코드를 여러 번 보내도 하나로 저장한다.
+현재 로그인한 본인의 관심 분야만 바꾸며 모든 값이 맞을 때 한 트랜잭션으로 교체한다. 교체 중 실패하면 이전 목록을 유지한다.
+A17은 DB의 현재 목록을 읽으므로 이미 로그인한 다른 세션에서도 변경 결과를 확인할 수 있다.
+
+인증·CSRF 오류 우선순위는 A14~A16의 62번 계약을 따른다(2026-10-26 사용자 승인).
+CSRF 번호표가 없거나 틀리면 세션 유무와 관계없이 먼저 403 `FORBIDDEN`, 번호표가 유효하지만 세션이 없으면 401 `UNAUTHORIZED`다.
 
 ### A19. 용어사전 — `GET /api/v1/dictionary`
 
