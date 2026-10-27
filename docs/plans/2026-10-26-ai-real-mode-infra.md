@@ -91,7 +91,7 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 | init 컨테이너 자원 | 요청 CPU 50m · 메모리 128Mi, 상한 메모리 1Gi. 구현 때 재서 줄인다 |
 | 시작 확인 | startupProbe(`tcpSocket http`, 5초마다, 36번 = 3분)를 더한다. 지금 livenessProbe 는 20초 × 3번이라, 모델을 읽는 동안 포트가 늦게 열리면 약 60초에 재시작된다. readiness · liveness 는 그대로 둔다 |
 | 교체 전략 | RollingUpdate(maxSurge 1 · maxUnavailable 0) 그대로 둔다. 새 Pod 가 모델을 다 읽고 포트를 연 뒤에 옛 Pod 가 내려간다 |
-| GMS 키 | Secret `gms-api`(ai), 키 `GMS_API_KEY`. `infra/server/seal-secrets.sh gms` 를 새로 둔다. 사용자가 EC2 터미널에서 값을 넣는다(`read -rs`, 화면 · ps 에 안 남음). 봉인 전에 그 키로 `GET <GMS_BASE_URL>/models` 를 불러 200 인지 본다. 키는 curl 설정을 표준 입력으로 넘긴다 — `ghcr` · `mattermost` 기능과 같은 방식이다. 기존 `seal()` 함수를 쓴다 |
+| GMS 키 | Secret `gms-api`(ai), 키 `GMS_API_KEY`. `infra/server/seal-secrets.sh gms` 를 새로 둔다. 사용자가 EC2 터미널에서 값을 넣는다(`read -rs`, 화면 · ps 에 안 남음). 봉인 전에 그 키로 메시지가 빈 `POST <GMS_BASE_URL>/chat/completions` 를 보내 GMS 를 지나는지(400) 본다 — 처음엔 `GET /models` 200 이었으나 바꿈(끝의 「계획 뒤 바뀐 것」). 키는 팀 공용 GMS 키. 키는 curl 설정을 표준 입력으로 넘긴다 — `ghcr` · `mattermost` 기능과 같은 방식이다. 기존 `seal()` 함수를 쓴다 |
 | 키를 env 로 | `GMS_API_KEY` ← `secretKeyRef`(`gms-api` / `GMS_API_KEY`). 봉인 파일은 `infra/k8s/services/ai/sealed-gms-api.yaml` |
 | 비밀이 아닌 값 | `GMS_BASE_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1`(`SSOT.md` 10절) · `GMS_MODEL=gpt-6-luna` 를 Deployment env 에 평문으로 둔다. 봉인 스크립트는 이 주소를 `ai.yaml` 에서 읽는다. 같은 값을 두 곳에 적지 않으려는 것이다 |
 | 실제 모드 켜기 | `LLM_MODE=gms` — `ai/app/llm.py` 가 받는 값이다. 두 번째 MR 에서만 바꾼다 |
@@ -128,11 +128,12 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 - [ ] EC2 의 `infra/server` 사본을 저장소 판으로 — 2026-10-26 확인 때 `seal-secrets.sh` · `README.md` 는 10-25 · 10-23 판(`gms` 없음), `ai-worker.md` · `db-backup.md` 는 없었다. 관리자 PC 에서 `tar -C infra -cf - server | ssh ubuntu@<EC2 탄력적 IP> 'tar -C infra -xf -'`(`infra/server/README.md` 의 복사 줄과 같은 방식)
 
 ### B — 사용자가 봉인 (MR 1 이 EC2 저장소에 들어온 뒤)
-- [ ] 🧑 사용자 — EC2 에서 `bash infra/server/seal-secrets.sh gms`(`ssh -t`). 200 이 나와야 봉인한다
-- [ ] 봉인 파일을 관리자 PC 로 가져와 `infra/k8s/services/ai/sealed-gms-api.yaml` 로 둔다
+- [x] 🧑 사용자 — EC2 에서 `bash infra/server/seal-secrets.sh gms`(`ssh -t`). 키 확인을 지나야 봉인한다 — 2026-10-27 팀 공용키로 400(통과) · 봉인
+- [x] 봉인 파일을 관리자 PC 로 가져와 `infra/k8s/services/ai/sealed-gms-api.yaml` 로 둔다 — `kubeseal --validate` 로 컨트롤러가 풀 수 있음 확인
+- [ ] 봉인 파일을 `kustomization.yaml` 에 넣어 Secret `gms-api` 만 먼저 만든다 — 키 확인을 고친 MR 에 같이(사용자, 2026-10-27). 반영 뒤 `kubectl -n ai get secret gms-api` 가 있는지 본다
 
 ### C — MR 2: 실제 모드 (AI 코드가 dev 에 들어오고 AI 팀이 켜자고 한 뒤)
-- [ ] `kustomization.yaml` 에 `sealed-gms-api.yaml`, `ai.yaml` 에 `GMS_API_KEY`(secretKeyRef) · `LLM_MODE=gms`. MR 1 에서 모델 경로 env 를 못 넣었으면 AI 코드가 읽는 이름으로 여기서 더한다
+- [ ] `ai.yaml` 에 `GMS_API_KEY`(secretKeyRef `gms-api`) · `LLM_MODE=gms`(봉인 파일은 B 에서 이미 넣음). MR 1 에서 모델 경로 env 를 못 넣었으면 AI 코드가 읽는 이름으로 여기서 더한다
 - [ ] MR → infra → dev. 반영 뒤 검증 절 C
 - [ ] `SSOT.md` 6절(ai 자리 · 키) · 10절(잰 값) — 메인 세션의 BE 문서 작업과 겹치지 않을 때 같은 MR 이나 다음 MR 로
 
@@ -174,7 +175,7 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
   - `kubectl describe node <워커>` 요청 합이 위 표 「바꾼 뒤」와 맞는다(메모리 약 6,634Mi)
   - Pod 안 `/health` UP(mock), 교체 동안 관리자 PC 에서 1초마다 `curl https://newlearn.io.kr/actuator/health` → 실패 0
 - **B (봉인)**
-  - 스크립트가 200 을 받은 뒤에만 봉인 파일을 쓴다. 틀린 키로 한 번 돌려 401 · 봉인 안 함을 본다
+  - 스크립트가 키 확인(빈 메시지 요청에 400)을 지난 뒤에만 봉인 파일을 쓴다. 틀린 키로 한 번 돌려 401 · 봉인 안 함을 본다(2026-10-27 EC2 에서 가짜 키로 확인 — 401, 봉인 파일 수 11 그대로)
 - **C (MR 2 반영 뒤)**
   - `kubectl -n ai get secret gms-api` 가 있다(값은 출력하지 않는다). Pod 안 `printenv | grep -c '^GMS_API_KEY='` → 1
   - `/health` 의 `llm_mode` 가 `gms`
@@ -193,7 +194,7 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 
 1. **모델 경로 env** — 서버는 모델을 `/models/BGE-m3-ko` 폴더에 받아 둡니다. AI 코드가 그 경로를 어떤 env 이름으로 읽나요? (env 가 없으면 노트북처럼 모델 이름을 쓰게)
 2. **한꺼번에 임베딩** — 데이터셋(2024~2025)을 서버에서 한꺼번에 임베딩할 계획이 있나요? 있다면 몇 건인가요? 서버 CPU 가 버스트형이라 오래 돌리면 사이트가 느려집니다
-3. **GMS** — 서버에 넣을 키는 누구 것인가요(사용자와 같이 정함)? 키 확인으로 `GET /models` 가 200 을 주나요(크레딧이 안 드는 호출)? `gpt-6-luna` · 위 `GMS_BASE_URL` 그대로인가요?
+3. **GMS** — `gpt-6-luna` · 위 `GMS_BASE_URL` 그대로인가요? (키는 팀 공용키로 정함 · 키 확인 호출은 바꿈 — 끝의 「계획 뒤 바뀐 것」)
 4. **켜는 때** — 임베딩 · GMS 코드가 dev 에 들어오는 날, 첫 시험 기사 수는?
 5. **준비 판정** — `/health` 에 모델 준비 여부를 넣을 건가요(readiness)?
 6. **내릴 때** — AI 팀이 정한 재시도(2026-10-26)로 작업 하나가 약 90초까지 걸린다. 지금 Pod 는 종료 신호 뒤 30초(preStop 10초 포함)에 강제로 꺼진다. 워커가 종료 신호를 받으면 새 작업을 그만 읽고 하던 작업을 끝내나요? 그렇다면 MR 2 에서 종료 대기를 약 100초로 늘린다. 아니면 그대로 두고, 끊긴 작업은 다시 가져가기(Jira 30)에 맡긴다
@@ -212,3 +213,6 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 | 봉인 스크립트가 GMS 주소를 읽는 곳 (구현 때) | `ai.yaml` 파일 | 클러스터에 반영된 ai Deployment 의 env | EC2 에는 저장소를 클론하지 않고 `infra/server` 만 보낸다(`infra/server/README.md` 「서버로 보내기」). 값은 같은 `ai.yaml` 에서 온다 |
 | 운영 메모 자리 (구현 때) | `infra/server/README.md` 에 | 새 `infra/server/ai-worker.md`, README 에는 한 줄 | README 가 500줄 상한을 넘었다(499 → 512). `db-backup.md` 와 같은 방식 |
 | init 컨테이너 env (구현 때) | `HF_HOME` 없음 | `HF_HOME=/models/hf` · `HF_HUB_DISABLE_TELEMETRY=1` | `hf` 명령도 `HF_HOME` 에 확인 기록을 쓴다(관리자 PC 에서 1.33.0 으로 시험) |
+| 서버 GMS 키 (2026-10-27) | 누구 키인지 미정 | 팀 공용 GMS 키 | 사용자 결정. SSAFY GMS 는 한 팀에 키를 하나만 준다 — 서버 전용 키는 없다. 팀원 `.env` 와 같은 키라 키가 바뀌면 다시 봉인하고, GMS 사용 현황에서 서버 · 개발 사용분이 섞인다 |
+| 봉인 파일을 넣는 때 (2026-10-27) | MR 2(실제 모드)에 env 와 같이 | 키 확인을 고친 MR 에 먼저 — Secret 만 만들고 ai 는 아직 안 씀 | 사용자 결정. 컨트롤러가 실제로 푸는지 미리 보고, EC2 의 봉인 파일을 잃어도 저장소에 남게 |
+| 봉인 전 키 확인 호출 (2026-10-27) | `GET /models` 가 200 | `POST /chat/completions` 에 메시지가 빈 요청 — 400 이면 통과, 401 · 403 이면 키가 틀림, 그 밖은 봉인 안 함 | 사용자가 공용키로 돌렸더니 500. 가짜 키로 재 보니 `/models` 는 GMS 가 본문의 `model` 을 먼저 읽어 키와 상관없이 500(「Cannot read properties of undefined (reading 'model')」), `/chat/completions` 는 가짜 키에 401(「Invalid or expired GMS key」). 진짜 키로 400 이 나오는지는 사용자가 다시 돌려 확인한다 |
