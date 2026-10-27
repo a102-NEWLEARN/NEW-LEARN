@@ -248,6 +248,8 @@ def test_prompt_carries_confirmed_rules():
         "장 마감",
         "summary 를 CORE 잎으로 되풀이하지 않는다",
         "한 주체는 한 잎",
+        "이미 보도됐는지는 기준이 아니다",
+        "표현만으로 같은 행위로 보지 않는다",
     ):
         assert phrase in SYSTEM_PROMPT
     assert "★" not in SYSTEM_PROMPT.split("[예시")[1]
