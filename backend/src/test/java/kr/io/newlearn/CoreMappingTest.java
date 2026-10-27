@@ -436,6 +436,7 @@ class CoreMappingTest {
                 article,
                 "한빛반도체가 텍사스 공장 착공식을 열었다.",
                 content,
+                0,
                 Instant.parse("2026-10-05T15:00:00Z"),
                 "mindmap-v1",
                 "gpt-5-mini",
@@ -455,6 +456,7 @@ class CoreMappingTest {
         assertThat(firstBranch).isEqualTo("CORE");
         assertThat(found.getContent()).contains("한빛반도체가 텍사스 공장 착공식을 열었다");
         assertThat(found.getSchemaVersion()).isEqualTo("mindmap-v1");
+        assertThat(found.getPrimaryCoreIndex()).isZero();
     }
 
     private Article newArticle(String url, List<String> sourceCategories) {
