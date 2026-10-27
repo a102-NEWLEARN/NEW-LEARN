@@ -11,6 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContext;
@@ -44,14 +45,14 @@ final class InternalKeyFilter extends OncePerRequestFilter {
     }
 
     // Secret 값 끝에 줄바꿈이 붙는 실수가 흔하다. 헤더는 서버(Tomcat)가 앞뒤 공백을 떼어 주니 키도 같이 뗀다
-    private static String clean(String key) {
+    private static @Nullable String clean(@Nullable String key) {
         if (key == null || key.isBlank()) {
             return null;
         }
         return key.strip();
     }
 
-    private void addPass(String role, String key) {
+    private void addPass(String role, @Nullable String key) {
         if (key != null) {
             passes.add(new Pass(role, sha256(key)));
         }
@@ -75,7 +76,7 @@ final class InternalKeyFilter extends OncePerRequestFilter {
 
     // 걸린 시간으로 키를 한 글자씩 맞혀 보지 못하게, 길이가 같은 해시끼리 MessageDigest.isEqual 로 견준다
     // 앞에서 맞아도 멈추지 않고 키를 모두 견준다
-    private String roleOf(String presented) {
+    private @Nullable String roleOf(String presented) {
         byte[] digest = sha256(presented);
         String role = null;
         for (Pass pass : passes) {
@@ -94,5 +95,7 @@ final class InternalKeyFilter extends OncePerRequestFilter {
         }
     }
 
+    // record 의 equals 는 배열 내용을 견주지 않는다. Pass 는 equals 로 견주지 않고 digest 를 MessageDigest.isEqual 로만 견준다
+    @SuppressWarnings("ArrayRecordComponent")
     private record Pass(String role, byte[] digest) {}
 }

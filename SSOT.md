@@ -112,6 +112,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
     - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. Lightsail 공인 IP에서 오는 WireGuard 51820/udp 하나만 더 연다. 쿠버네티스 포트(6443·10250·Cilium)는 WireGuard 터널 안으로만 다녀서 밖에 열지 않는다(아래 「노드 사이 — 호스트 WireGuard」). kubectl은 SSH 터널로 6443에 붙는다
     - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다. 2026-10-22 받은 날 확인: 돌아오는 WireGuard UDP가 지나가고, SSAFY 쪽 방화벽에서 80 · 443이 열려 있다(아래 「현재 상태」). 서버 안 방화벽(ufw)은 지급 때 22만 열려 있다
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
+    - SSH 22는 출발지를 좁히지 않는다(2026-10-27 사용자 결정, Jira S15P31A102-122). 관리 서버와 달리 SSAFY가 만든 서버이고 접속 키(pem)를 팀 방에 공유받아 팀원 · SSAFY도 같은 키로 들어온다 — 최근 7일 키 로그인 출발지 3곳 중 1곳이 관리자 IP 밖이었다. Lightsail 콘솔이 없어 잘못 잠그면 되살릴 화면도 없다. 대신 sshd는 키 로그인만 받는다(비밀번호 · 키보드 입력 로그인 꺼짐, root는 키로만). 바깥에서 22가 열려 있는 것(관리 서버에서 대조로 2222는 닫힘)과 하루 낯선 시도 3번은 확인했다. 더 지킨다면 문보다 키 쪽 — 공유된 키를 바꾸는 일은 SSAFY · 팀과 함께 정한다
 - 저장소·CI: SSAFY GitLab `lab.ssafy.com/s15-final/S15P31A102`, GitLab Runner(관리 서버의 클러스터 안 Pod — Kubernetes executor)
   - SSAFY GitLab은 Community Edition 18.11.5다(2026-10-18 API, 2026-10-20 Help 화면으로 확인). 이 프로젝트가 쓸 수 있는 공유 러너가 없어서(인스턴스 · 그룹 러너 0개) CI는 러너를 직접 둬야 돈다
   - 러너는 서버에 Docker를 깔지 않고 Pod로 띄운다 — Docker를 깔면 kubelet과 containerd를 같이 쓰고, Docker의 iptables 규칙이 Cilium(호스트 라우팅 Legacy · iptables 마스커레이드)과 같은 표를 만진다. 잡도 잡마다 Pod로 떴다 사라진다(2026-10-20 결정, Jira S15P31A102-89)
@@ -147,9 +148,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Grafana: 아이디 · 비밀번호 로그인. 계정은 사람이 서버에서 만든 Secret(`grafana-admin`)에서 읽는다. 가입 · 익명 보기는 끈다. 대시보드는 설정으로 그리고 Grafana 자체 디스크는 두지 않는다(다시 뜨면 로그인을 새로 한다)
   - 여는 길: 공개 주소 `https://newlearn.io.kr/grafana/`(2026-10-22, Jira S15P31A102-93) — 브라우저 팝업 하나를 지나면 그 아이디로 바로 들어간다(보기 권한). 잠그는 법은 아래 「도메인 · HTTPS」. 관리자(`grafana-admin`)는 SSH 터널로 들어와 로그인 화면에서. Prometheus는 로그인이 없어 공개하지 않는다
   - CloudWatch는 쓰지 않는다(API 호출 요금). CPU 크레딧 잔액은 EC2 콘솔에서 본다
-- 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2와 예산 알림뿐이다(Lightsail은 SSAFY 소유)
+- 인프라 변경: Terraform plan을 사람이 읽고 apply한다. Terraform 대상은 관리 서버 EC2 · 예산 알림 · DB 백업 버킷뿐이다(Lightsail은 SSAFY 소유)
   - 상태 파일: 팀 계정 S3 버킷(버전 관리 · 퍼블릭 차단)에 두고 S3 잠금 파일로 동시 실행을 막는다(`use_lockfile`, DynamoDB 없이). 버킷 이름은 저장소에 적지 않는다(`infra/terraform/backend.hcl.example`). PC를 반납 · 분실해도 11/18 destroy를 할 수 있게 하려는 것이다(2026-10-20 결정)
-  - 자격 증명: plan · apply 모두 범위를 좁힌 apply 전용 IAM 사용자 키로 한다 — EC2는 서울 리전만, 예산, 상태 버킷만(`infra/terraform/iam/apply-policy.json`). S3 잠금 때문에 plan도 쓰기가 필요해서, 10/18의 읽기 전용 키는 비활성화한다. 키는 `~/.aws/credentials`에만 둔다(`infra/README.md`)
+  - 자격 증명: plan · apply 모두 범위를 좁힌 apply 전용 IAM 사용자 키로 한다 — EC2는 서울 리전만, 예산, 상태 버킷 · DB 백업 버킷(지우기 없음)만(`infra/terraform/iam/apply-policy.json`). S3 잠금 때문에 plan도 쓰기가 필요해서, 10/18의 읽기 전용 키는 비활성화한다. 키는 `~/.aws/credentials`에만 둔다(`infra/README.md`)
   - IAM Identity Center는 쓰지 않는다. 켜면 AWS Organization이 만들어지면서 무료 플랜 크레딧이 사라진다(2026-10-18 콘솔 안내로 확인)
   - 루트 계정은 결제·비상시에만 쓰고 MFA를 건다. 이 AWS 계정은 개인 계정과 분리한 프로젝트 전용 팀 계정이다
 - 배포 흐름: push → Runner가 테스트·Docker 이미지 빌드 → 이미지 저장소에 push → 배포 설정의 이미지 태그 갱신 → Argo CD(클러스터 안)가 Git을 pull해서 반영 → 쿠버네티스 순차 배포(무중단)
@@ -201,6 +202,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 배포 설정: `infra/k8s/services/<네임스페이스>/`, Argo CD 앱 하나씩(`infra/k8s/apps/templates/`). 이미지 태그는 `infra/k8s/services/app · ai/kustomization.yaml`의 `images` 한 곳 — 바꾸는 길은 아래 「배포 흐름」의 태그 MR
   - 무중단 교체 조건(아래)을 backend · frontend · ai에 넣었다 — 새 Pod 먼저, 준비 확인(backend는 DB · Redis까지), 끝낼 때 10초. 살아 있는지는 포트만 본다(DB가 잠깐 끊겼다고 재시작하지 않게)
   - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
+  - 들어오는 길 네트워크 정책(CiliumNetworkPolicy, 2026-10-27, Jira S15P31A102-121): backend는 Envoy · AI 워커만, frontend는 Envoy만, AI 워커는 아무도(상태 확인은 kubelet), PostgreSQL은 backend · 매일 덤프 잡만, Redis는 backend · AI 워커만 받는다(`infra/k8s/services/<네임스페이스>/netpol.yaml`). 나가는 길은 막지 않는다. 그래서 클러스터 안 시험 Pod로 backend를 직접 부를 수 없다 — `kubectl -n app port-forward svc/backend`로 시험한다. 수집 배치를 만들면(8절) backend · PostgreSQL 길을 더한다
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
 - 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
 
@@ -220,8 +222,9 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - Prometheus 지표 `certmanager_certificate_expiration_timestamp_seconds`(만료) · `certmanager_certificate_renewal_timestamp_seconds`(다음 갱신) — cert-manager ServiceMonitor로 모은다
   - 바깥에서: `openssl s_client -connect newlearn.io.kr:443 -servername newlearn.io.kr`의 발급자 · 만료일
   - 갱신이 실패하면 `kubectl -n envoy-gateway-system describe certificate newlearn`과 `kubectl get order,challenge -A`의 이벤트를 본다
+- 응답 보안 머리: 화면(`/`, frontend) 응답에는 Envoy가 HSTS · `nosniff` · `X-Frame-Options: DENY` · `Referrer-Policy`를 붙이고, CSP는 아직 보고만(`Content-Security-Policy-Report-Only`) 보낸다(`infra/k8s/services/app/routes.yaml`, 2026-10-27, Jira S15P31A102-120). `/api` · Swagger에는 스프링 시큐리티가 HSTS · `nosniff` · `X-Frame-Options` 셋을 붙인다. CSP는 seed-design 플러그인이 `index.html`에 넣는 인라인 script를 해시로 허용한다 — 그 글은 `@seed-design/css`가 만들어서, 그 패키지 판이나 플러그인 설정(`colorMode` · `fontScaling`)이 바뀌면 해시도 같이 바꾼다. 강제로 바꿀지는 8절
 - 공개 화면: `/argocd` · `/grafana`는 Envoy 앞단의 브라우저 팝업(HTTP 기본 인증, `infra/k8s/admin-ui/`) 하나로 잠근다. 계정은 둘이 같이 쓰는 하나이고, 저장소에는 봉인한 htpasswd만 둔다(`infra/server/seal-secrets.sh basic-auth`, 아이디 · 비밀번호는 사람이 입력해 팀에 따로 알린다)
-  - Grafana: Envoy가 팝업 아이디를 `X-WEBAUTH-USER`로 넘기고 Grafana 프록시 로그인이 그 아이디로 바로 들인다(보기 권한). 손님이 같은 머리를 꾸며 보내면 Envoy가 맨 앞에서 지운다(`infra/k8s/gateway/client-traffic.yaml`). 팝업 아이디는 Grafana 관리자(`grafana-admin`) 아이디와 달라야 한다 — 같으면 그 관리자로 들어간다(2026-10-22 겪고 관리자 아이디를 바꿈)
+  - Grafana: Envoy가 팝업 아이디를 `X-WEBAUTH-USER`로 넘기고 Grafana 프록시 로그인이 그 아이디로 바로 들인다(보기 권한). 손님이 같은 머리를 꾸며 보내면 Envoy가 맨 앞에서 지운다(`infra/k8s/gateway/client-traffic.yaml`). Envoy를 거치지 않고 다른 Pod에서 Grafana로 오는 길은 CiliumNetworkPolicy가 막는다(받는 길은 `infra/k8s/admin-ui/grafana-netpol.yaml`, Jira S15P31A102-119). 관리 서버 호스트에서 오는 길(호스트 네트워크 Pod · API 서버 프록시 · 관리자 SSH 터널)은 Cilium 기본값으로 열려 있다. 팝업 아이디는 Grafana 관리자(`grafana-admin`) 아이디와 달라야 한다 — 같으면 그 관리자로 들어간다(2026-10-22 겪고 관리자 아이디를 바꿈)
   - Argo CD: 팝업 뒤 익명 읽기 전용. 동기화 · 설정 변경은 admin으로 한 번 더 로그인한다. admin 비밀번호는 인프라 담당만 안다. GitLab 웹훅 길(`/argocd/api/webhook` POST, GitLab 머리)만 팝업 밖이다 — 위 「배포 흐름」
   - 두 앱 모두 팝업의 `Authorization` 머리는 앱으로 넘기지 않는다 — Grafana가 그것을 자기 로그인으로 읽어 팝업이 되풀이된다
   - Swagger는 잠그지 않는다 — 개발하는 동안 FE가 편하게(2026-10-22 사용자 결정, 2026-10-20 「Swagger도 팝업」을 바꿈). 다시 잠글지는 8절
@@ -269,7 +272,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 80 · 443: ufw를 잠깐 열고 시험 서버를 띄워 내 PC(SSAFY 망) · EC2(바깥 인터넷)에서 둘 다 200을 받았다 — SSAFY 쪽 방화벽이 열려 있다. 시험 뒤 ufw는 다시 22만
   - 공인 IP: 고정 IP인지는 확인하지 않는다. 서버를 껐다 켜지 않기로 해서(2026-10-22) 바뀔 일이 없다. 지금 IP는 SSAFY 도메인이 가리키는 IP와 같다. SSAFY · AWS 점검으로 꺼졌다 켜져 바뀌면 보안 그룹 `worker_cidrs` apply · DNS · 80/443 입구를 다시 맞춘다(WireGuard는 Lightsail이 먼저 붙어서 EC2가 새 주소를 handshake로 안다)
   - 워커 join(2026-10-22, Jira S15P31A102-90, `docs/plans/2026-10-22-worker-join.md`): `common.sh` → `ufw-worker.sh` → 30분 토큰으로 `join-worker.sh`(토큰은 쓴 뒤 지움). 노드 2개 Ready(INTERNAL-IP 10.200.0.1 · 10.200.0.2), 두 노드 Cilium `OK` · 인터페이스 `ens5` 와 `wg0 (Direct Routing)` · 클러스터 헬스 2/2. 워커에는 DaemonSet 셋(cilium · cilium-envoy · node-exporter)만 있다 — 다른 워크로드는 nodeSelector 로 컨트롤 플레인에 묶여 있다
-  - 확인: 워커 Pod 가 컨트롤 플레인의 CoreDNS · Grafana 에 닿고, 컨트롤 플레인에서 311KB 응답을 받고, ufw 를 켠 채 인터넷으로 나간다. Prometheus 가 워커 kubelet · node-exporter 를 수집한다(up). 재부팅 뒤 wg0 · kubelet 이 부팅 5초에 뜨고(kubelet 은 wg0 뒤) 공인 IP · 노드 주소가 그대로다
+  - 확인: 워커 Pod 가 컨트롤 플레인의 CoreDNS · Grafana 에 닿고(2026-10-26 뒤로 Grafana 는 Envoy · Prometheus 만 받는다 — Jira S15P31A102-119), 컨트롤 플레인에서 311KB 응답을 받고, ufw 를 켠 채 인터넷으로 나간다. Prometheus 가 워커 kubelet · node-exporter 를 수집한다(up). 재부팅 뒤 wg0 · kubelet 이 부팅 5초에 뜨고(kubelet 은 wg0 뒤) 공인 IP · 노드 주소가 그대로다
   - Pod MTU: 설계대로다 — Pod 인터페이스 1420, 기본 경로 `mtu 1370`. 노드 사이 Pod끼리 1342바이트(1370 − 28)는 지나가고 1343은 보내기 전에 거절되며, 두 노드 모두 IP 쪼개기 0이다. join 날(2026-10-22) 「1420」이라 적은 것은 busybox `ip route`가 경로 mtu를 찍지 않아 잘못 읽은 것이다(10절)
   - Argo CD(2026-10-22, Jira S15P31A102-91, `docs/plans/2026-10-22-infra-deploy.md`): `bootstrap-argocd.sh`로 깔았다. 앱 다섯(root · sealed-secrets · envoy-gateway · gateway · hello) Synced · Healthy, Argo CD · Sealed Secrets · Envoy · hello Pod는 모두 워커에 떴다. 관리자 PC에서 SSAFY 도메인의 80으로 hello가 응답한다 — SSAFY 방화벽 → ufw → Envoy hostPort 80이 이어졌다. 봉인한 시험 Secret을 컨트롤러가 풀어 Pod가 읽었다. 워커 요청 합계 CPU 560m · 메모리 1418Mi
 - kind 리허설(내 PC): 노드 2개에 Cilium · Argo CD · Envoy Gateway · hello 앱을 GitOps로 올려 무중단 교체 · 되돌리기를 확인했다(Jira S15P31A102-77, `infra/README.md` 「kind 리허설」). Argo CD는 GitLab 대신 로컬 Git 미러를 읽었다. 2026-10-22 은퇴 — 실제 클러스터의 앱 목록과 맞지 않게 되어(cert-manager · 운영 키로 봉인한 Secret · 서비스) 시험 앱 hello를 지우고 확인은 실제 서버에서 한다(Jira S15P31A102-105)
@@ -289,6 +292,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - 환경변수는 저장소 루트 `.env` 하나다. compose와 IDE에서 띄운 API·워커가 같은 파일을 읽어서 DB 접속 정보를 손으로 맞출 일이 없다. 그래서 값을 만드는 스크립트를 두지 않는다 — 로컬 DB 비밀번호는 이 컴퓨터(127.0.0.1)에만 열린 컨테이너 전용 값이고, 진짜 비밀값인 GMS 키는 각자 받는다
 - Windows는 저장소를 WSL2 리눅스 파일 시스템 안에 클론한다 (C: 드라이브 폴더를 연결하면 파일 변경이 컨테이너에 안 닿는다)
 - amd64·arm64를 모두 지원하는 이미지만 쓴다. 운영 이미지는 CI에서만 빌드한다
+- 백엔드 린트는 컴파일 안에서 도는 javac 경고 · Error Prone · NullAway 다. 경고는 컴파일 실패다(2026-10-27, Jira S15P31A102-124). 후보 여섯 개를 그때 코드에 돌려 골랐다 — Checkstyle 은 경고 대부분이 Spotless 서식과 부딪히고, PMD · SpotBugs 는 오탐과 늘어나는 시간이 더 컸다(10절). Spring 문서가 앱 코드에 NullAway 를 권한다. 명령은 `.claude/stack.md` 3절, 쓰는 법은 `docs/backend-convention.md` 9절
 - 쓰는 법과 막히는 곳은 `docs/dev-environment.md`
 
 ## 8. 못 정한 것
@@ -298,11 +302,11 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 뉴스 수집 배치 구현 언어 · 기사를 적재하는 길(DB 에 바로 넣나, API 를 거치나). 투입은 API 를 거치자는 제안이 있다. 2026-10-25 사용자: 보류 — 수집 배치(CronJob)는 아직 만들지 않는다 | BE · Infra | `docs/api-internal.md` 2절 B1 |
 | 배포 속도 줄이기 — 2026-10-23 ① 굽기 자리 ② 웹훅 ③ 태그 MR 머지 때 검사 ④ 굽기 재시도를 고쳤다(Jira S15P31A102-106, 6절 「굽기 러너」 · 「배포 흐름」, 10절). 남은 것: ai 굽기가 메모리 상한 3Gi 에 닿는다(oom 0, 커널이 캐시를 비운 횟수 382 ~ 16919) — 의존성이 늘면 상한 · Kaniko 캐시 압축을 다시 정한다 | Infra | 6절 「배포 흐름」 |
 | Swagger 를 잠금 없이 둘지 — 개발하는 동안은 FE 편의로 연다(2026-10-22, 2026-10-25 사용자 「일단 계속 열어 둔다」). 발표 · 실사용 전에 다시 팝업으로 잠글지 | Infra · BE | 6절 「도메인 · HTTPS」 |
+| 화면 CSP 를 보고만에서 강제로 바꿀 때 — 마인드맵 · 이슈 화면이 사이트에 올라간 뒤 콘솔 위반(`[Report Only]`)을 며칠 보고(2026-10-27 사이트 화면은 개발 확인 화면 하나뿐). 그때 `@seed-design/css` 판이 바뀌어 인라인 script 해시가 어긋나는 것을 CI 검사로 지킬지도 정한다 | Infra | 6절 「도메인 · HTTPS」, Jira S15P31A102-120 |
 | NewsData.io 구독 시작 날짜 | 팀 | 5절 |
 | 임베딩 입력 길이 — 모델은 BGE-m3-ko · 1024차원으로 정했다(2026-10-23, 3절). 남은 것은 제목 · 본문 앞부분 중 무엇을 넣을지다. CPU 2스레드에서 리드(제목 + 앞 두 문장)는 기사당 약 1.2초, 본문 앞 800자는 약 4.3초다(10절). `EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다. BE 안: 검색은 처음엔 인덱스 없이(2026-10-21) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
-| Java 린트 도구 (지금은 Spotless 포맷 검사만 한다) | BE | `.claude/stack.md` 3절 |
 | API 인증 — 남은 것은 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 주소별 요청 수 상한이다(무차별 대입 · 사전 하루 한도 소진 막기 — 앱이 아니라 입구 Envoy 에서 하자는 안, Jira 62 에서 뺐다). 내부 API(`/internal/v1`)는 출입증 두 장(워커 키 W1 · 배치 키 B1, `X-Internal-Key`)으로 정했다(2026-10-26 Jira 30, `docs/api.md` 1절). 정한 것: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 연다(2026-10-22 Jira 100, `backend` 의 `SecurityConfig`). 화면 로그인은 세션 쿠키 · Redis 세션 · CSRF 번호표 쿠키(2026-10-21). 로그인 하루 유지 · 같은 아이디 5번 틀리면 1분 잠금(429 `TOO_MANY_REQUESTS`)은 2026-10-26 Jira 62 | BE · Infra | `docs/api.md` 1절, `docs/api-screen.md` A15 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — AI 는 워커 쪽 규칙에 동의했다(2026-10-23). FE 확인 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
@@ -340,6 +344,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 숫자 | 어떻게 |
 |---|---|---|---|
+| 2026-10-27 | 백엔드 린트 후보 여섯 개 — 그때 코드(`backend` 6fd0fec, Java 145개)의 경고 수 · 컴파일 시간 (Jira S15P31A102-124) | 기준 17.3초. Error Prone 기본 +8.0초 · 1건, NullAway ±0 · main 54건(모든 패키지를 볼 때), javac `-Xlint:all` +0.9초 · 11건, Checkstyle(google_checks) +4.3초 · 3620건(3316 이 들여쓰기 · 줄 길이 · 텍스트 블록), PMD(quickstart) +9.4초 · 34건, SpotBugs +17.4초 · 38건(26 이 생성자 주입 오탐). 고른 셋을 붙이고 고친 뒤: 검사를 끈 같은 빌드 9.9초 → 17.3초(**+7.4초**), 경고 0, 테스트 197개 그대로 통과, `/v3/api-docs` 전 · 뒤 같음 | 이 PC(Windows, 데몬 데움)에서 `./gradlew compileJava compileTestJava [+도구 태스크] --rerun-tasks` 를 번갈아 3번 평균. 후보는 임시 init 스크립트로 붙였다. 고친 뒤 기준은 init 스크립트로 Error Prone · 경고 옵션만 끔. 앞 기준(17.3초)과 뒤 기준(9.9초)이 다른 것은 잰 때가 달라서다(앞은 그날 첫 측정들, 뒤는 빌드 캐시 · 데몬이 데워진 뒤) — 늘어난 몫은 같은 회차 안에서 번갈아 잰 값끼리만 견준다 |
 | 2026-10-26 | 직원용 문 출입증 Secret 반영 (!193, Jira S15P31A102-30) | 머지(15:13:47) → app · ai 앱 Synced · Healthy 까지 25초 안. Secret `internal-api` 와 새 backend · ai Pod 가 같은 초(06:13:50Z)에 생겼는데 Pod 안 키 길이 64 · 64 · 64 — 다시 띄우지 않아도 읽었다. 교체 동안 사이트 health 219번 실패 0 · 중앙값 83ms · p99 358ms | 서버에서 `kubectl` 로 Secret · Pod 시각, Pod 안에서는 키 길이와 ai · backend 키의 sha256 같음만 봄(값은 안 찍음). 반영은 5초 간격으로 봄. health 는 관리자 PC 에서 1초마다 `curl`(15:13:26 ~ 15:18:25) |
 | 2026-10-26 | NewsData 요약(`ai_summary`)이 한국어 기사에 오나 | 한국어 최신 50건 · 4일 전 50건 모두 0건. 영어 최신 50건 중 50건 · 4일 전 50건 중 48건 | AI 담당이 Basic 요금제 응답을 받아 셈(10-22 · 10-26) |
 | 2026-10-25 | 바깥 요청이 가끔 몇 초 멈추던 것 — 어디서 멈추나 (Jira S15P31A102-110) | 관리자 PC(집 회선) 3,259번 중 1번 1.02초 — **TCP 연결 맺기에서 0.975초**(첫 연결 신호가 사라져 1초 뒤 다시 보낸 모양), TLS · 응답은 평소. 관리 서버(AWS → 인터넷 → Lightsail) 4,600번 · 워커 안(인터넷 안 거침) 4,800번은 1초 넘김 0 · 실패 0, 최대 0.23초 · 0.09초. Envoy 처리 시간 최대 8ms, 워커 연결 대기열 넘침 · 버림 0(전후 같음), Cilium 버림은 평소 종류만 → **서버 · Envoy 쪽 원인 없음, 관리자 PC 쪽 인터넷 길에서 가끔 패킷이 사라진다**. 브라우저는 연결을 다시 써서 연결 맺기는 처음 한 번뿐이라 사용자 영향은 작다. 10-22 · 10-23 의 멈춤도 모두 관리자 PC 에서 잰 것 | 같은 45분(11:04 ~ 11:49 KST) 동안 세 곳에서 0.5초마다 `curl -m 5` 로 health, 단계별(dns · conn · tls · ttfb · total) 시간. 느린 그 한 요청은 Envoy 로그가 용량으로 돌려 쓰여 짝을 못 찾음 — 남은 내 PC 요청 2,332개로 처리 시간을 봄 |

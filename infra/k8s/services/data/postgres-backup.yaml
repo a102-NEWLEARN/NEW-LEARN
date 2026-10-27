@@ -35,6 +35,10 @@ spec:
       backoffLimit: 2
       activeDeadlineSeconds: 1800
       template:
+        metadata:
+          # data/netpol.yaml 의 postgres-ingress 가 이 이름표만 5432 로 들인다 (Jira S15P31A102-121)
+          labels:
+            app: postgres-backup
         spec:
           restartPolicy: Never
           # 관리 서버에만 뜬다 — 백업 폴더(PV)가 거기 있다. 컨트롤 플레인 taint 를 견딘다 (Prometheus 와 같은 방식)

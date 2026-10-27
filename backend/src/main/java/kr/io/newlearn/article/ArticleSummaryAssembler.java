@@ -9,6 +9,7 @@ import kr.io.newlearn.article.dto.ArticleSummaryResponse;
 import kr.io.newlearn.category.dto.CategoryRef;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.mindmap.ArticleMindmapRepository;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /** A7·A8 및 A6에서 재사용하는 요약 조립. 호출자는 press·category를 함께 조회하고 순서를 정한다. */
@@ -52,13 +53,13 @@ public class ArticleSummaryAssembler {
                 .toList();
     }
 
-    private static ArticleAnalysisStatus mindmapStatusWithoutResult(AnalysisJobRepository.StateView extract) {
+    private static ArticleAnalysisStatus mindmapStatusWithoutResult(AnalysisJobRepository.@Nullable StateView extract) {
         return extract == null
                 ? ArticleAnalysisStatus.NONE
                 : ArticleAnalysisStatus.forMindmapWithoutResult(extract.getStatus(), extract.getErrorCode());
     }
 
-    private boolean present(String value) {
+    private boolean present(@Nullable String value) {
         return value != null && !value.isBlank();
     }
 }

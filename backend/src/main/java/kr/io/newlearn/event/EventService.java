@@ -13,6 +13,7 @@ import kr.io.newlearn.common.web.PageResponse;
 import kr.io.newlearn.event.dto.EventPanelResponse;
 import kr.io.newlearn.issue.dto.EventRef;
 import kr.io.newlearn.issue.dto.IssueRef;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -72,7 +73,7 @@ public class EventService {
                 new PageImpl<>(summaries.assemble(page.getContent()), pageable, page.getTotalElements()));
     }
 
-    private static EventRef firstRef(List<Event> events) {
+    private static @Nullable EventRef firstRef(List<Event> events) {
         if (events.isEmpty()) return null;
         var event = events.getFirst();
         return new EventRef(event.getId(), event.getTitle(), event.getLabel(), ApiTime.toKst(event.getOccurredAt()));

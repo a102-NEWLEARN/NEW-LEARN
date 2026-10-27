@@ -371,7 +371,7 @@ flowchart LR
 2. **토큰** (EC2, 값을 물어서 `ssh -t`): `kubectl create namespace gitlab-runner-build && read -rsp "runner token: " T && echo && printf "%s" "$T" | kubectl -n gitlab-runner-build create secret generic gitlab-runner-build-token --from-literal=runner-registration-token= --from-file=runner-token=/dev/stdin; unset T` <!-- secret-scan:allow — 값이 아니라 변수 이름 -->
 3. **정책 먼저, 그다음 러너** (EC2): `kubectl apply -f infra/k8s/bootstrap/build-netpol.yaml` → `helm upgrade --install gitlab-runner-build gitlab/gitlab-runner --version 0.88.4 -n gitlab-runner-build -f infra/k8s/bootstrap/gitlab-runner-build-values.yaml --wait`
 
-- 확인: GitLab Runners 화면에 online. 정책은 같은 노드에서 대조 — 굽기 네임스페이스와 `default` 에 busybox Pod 를 띄워 `nc -w 3 postgres.data.svc 5432` 가 앞은 막히고 뒤는 열리는지(curl `telnet://` 은 열린 곳도 막힌 것처럼 나왔다)
+- 확인: GitLab Runners 화면에 online. 정책은 같은 노드에서 대조 — 굽기 네임스페이스와 `default` 에 busybox Pod 를 띄워 `nc -w 3 postgres.data.svc 5432` 가 앞은 막히고 뒤는 열리는지(curl `telnet://` 은 열린 곳도 막힌 것처럼 나왔다). 2026-10-27 뒤로는 data 정책(Jira 121) 때문에 postgres 는 어디서든 막혀 원인을 가르지 못한다 — 대상을 들어오는 길 정책이 없는 `argocd-server.argocd 80` 으로 바꿔 같은 대조(굽기 쪽 막힘 · `default` 열림)를 한다
 - 러너가 죽으면 w4 가 기다린다. 급하면 `.gitlab-ci.yml` 의 `.w4` 태그를 빼고 **자원도 CPU 1 · 메모리 2Gi 로 같이** 내린다 — 다른 러너의 상한을 넘으면 잡이 실패한다
 - 내리기: `helm uninstall gitlab-runner-build -n gitlab-runner-build` → `kubectl delete namespace gitlab-runner-build` → GitLab 에서 러너 삭제
 
@@ -493,7 +493,7 @@ hostPort 443 · HTTPS · 관리 화면 잠금도 서버에서 확인했다(2026-
 | 모니터링 내리기 | `helm uninstall kps -n monitoring` → `kubectl get crd -o name \| grep monitoring.coreos.com \| xargs kubectl delete` → `kubectl delete namespace monitoring` → `kubectl delete -f infra/k8s/bootstrap/prometheus-pv.yaml` → `sudo rm -r /var/lib/newlearn/prometheus`. 러너 지표는 값을 되돌려 `helm upgrade` |
 | CI 잡 지표 내리기 | `kubectl delete -k infra/k8s/bootstrap/ci-exporter` → `kubectl -n monitoring delete secret gitlab-ci-exporter` → GitLab 화면 Settings › Access tokens 에서 토큰 Revoke |
 | 서비스만 내리기 | `infra/k8s/apps/templates/` 의 `app.yaml` · `ai.yaml` 을 지우는 MR — Argo CD 가 Deployment · 길을 지운다. `data.yaml` 을 지워도 PostgreSQL · Redis 는 남는다(`Delete=false`) — 정말 지울 때는 `kubectl -n data delete statefulset,pvc --all` 뒤 PV · 워커 폴더를 손으로 |
-| 관리 화면만 닫기 | `infra/k8s/apps/templates/admin-ui.yaml` 을 지우는 MR — Argo CD 가 `/argocd` · `/grafana` 라우트 · 잠금 · 계정 Secret 을 지운다. Grafana 값은 그대로여도 공개 입구가 없어진다 |
+| 관리 화면만 닫기 | `infra/k8s/admin-ui/` 에서 `grafana-netpol.yaml` 만 남기고 나머지 파일을 지우는 MR(앱 `admin-ui.yaml` 은 남긴다) — Argo CD 가 `/argocd` · `/grafana` 라우트 · 잠금 · 계정 Secret 을 지운다. Grafana 값은 그대로여도 공개 입구가 없어진다. 정책은 Grafana 프록시 로그인(`auth.proxy`)이 켜져 있는 동안 남긴다 — 앱째 지우면 정책도 지워져 클러스터 안 Pod 가 머리를 꾸미는 길이 다시 열린다(Jira S15P31A102-119) |
 | HTTPS 되돌리기 | `cert-manager` 앱 · `infra/k8s/gateway/` 의 443 리스너 · 넘기기 · 발급자 · 인증서를 되돌리는 MR. 발급된 인증서는 그대로 둬도 해가 없다. 가비아 레코드는 사람이 지운다 |
 | Argo CD 와 그 앱 내리기 | `kubectl -n argocd delete application root` (finalizer 가 자식 앱 · 그 자원을 지운다, 끝날 때까지 기다린다) → `helm uninstall argocd -n argocd` → `kubectl delete namespace argocd` → `kubectl get crd -o name \| grep argoproj.io \| xargs kubectl delete`. `sealed-secrets` 네임스페이스(개인키)는 남는다 — 지우기 전에 백업이 있는지 본다. GitLab 배포 토큰은 화면에서 Revoke |
 | 러너 내리기 | `helm uninstall gitlab-runner -n gitlab-runner` → `kubectl delete namespace gitlab-runner` → GitLab 화면에서 러너 삭제. 서버 패키지는 바꾸지 않아서 이걸로 원래대로 |

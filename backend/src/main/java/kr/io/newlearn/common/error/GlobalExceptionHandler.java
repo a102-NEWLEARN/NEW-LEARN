@@ -3,6 +3,7 @@ package kr.io.newlearn.common.error;
 import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
@@ -45,6 +46,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 서비스가 던진 ApiException · NotFoundException
     @ExceptionHandler(ApiException.class)
+    @Nullable
     ResponseEntity<Object> handleApiException(ApiException ex, WebRequest request) {
         ProblemDetail body = ProblemDetails.of(ex.errorCode(), ex.getMessage());
         ProblemDetails.addErrors(body, ex.errors());
@@ -54,6 +56,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 위와 스프링이 아는 오류 말고 전부. 로그인 · 권한 오류는 Security 가 401 · 403 으로 바꾸게 다시 던진다
     @ExceptionHandler(Exception.class)
+    @Nullable
     ResponseEntity<Object> handleUnexpected(Exception ex, WebRequest request) throws Exception {
         if (ex instanceof AccessDeniedException || ex instanceof AuthenticationException) {
             throw ex;
@@ -64,7 +67,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 본문 검사(@Valid @RequestBody). reason 은 검증 어노테이션의 message
     @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+    protected @Nullable ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         List<FieldErrorItem> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(GlobalExceptionHandler::toItem)
@@ -74,7 +77,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 파라미터에 바로 붙은 제약(@RequestParam @Max …)
     @Override
-    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+    protected @Nullable ResponseEntity<Object> handleHandlerMethodValidationException(
             HandlerMethodValidationException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         List<FieldErrorItem> errors = new ArrayList<>();
         for (ParameterValidationResult result : ex.getParameterValidationResults()) {
@@ -91,14 +94,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 숫자 자리에 글자처럼 파라미터 타입이 틀림
     @Override
-    protected ResponseEntity<Object> handleTypeMismatch(
+    protected @Nullable ResponseEntity<Object> handleTypeMismatch(
             TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         FieldErrorItem error = new FieldErrorItem(ex.getPropertyName(), reasonForType(ex.getRequiredType()));
         return withErrors(super.handleTypeMismatch(ex, headers, status, request), List.of(error));
     }
 
     @Override
-    protected ResponseEntity<Object> handleMissingServletRequestParameter(
+    protected @Nullable ResponseEntity<Object> handleMissingServletRequestParameter(
             MissingServletRequestParameterException ex,
             HttpHeaders headers,
             HttpStatusCode status,
@@ -109,7 +112,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 본문을 JSON 으로 못 읽음. 칸 타입이 틀렸으면 그 칸을 짚고, JSON 자체가 깨졌으면 errors 없이 보낸다
     @Override
-    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+    protected @Nullable ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         List<FieldErrorItem> errors = List.of();
         if (ex.getCause() instanceof JacksonException cause && !cause.getPath().isEmpty()) {
@@ -121,8 +124,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 모든 오류가 마지막에 지나는 곳. 여기서 code 를 붙이고, 5xx 는 내부 사정이 새지 않게 detail 을 바꾼다
     @Override
-    protected ResponseEntity<Object> handleExceptionInternal(
-            Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+    protected @Nullable ResponseEntity<Object> handleExceptionInternal(
+            Exception ex, @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         ResponseEntity<Object> response = super.handleExceptionInternal(ex, body, headers, statusCode, request);
         if (response != null && response.getBody() instanceof ProblemDetail problem) {
             if (!ProblemDetails.hasCode(problem)) {
@@ -136,7 +139,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return response;
     }
 
-    private static ResponseEntity<Object> withErrors(ResponseEntity<Object> response, List<FieldErrorItem> errors) {
+    private static @Nullable ResponseEntity<Object> withErrors(
+            @Nullable ResponseEntity<Object> response, List<FieldErrorItem> errors) {
         if (response != null && response.getBody() instanceof ProblemDetail problem) {
             ProblemDetails.addErrors(problem, errors);
         }
@@ -154,7 +158,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return new FieldErrorItem(error.getField(), error.getDefaultMessage());
     }
 
-    private static String reasonForType(Class<?> type) {
+    private static String reasonForType(@Nullable Class<?> type) {
         if (type == null) {
             return WRONG_FORMAT;
         }
