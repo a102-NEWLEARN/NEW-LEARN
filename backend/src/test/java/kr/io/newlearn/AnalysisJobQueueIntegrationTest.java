@@ -564,6 +564,8 @@ class AnalysisJobQueueIntegrationTest {
         return jsonMapper.readTree((String) last.getFirst().getValue().get("payload"));
     }
 
+    // read 는 StreamOffset<K>... 가변 인자만 받아 하나만 넘겨도 제네릭 배열이 생긴다 — 읽기만 해서 안전하다
+    @SuppressWarnings("unchecked")
     private void ackAll(String stream, String group) {
         List<MapRecord<String, Object, Object>> read = redis.opsForStream()
                 .read(

@@ -83,7 +83,7 @@ backend_INSTALL=""   # 따로 설치하는 단계가 없다 — Gradle 이 다�
 backend_RUN="./gradlew bootRun"   # IDE 에서 BackendApplication 을 실행해도 같다. 둘 다 루트 .env 를 읽는다
 backend_FORMAT_FIX="./gradlew spotlessApply"
 backend_FORMAT_CHECK="./gradlew spotlessCheck"
-backend_LINT=""   # 린트 도구를 아직 안 골랐다 — 포맷 검사와 컴파일만 본다 (SSOT.md 8절)
+backend_LINT="./gradlew compileJava compileTestJava"   # javac 경고 · Error Prone · NullAway 가 컴파일 안에서 돌고 경고는 실패다(backend/build.gradle). 다음 테스트가 이 컴파일 결과를 그대로 쓴다. 쓰는 법은 docs/backend-convention.md 9절
 backend_TEST="./gradlew test"   # Testcontainers 로 DB · Redis 를 띄운다. Docker Desktop 이 켜져 있어야 한다. CI 잡에는 Docker 가 없어 services 로 띄운 DB · Redis 를 쓴다 (.gitlab-ci.yml 의 w3:backend)
 backend_BUILD="./gradlew bootJar"
 

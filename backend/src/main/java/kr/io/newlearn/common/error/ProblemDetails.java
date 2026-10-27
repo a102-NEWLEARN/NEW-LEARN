@@ -1,6 +1,7 @@
 package kr.io.newlearn.common.error;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.ProblemDetail;
 
 // 오류 응답(RFC 9457 ProblemDetail + code)을 만드는 곳 하나. 컨트롤러 오류(GlobalExceptionHandler)와
@@ -9,7 +10,7 @@ public final class ProblemDetails {
 
     private ProblemDetails() {}
 
-    public static ProblemDetail of(ErrorCode errorCode, String detail) {
+    public static ProblemDetail of(ErrorCode errorCode, @Nullable String detail) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.status(), detail);
         problem.setProperty("code", errorCode.name());
         return problem;

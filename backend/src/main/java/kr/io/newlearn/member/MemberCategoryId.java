@@ -1,6 +1,7 @@
 package kr.io.newlearn.member;
 
 import jakarta.persistence.Embeddable;
+import java.io.Serial;
 import java.io.Serializable;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -14,6 +15,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode
 public class MemberCategoryId implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     private Long memberId;
 
