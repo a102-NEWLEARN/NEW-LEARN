@@ -114,6 +114,15 @@ grafana:
   # 대시보드는 저장소의 설정으로 그린다 — Grafana 자체 디스크는 두지 않는다
   persistence:
     enabled: false
+  # 로그 창고 Loki 를 자료원으로 — Explore 에서 로그를 찾는다 (Jira S15P31A102-128, loki-values.yaml · infra/server/logging.md)
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      jsonData:
+        maxLines: 1000
   grafana.ini:
     server:
       # 공개 주소 — 앞단 팝업(기본 인증) 뒤 (infra/k8s/admin-ui/grafana.yaml, Jira 93). SSH 터널로 들어와도 로그인 뒤 이 주소로 넘어간다
@@ -124,6 +133,9 @@ grafana:
       allow_sign_up: false
       # 팝업 아이디로 처음 들어온 사람은 보기 권한
       auto_assign_org_role: Viewer
+      # Viewer 도 Explore 에서 로그(Loki)를 찾게 — 대시보드를 화면에서 잠깐 고쳐 볼 수는 있지만 저장은 못 한다
+      # 기본값(false)이면 Viewer 는 Explore 로 들어가지 못하고 첫 화면으로 돌아온다 (2026-10-28 겪음, Jira S15P31A102-128, 사용자 결정)
+      viewers_can_edit: true
     # 팝업을 지난 아이디를 Envoy 가 이 머리로 넘긴다 — 그 아이디로 바로 들어간다(따로 로그인 화면 없음)
     # 손님이 같은 머리를 꾸며 보내면 Envoy 가 맨 앞에서 지운다 (infra/k8s/gateway/client-traffic.yaml)
     # Envoy 를 거치지 않고 클러스터 안에서 오는 길은 네트워크 정책이 막는다 (infra/k8s/admin-ui/grafana-netpol.yaml)

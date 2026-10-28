@@ -1,0 +1,27 @@
+# Loki 로그 저장용 정적 PV — 관리 서버 디스크의 폴더 하나 (Jira S15P31A102-128)
+# loki-values.yaml 의 singleBinary.persistence 가 storageClass · 라벨로 이 PV 를 고른다. 프로비저너 없이 손으로 만든 PV 다
+# StorageClass newlearn-local-manual 은 prometheus-pv.yaml 이 만든다 — 같이 쓴다
+# 폴더는 먼저 만들고 Loki 사용자(uid · gid 10001)에게 준다 — infra/server/logging.md 1번
+# Retain: PVC 를 지워도 로그는 남는다. 지울 때는 PV 와 폴더를 손으로 지운다
+# local PV 는 크기를 강제하지 않는다 — 5Gi 는 이름표다. 쌓이는 양은 보관 14일(loki-values.yaml)과 du 로 본다
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: loki-local
+  labels:
+    app.kubernetes.io/name: loki-local
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: newlearn-local-manual
+  local:
+    path: /var/lib/newlearn/loki
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
