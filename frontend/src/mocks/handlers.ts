@@ -1,9 +1,11 @@
 import { http, HttpResponse } from "msw/http";
+import type { ArticleDetail, EventMatchStatus } from "@/api/article";
 import type { Category } from "@/api/categories";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
 import type { IssueSummary } from "@/api/issues";
 import type { Member } from "@/api/members";
+import type { BranchType, Mindmap, MindmapBranch } from "@/api/mindmap";
 import type { SearchResult } from "@/api/search";
 import type { Timeline, TimelineEvent } from "@/api/timeline";
 import type {
@@ -430,7 +432,7 @@ function issueNotFound(instance: string) {
 // A2 정렬 기준. 같으면 id 내림차순 (docs/api-screen.md A2)
 const ISSUE_SORTS = ["lastEventAt", "createdAt"] as const;
 
-// 사건으로 묶이지 않은 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 언론사는 presses 에서 돌려 쓴다.
+// 이슈로 묶이지 않은 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 언론사는 presses 에서 돌려 쓴다.
 // A13 검색은 이 기사들에서만 찾고, A7 최신 기사는 사건 기사(articlesOf)와 이 기사들을 함께 준다
 function looseArticle(
   id: number,
@@ -512,17 +514,118 @@ const looseArticles: ArticleSummary[] = [
   ),
 ];
 
-// A7 — 가짜 기사 전부. 모든 이슈의 사건 기사와 사건으로 묶이지 않은 기사
-function allArticles(): ArticleSummary[] {
+type ArticleEntry = {
+  article: ArticleSummary;
+  eventMatchStatus: EventMatchStatus;
+  event: EventRef | null;
+  issue: IssueSummary | null;
+};
+
+// A8 — 이슈로 묶이지 않은 기사의 사건 찾기 상태. 적지 않은 기사는 대표 사건이 없어 묶지 않는 기사(NO_EVENT)다.
+// 402 는 사건을 찾았지만 이슈가 아직 없다 — 이슈는 사건 3개가 모여야 생긴다 (docs/api-screen.md A8).
+// 902번 사건은 A5 가짜에 없다
+const looseMatches: Record<
+  number,
+  Pick<ArticleEntry, "eventMatchStatus" | "event">
+> = {
+  401: { eventMatchStatus: "QUEUED", event: null },
+  402: {
+    eventMatchStatus: "SUCCEEDED",
+    event: {
+      id: 902,
+      title: "국내 엔지니어 텍사스 파견 검토",
+      label: "엔지니어 파견",
+      occurredAt: "2026-10-09T00:00:00+09:00",
+    },
+  },
+};
+
+// A7 · A8 · A9 — 가짜 기사 전부와 속한 사건 · 이슈. 모든 이슈의 사건 기사와 이슈로 묶이지 않은 기사다
+function articleEntries(): ArticleEntry[] {
   const eventArticles = issues.flatMap((issue) =>
     timelineOf(
       issue.id,
       issue.title,
       issue.firstEventAt,
       issue.lastEventAt,
-    ).flatMap((event) => articlesOf({ event, issue })),
+    ).flatMap((event) =>
+      articlesOf({ event, issue }).map((article) => ({
+        article,
+        eventMatchStatus: "SUCCEEDED" as const,
+        event: eventRef(event),
+        issue,
+      })),
+    ),
   );
-  return [...eventArticles, ...looseArticles];
+  const loose = looseArticles.map((article) => ({
+    article,
+    ...(looseMatches[article.id] ?? {
+      eventMatchStatus: "NO_EVENT",
+      event: null,
+    }),
+    issue: null,
+  }));
+  return [...eventArticles, ...loose];
+}
+
+const findArticle = (articleId: number) =>
+  articleEntries().find((entry) => entry.article.id === articleId);
+
+function articleNotFound(instance: string) {
+  return problem(404, "ARTICLE_NOT_FOUND", "기사를 찾을 수 없다", instance);
+}
+
+// A8 기자 이름 — 지어낸 것. 넷째 자리는 기자 이름이 없는(null) 기사다
+const REPORTERS = ["김민정 기자", "이도윤 기자", "박서연 기자", null];
+
+const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
+  type,
+  items: texts.map((text) => ({ text })),
+});
+
+// A9 — 11901(119번 사건의 첫 기사)은 docs/api-screen.md 3절 예시에 잎을 더했다
+const mindmap11901: MindmapBranch[] = [
+  branch(
+    "CORE",
+    "한빛반도체가 10월 6일 텍사스 공장 착공식을 열었다",
+    "첫 해 생산 목표와 투자 규모를 함께 밝혔다",
+  ),
+  branch("CAUSE", "미국 보조금 조건을 맞추려고 착공을 앞당겼다"),
+  branch(
+    "REACTION",
+    "업계: 인력 수급이 가장 큰 숙제라는 지적",
+    "텍사스 주정부: 일자리가 늘 것이라며 환영",
+  ),
+  branch("OUTLOOK", "2028년 양산 목표는 그대로라고 밝혔다"),
+];
+
+// A9 — 나머지 기사는 지어낸 문장으로 가지를 채운다. 내용 있는 가지만 오는 경우를 만들려고
+// id 가 3의 배수면 원인·배경, 짝수면 반응 가지를 뺀다
+function mindmapOf({ id, title, summary, publishedAt }: ArticleSummary) {
+  const branches =
+    id === 11901
+      ? mindmap11901
+      : [
+          branch("CORE", summary ?? title),
+          id % 3 === 0
+            ? null
+            : branch("CAUSE", "앞서 나온 결정이 이번 일로 이어졌다"),
+          id % 2 === 0
+            ? null
+            : branch(
+                "REACTION",
+                "관계자들은 결과를 지켜보겠다는 반응을 보였다",
+              ),
+          branch("OUTLOOK", "후속 조치가 이어질 전망이다"),
+        ].filter((item) => item !== null);
+  return {
+    articleId: id,
+    schemaVersion: "mindmap-v1",
+    generatedAt: kstIso(Date.parse(publishedAt) + 65_000),
+    aiGenerated: true,
+    title,
+    branches,
+  } satisfies Mindmap;
 }
 
 // A13 — 우리가 가진 뉴스 데이터 가운데 검색어가 들어간 것 (2026-10-23 사용자가 정한 규칙).
@@ -675,7 +778,8 @@ export const handlers = [
         "/api/v1/articles",
       );
     }
-    const matched = allArticles()
+    const matched = articleEntries()
+      .map((entry) => entry.article)
       .filter((article) => code === null || article.category?.code === code)
       .sort(
         (a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.id - a.id,
@@ -687,6 +791,35 @@ export const handlers = [
       totalElements: matched.length,
       totalPages: Math.ceil(matched.length / size),
     } satisfies Page<ArticleSummary>);
+  }),
+  // A8 — 기사 요약에 기자 · 사건 찾기 상태 · 사건 · 이슈를 더한다. 없는 기사는 404 (docs/api-screen.md A8)
+  http.get("/api/v1/articles/:articleId", ({ params }) => {
+    const found = findArticle(Number(params.articleId));
+    if (!found) return articleNotFound(`/api/v1/articles/${params.articleId}`);
+    const { article, eventMatchStatus, event, issue } = found;
+    return HttpResponse.json({
+      ...article,
+      reporter: REPORTERS[article.id % REPORTERS.length],
+      eventMatchStatus,
+      event,
+      issue: issue && { id: issue.id, title: issue.title },
+    } satisfies ArticleDetail);
+  }),
+  // A9 — 결과는 마인드맵 분석이 끝난(SUCCEEDED) 기사에만 있다. 없으면 404 MINDMAP_NOT_FOUND,
+  // 없는 기사는 404 ARTICLE_NOT_FOUND (docs/api-screen.md A9)
+  http.get("/api/v1/articles/:articleId/mindmap", ({ params }) => {
+    const instance = `/api/v1/articles/${params.articleId}/mindmap`;
+    const found = findArticle(Number(params.articleId));
+    if (!found) return articleNotFound(instance);
+    if (found.article.mindmapStatus !== "SUCCEEDED") {
+      return problem(
+        404,
+        "MINDMAP_NOT_FOUND",
+        "마인드맵 결과가 없다",
+        instance,
+      );
+    }
+    return HttpResponse.json(mindmapOf(found.article));
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
   http.get("/api/v1/search", ({ request }) =>

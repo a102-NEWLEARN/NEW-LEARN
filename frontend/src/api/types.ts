@@ -22,6 +22,9 @@ export type PublisherRef = { code: string; name: string };
 /** 카테고리 참조 */
 export type CategoryRef = { code: string; name: string };
 
+/** 이슈 참조 — 이슈 화면(A3 · A4)을 열 때 */
+export type IssueRef = { id: number; title: string };
+
 /** 사건 참조 — 사건 패널(A5)을 열거나 타임라인에서 강조할 때 */
 export type EventRef = {
   id: number;
