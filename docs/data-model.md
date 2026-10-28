@@ -393,7 +393,7 @@ erDiagram
 
 ### bookmark · interest_issue — 회원이 저장한 것 (확정 2026-10-26)
 
-기사 북마크와 관심 이슈(별표)다. 프로토타입 v21 과 대조해 정했다(Jira 114). API 는 `api-screen.md` A20 ~ A25 다. `bookmark` 는 Jira 63의 `V7__bookmark.sql`로 만든다. `interest_issue` 는 Jira 64가 새 마이그레이션으로 만든다 — 번호는 만들 때 dev 의 가장 큰 번호 다음이다.
+기사 북마크와 관심 이슈(별표)다. 프로토타입 v21 과 대조해 정했다(Jira 114). API 는 `api-screen.md` A20 ~ A25 다. `bookmark` 는 Jira 63의 `V7__bookmark.sql`로 만든다. `interest_issue` 는 Jira 64 의 `V9__interest_issue.sql` 로 만든다.
 
 | 칸 | 타입 | 필수 | 용도 · 규칙 |
 |---|---|---|---|
@@ -406,7 +406,7 @@ erDiagram
 
 - 「지난 방문 이후 새 사건」(`last_visited_at`)은 보류라 칸을 만들지 않는다(2026-10-26). 다시 넣게 되면 새 마이그레이션으로 칸을 더한다
 - 정렬용 인덱스는 두지 않는다. 회원 한 명의 행은 많아야 수십 ~ 수백이고, 기본 키 앞자리(`member_id`)로 찾는다. 기사 · 이슈 응답의 `bookmarked` · `interested` 는 그 쪽의 id 들을 모아 기본 키로 한 번에 찾는다(`member_id = ? and article_id in (…)`)
-- 넣을 때는 `insert … on conflict do nothing` 한 문장으로 한다. 먼저 읽고 넣거나 JPA `save()` 로 하면 동시 요청이 기본 키에 부딪치거나 `created_at` 을 덮는다(`api-screen.md` A20)
+- 넣을 때는 `insert … on conflict … do update set created_at = <표>.created_at returning …` 한 문장으로 한다 — 넣기와 저장 시각 읽기를 한 문장으로 해야 그 사이에 빼기 · 해제가 끼어들어 404 가 나지 않는다(2026-10-28 북마크 · 2026-10-29 관심 이슈 리뷰). 먼저 읽고 넣거나 JPA `save()` 로 하면 동시 요청이 기본 키에 부딪치거나 `created_at` 을 덮는다(`api-screen.md` A20)
 - 다른 표와 달리 외래 키에 `on delete cascade` 를 단다. 회원이 저장한 것은 대상이 없어지면 남길 까닭이 없어서다. 지금은 회원 · 기사 · 이슈를 지우는 기능이 없다
 - 투입 전 기사는 담을 수 없다(A20 이 404)
 

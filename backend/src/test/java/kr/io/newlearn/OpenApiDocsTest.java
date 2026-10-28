@@ -1,6 +1,7 @@
 package kr.io.newlearn;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -8,6 +9,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -44,7 +46,8 @@ class OpenApiDocsTest {
             Map.entry("/api/v1/articles/{articleId}", "A8"),
             Map.entry("/api/v1/articles/{articleId}/mindmap", "A9"),
             Map.entry("/api/v1/members/me", "A17"),
-            Map.entry("/api/v1/members/me/bookmarks", "A22"));
+            Map.entry("/api/v1/members/me/bookmarks", "A22"),
+            Map.entry("/api/v1/members/me/interest-issues", "A25"));
 
     @Autowired
     MockMvc mvc;
@@ -353,5 +356,53 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.components.schemas.BookmarkItem.properties.bookmarkedAt")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.Item").doesNotExist());
+    }
+
+    @Test
+    void interestIssueApisExposeConfirmedResponsesAndNullableRemovalTime() throws Exception {
+        String path = "/api/v1/members/me/interest-issues/{issueId}";
+        var result = docs();
+        for (String method : java.util.List.of("put", "delete")) {
+            String operation = op(method, path);
+            result.andExpect(jsonPath(
+                            operation + ".summary", startsWith("[확정] " + (method.equals("put") ? "A23" : "A24"))))
+                    .andExpect(jsonPath(operation + ".tags", contains("회원")))
+                    .andExpect(jsonPath(operation + ".requestBody").doesNotExist())
+                    .andExpect(jsonPath(operation + ".parameters", hasSize(1)))
+                    .andExpect(jsonPath(operation + ".parameters[0].name").value("issueId"))
+                    .andExpect(
+                            jsonPath(operation + ".parameters[0].schema.type").value("integer"))
+                    .andExpect(jsonPath(operation + ".responses.*", hasSize(method.equals("put") ? 5 : 4)));
+            for (String code : java.util.List.of("200", "400", "401", "403")) {
+                result.andExpect(
+                        jsonPath(operation + ".responses['" + code + "']").exists());
+                if (!code.equals("200"))
+                    result.andExpect(jsonPath(
+                            operation + ".responses['" + code + "'].content['application/problem+json'].schema['$ref']",
+                            endsWith("/Problem")));
+            }
+            if (method.equals("put"))
+                result.andExpect(
+                        jsonPath(operation + ".responses['404'].description", containsString("ISSUE_NOT_FOUND")));
+        }
+        String list = op("/api/v1/members/me/interest-issues");
+        result.andExpect(jsonPath(list + ".summary", startsWith("[확정] A25")))
+                .andExpect(jsonPath(list + ".tags", contains("회원")))
+                .andExpect(jsonPath(list + ".parameters").doesNotExist())
+                .andExpect(jsonPath(list + ".responses.*", hasSize(2)))
+                .andExpect(jsonPath(list + ".responses['200']").exists())
+                .andExpect(jsonPath(list + ".responses['401']").exists())
+                .andExpect(jsonPath("$.components.schemas.InterestIssueItem.properties.interestedAt")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.BookmarkItem.properties.bookmarkedAt")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.Item").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.IssueCardResponse.properties.interested.type")
+                        .value("boolean"))
+                .andExpect(jsonPath("$.components.schemas.IssueHeaderResponse.properties.interested.type")
+                        .value("boolean"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.InterestIssueStateResponse.properties.interestedAt.type",
+                        containsInAnyOrder("string", "null")));
     }
 }

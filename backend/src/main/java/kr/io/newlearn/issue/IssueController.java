@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import kr.io.newlearn.common.security.MemberPrincipal;
 import kr.io.newlearn.common.web.ApiProblem;
 import kr.io.newlearn.common.web.OpenApiConfig;
 import kr.io.newlearn.common.web.PageQuery;
@@ -15,7 +16,9 @@ import kr.io.newlearn.common.web.PageResponse;
 import kr.io.newlearn.issue.dto.IssueCardResponse;
 import kr.io.newlearn.issue.dto.IssueHeaderResponse;
 import kr.io.newlearn.issue.dto.TimelineResponse;
+import org.jspecify.annotations.Nullable;
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -48,8 +51,9 @@ public class IssueController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @GetMapping("/api/v1/issues/{issueId}")
     public IssueHeaderResponse get(
-            @Parameter(description = "이슈 ID (A2 항목의 id)", example = "1") @PathVariable long issueId) {
-        return service.get(issueId);
+            @Parameter(description = "이슈 ID (A2 항목의 id)", example = "1") @PathVariable long issueId,
+            @Parameter(hidden = true) @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.get(issueId, me == null ? null : me.id());
     }
 
     @Operation(
@@ -108,7 +112,8 @@ public class IssueController {
                     @RequestParam(required = false)
                     @Pattern(regexp = "lastEventAt|createdAt", message = "sort는 lastEventAt 또는 createdAt으로 보내 주세요")
                     String sort,
-            @ParameterObject @Valid PageQuery query) {
-        return service.list(category, sort == null ? "lastEventAt" : sort, query);
+            @ParameterObject @Valid PageQuery query,
+            @Parameter(hidden = true) @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.list(category, sort == null ? "lastEventAt" : sort, query, me == null ? null : me.id());
     }
 }

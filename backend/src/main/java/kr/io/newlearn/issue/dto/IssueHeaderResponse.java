@@ -15,4 +15,5 @@ public record IssueHeaderResponse(
         long publisherCount,
         @Nullable OffsetDateTime firstEventAt,
         @Nullable OffsetDateTime lastEventAt,
-        OffsetDateTime createdAt) {}
+        OffsetDateTime createdAt,
+        boolean interested) {}

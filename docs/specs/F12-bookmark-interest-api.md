@@ -14,6 +14,8 @@
 
 ## 64 관심 이슈
 
+구현은 `kr.io.newlearn.interest`와 A2·A25가 공유하는 `IssueCardAssembler`를 사용한다. 관심 API·회원 격리·JDBC/Hibernate 쿼리 수는 `InterestIssueApiIntegrationTest`, 실제 INSERT 충돌 대기는 `InterestIssueConcurrencyIntegrationTest`, V1~V9 스키마·정식 V7→V8→V9 북마크/기존 데이터 보존은 `InterestIssueSchemaTest`, Swagger는 `OpenApiDocsTest`에서 확인한다. 공유 환경 적용 순서와 검증 범위는 [64번 계획](../plans/2026-10-28-interest-issues.md)에 둔다.
+
 - AC-6: A23 `PUT /api/v1/members/me/interest-issues/{issueId}` 는 200 과 `{ issueId, interested: true, interestedAt }`, 두 번 저장해도(동시에 보내도) 한 줄. A24 `DELETE` 는 200 과 `{ issueId, interested: false, interestedAt: null }`, 저장 안 된 것 · 없는 이슈 id 도 같은 응답. 사건이 0개인 이슈도 저장할 수 있다
 - AC-7: 없는 이슈를 A23 으로 저장하면 404 `ISSUE_NOT_FOUND`, 숫자가 아닌 `issueId` 는 A23 · A24 모두 400 `VALIDATION_FAILED`
 - AC-8: A25 는 저장한 이슈를 쪽 없이 전부, 저장 시각 최신순(같으면 이슈 `id` 내림차순). 항목은 A2 이슈 카드 + `interested: true` + `interestedAt`. 사건 0개 이슈는 집계 0 · 기간과 `lastEvent` null. 항목마다 따로 쿼리하지 않는다

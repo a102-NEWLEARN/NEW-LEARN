@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import java.util.List;
+import kr.io.newlearn.issue.IssueCardAssembler;
 import kr.io.newlearn.issue.IssueQueryRepository;
 import kr.io.newlearn.issue.IssueService;
 import org.hibernate.SessionFactory;
@@ -22,7 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, IssueQueryRepository.class, IssueService.class})
+@Import({TestcontainersConfiguration.class, IssueQueryRepository.class, IssueService.class, IssueCardAssembler.class})
 class IssueTimelineQueryTest {
     @MockitoSpyBean
     JdbcClient jdbc;
