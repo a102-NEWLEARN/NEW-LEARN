@@ -8,7 +8,7 @@
   — `embedSuccessStoresTheVector` · `embedAgainOverwritesTheVector` · `embedWithWrongDimensionIsRejected` · `embedWithAValueBeyondFloat4IsRejected` · `embedKeepsTinyValues` · `EmbedResultTest`(14개)
 - AC-2: EXTRACT · EMBED 가 모두 성공하고, 대표 사건 번호가 있고, 아직 사건에 안 묶인 기사에만 판정(MATCH_EVENT)이 걸린다. 어느 쪽이 나중에 끝나도, 두 결과가 동시에 와도 판정 작업은 하나다
   — `matchIsQueuedAfterBothExtractAndEmbedSucceed` · `matchIsQueuedWhicheverFinishesLast` · `noMatchWithoutPrimaryCoreOrWhenAlreadyLinked` · `concurrentExtractAndEmbedQueueExactlyOneMatch`
-- AC-3: 판정은 한 번에 하나다. 진행 중(`QUEUED`, 또는 실패했는데 다시 걸 예정)인 판정이 있으면 다음 기사는 기다리고, 멈춘 실패는 넘어간다. 걸 때는 판정할 기사 중 발행 시각이 가장 이른 것을 고른다. 판정 결과를 저장하거나 멈추는 실패가 오면 그 W1 뒤에 바로 다음 기사가 걸린다. 400 으로 거절한 판정은 같은 작업 · 시도 2 · 처음 고른 후보로 다시 걸린다. 같은 판정이 30분 넘게 `QUEUED` 면 고르기가 WARN 을 남긴다
+- AC-3: 판정은 한 번에 하나다. 진행 중(`QUEUED`, 또는 실패했는데 다시 걸 예정)인 판정이 있으면 다음 기사는 기다리고, 멈춘 실패는 넘어간다. 걸 때는 판정할 기사 중 발행 시각이 가장 이른 것을 고른다. 판정 결과를 저장하거나 멈추는 실패가 오면 그 W1 뒤에 바로 다음 기사가 걸린다. 400 으로 거절한 판정은 같은 작업 · 시도 2 · 처음 고른 후보로 다시 걸린다. 같은 판정이 40분 넘게 `QUEUED` 면 고르기가 WARN 을 남긴다(2026-10-28 30분 → 40분, Jira 130)
   — `matchesOneAtATimeInPublishedOrder` · `theNextArticleSeesTheEventTheFirstOneCreated` · `aStoppedJudgmentLetsTheNextArticleGo` · `aRejectedJudgmentIsRequeuedWithTheSameCandidates` · `aJudgmentStuckInQueuedIsWarned`
 - AC-4: 후보는 기사 벡터가 가까운 사건 최대 5개, 가까운 순서다(사건은 그 사건 기사 중 가장 가까운 것으로 잰다). `similarity` 는 1 − 코사인 거리를 0 ~ 1 로 자른 값이다. 후보는 `analysis_job.candidates` 에 `[{eventId, similarity}]` 로 남고, 메시지에 기사 · `extracted`(요약 · 시점 · 마인드맵 · `primaryEvent`) · 후보(사건 칸 · 첫 기사의 대표 잎 근거 최대 3문장 · `similarity`)가 실린다. 후보가 없어도 판정을 건다
   — `candidatesAreTheNearestFiveEvents` · `messageCarriesThePrimaryEventAndCandidateEvidence` · `matchIsQueuedEvenWithoutCandidates` · `CandidateEventFinderTest.similarityIsOneMinusDistanceClampedToZeroAndOne` · `MindmapContentTest.coreReturnsTheCoreLeafAtTheIndexOrNull`
@@ -26,6 +26,8 @@
   — 2026-10-27 줄(데워진 뒤 중앙값 약 77ms)
 - AC-11(구현 중 더함): 1분 스케줄러의 「못 넣은 작업 넣기」는 메시지 공장이 있는 단계만 읽는다. 공장이 없는 단계(Jira 40 전의 ISSUE)의 작업이 한 번에 읽는 수(100)를 채워도 다른 단계의 작업이 막히지 않는다
   — `AnalysisJobQueueIntegrationTest.jobsWithoutAMessageFactoryDoNotCrowdOutOthers`
+- AC-12(Jira 130, 2026-10-28): `NEW` 면 `newEvent.role`(`MAIN` · `REACTION`)과 `reactsTo` 를 사건에 저장한다. `role` 이 없거나 모르는 값(소문자 포함)이면 400. `REACTION` 의 `reactsTo` 가 비었거나 U+0000 이면 null, `MAIN` 의 `reactsTo` 는 읽지 않는다. `EXISTING` 의 `newEvent` 는 `role` 까지 읽지 않는다
+  — `newStoresTheRoleAndWhatItReactsTo` · `newWithoutAKnownRoleIsRejected` · `aReactsToThatCannotBeKeptIsStoredAsNull` · `existingIgnoresTheNewEventRole`
 
 ## 알아 둘 것
 

@@ -316,7 +316,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — AI 는 워커 쪽 규칙에 동의했다(2026-10-23). FE 확인 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
 | 한 기사가 여러 사건에 속할 수 있는지 (PRD FR-9) | AI · BE | `docs/data-model.md` 5절 |
-| 타임라인 메인 흐름 · 서브 흐름을 나누는 기준 | 팀 | `docs/data-model.md` 5절 |
 | 기사가 몇 개 모여야 사건으로 보이는지 | AI | `docs/data-model.md` 5절 |
 | NewsData 원본 분류를 카테고리 5개에 맞추는 행, 이슈가 카테고리 여러 개에 걸치는지 — NewsData 구독 뒤 실제 데이터로 | BE · 팀 | `docs/data-model.md` 5절 |
 | 표준국어대사전 Open API 하루 한도 · 결과 저장 · 출처 표시 조건 | BE | 5절 |

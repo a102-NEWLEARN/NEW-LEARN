@@ -24,6 +24,7 @@ import kr.io.newlearn.event.ArticleEvent;
 import kr.io.newlearn.event.ArticleEventRepository;
 import kr.io.newlearn.event.Event;
 import kr.io.newlearn.event.EventRepository;
+import kr.io.newlearn.event.EventRole;
 import kr.io.newlearn.event.OccurredAtBasis;
 import kr.io.newlearn.ingest.IngestRun;
 import kr.io.newlearn.ingest.IngestRunRepository;
@@ -195,7 +196,9 @@ class CoreMappingTest {
                         "착공식",
                         null,
                         Instant.parse("2026-10-05T15:00:00Z"),
-                        OccurredAtBasis.EXTRACTED))
+                        OccurredAtBasis.EXTRACTED,
+                        EventRole.MAIN,
+                        null))
                 .getId();
         em.flush();
         jdbc.sql("update event set issue_id = ? where id = ?")
@@ -414,7 +417,13 @@ class CoreMappingTest {
     void articleEventSharesArticleKey() {
         Article article = articleRepository.save(newArticle("https://example.com/news/7", List.of()));
         Event event = eventRepository.save(new Event(
-                "한빛반도체 텍사스 공장 착공식", "착공식", null, Instant.parse("2026-10-05T15:00:00Z"), OccurredAtBasis.EXTRACTED));
+                "한빛반도체 텍사스 공장 착공식",
+                "착공식",
+                null,
+                Instant.parse("2026-10-05T15:00:00Z"),
+                OccurredAtBasis.EXTRACTED,
+                EventRole.MAIN,
+                null));
         articleEventRepository.save(new ArticleEvent(article, event));
         em.flush();
         em.clear();
