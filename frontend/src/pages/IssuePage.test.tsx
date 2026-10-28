@@ -426,3 +426,12 @@ test("좁은 화면 시트를 닫기 버튼으로 닫으면 기록을 쌓지 않
   await waitFor(() => expect(router.state.location.search).toBe(""));
   expect(router.state.historyAction).toBe("REPLACE");
 });
+
+test("패널이 닫혀 있을 때 타임라인 빈 곳을 누르면 포커스를 옮기지 않는다", async () => {
+  renderRoute("/issues/12");
+  await node(/착공식/);
+
+  fireEvent.click(screen.getByRole("group", { name: "사건 타임라인" }));
+
+  expect(document.activeElement).toBe(document.body);
+});

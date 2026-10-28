@@ -30,7 +30,7 @@ test("행 전체가 기사 마인드맵 링크이고 제목 · 언론사 · 날�
   renderRow();
 
   const link = screen.getByRole("link", {
-    name: /착공식s*바른신문 · 3시간 전/,
+    name: /착공식\s*바른신문 · 3시간 전/,
   });
   expect(link.getAttribute("href")).toBe("/articles/11901");
   expect(within(link).getByText("바른신문 · 3시간 전")).toBeDefined();

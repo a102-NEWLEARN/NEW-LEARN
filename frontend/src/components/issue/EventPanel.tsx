@@ -63,12 +63,16 @@ export function EventPanel({
     if (!stepped.current || event.isPlaceholderData) return;
     stepped.current = false;
     const nav = navRef.current;
-    if (!nav || nav.contains(document.activeElement)) return;
+    // 포커스를 잃었을 때(body)만 — 받는 동안 사용자가 다른 곳으로 옮긴 포커스는 그대로 둔다
+    const active = document.activeElement;
+    if (!nav || (active && active !== document.body)) return;
     nav.querySelector<HTMLButtonElement>("button")?.focus();
   }, [detail?.id, event.isPlaceholderData]);
 
+  // 앞 사건을 보이는 동안에는 새 사건의 관련 기사 · 첫 기사를 섞지 않는다
+  const pending = event.isPlaceholderData;
   // A6 는 발행 순이라 첫 쪽의 맨 앞이 첫 기사다
-  const firstArticle = articles.data?.pages[0]?.items[0];
+  const firstArticle = pending ? undefined : articles.data?.pages[0]?.items[0];
 
   return (
     <div
@@ -151,7 +155,13 @@ export function EventPanel({
       )}
 
       {detail && (
-        <RelatedArticles articles={articles} count={detail.articleCount} />
+        <RelatedArticles
+          // 사건이 바뀌면 더 보기 포커스 같은 상태를 새로 시작한다
+          key={eventId}
+          articles={articles}
+          count={detail.articleCount}
+          pending={pending}
+        />
       )}
 
       {detail && (detail.previousEvent || detail.nextEvent) && (
@@ -204,10 +214,12 @@ function DateChip({
 type RelatedArticlesProps = {
   articles: UseInfiniteQueryResult<InfiniteData<Page<ArticleSummary>>>;
   count: EventDetail["articleCount"];
+  /** 앞 사건을 보이는 중 — 기사 대신 자리만 둔다 */
+  pending: boolean;
 };
 
 // 관련 기사 — 발행 순 처음 5건, 더 있으면 *더 보기* 로 다음 쪽을 붙인다 (EXPERIENCE.md Component Patterns 「기사 행」)
-function RelatedArticles({ articles, count }: RelatedArticlesProps) {
+function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
   const pages = articles.data?.pages ?? [];
   const items = pages.flatMap((page) => page.items);
   const total = pages[0]?.totalElements ?? 0;
@@ -230,7 +242,7 @@ function RelatedArticles({ articles, count }: RelatedArticlesProps) {
   };
 
   let body: ReactNode;
-  if (articles.data) {
+  if (articles.data && !pending) {
     body =
       items.length === 0 ? (
         <EmptyState message="아직 이 사건을 다룬 기사가 없어요." />
@@ -245,7 +257,7 @@ function RelatedArticles({ articles, count }: RelatedArticlesProps) {
           ))}
         </ul>
       );
-  } else if (articles.isError) {
+  } else if (articles.isError && !pending) {
     body = (
       <ErrorState
         title="관련 기사를 불러오지 못했어요"
@@ -269,15 +281,17 @@ function RelatedArticles({ articles, count }: RelatedArticlesProps) {
     <section aria-label="관련 기사" className={`${CARD} px-x3 pb-x3`}>
       <div className="flex items-center gap-x2 px-x2">
         <p className="t4-bold text-fg-neutral">관련 기사</p>
-        <span className="t2-bold rounded-full bg-bg-brand-weak px-x2 text-fg-brand tabular-nums">
-          {count}
-        </span>
+        {!pending && (
+          <span className="t2-bold rounded-full bg-bg-brand-weak px-x2 text-fg-brand tabular-nums">
+            {count}
+          </span>
+        )}
         <span className="t2-regular ml-auto text-fg-neutral-subtle">
           발행 순
         </span>
       </div>
       {body}
-      {articles.hasNextPage && (
+      {articles.hasNextPage && !pending && (
         <ActionButton
           variant="ghost"
           size="small"

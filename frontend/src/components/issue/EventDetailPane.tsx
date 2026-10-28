@@ -36,9 +36,12 @@ export function EventDetailPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 사건이 바뀌면 패널을 맨 위로
+  // 사건이 바뀌면 패널을 맨 위로. 다만 이전 · 다음 버튼처럼 패널 안에 포커스가 있으면 그 자리를 그대로 둔다 —
+  // 맨 위로 올리면 아래쪽 버튼의 포커스가 화면 밖으로 나간다 (Accessibility Floor 「키보드 포커스는 늘 보인다」)
   useEffect(() => {
-    scrollRef.current?.scrollTo?.({ top: 0 });
+    const box = scrollRef.current;
+    if (!box || box.contains(document.activeElement)) return;
+    box.scrollTo?.({ top: 0 });
   }, [eventId]);
 
   // 넓은 화면의 Esc — 맨 위에 열린 것 하나만 닫는다. TIP(팝오버)은 캡처 단계에서 먼저 닫고 preventDefault 한다.

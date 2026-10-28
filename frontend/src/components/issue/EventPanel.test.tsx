@@ -278,3 +278,62 @@ test("사건을 못 불러왔을 때 다시 시도하면 다시 불러온다", a
     }),
   ).toBeDefined();
 });
+
+// 120 번 사건(A5)만 늦게 온다 — 앞 사건을 보이는 동안의 모습을 본다. 되돌려 주지 않으면 원래 가짜 응답으로 넘어간다
+function slowEvent(eventId: number) {
+  server.use(
+    http.get(`/api/v1/events/${eventId}`, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }),
+  );
+}
+
+test("이전 · 다음으로 새 사건을 받는 동안에는 앞 사건 제목 아래에 새 사건의 기사 · 첫 기사를 섞어 보이지 않는다", async () => {
+  slowEvent(120);
+  renderWithProviders(<Harness start={119} />);
+  await relatedList();
+
+  fireEvent.click(screen.getByRole("button", { name: /다음 사건/ }));
+  // A6(120) 가 먼저 와도 기다리는 동안은 관련 기사 · 첫 기사를 그리지 않는다
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
+    "한빛반도체 텍사스 공장 착공식",
+  );
+  expect(screen.queryByRole("list", { name: "관련 기사" })).toBeNull();
+  expect(screen.queryByText("첫 기사")).toBeNull();
+
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "텍사스 공장 엔지니어 수급 우려 보도",
+  });
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("list", { name: "관련 기사" })).getAllByRole(
+        "listitem",
+      ),
+    ).toHaveLength(4),
+  );
+});
+
+test("새 사건을 받는 동안 다른 곳으로 옮긴 포커스는 빼앗지 않는다", async () => {
+  slowEvent(120);
+  renderWithProviders(
+    <>
+      <Harness start={119} />
+      <button type="button">바깥</button>
+    </>,
+  );
+  const next = await screen.findByRole("button", { name: /다음 사건/ });
+  act(() => next.focus());
+  fireEvent.click(next);
+  const outside = screen.getByRole("button", { name: "바깥" });
+  act(() => outside.focus());
+
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "텍사스 공장 엔지니어 수급 우려 보도",
+  });
+
+  expect(document.activeElement).toBe(outside);
+});

@@ -107,6 +107,8 @@ function IssueView({ issueId }: { issueId: number }) {
   const pageRef = useRef<HTMLDivElement>(null);
   const closePanel = useCallback(() => {
     const closed = selectedId;
+    // 열려 있지 않으면(타임라인 빈 곳을 그냥 누른 것) 아무것도 하지 않는다
+    if (closed === null) return;
     setEvent(null);
     const page = pageRef.current;
     const node = page?.querySelector<SVGElement>(`[data-event-id="${closed}"]`);
