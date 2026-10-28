@@ -176,8 +176,9 @@ export function Timeline({
       setTipOpen(false);
       tipButtonRef.current?.focus();
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // 캡처 단계 — 오른쪽 사건 패널(이슈 화면의 버블 단계 Esc)보다 먼저 TIP 을 닫고 preventDefault 로 알린다
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [tipOpen]);
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
@@ -474,6 +475,7 @@ export function Timeline({
                   transform={`translate(${x},${event.y})`}
                   role="button"
                   tabIndex={0}
+                  data-event-id={event.id}
                   aria-current={isSelected ? "true" : undefined}
                   aria-label={[
                     `${dateText(event)} ${event.title}`,

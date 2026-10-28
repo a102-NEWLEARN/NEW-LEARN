@@ -106,3 +106,12 @@ body {
   color: var(--seed-color-fg-neutral);
   background: var(--seed-color-bg-layer-default);
 }
+
+/* 오른쪽 사건 패널이 열릴 때 — 300ms enter 곡선으로 오른쪽에서 밀려 들어온다 (EXPERIENCE.md Interaction Primitives 「모션」).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe). 닫힐 때는 바로 사라진다 */
+@keyframes newlearn-panel-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
