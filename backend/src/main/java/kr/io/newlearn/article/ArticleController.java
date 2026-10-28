@@ -70,7 +70,7 @@ public class ArticleController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "ARTICLE_NOT_FOUND — 없거나 아직 투입하지 않은 기사",
+            description = "ARTICLE_NOT_FOUND — 없거나 공개 전 기사",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,

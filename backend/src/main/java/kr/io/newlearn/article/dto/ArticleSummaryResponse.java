@@ -1,5 +1,6 @@
 package kr.io.newlearn.article.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
 import kr.io.newlearn.category.dto.CategoryRef;
 import org.jspecify.annotations.Nullable;
@@ -13,7 +14,10 @@ public record ArticleSummaryResponse(
         @Nullable CategoryRef category,
         @Nullable String summary,
         String url,
+        // enum 을 eventMatchStatus 와 같이 써서 문서에는 이 칸에 나오는 값만 적는다 (ArticleAnalysisStatus 주석)
+        @Schema(allowableValues = {"NONE", "QUEUED", "SUCCEEDED", "FAILED", "NOT_ANALYZABLE"})
         ArticleAnalysisStatus mindmapStatus,
+
         boolean bookmarked) {
     public record PublisherRef(String code, String name) {}
 }
