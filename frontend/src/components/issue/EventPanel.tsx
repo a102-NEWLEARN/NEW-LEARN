@@ -8,15 +8,16 @@ import {
 import { Skeleton } from "@seed-design/react";
 import {
   type InfiniteData,
+  keepPreviousData,
   type UseInfiniteQueryResult,
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
-import type { ReactNode, Ref } from "react";
+import { type ReactNode, type Ref, useEffect, useRef } from "react";
 import { ActionButton } from "seed-design/ui/action-button";
 import { ApiError } from "@/api/error";
 import { type EventDetail, eventQuery } from "@/api/event";
-import { eventArticlesQuery } from "@/api/eventArticles";
+import { EVENT_ARTICLES_SIZE, eventArticlesQuery } from "@/api/eventArticles";
 import type { ArticleSummary, EventRef, Page } from "@/api/types";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleRow } from "@/components/ArticleRow";
@@ -43,15 +44,37 @@ export function EventPanel({
   onSelectEvent,
   headingRef,
 }: EventPanelProps) {
-  const event = useQuery(eventQuery(eventId));
+  // 이전 · 다음으로 사건을 바꾸는 동안 앞 사건을 그대로 두어, 누른 버튼이 사라지며 포커스를 잃지 않게 한다
+  const event = useQuery({
+    ...eventQuery(eventId),
+    placeholderData: keepPreviousData,
+  });
   const articles = useInfiniteQuery(eventArticlesQuery(eventId));
   const detail = event.data;
   const notFound = isEventNotFound(event.error);
+  // 이전 · 다음으로 옮긴 뒤 누른 버튼이 없어졌으면(마지막 · 첫 사건) 남은 쪽 버튼으로 포커스를 옮긴다
+  const navRef = useRef<HTMLElement>(null);
+  const stepped = useRef(false);
+  const step = (nextId: number) => {
+    stepped.current = true;
+    onSelectEvent(nextId);
+  };
+  useEffect(() => {
+    if (!stepped.current || event.isPlaceholderData) return;
+    stepped.current = false;
+    const nav = navRef.current;
+    if (!nav || nav.contains(document.activeElement)) return;
+    nav.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [detail?.id, event.isPlaceholderData]);
+
   // A6 는 발행 순이라 첫 쪽의 맨 앞이 첫 기사다
   const firstArticle = articles.data?.pages[0]?.items[0];
 
   return (
-    <div className="flex flex-col gap-x3">
+    <div
+      aria-busy={event.isPlaceholderData}
+      className={`flex flex-col gap-x3 transition-opacity ${event.isPlaceholderData ? "opacity-60" : ""}`}
+    >
       <div>
         {detail?.issue && (
           <p className="t3-bold truncate text-fg-brand">{detail.issue.title}</p>
@@ -132,12 +155,16 @@ export function EventPanel({
       )}
 
       {detail && (detail.previousEvent || detail.nextEvent) && (
-        <nav aria-label="이전 · 다음 사건" className="grid grid-cols-2 gap-x2">
+        <nav
+          ref={navRef}
+          aria-label="이전 · 다음 사건"
+          className="grid grid-cols-2 gap-x2"
+        >
           {detail.previousEvent ? (
             <EventStep
               direction="previous"
               event={detail.previousEvent}
-              onClick={onSelectEvent}
+              onClick={step}
             />
           ) : (
             <span />
@@ -146,7 +173,7 @@ export function EventPanel({
             <EventStep
               direction="next"
               event={detail.nextEvent}
-              onClick={onSelectEvent}
+              onClick={step}
             />
           )}
         </nav>
@@ -185,6 +212,23 @@ function RelatedArticles({ articles, count }: RelatedArticlesProps) {
   const items = pages.flatMap((page) => page.items);
   const total = pages[0]?.totalElements ?? 0;
 
+  // *더 보기* 로 붙인 첫 기사로 포커스를 옮긴다 — 마지막 쪽이면 버튼이 사라져 포커스를 잃는다
+  const listRef = useRef<HTMLUListElement>(null);
+  const focusFrom = useRef<number | null>(null);
+  useEffect(() => {
+    const from = focusFrom.current;
+    if (from === null || items.length <= from) return;
+    focusFrom.current = null;
+    const links = listRef.current?.querySelectorAll<HTMLAnchorElement>(
+      ":scope > li > a:first-child",
+    );
+    links?.[from]?.focus();
+  }, [items.length]);
+  const loadMore = () => {
+    focusFrom.current = items.length;
+    void articles.fetchNextPage();
+  };
+
   let body: ReactNode;
   if (articles.data) {
     body =
@@ -192,6 +236,7 @@ function RelatedArticles({ articles, count }: RelatedArticlesProps) {
         <EmptyState message="아직 이 사건을 다룬 기사가 없어요." />
       ) : (
         <ul
+          ref={listRef}
           aria-label="관련 기사"
           className="mt-x1 divide-y divide-stroke-neutral-subtle"
         >
@@ -238,9 +283,9 @@ function RelatedArticles({ articles, count }: RelatedArticlesProps) {
           size="small"
           className="mt-x1"
           loading={articles.isFetchingNextPage}
-          onClick={() => void articles.fetchNextPage()}
+          onClick={loadMore}
         >
-          {`기사 ${total - items.length}개 더 보기`}
+          {`기사 ${Math.min(total - items.length, EVENT_ARTICLES_SIZE)}개 더 보기`}
           <IconChevronDownLine aria-hidden size={14} />
         </ActionButton>
       )}
@@ -262,7 +307,7 @@ function EventStep({
     <button
       type="button"
       onClick={() => onClick(event.id)}
-      className={`flex min-w-0 flex-col gap-x0_5 rounded-r3 border border-stroke-neutral-weak bg-bg-layer-default px-x3 py-x2_5 transition-colors hover:border-palette-gray-500 focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${previous ? "items-start text-left" : "col-start-2 items-end text-right"}`}
+      className={`flex min-w-0 flex-col gap-x0_5 rounded-r3 border border-stroke-neutral-weak bg-bg-layer-default px-x3 py-x2_5 transition-colors hover:border-palette-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${previous ? "items-start text-left" : "col-start-2 items-end text-right"}`}
     >
       <span className="t2-regular flex items-center gap-x1 text-fg-neutral-muted">
         {previous && <IconArrowLeftLine aria-hidden size={12} />}

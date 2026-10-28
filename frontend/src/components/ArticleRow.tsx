@@ -35,7 +35,8 @@ export function ArticleRow({ article, now }: ArticleRowProps) {
         href={article.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`${article.publisher.name} 원문 보기`}
+        // 같은 언론사 기사가 여럿이어도 이름이 겹치지 않게 제목을 넣고, 새 탭으로 연다는 것을 알린다
+        aria-label={`${article.title} 원문 보기 (${article.publisher.name}, 새 탭)`}
         title="원문 보기"
         className="mt-x2 flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
       >

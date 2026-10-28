@@ -1,5 +1,12 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
+import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { EventPanel } from "@/components/issue/EventPanel";
 import { server } from "@/mocks/node";
@@ -175,4 +182,99 @@ test("이슈의 첫 사건에는 이전 사건 버튼이 없다", async () => {
   });
   expect(within(nav).queryByRole("button", { name: /이전 사건/ })).toBeNull();
   expect(within(nav).getByRole("button", { name: /다음 사건/ })).toBeDefined();
+});
+
+// ── 리뷰 반영 ─────────────────────────────────────────────
+
+// 이전 · 다음으로 사건을 바꾸는 이슈 화면처럼 — 고른 사건을 들고 있는 자리
+function Harness({ start }: { start: number }) {
+  const [eventId, setEventId] = useState(start);
+  return <EventPanel eventId={eventId} onSelectEvent={setEventId} />;
+}
+
+test("이전 · 다음 사건을 눌러도 포커스가 그 버튼 자리에 남는다", async () => {
+  renderWithProviders(<Harness start={119} />);
+  const next = await screen.findByRole("button", { name: /다음 사건/ });
+  act(() => next.focus());
+
+  fireEvent.click(next);
+
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "텍사스 공장 엔지니어 수급 우려 보도",
+  });
+  const nav = screen.getByRole("navigation", { name: "이전 · 다음 사건" });
+  expect(nav.contains(document.activeElement)).toBe(true);
+});
+
+test("사건이 바뀌면 관련 기사도 그 사건 것만 보인다 — 더 보기로 붙인 쪽이 섞이지 않는다", async () => {
+  renderWithProviders(<Harness start={117} />);
+  const list = await relatedList();
+  fireEvent.click(screen.getByRole("button", { name: /더 보기/ }));
+  await waitFor(() =>
+    expect(within(list).getAllByRole("listitem")).toHaveLength(6),
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: /다음 사건/ }));
+
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "한빛반도체 이사회, 추가 투자 승인",
+  });
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("list", { name: "관련 기사" })).getAllByRole(
+        "listitem",
+      ),
+    ).toHaveLength(4),
+  );
+});
+
+test("더 보기로 붙인 첫 기사로 포커스를 옮긴다 — 마지막 쪽이면 버튼이 사라져도 포커스를 잃지 않는다", async () => {
+  renderPanel(117);
+  const list = await relatedList();
+  const more = screen.getByRole("button", { name: /더 보기/ });
+  act(() => more.focus());
+
+  fireEvent.click(more);
+
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      within(list).getAllByRole("listitem")[5].querySelector("a"),
+    ),
+  );
+});
+
+test("「기사 N개 더 보기」의 N 은 한 번에 붙는 수다", async () => {
+  server.use(
+    http.get("/api/v1/events/119/articles", async ({ request }) => {
+      const real = await fetch(request.url.replace("/119/", "/117/"));
+      return HttpResponse.json({
+        ...(await real.json()),
+        totalElements: 12,
+        totalPages: 3,
+      });
+    }),
+  );
+  renderPanel(119);
+
+  expect(
+    await screen.findByRole("button", { name: "기사 5개 더 보기" }),
+  ).toBeDefined();
+});
+
+test("사건을 못 불러왔을 때 다시 시도하면 다시 불러온다", async () => {
+  server.use(problem("/api/v1/events/119", 500, "INTERNAL_ERROR"));
+  renderPanel(119);
+  await screen.findByText("사건을 불러오지 못했어요");
+  server.resetHandlers();
+
+  fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 2,
+      name: "한빛반도체 텍사스 공장 착공식",
+    }),
+  ).toBeDefined();
 });

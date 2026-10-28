@@ -30,7 +30,7 @@ test("행 전체가 기사 마인드맵 링크이고 제목 · 언론사 · 날�
   renderRow();
 
   const link = screen.getByRole("link", {
-    name: /한빛반도체 텍사스 공장 착공식/,
+    name: /착공식s*바른신문 · 3시간 전/,
   });
   expect(link.getAttribute("href")).toBe("/articles/11901");
   expect(within(link).getByText("바른신문 · 3시간 전")).toBeDefined();
@@ -51,7 +51,9 @@ test("분석이 끝난 기사에는 「분석 중」이 없다", () => {
 test("원문 보기는 새 탭으로 여는 링크다", () => {
   renderRow();
 
-  const source = screen.getByRole("link", { name: "바른신문 원문 보기" });
+  const source = screen.getByRole("link", {
+    name: "한빛반도체 텍사스 공장 착공식 원문 보기 (바른신문, 새 탭)",
+  });
   expect(source.getAttribute("href")).toBe(article.url);
   expect(source.getAttribute("target")).toBe("_blank");
   expect(source.getAttribute("rel")).toBe("noopener noreferrer");

@@ -77,10 +77,16 @@ function IssueView({ issueId }: { issueId: number }) {
 
   // 사건 패널 — 고른 사건이 있으면 열린다. 열리면 사이드바를 접는다 (EXPERIENCE.md 앱 셸 「오른쪽 패널」)
   const narrow = useMediaQuery(NARROW_SCREEN);
+  // 좁은 화면 시트는 닫히며 미끄러져 내려가는 동안(SEED) 마지막 사건을 그대로 보인다
+  const [sheetEventId, setSheetEventId] = useState(selectedId);
+  if (selectedId !== null && selectedId !== sheetEventId)
+    setSheetEventId(selectedId);
   const shell = useShell();
+  // 닫혀 있다가 열릴 때만 — 연 채 사이드바를 펼친 뒤 다른 사건으로 가도 다시 접지 않는다
+  const panelOpen = selectedId !== null;
   useEffect(() => {
-    if (selectedId !== null) shell?.collapseSidebar();
-  }, [selectedId, shell]);
+    if (panelOpen) shell?.collapseSidebar();
+  }, [panelOpen, shell]);
   // 주소의 사건이 다른 이슈의 사건이면 그 이슈 주소로 바꾼다 — 사이드바 · 검색 링크가 어긋나도 맞는 타임라인이 열리게
   const navigate = useNavigate();
   const selectedEvent = useQuery({
@@ -97,14 +103,14 @@ function IssueView({ issueId }: { issueId: number }) {
         replace: true,
       });
   }, [otherIssueId, selectedId, navigate]);
-  // 닫으면 포커스를 그 사건 노드로 돌린다 (Accessibility Floor)
+  // 닫으면 포커스를 그 사건 노드로 돌린다 (Accessibility Floor). 타임라인에 없는 사건이면 이슈 제목으로
   const pageRef = useRef<HTMLDivElement>(null);
   const closePanel = useCallback(() => {
     const closed = selectedId;
     setEvent(null);
-    pageRef.current
-      ?.querySelector<SVGElement>(`[data-event-id="${closed}"]`)
-      ?.focus();
+    const page = pageRef.current;
+    const node = page?.querySelector<SVGElement>(`[data-event-id="${closed}"]`);
+    (node ?? page?.querySelector<HTMLElement>("h1"))?.focus();
   }, [selectedId, setEvent]);
 
   if (notFound)
@@ -142,15 +148,28 @@ function IssueView({ issueId }: { issueId: number }) {
           )}
         </div>
       </div>
-      {selectedId !== null && otherIssueId === null && (
-        <EventDetailPane
-          eventId={selectedId}
-          narrow={narrow}
-          focusOnOpen={picked}
-          onClose={closePanel}
-          onSelectEvent={setEvent}
-        />
-      )}
+      {narrow
+        ? sheetEventId !== null && (
+            <EventDetailPane
+              open={panelOpen && otherIssueId === null}
+              eventId={sheetEventId}
+              narrow
+              focusOnOpen={picked}
+              onClose={closePanel}
+              onSelectEvent={setEvent}
+            />
+          )
+        : panelOpen &&
+          otherIssueId === null && (
+            <EventDetailPane
+              open
+              eventId={selectedId}
+              narrow={false}
+              focusOnOpen={picked}
+              onClose={closePanel}
+              onSelectEvent={setEvent}
+            />
+          )}
     </div>
   );
 }

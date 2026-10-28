@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { EventPanel } from "@/components/issue/EventPanel";
 
 type EventDetailPaneProps = {
+  /** 좁은 화면 시트가 열려 있나. 닫힐 때 SEED 가 내려가는 동안 내용을 남기려고 따로 받는다. 넓은 화면은 늘 true */
+  open: boolean;
   eventId: number;
   /** 767px 이하 — 아래에서 올라오는 시트로 연다 */
   narrow: boolean;
@@ -17,6 +19,7 @@ type EventDetailPaneProps = {
 // 본문을 덮지 않는다. 좁은 화면은 아래에서 올라오는 시트(화면 높이 85%, 뒤는 딤)로 SEED BottomSheet 가 맡는다.
 // 닫기: X · Esc · 시트 바깥. 타임라인 빈 곳은 이슈 화면이 맡는다
 export function EventDetailPane({
+  open,
   eventId,
   narrow,
   focusOnOpen,
@@ -64,7 +67,7 @@ export function EventDetailPane({
   if (narrow)
     return (
       <BottomSheet.Root
-        open
+        open={open}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
@@ -80,10 +83,9 @@ export function EventDetailPane({
             <BottomSheet.CloseButton aria-label="상세 패널 닫기">
               <IconXmarkLine aria-hidden />
             </BottomSheet.CloseButton>
-            <BottomSheet.Body>
-              <div ref={scrollRef} className="pb-x10">
-                {panel}
-              </div>
+            {/* 시트에서는 SEED Body 가 스크롤한다 */}
+            <BottomSheet.Body ref={scrollRef}>
+              <div className="pb-x10">{panel}</div>
             </BottomSheet.Body>
           </BottomSheet.Content>
         </BottomSheet.Positioner>
@@ -93,7 +95,7 @@ export function EventDetailPane({
   return (
     <aside
       aria-label="사건 상세"
-      className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_cubic-bezier(0.2,0.8,0.2,1)]"
+      className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
     >
       <button
         type="button"

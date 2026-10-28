@@ -374,3 +374,55 @@ test("TIP 과 패널이 함께 열린 채 노드에서 Esc 를 누르면 TIP 만
   expect(screen.queryByRole("dialog", { name: "타임라인 TIP" })).toBeNull();
   expect(router.state.location.search).toBe("?event=119");
 });
+
+// ── 사건 패널 리뷰 반영 ───────────────────────────────────
+
+test("주소로 사건 패널을 처음 열 때는 포커스를 옮기지 않는다", async () => {
+  renderRoute("/issues/12?event=119");
+
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+  expect(document.activeElement).toBe(document.body);
+});
+
+test("Esc 로 닫으면 포커스를 그 사건 노드로 돌린다", async () => {
+  renderRoute("/issues/12");
+  fireEvent.click(await node(/착공식/));
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+
+  expect(document.activeElement).toBe(await node(/착공식/));
+});
+
+test("닫을 사건 노드가 타임라인에 없으면 포커스를 이슈 제목으로 돌린다", async () => {
+  renderRoute("/issues/12?event=999");
+  await panelTitle("사건을 찾을 수 없어요");
+
+  fireEvent.click(screen.getByRole("button", { name: "상세 패널 닫기" }));
+
+  expect(document.activeElement).toBe(await title());
+});
+
+test("패널을 연 채 사이드바를 펼친 뒤 다음 사건으로 가도 사이드바를 다시 접지 않는다", async () => {
+  renderRoute("/issues/12?event=119");
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+  fireEvent.click(screen.getByRole("button", { name: "사이드바 펼치기" }));
+
+  fireEvent.click(screen.getByRole("button", { name: /다음 사건/ }));
+  await panelTitle("텍사스 공장 엔지니어 수급 우려 보도");
+
+  expect(screen.getByRole("button", { name: "사이드바 접기" })).toBeDefined();
+});
+
+test("좁은 화면 시트를 닫기 버튼으로 닫으면 기록을 쌓지 않고 ?event= 를 지운다", async () => {
+  stubScreen("narrow");
+  const { router } = renderRoute("/issues/12?event=119");
+  const sheet = await screen.findByRole("dialog", { name: "사건 상세" });
+
+  fireEvent.click(
+    within(sheet).getByRole("button", { name: "상세 패널 닫기" }),
+  );
+
+  await waitFor(() => expect(router.state.location.search).toBe(""));
+  expect(router.state.historyAction).toBe("REPLACE");
+});
