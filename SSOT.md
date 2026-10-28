@@ -128,7 +128,8 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
     - 값은 `infra/k8s/bootstrap/gitlab-runner-build-values.yaml` · `build-netpol.yaml`, 까는 법은 `infra/server/README.md` 「굽기 러너」. 토큰은 서버의 Secret(`gitlab-runner-build-token`)에만
   - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
 - CI 파이프라인: `.gitlab-ci.yml`(2026-10-20, Jira S15P31A102-92). MR과 dev push에서 돈다. 계획은 `docs/plans/2026-10-20-ci-pipeline.md`
-  - 잡을 「무엇에 막히나」로 나눈 갈래로 둔다 — w0 규칙(시크릿 스캔 · MR 규칙 · 하네스 자체 검사) → w12 영역 검사(frontend · ai · infra) · w3 backend(DB · Redis가 필요한 테스트). 영역 잡은 `pre-commit --ci <영역>`으로 `.claude/stack.md` 3절 명령을 그대로 돈다. MR은 바뀐 영역만, dev는 전부 돈다. 하네스 자체 검사는 `.claude/`가 바뀔 때와 dev에서만
+  - 잡을 「무엇에 막히나」로 나눈 갈래로 둔다 — w0 규칙(시크릿 스캔 · MR 규칙 · 하네스 자체 검사) → w12 영역 검사(frontend · ai · infra) · w3 backend(DB · Redis가 필요한 테스트). 영역 잡은 `pre-commit --ci <영역>`으로 `.claude/stack.md` 3절 명령을 그대로 돈다. MR은 바뀐 영역만, dev는 전부 돈다. 하네스 자체 검사는 `.claude/`가 바뀔 때와 dev에서만. 검사마다 언제 도는지는 아래 「CI 검사 정책」
+  - dev → 분야 브랜치 맞추기 MR은 규칙 잡(`w0:rules`)만 돈다(`.skip-dev-sync-mr`, 2026-10-28, Jira S15P31A102-131). MR 파이프라인은 출발 브랜치 끝 커밋에서 돌아서, 맞추기 MR은 dev push가 이미 검사한 커밋을 그대로 다시 검사했다 — 10-20 ~ 10-28 파이프라인 123개 모두 같은 커밋, 잡 시간의 26%(10절). 실습 코치님 조언(「같은 변경으로 파이프라인이 중복 실행되는지」)을 따라 기록을 대조해 찾았다
   - 영역마다 잡 하나다(하네스 껍데기는 fast · slow 두 잡). 러너 자리가 1개라 두 잡이면 Pod와 설치가 두 번 돈다
   - 갈래마다 CPU · 메모리 요청을 따로 준다 — w0 100m, w12 250m, w3 300m + 서비스 각 100m, CPU 상한은 모두 1 이하. 러너 값의 덮어쓰기 상한이 기본값(요청 500m · 상한 1 · 메모리 2Gi)과 같아서 잡은 줄이기만 한다. 잡 Pod에 이름표 `newlearn.io/workload`(w0 · w12 · w3)를 붙인다
   - 백엔드 테스트는 로컬에서는 Testcontainers로 DB · Redis를 띄우고, CI는 잡 Pod에 Docker가 없어서 services로 잡 옆에 띄운 DB · Redis에 붙는다(`NEWLEARN_TEST_TESTCONTAINERS=false`). 이미지는 compose와 같은 태그
@@ -181,6 +182,23 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - Secret: Sealed Secrets. 비밀값은 공개키로 잠근 SealedSecret만 Git에 두고, 클러스터 안 컨트롤러가 개인키로 풀어 일반 Secret을 만든다. Argo CD가 GitLab을 읽을 배포 토큰만은 Argo CD가 저장소를 읽기 전에 있어야 해서 처음 한 번 손으로 넣는다
   - 컨트롤러: 차트 2.20.0(v0.40.0), 네임스페이스 `sealed-secrets`, 이름은 kubeseal 기본값 `sealed-secrets-controller`. 키를 30일마다 더하는 기본값을 꺼서 키는 하나다 — 깐 날 받은 백업이 계속 맞는다. 봉인은 EC2에서 `kubeseal --controller-namespace sealed-secrets`(같은 판)
   - 개인키는 인프라 담당 PC에 백업한다(저장소 밖). 잃으면 서버를 다시 만들 때 저장소의 SealedSecret을 못 푼다. 백업 · 복구 순서는 `infra/server/README.md` 「Sealed Secrets 키」
+
+### CI 검사 정책
+
+검사마다 어느 파이프라인에서 도는지다(2026-10-28, Jira S15P31A102-131). 원본은 `.gitlab-ci.yml` 의 잡별 `rules` 이고, 그것을 바꾸면 이 표도 같이 바꾼다. 「바뀔 때」는 그 영역 폴더 · 그 영역이 읽는 루트 파일 · `.claude/` · `.gitlab-ci.yml` 가운데 하나가 바뀔 때다.
+
+| 검사 | 잡 | MR | dev push | 맞추기 MR (dev → 분야 브랜치) |
+|---|---|---|---|---|
+| 시크릿 스캔 · 커밋 · MR 제목 규칙 | `w0:rules` | 늘 | 시크릿 스캔만 늘 | 늘 |
+| 하네스 자체 검사 | `w0:harness` | `.claude/` 가 바뀔 때 | 늘 | 안 돎 |
+| 포맷 · 린트 · 테스트 · 빌드 — frontend · ai · infra | `w12:frontend` · `w12:ai` · `w12:infra` | 그 영역이 바뀔 때 | 늘 | 안 돎 |
+| 포맷 · 린트 · DB · Redis 테스트 · 빌드 — backend | `w3:backend` | backend 가 바뀔 때 | 늘 | 안 돎 |
+| 운영 이미지 굽기 | `w4:backend` · `w4:frontend` · `w4:ai` | Dockerfile · `.dockerignore`(frontend 는 `nginx.conf` 도) · `.gitlab-ci.yml` 이 바뀔 때 굽기만 | 그 영역이나 `.gitlab-ci.yml` 이 바뀌면 굽고 GHCR 에 올림 | 안 돎 |
+| 배포 태그 MR 열기 | `w5:deploy-mr` | 안 돎 | 굽기와 같은 때 | 안 돎 |
+| E2E · 이미지 취약점 검사 | 없음 | — | — | — |
+
+- dev push 가운데 배포 태그 MR(`deploy/app` · `deploy/ai`)을 머지한 커밋은 `w0:rules` · `w12:infra` 만 돈다(`.skip-deploy-merge`, 위 「배포 흐름」)
+- 머지 막기(Pipelines must succeed)는 아직 꺼져 있다(위 「CI 파이프라인」)
 
 ### 노드 사이 — 호스트 WireGuard
 
@@ -348,6 +366,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 숫자 | 어떻게 |
 |---|---|---|---|
+| 2026-10-28 | 맞추기 MR(dev → 분야 브랜치)이 다시 검사하는 양 (Jira S15P31A102-131) | 10-20 ~ 10-28 MR 322개 가운데 dev 에서 연 맞추기 MR 140개(ai 37 · backend 36 · frontend 38 · infra 29). 그 파이프라인 123개 모두 같은 커밋의 dev push 파이프라인이 이미 성공(123개 중 123개). 잡 실행 시간 386분 = 전체 1,485분의 **26%** — 나머지는 dev push 35% · 작업 → 분야 브랜치 MR 23% · 분야 → dev MR 13% · 배포 태그 MR 3%. 같은 커밋인데 맞추기 MR 쪽만 실패한 것 7개. 잡 로그는 이미 모든 줄에 시각이 찍힌다(러너 18.11.4 기본값) — 단계 시간은 「→ 단계」 줄 사이 시각 차이로 읽는다 | GitLab API(읽기)로 잡 1,463개 · 파이프라인 427개 · MR 322개를 받아 MR 을 출발 · 대상 브랜치로 나누고, 맞추기 MR 파이프라인의 SHA 를 dev push 파이프라인과 대조. 잡 시간은 `duration` 합. 시각은 EC2 · 노트북 · 굽기 러너 잡 로그 하나씩 |
 | 2026-10-28 | 로그 창고 Loki · Alloy 설치 뒤 (Jira S15P31A102-128) | 메모리 Loki 87MiB(설치 뒤 1시간 최대 107) · Alloy 서버마다 약 61MiB(최대 약 103). CPU 5분 평균 Loki 11m · Alloy 약 23m. 관리 서버 CPU 예약 1250m → 1330m(66%, CI 잡 550m 를 더해도 2000m 안). Loki 디스크 6.5MB(설치 1시간 15분, 처음 옛 로그 파일을 훑은 양 포함). 모인 네임스페이스 10곳 · gitlab-runner 0. 다시 띄워 지워진 backend Pod 의 로그 81줄과 「Commencing graceful shutdown」 → 「Graceful shutdown complete」(3ms) 줄을 Pod 가 사라진 뒤 찾음. 다시 띄우는 동안 health 600번 실패 0 | Prometheus 질의(`container_memory_working_set_bytes` 지금 · `max_over_time` 1시간, `container_cpu_usage_seconds_total` 5분 rate), `kubectl describe node`, `du`, Loki 질의 API(API 서버 프록시), EC2 에서 1초마다 `curl` |
 | 2026-10-28 | DB · Redis 가 끊길 때 backend 프로브 답 (Jira S15P31A102-29) | 평소 liveness · readiness 200. DB 를 멈추면 liveness 200(0.003초), readiness 는 1초 안에 답이 없고 30.0초 뒤 503 DOWN. Redis 를 멈추면 readiness 60.0초 뒤 503 DOWN, liveness 200. 다시 켜면 readiness 200 | 관리자 PC 에서 확인용 compose(DB · Redis)에 `bootRun` 을 붙이고 `docker stop` · `start` 하며 `curl --max-time 1`(쿠버네티스 readinessProbe 기본 timeout 과 같게) · `--max-time 90` 으로 잼. 30 · 60초는 Hikari 연결 대기 · Redis 명령 대기 기본값과 같음 |
 | 2026-10-27 | 같은 사건 후보 찾기 — 새 기사 하나에 가까운 사건 5개, 인덱스 없이 (Jira S15P31A102-35, `CandidateEventFinder`) | 사건에 묶인 기사 17,000개(사건 5,000개) · 1024차원: 데워진 뒤 6번 75.8 ~ 81.7ms(중앙값 약 77ms), DB 를 다시 띄운 직후 첫 번 141.9ms. 벡터 표 91 MB, 한 번에 약 10만 8천 페이지를 읽는다(벡터가 TOAST 에 있음). 판정 한 번(GMS 약 6초, 10-23 줄)의 1 ~ 2% 라 HNSW 인덱스는 걸지 않는다 | 이 PC 의 Docker 에서 사이트와 같은 이미지(`pgvector/pgvector:0.8.7-pg18`)를 `--cpus 1.6 --memory 1g`(워커가 계속 쓸 수 있는 CPU · DB Pod 메모리 상한)로, 설정은 기본값(`shared_buffers` 128MB). 무작위 벡터로 채우고 코드와 같은 SQL 을 `EXPLAIN (ANALYZE, BUFFERS)`. 사이트에서는 아직 못 잼(판정할 기사 0건) |

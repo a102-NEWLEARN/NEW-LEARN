@@ -76,6 +76,14 @@ stages:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^Merge branch 'deploy\/(app|ai)' into 'dev'$/
       when: never
 
+# dev → 분야 브랜치 맞추기 MR 은 dev 에서 이미 검사한 커밋을 그대로 가져온다 — 무거운 잡을 다시 돌지 않는다 (Jira S15P31A102-131)
+# MR 파이프라인은 출발 브랜치 끝 커밋, 곧 dev 의 커밋에서 돈다. 2026-10-20 ~ 28 맞추기 MR 파이프라인 123개가 모두
+# dev push 파이프라인이 이미 통과한 같은 커밋이었고 잡 시간의 26% 였다 (SSOT.md 10절). w0:rules(시크릿 · MR 규칙)는 돈다
+.skip-dev-sync-mr:
+  rules:
+    - if: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == $CI_DEFAULT_BRANCH
+      when: never
+
 # ---------------------------------------------------------------------------
 # w0 규칙
 # ---------------------------------------------------------------------------
@@ -104,6 +112,7 @@ w0:harness:
   script:
     - bash .claude/hooks/tests/run.sh
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: [".claude/**/*"]
@@ -123,6 +132,7 @@ w12:frontend:
     AREA: frontend
     npm_config_cache: /ci-cache/npm
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["frontend/**/*", .editorconfig, ".prettierrc*", "prettier.config.*", package.json, package-lock.json, ".claude/**/*", .gitlab-ci.yml]
@@ -141,6 +151,7 @@ w12:ai:
     reports:
       junit: ai-junit.xml
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["ai/**/*", pyproject.toml, uv.lock, ".claude/**/*", .gitlab-ci.yml]
@@ -158,6 +169,7 @@ w12:infra:
     # python3 는 태그 MR 스크립트 시험(infra/ci, stack.md infra_TEST)에 쓴다
     - apk add --no-cache bash grep python3
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["infra/**/*", ".claude/**/*", .gitlab-ci.yml]
 
@@ -194,6 +206,7 @@ w3:backend:
     reports:
       junit: backend/build/test-results/test/TEST-*.xml
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - !reference [.skip-deploy-merge, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes: ["backend/**/*", ".claude/**/*", .gitlab-ci.yml]
@@ -262,6 +275,7 @@ w4:backend:
     AREA: backend
   needs: [{ job: "w3:backend", optional: true }]
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: ["backend/**/*", .gitlab-ci.yml]
       variables:
@@ -275,6 +289,7 @@ w4:frontend:
     AREA: frontend
   needs: [{ job: "w12:frontend", optional: true }]
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: ["frontend/**/*", .gitlab-ci.yml]
       variables:
@@ -288,6 +303,7 @@ w4:ai:
     AREA: ai
   needs: [{ job: "w12:ai", optional: true }]
   rules:
+    - !reference [.skip-dev-sync-mr, rules]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: ["ai/**/*", .gitlab-ci.yml]
       variables:
