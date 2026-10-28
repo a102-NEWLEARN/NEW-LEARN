@@ -81,9 +81,9 @@ class DictionaryApiIntegrationTest {
                 .andExpect(jsonPath("$.items[1].pos").value(nullValue()));
     }
 
-    // AC-2 · AC-5 — 결과가 없어도 실패가 아니라서 저장한다. 두 번째는 사전을 부르지 않는다
+    // AC-2 · AC-5 — 결과 없음은 저장하지 않는다. 틀린 키도 사전이 같은 빈 본문을 줘서, 그것을 하루 동안 굳히지 않으려는 것이다(2026-10-29)
     @Test
-    void noResultIsEmptyItemsAndIsSavedToo() throws Exception {
+    void noResultIsEmptyItemsAndIsNotSaved() throws Exception {
         when(source.search("없는말")).thenReturn(List.of());
         for (int i = 0; i < 2; i++) {
             search("없는말")
@@ -93,7 +93,8 @@ class DictionaryApiIntegrationTest {
                     .andExpect(jsonPath("$.items").isEmpty())
                     .andExpect(jsonPath("$.source").value("국립국어원 표준국어대사전"));
         }
-        verify(source, times(1)).search(anyString());
+        assertThat(redis.hasKey("dict:없는말")).isFalse();
+        verify(source, times(2)).search("없는말");
     }
 
     @Test

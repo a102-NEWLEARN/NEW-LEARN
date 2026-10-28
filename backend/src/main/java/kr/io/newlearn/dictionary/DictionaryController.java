@@ -25,11 +25,11 @@ public class DictionaryController {
     }
 
     @Operation(
-            summary = "A19 용어사전",
+            summary = "[확정] A19 용어사전",
             description = "단어 뜻을 국립국어원 표준국어대사전에서 찾아 줍니다. 로그인 없이 부릅니다. "
                     + "서버가 사전을 대신 불러 인증 키를 드러내지 않고, 검색 기록은 남기지 않습니다. "
-                    + "같은 검색어는 하루 동안 저장해 둔 결과를 줍니다. 결과가 없으면 빈 items 입니다. "
-                    + "원본 응답의 어느 칸을 옮길지는 인증 키로 실제 응답을 본 뒤 다시 맞춥니다.")
+                    + "표제어마다 첫 뜻풀이 하나가 항목 하나입니다. 품사가 없는 구 표제어는 pos 가 null 입니다. "
+                    + "결과가 없으면 빈 items 입니다. 결과가 있는 검색어는 하루 동안 저장해 둔 결과를 줍니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -40,7 +40,7 @@ public class DictionaryController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "502",
-            description = "DICTIONARY_UNAVAILABLE — 표준국어대사전이 답하지 않거나 오류 · 빈 응답을 줌",
+            description = "DICTIONARY_UNAVAILABLE — 표준국어대사전이 답하지 않거나 오류 · 읽을 수 없는 응답을 줌, 또는 인증 키가 없음",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,

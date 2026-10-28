@@ -10,8 +10,8 @@ import kr.io.newlearn.dictionary.dto.DictionaryResponse;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
-// A19 용어사전 (docs/api-screen.md A19, Jira 102) — 검색어 다듬기 → 저장해 둔 결과 → 없으면 사전을 불러 저장
-// 실패(DICTIONARY_UNAVAILABLE)는 저장하지 않아 다음 검색에서 바로 다시 부른다. 누가 무엇을 찾았는지는 남기지 않는다
+// A19 용어사전 (docs/api-screen.md A19, Jira 102) — 검색어 다듬기 → 저장해 둔 결과 → 없으면 사전을 불러 결과가 있을 때만 저장
+// 실패(DICTIONARY_UNAVAILABLE)와 결과 없음은 저장하지 않아 다음 검색에서 다시 부른다. 누가 무엇을 찾았는지는 남기지 않는다
 @Service
 public class DictionaryService {
 
@@ -32,7 +32,10 @@ public class DictionaryService {
         String query = normalize(q);
         List<DictionaryItem> items = cache.get(query).orElseGet(() -> {
             List<DictionaryItem> found = source.search(query);
-            cache.put(query, found);
+            // 결과 없음은 두지 않는다 — 틀린 키도 사전이 같은 빈 본문을 줘서, 그것을 하루 동안 굳히지 않게(2026-10-29 사용자)
+            if (!found.isEmpty()) {
+                cache.put(query, found);
+            }
             return found;
         });
         return DictionaryResponse.of(query, items);

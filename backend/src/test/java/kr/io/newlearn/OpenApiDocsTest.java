@@ -47,7 +47,8 @@ class OpenApiDocsTest {
             Map.entry("/api/v1/articles/{articleId}/mindmap", "A9"),
             Map.entry("/api/v1/members/me", "A17"),
             Map.entry("/api/v1/members/me/bookmarks", "A22"),
-            Map.entry("/api/v1/members/me/interest-issues", "A25"));
+            Map.entry("/api/v1/members/me/interest-issues", "A25"),
+            Map.entry("/api/v1/dictionary", "A19"));
 
     @Autowired
     MockMvc mvc;
@@ -360,11 +361,11 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.components.schemas.Item").doesNotExist());
     }
 
-    // A19 용어사전(Jira 102) — 원본 응답의 어느 칸을 옮길지는 키로 실제 응답을 본 뒤 정해서 아직 [확정] 이 아니다
+    // A19 용어사전(Jira 102) — 실제 키로 응답 모양을 확인한 뒤 [확정](2026-10-29)
     @Test
     void dictionaryApiIsDocumentedWithQueryAndErrors() throws Exception {
         String operation = op("/api/v1/dictionary");
-        docs().andExpect(jsonPath(operation + ".summary", startsWith("A19 ")))
+        docs().andExpect(jsonPath(operation + ".summary", startsWith("[확정] A19 ")))
                 .andExpect(jsonPath(operation + ".tags", contains("용어사전")))
                 .andExpect(jsonPath(operation + ".parameters[*].name", contains("q")))
                 .andExpect(jsonPath(operation + ".parameters[0].description", not(emptyOrNullString())))

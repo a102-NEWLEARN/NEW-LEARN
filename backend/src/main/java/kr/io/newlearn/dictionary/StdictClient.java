@@ -18,7 +18,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 // 국립국어원 표준국어대사전 Open API 의 사전 검색(search.do)을 부른다 (docs/api-screen.md A19, Jira 102)
-// 요청 · 응답 모양은 공식 안내(stdict.korean.go.kr/openapi/openApiInfo.do)를 따랐다. 실제 키로 본 응답이 아니라서 키를 받으면 다시 맞춘다
+// 요청 · 응답 모양은 공식 안내(stdict.korean.go.kr/openapi/openApiInfo.do)와 같다 — 2026-10-29 실제 키로 확인했다
 // 인증 키가 주소에 실린다 — RestClient 예외 설명에 주소가 그대로 들어가서, 예외는 로그에 넘기지 않고 종류만 적는다. 검색어도 적지 않는다
 class StdictClient implements DictionarySource {
 
@@ -28,6 +28,8 @@ class StdictClient implements DictionarySource {
     // 작은 창이 기다리는 시간이다. 넘으면 기다리지 않고 502 를 준다
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
+    // 구 표제어(「구원^투수」)는 품사 칸에 이 글자가 온다 — 품사가 아니라서 null 로 옮긴다
+    static final String NO_POS = "품사 없음";
 
     private final RestClient restClient;
     private final String key;
@@ -70,10 +72,10 @@ class StdictClient implements DictionarySource {
             log.warn("표준국어대사전을 부르지 못했다: {}", e.getClass().getSimpleName());
             throw unavailable("표준국어대사전이 답하지 않았다");
         }
-        // 키가 없거나 틀리면 오류 JSON 이 아니라 200 + 빈 본문이 온다. 결과 없음과 가를 수 없어 실패로 본다(2026-10-29 사용자)
+        // 결과가 없으면 200 + 빈 본문이 온다(2026-10-29 실제 키로 확인). 틀린 키도 같은 빈 본문이라 둘을 가를 수 없다 —
+        // 결과 없음으로 보고, 키는 사이트에 봉인할 때 그 키로 한 번 불러 확인한다. 결과 없음은 저장하지 않는다(DictionaryService)
         if (body == null || body.isBlank()) {
-            log.warn("표준국어대사전이 빈 본문을 돌려줬다 — 인증 키 · 하루 한도를 확인한다");
-            throw unavailable("표준국어대사전이 빈 본문을 돌려줬다");
+            return List.of();
         }
         return read(body);
     }
@@ -106,7 +108,10 @@ class StdictClient implements DictionarySource {
                 continue;
             }
             String pos = text(entry.path("pos"));
-            // 뜻풀이가 여럿이면 sense 가 배열로 올 수 있다 — 뜻풀이 하나를 항목 하나로 옮긴다
+            if (NO_POS.equals(pos)) {
+                pos = null;
+            }
+            // 검색 결과는 표제어마다 첫 뜻풀이 하나(sense 객체)다. 배열로 와도 뜻풀이 하나를 항목 하나로 옮긴다
             for (JsonNode sense : each(entry.path("sense"))) {
                 String definition = text(sense.path("definition"));
                 if (definition != null) {

@@ -31,8 +31,8 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
 // 표준국어대사전 Open API 부르기 (docs/specs/F13-dictionary-api.md AC-4 · AC-7)
-// 응답 모양은 공식 안내(stdict.korean.go.kr/openapi/openApiInfo.do)의 예시를 따른다. 실제 키로 본 응답이 아니다 — 키를 받으면 다시 맞춘다
-// 응답 종류는 text/json 이다(2026-10-29 키 없이 불러 확인)
+// 응답 모양은 공식 안내(stdict.korean.go.kr/openapi/openApiInfo.do)의 예시와 같다 — 2026-10-29 실제 키로 다섯 낱말을 불러 확인했다
+// 응답 종류는 text/json, 표제어마다 첫 뜻풀이 하나(sense 객체), 결과 없음은 200 + 빈 본문이다
 @ExtendWith(OutputCaptureExtension.class)
 class StdictClientTest {
 
@@ -70,6 +70,17 @@ class StdictClientTest {
                 ]
               }
             }
+            """;
+
+    // 실제 키로 받은 「구원투수」 응답 그대로(2026-10-29). 구 표제어라 품사가 「품사 없음」 글자로 온다
+    static final String REAL_PHRASE = """
+            {"channel": {"total": 1, "num": 10, "title": "표준 국어 대사전 개발 지원(Open API) - 사전  검색", "start": 1,
+              "description": "표준 국어 대사전 개발 지원(Open API) – 사전 검색 결과",
+              "item": [{"sup_no": "0", "origin": "救援投手", "word": "구원^투수", "target_code": "37461",
+                "sense": {"definition": "야구에서, 앞서 던지던 투수를 대신하여 경기 중간에 나가서 던지는 투수.",
+                  "link": "https://stdict.korean.go.kr/search/searchView.do?word_no=37461&searchKeywordTo=3", "type": "일반어"},
+                "pos": "품사 없음"}],
+              "link": "https://stdict.korean.go.kr", "lastbuilddate": "20261029083708"}}
             """;
 
     // 사전 하나에 가짜 서버 하나 — 응답 하나를 정해 두고 한 번 부른다
@@ -124,7 +135,14 @@ class StdictClientTest {
                         new DictionaryItem("나무", "명사", "소 장수들의 은어로, 팔백 냥을 이르던 말."));
     }
 
-    // 공식 예시에는 없지만 뜻풀이가 여럿이면 sense 가 배열로 올 수 있다 — 하나씩 항목으로 옮긴다
+    // 「품사 없음」은 품사가 아니다 — 화면에 품사처럼 찍히지 않게 null 로 보낸다
+    @Test
+    void realPhraseResponseHasNoPos() {
+        assertThat(answer(REAL_PHRASE))
+                .containsExactly(new DictionaryItem("구원^투수", null, "야구에서, 앞서 던지던 투수를 대신하여 경기 중간에 나가서 던지는 투수."));
+    }
+
+    // 실제 응답에서는 sense 가 늘 객체 하나였다. 배열로 와도 하나씩 항목으로 옮긴다
     @Test
     void senseArrayBecomesSeveralItems() {
         String body = """
@@ -163,10 +181,10 @@ class StdictClientTest {
                 .isEmpty();
     }
 
-    // 키가 없거나 틀리면 오류 JSON 이 아니라 200 + 빈 본문이 온다(2026-10-29 확인). 결과 없음과 가를 수 없어 502 로 본다(사용자 결정)
+    // 결과가 없으면 사전이 200 + 빈 본문을 준다(2026-10-29 실제 키로 「뷁뷁뷁」). 틀린 키도 같은 빈 본문이라 둘을 가를 수 없다 — 결과 없음으로 본다
     @Test
-    void emptyBodyIs502() {
-        failure(withSuccess("", TEXT_JSON));
+    void emptyBodyIsNoResult() {
+        assertThat(answer("")).isEmpty();
     }
 
     @Test
@@ -204,7 +222,7 @@ class StdictClientTest {
     @Test
     void failureLogHasNeitherKeyNorQuery(CapturedOutput output) {
         failure(withException(new IOException("I/O error on GET request for " + searchUrl("%EB%82%98%EB%AC%B4"))));
-        failure(withSuccess("", TEXT_JSON));
+        failure(withServerError());
         failure(withSuccess(
                 "{\"error\": {\"error_code\": \"020\", \"message\": \"key=" + KEY + " q=나무\"}}", TEXT_JSON));
         List<String> ours = output.getAll()
