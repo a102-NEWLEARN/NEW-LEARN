@@ -19,7 +19,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 class ArticleSummaryAssemblerTest {
     ArticleMindmapRepository mindmaps = mock(ArticleMindmapRepository.class);
     AnalysisJobRepository jobs = mock(AnalysisJobRepository.class);
-    ArticleSummaryAssembler assembler = new ArticleSummaryAssembler(mindmaps, jobs);
+    ArticleSummaryAssembler assembler =
+            new ArticleSummaryAssembler(mindmaps, jobs, mock(kr.io.newlearn.bookmark.BookmarkRepository.class));
 
     static Stream<Arguments> summaries() {
         return Stream.of(
@@ -37,7 +38,7 @@ class ArticleSummaryAssemblerTest {
         when(result.getArticleId()).thenReturn(1L);
         when(result.getSummary()).thenReturn(own);
         when(mindmaps.findSummariesByArticleIdIn(List.of(1L))).thenReturn(List.of(result));
-        var summary = assembler.assemble(List.of(article)).getFirst();
+        var summary = assembler.assemble(List.of(article), null).getFirst();
         assertThat(summary.summary()).isEqualTo(expected);
         assertThat(summary.mindmapStatus()).isEqualTo(ArticleAnalysisStatus.SUCCEEDED);
     }
@@ -46,13 +47,13 @@ class ArticleSummaryAssemblerTest {
     void usesOneBulkLookupForMultipleArticlesAndNoQueriesForEmptyInput() {
         when(mindmaps.findSummariesByArticleIdIn(any())).thenReturn(List.of());
         when(jobs.findStatesByArticleIdInAndStage(any(), any())).thenReturn(List.of());
-        assertThat(assembler.assemble(List.of(article(1L), article(2L)))).hasSize(2);
+        assertThat(assembler.assemble(List.of(article(1L), article(2L)), null)).hasSize(2);
         verify(mindmaps).findSummariesByArticleIdIn(List.of(1L, 2L));
         verify(jobs).findStatesByArticleIdInAndStage(List.of(1L, 2L), AnalysisStage.EXTRACT);
         // 하나씩 — 둘을 같이 넘기면 서로 다른 제네릭 타입의 가변 인자 배열이 생겨 unchecked 경고가 난다
         clearInvocations(mindmaps);
         clearInvocations(jobs);
-        assertThat(assembler.assemble(List.of())).isEmpty();
+        assertThat(assembler.assemble(List.of(), null)).isEmpty();
         verifyNoInteractions(mindmaps, jobs);
     }
 
@@ -85,7 +86,7 @@ class ArticleSummaryAssemblerTest {
             when(jobs.findStatesByArticleIdInAndStage(List.of(1L), AnalysisStage.EXTRACT))
                     .thenReturn(List.of(state));
         }
-        assertThat(assembler.assemble(List.of(article)).getFirst().mindmapStatus())
+        assertThat(assembler.assemble(List.of(article), null).getFirst().mindmapStatus())
                 .isEqualTo(expected);
     }
 
