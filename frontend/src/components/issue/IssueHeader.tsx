@@ -1,13 +1,10 @@
 import { Skeleton } from "@seed-design/react";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { IssueDetail } from "@/api/issue";
 import { errorDescription } from "@/components/state/ErrorState";
 import { kstYear } from "@/lib/date";
-
-// 요약이 이보다 길면 두 줄로 줄이고 *더보기* 를 단다 (프로토타입 v21)
-const LONG_SUMMARY = 80;
 
 type IssueHeaderProps = {
   /** A3 이슈 헤더 */
@@ -32,6 +29,22 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   const [more, setMore] = useState(false);
   const issue = query.data;
   const failed = !issue && query.isError;
+
+  // 요약은 두 줄로 줄이고 잘렸으면 *더보기* 를 단다 (프로토타입 v21). 잘렸는지는 글자 수가 아니라 화면에서 잰다 —
+  // 좁은 화면에서는 짧은 요약도 두 줄을 넘는다. 폭이 바뀌면 다시 잰다
+  const summaryRef = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+  const summary = issue?.summary;
+  useLayoutEffect(() => {
+    const element = summaryRef.current;
+    if (!element || more) return;
+    const measure = () =>
+      setClamped(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [summary, more]);
 
   return (
     <header className="px-x4 pt-x5 pb-x4 md:px-x8">
@@ -82,11 +95,12 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
       {issue?.summary && (
         <div className="mt-x2 max-w-[760px]">
           <p
+            ref={summaryRef}
             className={`t5-regular text-fg-neutral-muted ${more ? "" : "line-clamp-2"}`}
           >
             {issue.summary}
           </p>
-          {issue.summary.length > LONG_SUMMARY && (
+          {(clamped || more) && (
             <button
               type="button"
               aria-expanded={more}
