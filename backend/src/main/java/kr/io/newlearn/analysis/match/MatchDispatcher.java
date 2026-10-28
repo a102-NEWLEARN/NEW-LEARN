@@ -29,8 +29,9 @@ public class MatchDispatcher {
     // 판정 고르기를 줄 세우는 트랜잭션 잠금(pg_advisory_xact_lock)의 키. 이 앱이 쓰는 advisory lock 은 이것 하나다
     static final long LOCK = 35L;
 
-    // 판정이 이만큼 QUEUED 면 멈춘 것으로 보고 WARN. 건강한 판정은 다시 가져가기(10분) + W1 다시 보내기(약 1분) 안에 끝난다
-    static final Duration STUCK_AFTER = Duration.ofMinutes(30);
+    // 판정이 이만큼 QUEUED 면 멈춘 것으로 보고 WARN. 건강한 판정은 워커 상한(15분) 안에 끝나고, 처리 중 워커가 죽어도
+    // 다시 가져가기(20분) + 다른 워커의 처리(15분) 안에 끝난다 (api-internal.md 3절, Jira 130)
+    static final Duration STUCK_AFTER = Duration.ofMinutes(40);
 
     private final JdbcClient jdbc;
     private final AnalysisJobRepository jobs;

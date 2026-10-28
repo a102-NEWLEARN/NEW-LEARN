@@ -71,10 +71,12 @@ class BookmarkSchemaTest {
                 var membersBefore = db.sql("select to_jsonb(m)::text from member m order by id")
                         .query(String.class)
                         .list();
+                // V7 까지만 올린다 — 뒤 마이그레이션(V8 ~)이 생겨도 이 시험은 V6 → V7 업그레이드만 본다
                 var result = Flyway.configure()
                         .dataSource(dataSource)
                         .schemas(schema)
                         .defaultSchema(schema)
+                        .target("7")
                         .load()
                         .migrate();
                 assertThat(result.migrationsExecuted).isEqualTo(1);

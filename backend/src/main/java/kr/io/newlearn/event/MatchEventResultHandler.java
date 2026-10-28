@@ -100,7 +100,14 @@ class MatchEventResultHandler implements AnalysisResultHandler {
                 .orElse(null);
         Instant occurredAt = extracted == null ? article.getPublishedAt() : extracted;
         OccurredAtBasis basis = extracted == null ? OccurredAtBasis.FIRST_PUBLISHED : OccurredAtBasis.EXTRACTED;
-        return events.save(new Event(created.title(), created.label(), created.summary(), occurredAt, basis));
+        return events.save(new Event(
+                created.title(),
+                created.label(),
+                created.summary(),
+                occurredAt,
+                basis,
+                created.role(),
+                created.reactsTo()));
     }
 
     // 판정 기록(jsonb)은 U+0000 을 받지 않는다 — 저장에서 500 이 나지 않게 받을 때 거절한다. 비어 있으면 null 로 남긴다
