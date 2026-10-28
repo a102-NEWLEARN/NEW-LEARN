@@ -1,0 +1,40 @@
+# 64번 관심 이슈 API 구현 계획 — 승인 반영
+
+2026-10-28 사용자 승인. 별도 worktree `.worktrees/issue64`, 브랜치 `feat/backend/S15P31A102-64-interest-issue`에서 구현한다. 최초 기준은 `2943de23`이며 후속 승인으로 정식 backend 통합·검증·커밋·작업 브랜치 push·backend 대상 MR·CI 확인까지 진행한다.
+
+## 무엇을 / 왜
+
+F12 회원·관심 분야의 관심 이슈 저장·해제·전체 목록(A23~A25)과 A2·A3 회원별 상태를 구현한다. 계약은 [화면 API](../api-screen.md)·[공통 계약](../api.md), 완료 기준은 [AC-6~9·10~13](../specs/F12-bookmark-interest-api.md)이다.
+
+## 바꿀 파일
+
+- 신규 `interest/`: 복합 키 엔티티·리포지토리·서비스·컨트롤러·상태/목록 DTO.
+- `issue/`: controller·service·카드/헤더 DTO, 공통 카드 조립기와 ID 묶음 조회.
+- 신규 `V9__interest_issue.sql`: 회원·이슈 복합 키·created_at·cascade.
+- 관심 API·동시성·스키마 시험, 기존 이슈·OpenAPI 시험, 이 계획·스펙·데이터 모델·SSOT 참조.
+
+## 안 바꿀 것
+
+인증·CSRF·SecurityConfig, 적용된 V1~V8 및 Flyway 이력·설정, 검사 설정, 북마크 구현, FE·PM 문서, 방문 기준·새 사건 배지·알림·홈 정렬. 기존 worktree·백업·검증 기록·.vscode·stash를 보존한다. Jira 변경·MR 병합·배포·공유/운영 DB 작업·브랜치/백업/stash 삭제는 승인 밖이다.
+
+## 리스크와 번호 결정
+
+동시 저장의 중복·최초 시각 덮어쓰기, 회원 상태 유출, 집계 중복·N+1, IN 조회와 저장 순서의 차이를 정확한 충돌 키·회원 조건·일괄 조회·저장 행 순서 조립으로 막는다. 저장은 INSERT ON CONFLICT DO NOTHING이며 기존 시각으로 응답한다.
+
+최초 로컬 V8 후보는 미공유였다. 이후 정식 `V8__event_role.sql`이 backend·dev에 반영되고 적용 완료가 기록돼 번호가 충돌했다. 사용자 추가 승인으로 64번 파일만 V9로 옮긴다. 정식 V7 북마크·V8 사건 역할은 보존하고 V7→V8→V9 순서로 적용한다. outOfOrder·repair·이력 편집으로 우회하지 않는다. 최신 번호를 다시 확인해 추가 충돌이 있으면 먼저 알린다.
+
+## 어떻게 검증하나
+
+- 실패 시험은 기존 기능 부재의 단언 실패 기록을 보존한다. 컴파일·환경·픽스처 오류를 기능 실패와 구분한다.
+- AC-6·7: SESSION·TestCsrf로 반복·동시 PUT의 200·한 행·최초 시각, 재등록, DELETE의 false/null·멱등성, 빈 이슈, 없는 이슈404·잘못된 ID400.
+- AC-8: 페이지 없는 100개 초과 목록, 저장 시각 DESC→이슈 ID DESC, 평평한 카드, 빈 이슈 0/null, 공개 전 기사 제외, 분야·최근 사건 유지.
+- AC-9·11: A2·A3·A25 본인/다른 회원/손님 격리. 손님 관심 SQL0회·회원 일괄 조회1회. JDBC spy·Hibernate 통계로 목록 크기2·8의 쿼리 수를 비교하고 빈 목록 후속 조회를 생략한다. A3 lastEvent 키는 내보내지 않는다.
+- AC-10: 유효 CSRF 손님401, CSRF 없음/불일치403, GET손님401, 실패 요청 상태 보존.
+- AC-12: 빈 DB V1~V9·JPA validate. 정식 V7→V8→V9를 단계별 적용하며 회원·기사·이슈·북마크·마인드맵·임베딩과 사건 역할/반응 대상 데이터를 보존하고 복합 키·cascade를 확인한다.
+- AC-13: 회원 태그·[확정] A23~A25·응답 코드·Problem·nullable시각·principal 숨김, Map.ofEntries와 A22/A25 고유 항목 스키마.
+- 최신 backend의 타임라인 역할 계산·OpenAPI 예시·공통 조회 변경을 보존한다. 전체 포맷·compileJava compileTestJava·전체 테스트·bootJar·필수 게이트·실제 HTTP로 북마크와 기존 API도 회귀 검증한다. 명령은 `.claude/stack.md` §3·4에서 읽는다.
+- 전체 diff를 독립 리뷰한 뒤 64번 파일만 명시적으로 stage한다. 정상 훅을 거쳐 지정 제목으로 커밋하고 작업 브랜치만 push한다. 기존 MR 확인 후 backend 대상으로 템플릿을 채운다. 로컬·원격 CI를 구분하며 같은 코드의 통과 검사는 이유 없이 반복하지 않는다.
+
+## 되돌리는 법
+
+코드는 64번 변경만 별도 revert 커밋으로 되돌린다. 적용된 V7·V8·V9나 Flyway 이력을 수정·삭제하지 않는다. 저장된 관심 데이터는 코드 되돌림으로 사라지지 않으며 DB 조치는 별도 승인·백업이 필요하다. 기존 작업·검증 자료·stash를 일괄 초기화하지 않는다.
