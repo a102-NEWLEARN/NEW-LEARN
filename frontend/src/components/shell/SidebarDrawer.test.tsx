@@ -83,7 +83,7 @@ test("서랍에서 이슈를 고르면 서랍이 닫힌 뒤에도 포커스가 �
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   const heading = await screen.findByRole("heading", {
     level: 1,
-    name: "페이지를 찾을 수 없어요",
+    name: "한빛반도체 미국 공장 건설",
   });
   // 서랍이 닫히고 조금 지나도 그대로인지
   await new Promise((resolve) => setTimeout(resolve, 100));

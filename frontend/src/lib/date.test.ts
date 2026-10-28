@@ -1,5 +1,12 @@
 import { expect, test } from "vitest";
-import { formatEventDate, formatLongDate, kstHour } from "@/lib/date";
+import {
+  formatEventDate,
+  formatLongDate,
+  formatPeriod,
+  formatTimelineDates,
+  kstHour,
+  kstYear,
+} from "@/lib/date";
 
 // 날짜는 늘 한국 시간으로 적는다. CI 는 UTC 로 돌아서 그 차이를 함께 본다
 
@@ -40,4 +47,47 @@ test("한국 시간으로 몇 시인지 0 ~ 23 으로 준다", () => {
   expect(kstHour(new Date("2026-10-23T01:00:00Z"))).toBe(10);
   expect(kstHour(new Date("2026-10-23T15:00:00Z"))).toBe(0);
   expect(kstHour(new Date("2026-10-23T14:59:00Z"))).toBe(23);
+});
+
+test("한국 날짜로 몇 년인지 준다", () => {
+  // UTC 2025년 12월 31일 15:30 = 한국 2026년 1월 1일
+  expect(kstYear("2025-12-31T15:30:00Z")).toBe(2026);
+});
+
+test("이슈 기간은 「2026.08.04 ~ 10.09」, 해가 다르면 끝에도 연도를 붙인다", () => {
+  expect(
+    formatPeriod("2026-08-04T00:00:00+09:00", "2026-10-09T08:41:00+09:00"),
+  ).toBe("2026.08.04 ~ 10.09");
+  expect(
+    formatPeriod("2025-12-01T09:00:00+09:00", "2026-10-23T08:00:00+09:00"),
+  ).toBe("2025.12.01 ~ 2026.10.23");
+});
+
+test("이슈 기간이 하루면 그 날짜 하나만 적는다", () => {
+  expect(
+    formatPeriod("2026-08-04T00:00:00+09:00", "2026-08-04T18:00:00+09:00"),
+  ).toBe("2026.08.04");
+});
+
+test("타임라인 날짜는 「MM.DD」, 앞 사건과 해가 바뀌는 사건에만 연도를 붙인다", () => {
+  expect(
+    formatTimelineDates(
+      [
+        "2025-11-12T09:00:00+09:00",
+        "2025-12-30T09:00:00+09:00",
+        "2026-01-04T09:00:00+09:00",
+        "2026-02-03T10:00:00+09:00",
+      ],
+      NOW,
+    ),
+  ).toEqual(["2025.11.12", "12.30", "2026.01.04", "02.03"]);
+});
+
+test("타임라인 맨 앞 사건은 올해면 연도 없이 적는다", () => {
+  expect(
+    formatTimelineDates(
+      ["2026-08-04T00:00:00+09:00", "2026-08-21T00:00:00+09:00"],
+      NOW,
+    ),
+  ).toEqual(["08.04", "08.21"]);
 });
