@@ -63,7 +63,12 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 
 기사 북마크(A20~A22)와 A6·A7·A8의 회원별 북마크 상태 계약은
 `docs/api-screen.md` 1·2절, 구현 성공 기준은 `docs/specs/F12-bookmark-interest-api.md`를 따른다.
-데이터 구조는 `docs/data-model.md`의 bookmark 절을 따른다. 64번 관심 이슈는 별도로 구현한다.
+데이터 구조는 `docs/data-model.md`의 bookmark 절을 따른다.
+
+관심 이슈(A23~A25, Jira 64)와 A2·A3의 회원별 상태는 `interest` 패키지와 `IssueCardAssembler`를 사용한다.
+계약은 `docs/api-screen.md`, 성공 기준은 `docs/specs/F12-bookmark-interest-api.md`의 64번 절,
+스키마·적용 순서는 `docs/data-model.md`의 「bookmark · interest_issue」를 따른다.
+인증·CSRF 정책은 바꾸지 않고 기존 세션 principal과 테스트 규칙을 재사용한다.
 
 ## 3. 분석 파이프라인
 
