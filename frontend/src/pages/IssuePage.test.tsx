@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test } from "vitest";
 import { server } from "@/mocks/node";
 import { renderRoute } from "@/test/render";
 
@@ -61,13 +61,13 @@ test("사건 노드를 누르면 기록을 쌓지 않고 ?event= 로 그 사건�
 
   expect(router.state.location.search).toBe("?event=119");
   expect(router.state.historyAction).toBe("REPLACE");
-  expect((await node(/착공식/)).getAttribute("aria-pressed")).toBe("true");
+  expect((await node(/착공식/)).getAttribute("aria-current")).toBe("true");
 });
 
 test("?event= 로 열면 그 사건을 고른 채 열고, 빈 곳을 누르면 고르기를 푼다", async () => {
   const { router } = renderRoute("/issues/12?event=117");
 
-  expect((await node(/보조금 지급 확정/)).getAttribute("aria-pressed")).toBe(
+  expect((await node(/보조금 지급 확정/)).getAttribute("aria-current")).toBe(
     "true",
   );
 
@@ -166,4 +166,73 @@ test("다른 화면에서 이슈 화면으로 오면 포커스를 이슈 제목(
 
   const heading = await title();
   expect(document.activeElement).toBe(heading);
+});
+
+function notFound(path: string) {
+  return http.get(path, () =>
+    HttpResponse.json(
+      {
+        type: "about:blank",
+        title: "Not Found",
+        status: 404,
+        detail: "이슈를 찾을 수 없다",
+        instance: path,
+        code: "ISSUE_NOT_FOUND",
+      },
+      { status: 404 },
+    ),
+  );
+}
+
+test.each(["/api/v1/issues/12", "/api/v1/issues/12/timeline"])(
+  "%s 하나만 404 여도 찾을 수 없음 화면을 띄운다",
+  async (path) => {
+    server.use(notFound(path));
+    renderRoute("/issues/12");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "이슈를 찾을 수 없어요",
+      }),
+    ).toBeDefined();
+  },
+);
+
+test("너무 큰 id 는 서버에 묻지 않고 찾을 수 없음이다", async () => {
+  const asked: string[] = [];
+  const count = ({ request }: { request: Request }) => {
+    const { pathname } = new URL(request.url);
+    if (pathname.startsWith("/api/v1/issues/")) asked.push(pathname);
+  };
+  server.events.on("request:start", count);
+  onTestFinished(() => {
+    server.events.removeListener("request:start", count);
+  });
+  renderRoute("/issues/99999999999999999999");
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "이슈를 찾을 수 없어요",
+    }),
+  ).toBeDefined();
+  expect(asked).toEqual([]);
+});
+
+test("도구줄 개수가 0이면 그 항목을 뺀다", async () => {
+  server.use(
+    http.get("/api/v1/issues/12", async ({ request }) => {
+      const real = await fetch(request.url.replace("/12", "/13"));
+      return HttpResponse.json({
+        ...(await real.json()),
+        id: 12,
+        articleCount: 0,
+      });
+    }),
+  );
+  renderRoute("/issues/12");
+
+  expect(await screen.findByText(/· 사건 4$/)).toBeDefined();
+  expect(screen.queryByText(/기사 0/)).toBeNull();
 });

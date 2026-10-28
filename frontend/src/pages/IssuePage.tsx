@@ -16,9 +16,12 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 
 const NOT_FOUND_TITLE = "이슈를 찾을 수 없어요";
 
-// 주소의 id — 1 이상의 정수만. 그 밖에는 null
+// 주소의 id — 1 이상의 정수만. 그 밖에는 null.
+// 자바스크립트 숫자로 틀림없이 옮길 수 있는 데까지만 받는다 — 넘으면 다른 id 로 바뀌거나 서버가 400 을 준다
 function toId(raw: string | null | undefined) {
-  return raw && /^[1-9]\d*$/.test(raw) ? Number(raw) : null;
+  if (!raw || !/^[1-9]\d{0,15}$/.test(raw)) return null;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) ? id : null;
 }
 
 const isNotFound = (error: unknown) =>
@@ -92,13 +95,17 @@ function IssueView({ issueId }: { issueId: number }) {
   );
 }
 
-// 「2026.08.04 ~ 10.09 · 사건 8 · 기사 31」 — 사건이 없으면 기간 없이
+// 「2026.08.04 ~ 10.09 · 사건 8 · 기사 31」 — 사건이 없으면 기간 없이, 개수가 0이면 그 항목을 뺀다
 function summaryOf(issue: IssueDetail) {
-  const period =
-    issue.firstEventAt && issue.lastEventAt
-      ? `${formatPeriod(issue.firstEventAt, issue.lastEventAt)} · `
-      : "";
-  return `${period}사건 ${issue.eventCount} · 기사 ${issue.articleCount}`;
+  return [
+    issue.firstEventAt &&
+      issue.lastEventAt &&
+      formatPeriod(issue.firstEventAt, issue.lastEventAt),
+    issue.eventCount > 0 && `사건 ${issue.eventCount}`,
+    issue.articleCount > 0 && `기사 ${issue.articleCount}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function Centered({ children }: { children: ReactNode }) {
