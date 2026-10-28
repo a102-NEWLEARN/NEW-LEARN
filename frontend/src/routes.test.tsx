@@ -87,7 +87,7 @@ test("다른 화면으로 가면 포커스를 본문 맨 위 제목으로 옮긴
 
   const heading = await screen.findByRole("heading", {
     level: 1,
-    name: "페이지를 찾을 수 없어요",
+    name: "국회 예산안 처리",
   });
   expect(document.activeElement).toBe(heading);
 });

@@ -1,6 +1,7 @@
 import { Navigate, type RouteObject } from "react-router";
 import { AppShell } from "@/components/shell/AppShell";
 import { HomePage } from "@/pages/HomePage";
+import { IssuePage } from "@/pages/IssuePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorPage } from "@/pages/RouteErrorPage";
 
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
   { path: "/", element: <Navigate to="/home" replace /> },
   shellRoute([
     { path: "/home", element: <HomePage /> },
+    { path: "/issues/:issueId", element: <IssuePage /> },
     // 그 밖의 주소
     { path: "*", element: <NotFoundPage /> },
   ]),
