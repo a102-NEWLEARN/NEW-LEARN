@@ -47,3 +47,40 @@ export function formatLongDate(date: Date): string {
 export function kstHour(date: Date): number {
   return Number(hour.format(date));
 }
+
+/** 한국 날짜로 몇 년인지. API 시각 문자열을 받는다 */
+export function kstYear(iso: string): number {
+  return Number(kstParts(new Date(iso)).year);
+}
+
+/**
+ * 이슈 기간 — 「2026.08.04 ~ 10.09」. 해가 다르면 끝에도 연도, 같은 날이면 날짜 하나
+ * (EXPERIENCE.md 날짜 표 「이슈 기간」)
+ */
+export function formatPeriod(firstIso: string, lastIso: string): string {
+  const first = kstParts(new Date(firstIso));
+  const last = kstParts(new Date(lastIso));
+  const start = `${first.year}.${first.month}.${first.day}`;
+  if (first.year !== last.year)
+    return `${start} ~ ${last.year}.${last.month}.${last.day}`;
+  if (first.month === last.month && first.day === last.day) return start;
+  return `${start} ~ ${last.month}.${last.day}`;
+}
+
+/**
+ * 타임라인 사건 날짜 — 「MM.DD」. 앞 사건과 해가 바뀌는 사건에만 「2026.01.04」처럼 연도를 붙인다.
+ * 맨 앞 사건은 올해가 아니면 붙인다 (EXPERIENCE.md 날짜 표 「타임라인 사건 날짜」)
+ */
+export function formatTimelineDates(
+  isoList: string[],
+  now = new Date(),
+): string[] {
+  let previousYear = kstParts(now).year;
+  return isoList.map((iso) => {
+    const { year, month, day } = kstParts(new Date(iso));
+    const label =
+      year === previousYear ? `${month}.${day}` : `${year}.${month}.${day}`;
+    previousYear = year;
+    return label;
+  });
+}
