@@ -279,14 +279,14 @@ export function Timeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measured.width]);
 
-  // 주소의 ?event= 로 고른 사건이 바뀌면 보이게 옮긴다
+  // 주소의 ?event= 로 고른 사건이 바뀌거나 타임라인 폭이 바뀌면(옆에 사건 패널이 열려 좁아지는 등) 보이게 옮긴다
   useEffect(() => {
     const selected = layoutRef.current.events.find(
       (event) => event.id === selectedId,
     );
     if (startedWidth.current !== null && selected) keepInView(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  }, [selectedId, measured.width]);
 
   const onNodeKeyDown = (event: KeyboardEvent, id: number) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -726,7 +726,7 @@ export function Timeline({
             ref={tipRef}
             role="dialog"
             aria-label="타임라인 TIP"
-            className="absolute top-x3 right-x3 z-20 w-[300px] rounded-r4 border border-stroke-neutral-weak bg-bg-layer-floating p-x4 shadow-s3"
+            className="absolute top-[12px] right-[12px] z-20 w-[300px] rounded-r4 border border-stroke-neutral-weak bg-bg-layer-floating p-x4 shadow-s3"
           >
             <div className="flex items-center">
               <p className="t5-bold flex items-center gap-x1_5 text-fg-neutral">

@@ -100,7 +100,7 @@ export function EventDetailPane({
         aria-label="상세 패널 닫기"
         title="닫기 (Esc)"
         onClick={onClose}
-        className="absolute top-x4 right-x4 z-10 flex size-x10 items-center justify-center rounded-r2 bg-bg-layer-default text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+        className="absolute top-[16px] right-[16px] z-10 flex size-x10 items-center justify-center rounded-r2 bg-bg-layer-default text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
       >
         <IconXmarkLine aria-hidden size={20} />
       </button>
