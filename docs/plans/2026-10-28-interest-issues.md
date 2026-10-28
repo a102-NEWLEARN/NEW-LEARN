@@ -1,6 +1,6 @@
 # 64번 관심 이슈 API 구현 계획 — 승인 반영
 
-2026-10-28 사용자 승인. 별도 worktree `.worktrees/issue64`, 브랜치 `feat/backend/S15P31A102-64-interest-issue`에서 구현한다. 최초 기준은 `2943de23`이며 후속 승인으로 정식 backend 통합·검증·커밋·작업 브랜치 push·backend 대상 MR·CI 확인까지 진행한다.
+2026-10-28 사용자 승인. 브랜치 `feat/backend/S15P31A102-64-interest-issue`에서 구현한다. 최초 기준은 `2943de23`이며 후속 승인으로 정식 backend 통합·검증·커밋·작업 브랜치 push·backend 대상 MR·CI 확인까지 진행한다.
 
 ## 무엇을 / 왜
 
@@ -15,7 +15,7 @@ F12 회원·관심 분야의 관심 이슈 저장·해제·전체 목록(A23~A25
 
 ## 안 바꿀 것
 
-인증·CSRF·SecurityConfig, 적용된 V1~V8 및 Flyway 이력·설정, 검사 설정, 북마크 구현, FE·PM 문서, 방문 기준·새 사건 배지·알림·홈 정렬. 기존 worktree·백업·검증 기록·.vscode·stash를 보존한다. Jira 변경·MR 병합·배포·공유/운영 DB 작업·브랜치/백업/stash 삭제는 승인 밖이다.
+인증·CSRF·SecurityConfig, 적용된 V1~V8 및 Flyway 이력·설정, 검사 설정, 북마크 구현, FE·PM 문서, 방문 기준·새 사건 배지·알림·홈 정렬. Jira 변경·MR 병합·배포·공유/운영 DB 작업은 승인 밖이다.
 
 ## 리스크와 번호 결정
 
