@@ -240,8 +240,9 @@ class OpenApiDocsTest {
         String path = "/api/v1/members/me/bookmarks/{articleId}";
         for (String method : new String[] {"put", "delete"}) {
             String operation = op(method, path);
-            result.andExpect(jsonPath(
-                            operation + ".summary", startsWith("[확정] " + (method.equals("put") ? "A20 " : "A21 "))))
+            // 요약 이름은 docs/api.md 3절과 같게 — 「북마크 담기 · 빼기」
+            result.andExpect(jsonPath(operation + ".summary")
+                            .value("[확정] " + (method.equals("put") ? "A20 북마크 담기" : "A21 북마크 빼기")))
                     .andExpect(jsonPath(operation + ".tags[0]").value("회원"))
                     .andExpect(jsonPath(operation + ".requestBody").doesNotExist())
                     .andExpect(jsonPath(operation + ".parameters[*].name", org.hamcrest.Matchers.contains("articleId")))
@@ -270,6 +271,11 @@ class OpenApiDocsTest {
                         "$.components.schemas.BookmarkStateResponse.properties.bookmarkedAt.type",
                         hasItems("string", "null")))
                 .andExpect(jsonPath("$.components.schemas.ArticleSummaryResponse.properties.bookmarked.type")
-                        .value("boolean"));
+                        .value("boolean"))
+                // springdoc 은 스키마 이름을 단순 클래스 이름으로 짓는다 — 중첩 record 를 Item 으로 두면 같은 모양의
+                // 관심 이슈 목록(A25, Jira 64)과 이름이 겹쳐 한쪽이 덮인다
+                .andExpect(jsonPath("$.components.schemas.BookmarkItem.properties.bookmarkedAt")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.Item").doesNotExist());
     }
 }

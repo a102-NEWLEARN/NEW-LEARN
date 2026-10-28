@@ -57,6 +57,8 @@ class BookmarkApiIntegrationTest {
                 put("/api/v1/members/me/bookmarks/" + id).cookie(session).with(csrfToken()));
     }
 
+    // 같은 기사를 두 번 담아도 200 · 같은 응답 · 한 줄인지 본다. 클래스 전체가 한 트랜잭션이라 now() 가 같고 다시 읽어도
+    // 같은 엔티티가 나와서, 「처음 담은 시각을 그대로 둔다」는 여기서는 못 잡는다 — 그것은 BookmarkConcurrencyIntegrationTest 의 2020 행이 지킨다
     @Test
     void addIsIdempotentAndRemoveKeepsNullKey() throws Exception {
         Cookie session = join("bookmark63_same");
@@ -73,7 +75,10 @@ class BookmarkApiIntegrationTest {
                         .getResponse()
                         .getContentAsString())
                 .isEqualTo(first);
-        assertThat(jdbc.sql("select count(*) from bookmark").query(Long.class).single())
+        assertThat(jdbc.sql(
+                                "select count(*) from bookmark b join member m on m.id = b.member_id where m.login_id = 'bookmark63_same'")
+                        .query(Long.class)
+                        .single())
                 .isEqualTo(1);
         for (long id : new long[] {4201, 4201, 999999}) {
             mvc.perform(delete("/api/v1/members/me/bookmarks/" + id)
@@ -200,5 +205,22 @@ class BookmarkApiIntegrationTest {
         stats.clear();
         mvc.perform(get("/api/v1/members/me/bookmarks").cookie(mine)).andExpect(jsonPath("$.items", hasSize(5)));
         assertThat(stats.getPrepareStatementCount()).isEqualTo(3);
+    }
+
+    // 이미 담긴 기사를 다시 담으면 북마크 표에는 한 문장만 간다(쓰고 그 행의 담은 시각을 돌려받기). 「넣기(충돌이면 무시) → 다시 읽기」
+    // 두 문장이면 그 사이에 같은 기사의 빼기(A21)가 끼어 커밋될 때 다시 읽기가 빈 값을 받아 500 이 된다 — A20 은 500 을 약속하지 않는다
+    @Test
+    void addingAnExistingBookmarkTouchesTheTableOnce() throws Exception {
+        Cookie session = join("bookmark63_once");
+        add(session, 4201).andExpect(status().isOk());
+        var stats = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        em.flush();
+        em.clear();
+        stats.clear();
+        add(session, 4201)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bookmarked").value(true));
+        // 공개된 기사 찾기 1 + 담기 1
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(2);
     }
 }

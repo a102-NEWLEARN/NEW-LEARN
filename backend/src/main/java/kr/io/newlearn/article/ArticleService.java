@@ -47,10 +47,8 @@ public class ArticleService {
         this.mindmaps = mindmaps;
     }
 
-    public PageResponse<ArticleSummaryResponse> list(String category, PageQuery query) {
-        return list(category, query, null);
-    }
-
+    // memberId 는 세션 회원, 손님이면 null — bookmarked 칸을 회원 기준으로 채운다. 손님용 짧은 판을 두지 않는 것은
+    // 회원 요청에서 그것을 잘못 부르면 bookmarked 가 조용히 false 가 되기 때문이다
     public PageResponse<ArticleSummaryResponse> list(String category, PageQuery query, @Nullable Long memberId) {
         if (category != null && !categories.existsById(category)) {
             throw new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND, "카테고리를 찾을 수 없다: " + category);

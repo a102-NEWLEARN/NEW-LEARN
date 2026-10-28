@@ -271,7 +271,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 56 | A9 `content`(가지 4개, 근거는 저장만) 조회와 W1 `EXTRACT` 결과 저장 | 2026-10-27 구현(`docs/specs/F03-F04-mindmap.md`). 받을 때 보는 것은 `api-internal.md` 5절 「API 가 EXTRACT 결과를 받을 때」. 옛 완료 기준의 「기존 결과 재사용」은 `mindmapStatus` 로 읽었다 — 티켓 원문 작성자에게 확인한다 |
 | 62 | A14 · A15 · A16 (가입 · 로그인 · 로그아웃, 세션) | Redis 세션(하루) · CSRF 번호표 · 실패 잠금(5번 틀리면 1분). 주소별 요청 수 상한은 뺐다(`SSOT.md` 8절) |
 | 65 | A17 · A18 (내 정보 · 관심 분야) | 선호 언론사 · 추천은 뺐다 |
-| 63 | A20 · A21 · A22 (북마크 담기 · 빼기 · 나의 뉴스함), A6 · A7 · A8 의 `bookmarked` | 2026-10-26 명세 확정(Jira 114). 표 `bookmark` 는 새 마이그레이션 |
+| 63 | A20 · A21 · A22 (북마크 담기 · 빼기 · 나의 뉴스함), A6 · A7 · A8 의 `bookmarked` | 2026-10-28 구현(`docs/specs/F12-bookmark-interest-api.md`). 표 `bookmark` 는 V7. 담기는 한 문장(`insert … on conflict do update … returning`)이라 동시에 담거나 빼도 500 이 나지 않고 처음 담은 시각이 남는다 |
 | 64 | A23 · A24 · A25 (관심 이슈 저장 · 해제 · 목록), A2 · A3 의 `interested` | 같음. 표 `interest_issue`. 「지난 방문 이후 새 사건」은 보류 |
 | 102 | A19 용어사전 | |
 | 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 보류(다시 열 때 새 티켓) |

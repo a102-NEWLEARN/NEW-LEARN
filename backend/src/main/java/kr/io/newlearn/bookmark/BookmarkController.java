@@ -23,7 +23,7 @@ public class BookmarkController {
         this.service = service;
     }
 
-    @Operation(summary = "[확정] A20 담기", description = "본문 없이 요청합니다. 반복 요청도 200과 변경 후 상태를 반환합니다.")
+    @Operation(summary = "[확정] A20 북마크 담기", description = "본문 없이 요청합니다. 반복 요청도 200과 변경 후 상태를 반환합니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -60,7 +60,7 @@ public class BookmarkController {
         return service.add(me.id(), articleId);
     }
 
-    @Operation(summary = "[확정] A21 빼기", description = "본문 없이 요청합니다. 반복 요청도 200과 변경 후 상태를 반환합니다.")
+    @Operation(summary = "[확정] A21 북마크 빼기", description = "본문 없이 요청합니다. 반복 요청도 200과 변경 후 상태를 반환합니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",

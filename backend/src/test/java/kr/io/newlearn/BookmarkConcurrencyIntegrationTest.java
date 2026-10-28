@@ -47,6 +47,7 @@ class BookmarkConcurrencyIntegrationTest {
                 insert into article(source,url,press_code,title,body,published_at,released_at,created_at)
                 values ('NEWSDATA','https://fixture.invalid/bookmark63/race','bookmark63','동시 담기','본문',now(),now(),now()) returning id
                 """).query(Long.class).single();
+        // 연결 4개를 한꺼번에 쓴다(막는 연결 1 + 막힌 PUT 2 + 대기 확인 1) — 시험 설정의 연결 상한 4(config/application.yaml)와 맞물린다
         try (var blocker = dataSource.getConnection();
                 var workers = Executors.newFixedThreadPool(2)) {
             blocker.setAutoCommit(false);

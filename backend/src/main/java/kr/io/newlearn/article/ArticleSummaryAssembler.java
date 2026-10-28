@@ -15,7 +15,7 @@ import kr.io.newlearn.mindmap.ArticleMindmapRepository;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-/** A7·A8 및 A6에서 재사용하는 요약 조립. 호출자는 press·category를 함께 조회하고 순서를 정한다. */
+/** A7·A8, A6, A22에서 재사용하는 요약 조립. 호출자는 press·category를 함께 조회하고 순서를 정한다. */
 @Component
 public class ArticleSummaryAssembler {
     private final ArticleMindmapRepository mindmaps;
@@ -29,10 +29,7 @@ public class ArticleSummaryAssembler {
         this.bookmarks = bookmarks;
     }
 
-    public List<ArticleSummaryResponse> assemble(List<Article> articles) {
-        return assemble(articles, null);
-    }
-
+    // memberId 는 세션 회원, 손님이면 null — 손님은 북마크 표를 읽지 않는다
     public List<ArticleSummaryResponse> assemble(List<Article> articles, @Nullable Long memberId) {
         if (articles.isEmpty()) return List.of();
         var ids = articles.stream().map(Article::getId).toList();
