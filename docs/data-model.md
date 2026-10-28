@@ -328,7 +328,7 @@ erDiagram
 | `status` | text | 예 | `QUEUED`(대기 또는 처리 중) → `SUCCEEDED` · `FAILED`. 바뀌는 길은 `docs/api-internal.md` 6절 |
 | `requested_by` | text | 예 | 누가 요청했나. 지금은 `BATCH`(수집 배치가 투입) 하나. 사용자 URL 입력은 뺐다(2026-10-20) |
 | `attempt` | int | 예 | 몇 번째 시도인가(1부터). 다시 돌리면 올린다. 늦게 온 옛 결과를 가르는 데 쓴다 |
-| `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다. `MATCH_EVENT` 는 `[{ eventId, similarity }]`(가까운 순서) — 다시 걸 때 이 후보로 메시지를 다시 만든다(2026-10-27 Jira 35). `ISSUE` 는 `{ issues: [{ issueId, similarity }], events: [{ eventId, similarity }] }` — 고를 때와 다시 걸 때마다 새로 계산한다. 비어 있으면 아직 고르지 않은 대기 작업이다(2026-10-29 Jira 40, `docs/api-internal.md` 3 · 4절) |
+| `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다. `MATCH_EVENT` 는 `[{ eventId, similarity }]`(가까운 순서) — 다시 걸 때 이 후보로 메시지를 다시 만든다(2026-10-27 Jira 35). `ISSUE` 는 `{ issues: [{ issueId, similarity }], events: [{ eventId, similarity }] }` — 고를 때 계산하고, 다시 걸 때는 비워 고르기가 새로 계산하게 한다. 비어 있으면 아직 고르지 않은 대기 작업이다(2026-10-29 Jira 40, `docs/api-internal.md` 3 · 4절) |
 | `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). 칸은 V4 에서 더했고(Jira 30) `MATCH_EVENT` 는 Jira 35 가, `ISSUE` 는 Jira 40 이 쓴다 |
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |

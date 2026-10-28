@@ -43,13 +43,14 @@ flowchart LR
 - `issue/IssueResult.java`(새) — 결과 읽기 · 검사(`MatchEventResult` 와 같은 모양)
 - `issue/IssueResultHandler.java`(새) — 저장. 사건 이슈 붙이기는 조건부 UPDATE 한 줄(`issue_id is null` 인 행만, 바뀐 행 수가 다르면 충돌), 이슈 요약 덮어쓰기, 카테고리 다시 계산
 - `analysis/ResultConflictException.java`(새) — 처리기가 「그사이 상태가 바뀜」을 알릴 때
-- `analysis/AnalysisJobService.java` — 충돌을 잡아 `JOB_STATE_CONFLICT` 로 실패를 남기고 409. 새 시도를 걸 때(바로 다시 · 스케줄러 다시 걸기) 공장의 「새 시도 준비」를 불러 ISSUE 후보를 새로 계산. W1 뒤 · 스케줄러에서 ISSUE 고르기
-- `analysis/queue/AnalysisMessageFactory.java` — 기본 메서드 「새 시도 준비」(기본은 아무것도 안 함 — 판정은 같은 후보 유지)
+- `analysis/AnalysisJobService.java` — 충돌을 잡아 `JOB_STATE_CONFLICT` 로 실패를 남기고 409. 새 시도를 걸 때(바로 다시 · 스케줄러 다시 걸기) 공장의 `requeueNow` 를 물어, ISSUE 는 큐에 바로 넣지 않고 고르기에 돌려보낸다. W1 뒤 · 스케줄러에서 ISSUE 고르기
+- `analysis/queue/AnalysisMessageFactory.java` — 기본 메서드 `requeueNow`(기본은 true — 바로 넣기, 판정은 같은 후보 유지). ISSUE 공장은 후보를 비우고 false — 고르기가 다시 골라 그때 후보를 새로 계산한다(구현 중 정함: 「새 시도 준비」로 후보를 그 자리에서 다시 계산하는 대신, 고르기 한 곳에서만 계산하고 「사건이 이미 이슈 안이면 묻지 않음」도 같이 거치게)
 - `analysis/RetryPolicy.java` — `JOB_STATE_CONFLICT` 바로 다시, 시도 3까지
 - `analysis/AnalysisJobRepository.java` — ISSUE 진행 중 · 다음 대기 작업 쿼리, 못 넣은 작업 쿼리에서 ISSUE 대기 작업(`candidates` 빔) 빼기
 - `analysis/AnalysisJobScheduler.java` — 1분마다 ISSUE 고르기
 - `event/EventRepository.java` — 이슈 붙이기 조건부 UPDATE
 - `issue/Issue.java` — 요약 덮어쓰기 메서드
+- `event/CandidateEventFinder.java` — 유사도 계산(`similarity`)을 공개로 — ISSUE 후보가 같이 쓴다
 - 주석만: `AnalysisResultHandler`(409 줄), `MatchEventResultHandler`(ISSUE 작업 만들기), `MatchDispatcher`(advisory lock 이 하나라는 줄)
 - 시험(새): `IssueStageIntegrationTest`(고르기 · 메시지 · 결과 · 409 · 카테고리), 필요하면 `issue/IssueResultTest`(검사 표 단위 시험)
 
@@ -71,10 +72,10 @@ flowchart LR
 
 ## 작업 순서
 
-- [ ] 계약 · 스펙 문서 → dev MR — 문서끼리 어긋난 곳이 없는지 `Jira 40` · `ISSUE` 로 다시 찾아 확인
-- [ ] 시험 먼저 — 새 시험이 단언에서 실패하는 것을 확인
-- [ ] 후보 · 고르기 · 메시지 · 스케줄러 — 고르기 · 메시지 시험 통과
-- [ ] 결과 저장 · 409 다시 걸기 · 카테고리 — 나머지 시험 통과, 전체 시험 · 린트
+- [x] 계약 · 스펙 문서 → dev MR — 문서끼리 어긋난 곳이 없는지 `Jira 40` · `ISSUE` 로 다시 찾아 확인
+- [x] 시험 먼저 — 새 시험이 단언에서 실패하는 것을 확인
+- [x] 후보 · 고르기 · 메시지 · 스케줄러 — 고르기 · 메시지 시험 통과
+- [x] 결과 저장 · 409 다시 걸기 · 카테고리 — 나머지 시험 통과, 전체 시험 · 린트
 - [ ] reviewer 조수 리뷰 → 반영 → backend MR
 - [ ] (사용자 지시 뒤) backend → dev → 태그 MR → 사이트 확인, Jira 40 결과 댓글 · 완료
 
