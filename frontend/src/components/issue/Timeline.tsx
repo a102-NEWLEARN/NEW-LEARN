@@ -120,7 +120,10 @@ export function Timeline({
   const targetScale = useRef<number | null>(null);
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
   const [hoverId, setHoverId] = useState<number | null>(null);
+  // 키보드로 포커스한 노드 — 포커스 테두리와 툴팁을 띄운다
   const [focusId, setFocusId] = useState<number | null>(null);
+  // 노드를 마우스 · 터치로 누르는 중인가. 그때 받은 포커스는 키보드 포커스로 보지 않는다
+  const pointerFocus = useRef(false);
   const [tipOpen, setTipOpen] = useState(false);
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
@@ -235,7 +238,8 @@ export function Timeline({
     onSelect(id);
   };
 
-  // 라벨 — 같은 레인 오른쪽 이웃 노드까지 64px 이상 남으면 오른쪽, 아니면 노드 아래 (프로토타입)
+  // 라벨 — 같은 레인 오른쪽 이웃 노드까지 64px 이상 남으면 오른쪽, 아니면 노드 아래 (프로토타입).
+  // 오른쪽 라벨은 노드 가운데보다 6px 아래에서 시작한다 — 메인 흐름 선이 글자를 지나가지 않게
   const labelOf = (event: PlacedEvent) => {
     const x = screenX(event.x);
     const r = radiusOf(event);
@@ -250,11 +254,11 @@ export function Timeline({
     const limit = Math.min(...neighbors, width - 16);
     const room = limit - (x + r + 8);
     if (room >= 64)
-      return { dx: r + 8, dy: -2, width: Math.min(room, 190), below: false };
+      return { dx: r + 8, dy: 6, width: Math.min(room, 190), below: false };
     const nextX = neighbors.length ? Math.min(...neighbors) + 18 : width - 16;
     return {
       dx: -r - 4,
-      dy: r + 14,
+      dy: r + 10,
       width: Math.max(40, Math.min(nextX - (x - r - 4), 170)),
       below: true,
     };
@@ -422,14 +426,23 @@ export function Timeline({
                   aria-pressed={isSelected}
                   aria-label={`${dateText(event)} ${event.title}, ${LANE_NAME[event.lane]}, 기사 ${event.articleCount}건`}
                   className="cursor-pointer outline-none"
+                  onPointerDown={() => {
+                    pointerFocus.current = true;
+                  }}
                   onClick={(mouse) => {
                     mouse.stopPropagation();
+                    pointerFocus.current = false;
                     onSelect(event.id);
                   }}
                   onKeyDown={(key) => onNodeKeyDown(key, event.id)}
                   onMouseEnter={() => setHoverId(event.id)}
                   onMouseLeave={() => setHoverId(null)}
                   onFocus={() => {
+                    // 마우스로 눌러 받은 포커스에는 포커스 테두리 · 툴팁을 남기지 않는다 (호버가 맡는다)
+                    if (pointerFocus.current) {
+                      pointerFocus.current = false;
+                      return;
+                    }
                     setFocusId(event.id);
                     keepInView(event);
                   }}
@@ -491,14 +504,15 @@ export function Timeline({
                     {label.below && (
                       <rect
                         x={-4}
-                        y={-14}
+                        y={-3}
                         width={label.width + 8}
-                        height={38}
+                        height={36}
                         rx={6}
                         className="fill-bg-layer-default opacity-95"
                       />
                     )}
                     <text
+                      dominantBaseline="hanging"
                       className={`stroke-bg-layer-default text-[0.8125rem] ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
                       paintOrder="stroke"
                       strokeWidth={4}
@@ -508,6 +522,7 @@ export function Timeline({
                     </text>
                     <text
                       y={17}
+                      dominantBaseline="hanging"
                       className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.75rem] tabular-nums"
                       paintOrder="stroke"
                       strokeWidth={4}

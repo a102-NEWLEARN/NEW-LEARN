@@ -15,7 +15,7 @@ const LAST_ROOM = 140;
 // 시각 차이에 비례하지 않는 간격 — 빈 기간이 길어도 화면을 낭비하지 않고, 같은 레인에서는 라벨이 겹치지 않게 넓게
 const SAME_LANE_GAP = 170;
 const OTHER_LANE_GAP = 110;
-/** 같은 시각 · 같은 레인 사건을 위아래로 벌리는 간격 */
+/** 같은 시각 · 같은 레인 사건을 아래로 쌓는 간격 */
 const STACK_GAP = 30;
 const DAY = 86_400_000;
 const KST_OFFSET = 9 * 3_600_000;
@@ -128,7 +128,7 @@ export function layoutTimeline(
     return (xA + (xB - xA) * ratio) * scale;
   };
 
-  // 세로 — 같은 시각 · 같은 레인 사건은 위아래로 벌린다. 셋을 넘으면 레인을 늘린다
+  // 세로 — 같은 시각 · 같은 레인 사건은 첫 사건을 레인 자리에 두고 아래로 쌓는다(라벨이 레인 선에 걸리지 않게). 둘을 넘으면 레인을 늘린다
   const stacks = new Map<string, TimelineEvent[]>();
   for (const event of sorted) {
     const key = `${laneOf(event)}|${timeOf(event)}`;
@@ -145,13 +145,13 @@ export function layoutTimeline(
         .filter((stack) => laneOf(stack[0]) === key)
         .map((stack) => stack.length),
     );
-    const extra = Math.max(0, tallest - 3) * STACK_GAP;
+    const extra = Math.max(0, tallest - 2) * STACK_GAP;
     const lane = {
       key,
       name: LANES[key].name,
       top,
       height: LANES[key].height + extra,
-      nodeY: LANES[key].nodeY + extra / 2,
+      nodeY: LANES[key].nodeY,
       count: sorted.filter((event) => laneOf(event) === key).length,
     };
     top += lane.height;
@@ -165,7 +165,7 @@ export function layoutTimeline(
   const events = sorted.map((event, index): PlacedEvent => {
     const lane = lanes.find((item) => item.key === laneOf(event))!;
     const stack = stacks.get(`${lane.key}|${timeOf(event)}`)!;
-    const offset = stack.indexOf(event) - (stack.length - 1) / 2;
+    const offset = stack.indexOf(event);
     return {
       ...event,
       lane: lane.key,

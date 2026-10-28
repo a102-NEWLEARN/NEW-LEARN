@@ -163,3 +163,14 @@ test("좁은 화면에서 ?event= 로 고른 마지막 사건도 처음부터 �
     width.mockRestore();
   }
 });
+
+test("마우스로 눌러 받은 포커스에는 툴팁을 남기지 않는다 — 키보드 포커스만 띄운다", async () => {
+  await renderTimeline();
+  const target = node(/착공식/);
+
+  fireEvent.pointerDown(target);
+  act(() => target.focus());
+  fireEvent.click(target);
+
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});

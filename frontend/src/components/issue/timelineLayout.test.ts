@@ -76,7 +76,7 @@ test("시각 차이와 상관없이 앞 사건과 같은 레인이면 170px, 다
   expect([b - a, c - b, d - c]).toEqual([170, 110, 170]);
 });
 
-test("같은 시각에 같은 레인 사건은 같은 가로 자리에서 위아래로 30px 벌린다", () => {
+test("같은 시각에 같은 레인 사건은 같은 가로 자리에서 첫 사건을 레인 선에 두고 30px 씩 아래로 쌓는다", () => {
   const layout = layoutTimeline(
     [
       event(1, at("09-15"), "MAIN"),
@@ -87,7 +87,11 @@ test("같은 시각에 같은 레인 사건은 같은 가로 자리에서 위아
   );
   const [one, two, three] = layout.events;
 
+  const [main] = layout.lanes;
+
   expect(new Set(xs(layout)).size).toBe(1);
+  // 메인 흐름 선은 레인의 nodeY 를 지난다
+  expect(one.y).toBe(main.top + main.nodeY);
   expect(two.y - one.y).toBe(30);
   expect(three.lane).toBe("SUB");
 });
