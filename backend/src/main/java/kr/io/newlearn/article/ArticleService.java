@@ -16,6 +16,7 @@ import kr.io.newlearn.event.ArticleEventRepository;
 import kr.io.newlearn.issue.dto.EventRef;
 import kr.io.newlearn.issue.dto.IssueRef;
 import kr.io.newlearn.mindmap.ArticleMindmapRepository;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,9 @@ public class ArticleService {
         this.mindmaps = mindmaps;
     }
 
-    public PageResponse<ArticleSummaryResponse> list(String category, PageQuery query) {
+    // memberId 는 세션 회원, 손님이면 null — bookmarked 칸을 회원 기준으로 채운다. 손님용 짧은 판을 두지 않는 것은
+    // 회원 요청에서 그것을 잘못 부르면 bookmarked 가 조용히 false 가 되기 때문이다
+    public PageResponse<ArticleSummaryResponse> list(String category, PageQuery query, @Nullable Long memberId) {
         if (category != null && !categories.existsById(category)) {
             throw new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND, "카테고리를 찾을 수 없다: " + category);
         }
@@ -55,13 +58,17 @@ public class ArticleService {
                 ? articles.findByReleasedAtIsNotNull(pageable)
                 : articles.findByReleasedAtIsNotNullAndCategory_Code(category, pageable);
         return PageResponse.from(
-                new PageImpl<>(summaries.assemble(page.getContent()), pageable, page.getTotalElements()));
+                new PageImpl<>(summaries.assemble(page.getContent(), memberId), pageable, page.getTotalElements()));
     }
 
     public ArticleDetailResponse get(long articleId) {
+        return get(articleId, null);
+    }
+
+    public ArticleDetailResponse get(long articleId, @Nullable Long memberId) {
         var article = articles.findByIdAndReleasedAtIsNotNull(articleId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ARTICLE_NOT_FOUND, "기사를 찾을 수 없다: " + articleId));
-        var summary = summaries.assemble(List.of(article)).getFirst();
+        var summary = summaries.assemble(List.of(article), memberId).getFirst();
         var link = links.findByArticleId(articleId);
         var matchStatus = jobs.findStatesByArticleIdInAndStage(List.of(articleId), AnalysisStage.MATCH_EVENT).stream()
                 .findFirst()

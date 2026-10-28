@@ -391,7 +391,7 @@ erDiagram
 
 ### bookmark · interest_issue — 회원이 저장한 것 (확정 2026-10-26)
 
-기사 북마크와 관심 이슈(별표)다. 프로토타입 v21 과 대조해 정했다(Jira 114). API 는 `api-screen.md` A20 ~ A25 다. 표는 Jira 63 · 64 가 새 마이그레이션으로 만든다 — 번호는 만들 때 dev 의 가장 큰 번호 다음이다.
+기사 북마크와 관심 이슈(별표)다. 프로토타입 v21 과 대조해 정했다(Jira 114). API 는 `api-screen.md` A20 ~ A25 다. `bookmark` 는 Jira 63의 `V7__bookmark.sql`로 만든다. `interest_issue` 는 Jira 64가 새 마이그레이션으로 만든다 — 번호는 만들 때 dev 의 가장 큰 번호 다음이다.
 
 | 칸 | 타입 | 필수 | 용도 · 규칙 |
 |---|---|---|---|

@@ -23,7 +23,7 @@ class ArticleServiceTest {
     @Test
     void missingCategoriesStopBeforeArticleQueries() {
         for (String code : new String[] {"unknown", ""}) {
-            assertThatThrownBy(() -> service.list(code, new PageQuery(null, null)))
+            assertThatThrownBy(() -> service.list(code, new PageQuery(null, null), null))
                     .isInstanceOf(NotFoundException.class);
         }
         verifyNoInteractions(articles, assembler, jobs, links);
