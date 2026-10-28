@@ -49,6 +49,50 @@ def test_user_message_numbers_sentences():
     assert "[s1] 첫 문장이다." in message and "[s2] 둘째 문장이다." in message
 
 
+def test_content_line_starting_with_arrow_is_kept():
+    # 방송 기사의 "▶ 인터뷰: …"는 내용이다. 첫 글자만 보고 버리지 않는다
+    sentences, dropped = split_sentences(
+        "▶ 인터뷰: 주민 A씨는 대피했다고 말했다.\n▶ 관련 기사 보기"
+    )
+    assert [s["text"] for s in sentences] == ["▶ 인터뷰: 주민 A씨는 대피했다고 말했다."]
+    assert dropped == ["▶ 관련 기사 보기"]
+
+
+def test_one_line_body_keeps_text_after_photo_credit():
+    # 본문이 한 줄뿐인 데이터에서 앞머리 사진 출처 때문에 기사 전체가 사라지면 안 된다
+    body = (
+        "ⓒ뉴시스 러시아 빙상계가 빅토르 안을 상징으로 꼽았다. "
+        + "그는 귀화 선수다. " * 10
+    )
+    sentences, dropped = split_sentences(body)
+    assert sentences[0]["text"] == "러시아 빙상계가 빅토르 안을 상징으로 꼽았다."
+    assert sentences[0]["text"] in paragraphs_of(body)[0]
+    assert dropped == ["ⓒ뉴시스"]
+
+
+def test_split_after_da_followed_by_digit_or_quote():
+    sentences, _ = split_sentences(
+        "평가했다.17일 발표했다.“좋다”고 말했다. 비율은 3.5%다."
+    )
+    assert [s["text"] for s in sentences] == [
+        "평가했다.",
+        "17일 발표했다.",
+        "“좋다”고 말했다.",
+        "비율은 3.5%다.",
+    ]
+
+
+def test_title_html_entities_are_restored_for_llm_only():
+    sentences, _ = split_sentences("본문이다.")
+    message = build_user_message(
+        "권성동 quot;민주당amp;#91;단독amp;#93; #039;특검#039;",
+        "언론사",
+        PUB,
+        sentences,
+    )
+    assert message.startswith("제목: 권성동 \"민주당[단독] '특검'")
+
+
 # ---------------------------------------------------------------- 발생 시점
 
 
@@ -93,6 +137,32 @@ def test_occurred_at_year_rollover():
     assert resolve_occurred_at("지난달 28일", jan)[0] == "2026-12-28T00:00:00+09:00"
     assert resolve_occurred_at("지난 30일", jan)[0] == "2026-12-30T00:00:00+09:00"
     assert resolve_occurred_at("12월 31일", jan)[0] == "2026-12-31T00:00:00+09:00"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "15일(현지시각) 오후 11시",
+            "2026-10-15T00:00:00+09:00",
+        ),  # 현지 시각은 버리고 날짜만
+        ("15일(현지시각) 기준 전날", "2026-10-14T00:00:00+09:00"),
+        ("오전 9시 47분", "2026-10-16T09:47:00+09:00"),  # 날짜 없이 시각만 → 발행일
+        ("오후 2시", None),  # 발행 시각(11:32)보다 뒤
+        ("다음날 오전 9시", None),  # 무엇의 다음날인지 모른다
+        ("이튿날", None),
+    ],
+)
+def test_local_time_anchor_and_time_only(text, expected):
+    assert resolve_occurred_at(text, PUB)[0] == expected
+
+
+def test_utc_published_at_is_read_in_korean_time():
+    # NewsData 의 pubDate 는 UTC. 10/15 20:00 UTC = 10/16 05:00 KST 이므로 「오늘」은 16일이다
+    assert (
+        resolve_occurred_at("오늘", "2026-10-15T20:00:00+00:00")[0]
+        == "2026-10-16T00:00:00+09:00"
+    )
 
 
 # ---------------------------------------------------------------- 결과 검사
@@ -238,18 +308,60 @@ def test_invalid_outputs_ask_for_one_more_call(bad):
         run(bad)
 
 
+def test_duplicate_leaf_keeps_evidence_of_both():
+    result, _ = run(
+        raw(
+            branches=[
+                {
+                    "type": "CORE",
+                    "items": [
+                        {"text": "같은 잎", "evidence": ["s1"]},
+                        {"text": "같은  잎", "evidence": ["s2", "s1"]},
+                    ],
+                }
+            ]
+        )
+    )
+    items = result["mindmap"]["branches"][0]["items"]
+    assert len(items) == 1 and len(items[0]["evidence"]) == 2
+
+
+def test_repeated_reaction_speaker_is_warned_not_merged():
+    result, diag = run(
+        raw(
+            branches=[
+                {"type": "CORE", "items": [{"text": "A", "evidence": ["s1"]}]},
+                {
+                    "type": "REACTION",
+                    "items": [
+                        {"text": "홍길동: 비판", "evidence": ["s2"]},
+                        {"text": "홍길동 : 우려", "evidence": ["s2"]},
+                        {"text": "업계: 우려", "evidence": ["s2"]},
+                    ],
+                },
+            ]
+        )
+    )
+    assert len(result["mindmap"]["branches"][1]["items"]) == 3
+    assert any("홍길동" in w for w in diag["warnings"])
+
+
 # ---------------------------------------------------------------- 프롬프트
 
 
 def test_prompt_carries_confirmed_rules():
-    assert PROMPT_VERSION == "extract-v4-mindmap"
+    assert PROMPT_VERSION == "extract-v4.12-mindmap"
     for phrase in (
-        "~하면서",
+        "① 먼저 null 인 기사인지 본다",  # 판단 순서: null 기사 → 중심 완료 행위 → 시점
+        "단순 모집 · 행사 · 이벤트 · 출시 · 공연",  # 예고 · 안내 기사는 null
+        "새 정책 · 제도의 신설 · 변경 · 시행",
         "장 마감",
-        "summary 를 CORE 잎으로 되풀이하지 않는다",
-        "한 주체는 한 잎",
-        "이미 보도됐는지는 기준이 아니다",
-        "표현만으로 같은 행위로 보지 않는다",
+        "출처 기관의 발표로 바꾸지 않는다",
+        "CORE 한 잎에 보존한다",
+        "한 주체 한 잎",
+        "이미 보도했어도 된다",
+        "발생 · 신고 접수 · 발표 · 보도 시점을 구분",
+        "취재 · 확인 서술",
     ):
         assert phrase in SYSTEM_PROMPT
     assert "★" not in SYSTEM_PROMPT.split("[예시")[1]

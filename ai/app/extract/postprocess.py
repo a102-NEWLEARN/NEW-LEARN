@@ -85,8 +85,19 @@ def postprocess(
         s["id"]: {k: s[k] for k in ("text", "paragraphIndex", "sentenceIndex")}
         for s in sentences
     }
+
+    def add_evidence(t: str, leaf: Leaf, item: dict[str, Any], ids: list[str]) -> None:
+        # 없는 번호는 근거만 지우고 잎은 남긴다(api-screen.md 3절)
+        for i in leaf.evidence:
+            n = normalize_id(i)
+            if n not in pos:
+                diag["evidence_dropped"].append(f"{t}: '{i}'")
+            elif n not in ids:
+                ids.append(n)
+                item["evidence"].append(pos[n])
+
     # 잎 정리(빈 잎 · 중복 잎 제거, 가지 순서 정렬)를 먼저 하고 대표 번호를 다시 센다(설계 4절 4번)
-    seen_text: dict[str, Leaf] = {}
+    seen_text: dict[str, tuple[Leaf, dict[str, Any], list[str]]] = {}
     survivor: dict[int, Leaf] = {}  # 지운 중복 잎 → 남긴 잎
     branches: list[tuple[str, list[tuple[Leaf, dict[str, Any]]]]] = []
     for t in BRANCH_ORDER:
@@ -97,23 +108,33 @@ def postprocess(
                 diag["leaves_removed"].append(f"{t}: 빈 잎")
                 continue
             if text in seen_text:
+                # 글자까지 같은 잎은 하나만 남기되 근거는 남긴 잎에 합친다(근거를 잃지 않게)
                 diag["leaves_removed"].append(f"{t}: 중복 '{text[:30]}'")
-                survivor[id(leaf)] = seen_text[text]
+                kept, kept_item, kept_ids = seen_text[text]
+                survivor[id(leaf)] = kept
+                add_evidence(t, leaf, kept_item, kept_ids)
                 continue
-            seen_text[text] = leaf
-            # 없는 번호는 근거만 지우고 잎은 남긴다(api-screen.md 3절)
+            item: dict[str, Any] = {"text": text, "evidence": []}
             ids: list[str] = []
-            for i in leaf.evidence:
-                n = normalize_id(i)
-                if n not in pos:
-                    diag["evidence_dropped"].append(f"{t}: '{i}'")
-                elif n not in ids:
-                    ids.append(n)
-            items.append((leaf, {"text": text, "evidence": [pos[i] for i in ids]}))
+            seen_text[text] = (leaf, item, ids)
+            add_evidence(t, leaf, item, ids)
+            items.append((leaf, item))
         if items:
             branches.append((t, items))
     if not branches:
         raise OutputInvalid("가지 0개")
+
+    # 한 주체 한 잎 규칙 위반 후보: "주체:" 앞부분이 같은 REACTION 잎. 같은 사람의 다른 시점 발언 · 번복,
+    # 서로 다른 익명 "관계자"일 수 있어 합치지 않고 경고만 한다
+    speakers = [
+        item["text"].split(":", 1)[0].strip()
+        for t, items in branches
+        if t == "REACTION"
+        for _, item in items
+        if ":" in item["text"]
+    ]
+    for s in sorted({s for s in speakers if speakers.count(s) > 1}):
+        diag["warnings"].append(f"REACTION 같은 주체 '{s}' 잎 {speakers.count(s)}개")
 
     primary_index = None
     if primary_leaf is not None:
