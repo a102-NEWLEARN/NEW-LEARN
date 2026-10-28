@@ -395,6 +395,8 @@ erDiagram
 
 기사 북마크와 관심 이슈(별표)다. 프로토타입 v21 과 대조해 정했다(Jira 114). API 는 `api-screen.md` A20 ~ A25 다. `bookmark` 는 Jira 63의 `V7__bookmark.sql`로 만든다. `interest_issue` 는 Jira 64가 새 마이그레이션으로 만든다 — 번호는 만들 때 dev 의 가장 큰 번호 다음이다.
 
+`interest_issue`는 `V9__interest_issue.sql`로 만든다(Jira 64). 정식 V7 북마크·V8 사건 역할은 보존한다. 공유 환경은 V7→V8→V9 순서로 적용하며, 적용 이력이나 Flyway 설정을 바꿔 뒤늦게 V7을 끼우지 않는다. 승인 범위·격리 검증 방법은 [64번 계획](plans/2026-10-28-interest-issues.md)을 따른다.
+
 | 칸 | 타입 | 필수 | 용도 · 규칙 |
 |---|---|---|---|
 | `bookmark.member_id` | bigint | 기본 키 · 외래 키 | 누가. 회원이 지워지면 같이 지운다(`on delete cascade`) |

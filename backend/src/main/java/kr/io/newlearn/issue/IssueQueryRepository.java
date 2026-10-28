@@ -65,6 +65,14 @@ public class IssueQueryRepository {
                 .optional();
     }
 
+    public List<CardRow> findCardsByIds(List<Long> issueIds) {
+        if (issueIds.isEmpty()) return List.of();
+        return jdbc.sql(AGGREGATE + " where i.id in (:ids) group by i.id")
+                .param("ids", issueIds)
+                .query(IssueQueryRepository::mapCard)
+                .list();
+    }
+
     public List<EventCountRow> findEventCounts(List<Long> eventIds) {
         if (eventIds.isEmpty()) return List.of();
         return jdbc.sql("""

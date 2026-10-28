@@ -24,8 +24,8 @@ import org.springframework.test.web.servlet.MockMvc;
 class IssueControllerTest {
     @Test
     void headerAndEmptyTimelineFollowJsonContract() throws Exception {
-        when(service.get(48))
-                .thenReturn(new IssueHeaderResponse(48, "빈 이슈", null, List.of(), 0, 0, 0, null, null, null));
+        when(service.get(48, null))
+                .thenReturn(new IssueHeaderResponse(48, "빈 이슈", null, List.of(), 0, 0, 0, null, null, null, false));
         when(service.timeline(48)).thenReturn(new TimelineResponse(48, List.of()));
         mvc.perform(get("/api/v1/issues/48"))
                 .andExpect(status().isOk())
@@ -56,19 +56,19 @@ class IssueControllerTest {
 
     @Test
     void defaultAndExplicitParametersArePassedToService() throws Exception {
-        when(service.list(any(), anyString(), any())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
+        when(service.list(any(), anyString(), any(), isNull())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
         mvc.perform(get("/api/v1/issues"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty())
                 .andExpect(jsonPath("$.size").value(20));
-        verify(service).list(isNull(), eq("lastEventAt"), argThat(q -> q.page() == 0 && q.size() == 20));
+        verify(service).list(isNull(), eq("lastEventAt"), argThat(q -> q.page() == 0 && q.size() == 20), isNull());
         mvc.perform(get("/api/v1/issues")
                         .param("sort", "createdAt")
                         .param("category", "politics")
                         .param("page", "2")
                         .param("size", "3"))
                 .andExpect(status().isOk());
-        verify(service).list(eq("politics"), eq("createdAt"), argThat(q -> q.page() == 2 && q.size() == 3));
+        verify(service).list(eq("politics"), eq("createdAt"), argThat(q -> q.page() == 2 && q.size() == 3), isNull());
     }
 
     @Test
@@ -94,7 +94,7 @@ class IssueControllerTest {
 
     @Test
     void mapsMissingCategory() throws Exception {
-        when(service.list(eq("unknown"), anyString(), any()))
+        when(service.list(eq("unknown"), anyString(), any(), isNull()))
                 .thenThrow(new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND, "없는 카테고리"));
         mvc.perform(get("/api/v1/issues").param("category", "unknown"))
                 .andExpect(status().isNotFound())
