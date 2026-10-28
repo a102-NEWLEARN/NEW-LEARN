@@ -396,7 +396,7 @@ A17은 DB의 현재 목록을 읽으므로 이미 로그인한 다른 세션에�
 { "articleId": 456, "bookmarked": true, "bookmarkedAt": "2026-10-26T14:03:00+09:00" }
 ```
 
-저장은 `insert … on conflict (member_id, article_id) do nothing` 처럼 한 문장으로 한다 — 「먼저 읽고 없으면 넣기」나 JPA `save()`(합치기)로 하면 동시에 온 두 요청이 기본 키에 부딪쳐 500 이 나거나 담은 시각을 덮는다. A23 도 같다
+저장은 `insert … on conflict (member_id, article_id) do update set created_at = bookmark.created_at returning …` 처럼 넣기와 담은 시각 읽기를 한 문장으로 한다 — 「먼저 읽고 없으면 넣기」나 JPA `save()`(합치기)로 하면 동시에 온 두 요청이 기본 키에 부딪쳐 500 이 나거나 담은 시각을 덮고, 넣기와 읽기를 두 문장으로 나누면 그 사이에 빼기가 끼어들어 404 가 난다. A23 도 같다
 
 화면이 할 일 — 판단하지 않고 응답을 따른다(2026-10-26 정한 약속, 문구는 프로토타입 v21 그대로)
 
