@@ -1,6 +1,8 @@
 import { expect, test } from "vitest";
 import {
+  formatArticleDate,
   formatEventDate,
+  formatFullDate,
   formatLongDate,
   formatPeriod,
   formatTimelineDates,
@@ -90,4 +92,32 @@ test("타임라인 맨 앞 사건은 올해면 연도 없이 적는다", () => {
       NOW,
     ),
   ).toEqual(["08.04", "08.21"]);
+});
+
+// 기사 날짜 — 오늘 · 어제는 상대 시간, 그 밖은 「10월 14일」, 올해가 아니면 연도 (EXPERIENCE.md 날짜 표)
+const NOON = new Date("2026-10-28T12:00:00+09:00");
+
+test.each([
+  ["2026-10-28T11:59:40+09:00", "방금 전"],
+  ["2026-10-28T11:15:00+09:00", "45분 전"],
+  ["2026-10-28T09:00:00+09:00", "3시간 전"],
+  ["2026-10-28T00:10:00+09:00", "11시간 전"],
+  ["2026-10-27T23:50:00+09:00", "1일 전"],
+  ["2026-10-27T00:00:00+09:00", "1일 전"],
+  ["2026-10-26T23:00:00+09:00", "10월 26일"],
+  ["2025-12-30T09:00:00+09:00", "2025년 12월 30일"],
+])("기사 날짜 %s → 「%s」", (iso, label) => {
+  expect(formatArticleDate(iso, NOON)).toBe(label);
+});
+
+test("기사 날짜의 오늘 · 어제도 한국 날짜로 가린다", () => {
+  // 한국 10월 28일 00:30 (UTC 로는 27일). 27일 23:00 기사는 어제다
+  const justAfterMidnight = new Date("2026-10-27T15:30:00Z");
+  expect(formatArticleDate("2026-10-27T14:00:00Z", justAfterMidnight)).toBe(
+    "1일 전",
+  );
+});
+
+test("사건 발생 날짜는 「2026.10.06」 꼴로 적는다", () => {
+  expect(formatFullDate("2026-10-05T15:30:00Z")).toBe("2026.10.06");
 });
