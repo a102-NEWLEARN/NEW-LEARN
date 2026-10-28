@@ -54,6 +54,10 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 성공 기준은 `docs/specs/F12-member-profile-api.md`를 따른다. 인증 기반은 Jira 62의
 `MemberPrincipal`·회원 응답과 `docs/backend-convention.md` 5절을 재사용한다.
 
+기사 북마크(A20~A22)와 A6·A7·A8의 회원별 북마크 상태 계약은
+`docs/api-screen.md` 1·2절, 구현 성공 기준은 `docs/specs/F12-bookmark-interest-api.md`를 따른다.
+데이터 구조는 `docs/data-model.md`의 bookmark 절을 따른다. 64번 관심 이슈는 별도로 구현한다.
+
 ## 3. 분석 파이프라인
 
 > 이 절은 전부 초안이다. AI 담당(강유진, 황도경) 확인 필요.

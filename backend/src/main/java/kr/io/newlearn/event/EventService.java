@@ -66,11 +66,15 @@ public class EventService {
     }
 
     public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query) {
+        return articles(eventId, query, null);
+    }
+
+    public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query, @Nullable Long memberId) {
         if (!events.existsById(eventId)) throw missing(eventId);
         var pageable = query.toPageable(Sort.by(Sort.Direction.ASC, "publishedAt", "id"));
         var page = articles.findReleasedByEventId(eventId, pageable);
         return PageResponse.from(
-                new PageImpl<>(summaries.assemble(page.getContent()), pageable, page.getTotalElements()));
+                new PageImpl<>(summaries.assemble(page.getContent(), memberId), pageable, page.getTotalElements()));
     }
 
     private static @Nullable EventRef firstRef(List<Event> events) {

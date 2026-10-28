@@ -13,6 +13,7 @@ public record ArticleSummaryResponse(
         @Nullable CategoryRef category,
         @Nullable String summary,
         String url,
-        ArticleAnalysisStatus mindmapStatus) {
+        ArticleAnalysisStatus mindmapStatus,
+        boolean bookmarked) {
     public record PublisherRef(String code, String name) {}
 }

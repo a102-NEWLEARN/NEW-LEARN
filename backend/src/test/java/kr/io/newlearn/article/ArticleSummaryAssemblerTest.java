@@ -19,7 +19,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 class ArticleSummaryAssemblerTest {
     ArticleMindmapRepository mindmaps = mock(ArticleMindmapRepository.class);
     AnalysisJobRepository jobs = mock(AnalysisJobRepository.class);
-    ArticleSummaryAssembler assembler = new ArticleSummaryAssembler(mindmaps, jobs);
+    ArticleSummaryAssembler assembler =
+            new ArticleSummaryAssembler(mindmaps, jobs, mock(kr.io.newlearn.bookmark.BookmarkRepository.class));
 
     static Stream<Arguments> summaries() {
         return Stream.of(

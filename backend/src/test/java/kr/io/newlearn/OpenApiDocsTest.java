@@ -29,18 +29,18 @@ import org.springframework.test.web.servlet.ResultActions;
 class OpenApiDocsTest {
 
     // 경로 → 명세의 API 번호 (docs/api.md 3절)
-    static final Map<String, String> CONFIRMED = Map.of(
-            "/api/v1/categories", "A1",
-            "/api/v1/issues", "A2",
-            "/api/v1/issues/{issueId}", "A3",
-            "/api/v1/issues/{issueId}/timeline", "A4",
-            "/api/v1/events/{eventId}", "A5",
-            "/api/v1/events/{eventId}/articles", "A6",
-            "/api/v1/articles", "A7",
-            "/api/v1/articles/{articleId}", "A8",
-            "/api/v1/articles/{articleId}/mindmap", "A9",
-            // Map.of 는 10쌍까지다 — 더 늘리면 Map.ofEntries 로 바꾼다
-            "/api/v1/members/me", "A17");
+    static final Map<String, String> CONFIRMED = Map.ofEntries(
+            Map.entry("/api/v1/categories", "A1"),
+            Map.entry("/api/v1/issues", "A2"),
+            Map.entry("/api/v1/issues/{issueId}", "A3"),
+            Map.entry("/api/v1/issues/{issueId}/timeline", "A4"),
+            Map.entry("/api/v1/events/{eventId}", "A5"),
+            Map.entry("/api/v1/events/{eventId}/articles", "A6"),
+            Map.entry("/api/v1/articles", "A7"),
+            Map.entry("/api/v1/articles/{articleId}", "A8"),
+            Map.entry("/api/v1/articles/{articleId}/mindmap", "A9"),
+            Map.entry("/api/v1/members/me", "A17"),
+            Map.entry("/api/v1/members/me/bookmarks", "A22"));
 
     @Autowired
     MockMvc mvc;
@@ -232,5 +232,44 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath(
                         change + ".responses['403'].content['application/problem+json'].schema['$ref']",
                         endsWith("/Problem")));
+    }
+
+    @Test
+    void bookmarkApisHaveConfirmedMemberTagResponsesAndNoBodyOrPrincipal() throws Exception {
+        var result = docs();
+        String path = "/api/v1/members/me/bookmarks/{articleId}";
+        for (String method : new String[] {"put", "delete"}) {
+            String operation = op(method, path);
+            result.andExpect(jsonPath(
+                            operation + ".summary", startsWith("[확정] " + (method.equals("put") ? "A20 " : "A21 "))))
+                    .andExpect(jsonPath(operation + ".tags[0]").value("회원"))
+                    .andExpect(jsonPath(operation + ".requestBody").doesNotExist())
+                    .andExpect(jsonPath(operation + ".parameters[*].name", org.hamcrest.Matchers.contains("articleId")))
+                    .andExpect(jsonPath(
+                            operation + ".responses['200'].content['application/json'].schema['$ref']",
+                            endsWith("/BookmarkStateResponse")));
+            for (String code : new String[] {"400", "401", "403"}) {
+                result.andExpect(jsonPath(
+                        operation + ".responses['" + code + "'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")));
+            }
+        }
+        result.andExpect(jsonPath(
+                        op("put", path) + ".responses['404'].description", containsString("ARTICLE_NOT_FOUND")))
+                .andExpect(jsonPath(op("put", path) + ".responses['404'].content['application/problem+json']")
+                        .exists())
+                .andExpect(jsonPath(op("delete", path) + ".responses['404']").doesNotExist())
+                .andExpect(jsonPath(op("/api/v1/members/me/bookmarks") + ".parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath(op("/api/v1/members/me/bookmarks") + ".tags[0]")
+                        .value("회원"))
+                .andExpect(jsonPath(op("/api/v1/members/me/bookmarks")
+                                + ".responses['401'].content['application/problem+json']")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.BookmarkStateResponse.properties.bookmarkedAt.type",
+                        hasItems("string", "null")))
+                .andExpect(jsonPath("$.components.schemas.ArticleSummaryResponse.properties.bookmarked.type")
+                        .value("boolean"));
     }
 }
