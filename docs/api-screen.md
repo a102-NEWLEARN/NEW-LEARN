@@ -146,7 +146,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 |---|---|---|---|
 | `issueId` | number | 어느 이슈의 타임라인인지 | 주소의 `issueId` |
 | `events[].id` · `title` · `label` · `occurredAt` | 사건 참조 | 점 옆 키워드(`label`)와 가로 위치(발생 시점) | `event` |
-| `events[].lane` | enum · null | `MAIN` 메인 흐름 · `SUB` 서브 흐름. 나누는 기준을 정하기 전에는 null(`data-model.md` 5절 11번) | 기준이 정해지면 계산 또는 칸 |
+| `events[].lane` | enum | `MAIN` 메인 흐름 · `SUB` 서브 흐름. 사건의 역할로 나눈다 — 상황을 바꾸는 행위(`event.role` `MAIN`)는 `MAIN`, 다른 사건에 대한 반응 · 평가 · 여론(`REACTION`)은 `SUB`(2026-10-28 AI 제안, Jira 130). 늘 값이 있다 | 계산 — `event.role` |
 | `events[].occurredAtBasis` | enum | 발생 시점을 본문에서 뽑았나(`EXTRACTED`) · 첫 기사 발행 시각으로 채웠나(`FIRST_PUBLISHED`). 뒤의 것이면 「추정」 표시를 붙일 수 있다 | `event.occurred_at_basis` |
 | `events[].articleCount` | number | 점에 마우스를 올리면 보이는 기사 수 | 계산 — 이 사건의 공개 기사 수 |
 | `events[].publisherCount` | number | 마우스를 올리면 보이는 언론사 수 | 계산 |
@@ -156,7 +156,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 ```json
 {
   "issueId": 12,
-  "events": [{ "id": 91, "title": "한빛반도체, 텍사스 공장 투자 확대 공식 발표", "label": "공식 발표", "lane": null, "occurredAt": "2026-08-21T00:00:00+09:00", "occurredAtBasis": "EXTRACTED", "articleCount": 5, "publisherCount": 3 }]
+  "events": [{ "id": 91, "title": "한빛반도체, 텍사스 공장 투자 확대 공식 발표", "label": "공식 발표", "lane": "MAIN", "occurredAt": "2026-08-21T00:00:00+09:00", "occurredAtBasis": "EXTRACTED", "articleCount": 5, "publisherCount": 3 }]
 }
 ```
 
