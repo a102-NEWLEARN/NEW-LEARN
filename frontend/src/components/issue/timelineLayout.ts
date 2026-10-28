@@ -8,8 +8,8 @@ import { formatTimelineDates } from "@/lib/date";
 export const GUTTER = 140;
 /** 맨 아래 시간축 높이 */
 export const AXIS_HEIGHT = 46;
-/** 마지막 사건 오른쪽에 라벨이 들어갈 자리 */
-const RIGHT_ROOM = 200;
+/** 마지막 사건 오른쪽에 라벨이 들어갈 자리. 화면이 넓으면 이만큼 남기고 늘린다 — 처음 배율도 이 값으로 잰다(Timeline) */
+export const RIGHT_ROOM = 200;
 const FIRST_X = 40;
 const LAST_ROOM = 140;
 // 시각 차이에 비례하지 않는 간격 — 빈 기간이 길어도 화면을 낭비하지 않고, 같은 레인에서는 라벨이 겹치지 않게 넓게
@@ -51,6 +51,8 @@ export type LaneBox = {
 };
 
 export type MonthTick = {
+  /** 「2026-05」 — 기간이 1년을 넘으면 같은 달 이름이 두 번 나와서 이름 대신 쓴다 */
+  key: string;
   x: number;
   label: string;
   /** 달 첫날 눈금선을 그리나. 구간 안에 달 첫날이 없어 첫 사건 자리에 달 이름만 둘 때는 false */
@@ -90,7 +92,9 @@ export function layoutTimeline(
   const sorted = [...input].sort(
     (a, b) => timeOf(a) - timeOf(b) || a.id - b.id,
   );
-  const laneOf = (event: TimelineEvent): TimelineLane => event.lane ?? "MAIN";
+  // null 과 모르는 값은 메인 흐름에 둔다
+  const laneOf = (event: TimelineEvent): TimelineLane =>
+    event.lane === "SUB" ? "SUB" : "MAIN";
 
   // 가로 — 서로 다른 시각마다 한 자리. 앞 시각과 레인이 겹치면 넓게, 아니면 좁게 띄운다
   const times = [...new Set(sorted.map(timeOf))];
@@ -207,9 +211,19 @@ function monthTicks(
     if (time > end) break;
     const label =
       ticks.length === 0 || month === 1 ? `${year}년 ${month}월` : `${month}월`;
-    ticks.push({ x: xAt(time), label, line: true });
+    ticks.push({ key: monthKey(year, month), x: xAt(time), label, line: true });
   }
   if (ticks.length > 0) return ticks;
   const own = kstYearMonth(Date.parse(first.occurredAt));
-  return [{ x: first.x, label: `${own.year}년 ${own.month}월`, line: false }];
+  return [
+    {
+      key: monthKey(own.year, own.month),
+      x: first.x,
+      label: `${own.year}년 ${own.month}월`,
+      line: false,
+    },
+  ];
 }
+
+const monthKey = (year: number, month: number) =>
+  `${year}-${String(month).padStart(2, "0")}`;

@@ -155,3 +155,27 @@ test("사건 날짜는 「MM.DD」로 적고 발생 시점을 첫 기사로 채�
     ],
   );
 });
+
+test("모르는 레인 값이 와도 깨지지 않고 메인 흐름에 둔다", () => {
+  const layout = layoutTimeline(
+    [event(1, at("08-04"), "OTHER" as TimelineEvent["lane"])],
+    { now: NOW },
+  );
+
+  expect(layout.events.map((item) => item.lane)).toEqual(["MAIN"]);
+});
+
+test("월 눈금마다 겹치지 않는 key 를 준다", () => {
+  const layout = layoutTimeline(
+    [
+      event(1, "2025-03-10T00:00:00+09:00", "MAIN"),
+      event(2, "2026-06-03T00:00:00+09:00", "MAIN"),
+    ],
+    { now: NOW },
+  );
+  const keys = layout.months.map((month) => month.key);
+
+  expect(keys).toContain("2025-05");
+  expect(keys).toContain("2026-05");
+  expect(new Set(keys).size).toBe(keys.length);
+});

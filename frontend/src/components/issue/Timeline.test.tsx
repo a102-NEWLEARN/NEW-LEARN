@@ -84,11 +84,11 @@ test("노드를 누르거나 Enter · Space 로 고른다", async () => {
   expect(onSelect.mock.calls).toEqual([[119], [117], [118]]);
 });
 
-test("고른 사건은 눌린 버튼으로 읽히고 시간축에 그 날짜를 띄운다", async () => {
+test("고른 사건은 지금 고른 것(aria-current)으로 읽히고 시간축에 그 날짜를 띄운다", async () => {
   await renderTimeline(119);
 
-  expect(node(/착공식/).getAttribute("aria-pressed")).toBe("true");
-  expect(node(/공식 발표/).getAttribute("aria-pressed")).toBe("false");
+  expect(node(/착공식/).getAttribute("aria-current")).toBe("true");
+  expect(node(/공식 발표/).getAttribute("aria-current")).toBeNull();
   expect(screen.getByTestId("selected-date").textContent).toBe("10.06");
 });
 
@@ -173,4 +173,126 @@ test("마우스로 눌러 받은 포커스에는 툴팁을 남기지 않는다 �
   fireEvent.click(target);
 
   expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+// ── 리뷰 반영 ─────────────────────────────────────────────
+
+function stubWidth(width: number) {
+  return vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockReturnValue(width);
+}
+
+const nodeX = (name: RegExp) =>
+  Number(
+    /translate\(([-\d.]+),/.exec(node(name).getAttribute("transform")!)![1],
+  );
+
+test("고른 노드도 DOM 에서 시간 순서 자리에 있다 — Tab 순서와 읽는 순서가 그대로다", async () => {
+  await renderTimeline(114);
+
+  const nodes = screen.getAllByRole("button", { name: /(메인|서브) 흐름/ });
+  expect(nodes[1].getAttribute("aria-label")).toContain("공식 발표");
+  expect(nodes.at(-1)!.getAttribute("aria-label")).toContain("엔지니어");
+});
+
+test("TIP 을 열면 포커스가 창 안으로 가고, Esc 나 닫기로 닫으면 TIP 버튼으로 돌아온다", async () => {
+  await renderTimeline();
+  const tipButton = screen.getByRole("button", { name: "TIP" });
+
+  fireEvent.click(tipButton);
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "TIP 닫기" }),
+  );
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "타임라인 TIP" })).toBeNull();
+  expect(document.activeElement).toBe(tipButton);
+
+  // 연 버튼에 포커스가 있어도 Esc 로 닫힌다
+  fireEvent.click(tipButton);
+  act(() => tipButton.focus());
+  fireEvent.keyDown(tipButton, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "타임라인 TIP" })).toBeNull();
+
+  fireEvent.click(tipButton);
+  fireEvent.click(screen.getByRole("button", { name: "TIP 닫기" }));
+  expect(document.activeElement).toBe(tipButton);
+});
+
+test("넓은 화면에 다 들어오면 처음 배율은 100% 다", async () => {
+  const width = stubWidth(1600);
+  try {
+    await renderTimeline();
+    expect(zoomLevel()).toBe(100);
+  } finally {
+    width.mockRestore();
+  }
+});
+
+test("기간이 1년을 넘어 같은 달 이름이 두 번 나와도 눈금을 겹치지 않게 그린다", async () => {
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const { events } = await fetchTimeline(12);
+    render(
+      <Timeline
+        events={[
+          { ...events[0], occurredAt: "2025-03-10T00:00:00+09:00" },
+          { ...events[1], occurredAt: "2026-06-03T00:00:00+09:00" },
+        ]}
+        selectedId={null}
+        onSelect={() => {}}
+        onDeselect={() => {}}
+      />,
+    );
+
+    expect(screen.getAllByText("5월")).toHaveLength(2);
+    expect(errors).not.toHaveBeenCalled();
+  } finally {
+    errors.mockRestore();
+  }
+});
+
+test("노드를 누르다 끌어도(클릭 없이 손을 떼도) 다음 키보드 포커스에는 툴팁을 띄운다", async () => {
+  await renderTimeline();
+
+  fireEvent.pointerDown(node(/착공식/));
+  fireEvent.pointerUp(window);
+  act(() => node(/공식 발표/).focus());
+
+  expect(screen.getByRole("tooltip").textContent).toContain("공식 발표");
+});
+
+test("기사 · 언론사가 0이면 그 항목을 빼고 적는다", async () => {
+  const { events } = await fetchTimeline(12);
+  render(
+    <Timeline
+      events={[{ ...events[6], articleCount: 0, publisherCount: 0 }]}
+      selectedId={null}
+      onSelect={() => {}}
+      onDeselect={() => {}}
+    />,
+  );
+
+  expect(node(/착공식/).getAttribute("aria-label")).toBe(
+    "10.06 한빛반도체 텍사스 공장 착공식, 메인 흐름",
+  );
+  expect(screen.queryByText(/기사 0/)).toBeNull();
+  act(() => node(/착공식/).focus());
+  expect(screen.getByRole("tooltip").textContent).not.toMatch(
+    /기사 0|언론사 0/,
+  );
+});
+
+test("키보드로 화면 밖 노드에 가면 그 노드가 보이게 옮긴다", async () => {
+  const width = stubWidth(375);
+  try {
+    await renderTimeline();
+    expect(nodeX(/엔지니어 수급 우려/)).toBeGreaterThan(375);
+
+    act(() => node(/엔지니어 수급 우려/).focus());
+
+    await waitFor(() => expect(nodeX(/엔지니어 수급 우려/)).toBeLessThan(375));
+  } finally {
+    width.mockRestore();
+  }
 });

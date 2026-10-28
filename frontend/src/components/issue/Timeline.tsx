@@ -25,6 +25,7 @@ import type { TimelineEvent, TimelineLane } from "@/api/timeline";
 import {
   GUTTER,
   layoutTimeline,
+  RIGHT_ROOM,
   type PlacedEvent,
 } from "@/components/issue/timelineLayout";
 import { useElementSize } from "@/components/issue/useElementSize";
@@ -35,8 +36,8 @@ const ZOOM_OUT = 0.8;
 const ZOOM_IN = 1.25;
 // 잴 수 없을 때(jsdom) 쓰는 타임라인 자리 크기
 const FALLBACK_SIZE = { width: 1000, height: 520 };
-// 오른쪽 끝에 라벨이 들어갈 자리. 고른 사건이 이 안쪽이면 화면 안으로 옮긴다
-const RIGHT_ROOM = 210;
+// 오른쪽 끝에서 라벨이 들어갈 자리. 고른 · 포커스한 사건이 여기 걸치면 화면 안으로 옮긴다
+const LABEL_ROOM = 210;
 
 const LANE_NAME: Record<TimelineLane, string> = {
   MAIN: "메인 흐름",
@@ -53,6 +54,14 @@ const radiusOf = (event: PlacedEvent) => (event.lane === "MAIN" ? 10 : 8);
 // 「08.21 추정」
 const dateText = (event: PlacedEvent) =>
   event.estimated ? `${event.dateLabel} 추정` : event.dateLabel;
+
+// 「기사 5건」 · 「언론사 3곳」 — 0이면 그 항목을 뺀다 (EXPERIENCE.md Voice and Tone)
+const articlesText = (event: PlacedEvent) =>
+  event.articleCount > 0 ? `기사 ${event.articleCount}건` : null;
+const publishersText = (event: PlacedEvent) =>
+  event.publisherCount > 0 ? `언론사 ${event.publisherCount}곳` : null;
+const joined = (...parts: (string | null)[]) =>
+  parts.filter(Boolean).join(" · ");
 
 // 글자 폭 어림 — 한글은 글자 크기만큼, 그 밖은 0.6배
 function textWidth(text: string, fontSize: number) {
@@ -122,9 +131,40 @@ export function Timeline({
   const [hoverId, setHoverId] = useState<number | null>(null);
   // 키보드로 포커스한 노드 — 포커스 테두리와 툴팁을 띄운다
   const [focusId, setFocusId] = useState<number | null>(null);
-  // 노드를 마우스 · 터치로 누르는 중인가. 그때 받은 포커스는 키보드 포커스로 보지 않는다
+  // 노드를 마우스 · 터치로 누르는 중인가. 그때 받은 포커스는 키보드 포커스로 보지 않는다.
+  // 손을 떼면 어디서든 푼다 — 끌기로 끝나 click 이 없어도 다음 키보드 포커스를 막지 않게
   const pointerFocus = useRef(false);
+  const pressNode = () => {
+    pointerFocus.current = true;
+    const release = () => {
+      pointerFocus.current = false;
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+  };
   const [tipOpen, setTipOpen] = useState(false);
+  const tipButtonRef = useRef<HTMLButtonElement>(null);
+  const tipCloseRef = useRef<HTMLButtonElement>(null);
+  // TIP 을 닫으면 포커스를 연 버튼으로 돌린다 (EXPERIENCE.md Accessibility Floor)
+  const closeTip = () => {
+    setTipOpen(false);
+    tipButtonRef.current?.focus();
+  };
+  // 열면 포커스를 창 안으로. 열려 있는 동안 Esc 는 어디서 눌러도 이 창만 닫는다 (Interaction Primitives)
+  useEffect(() => {
+    if (!tipOpen) return;
+    tipCloseRef.current?.focus();
+    const onKeyDown = (key: globalThis.KeyboardEvent) => {
+      if (key.key !== "Escape") return;
+      key.preventDefault();
+      setTipOpen(false);
+      tipButtonRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [tipOpen]);
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
   const screenX = (x: number) => transform.applyX(GUTTER + x);
@@ -150,7 +190,7 @@ export function Timeline({
     select(svg).call(behavior).on("dblclick.zoom", null);
     zoomRef.current = behavior;
     return () => {
-      select(svg).on(".zoom", null);
+      select(svg).interrupt().on(".zoom", null);
     };
   }, []);
 
@@ -200,7 +240,7 @@ export function Timeline({
   // 화면 밖이거나 오른쪽 라벨 자리에 걸치면 옮긴다
   const keepInView = (event: PlacedEvent, duration?: number) => {
     const x = transformRef.current.applyX(GUTTER + event.x);
-    if (x < GUTTER + 20 || x > sizeRef.current.width - RIGHT_ROOM)
+    if (x < GUTTER + 20 || x > sizeRef.current.width - LABEL_ROOM)
       centerOn(event, duration);
   };
 
@@ -212,6 +252,7 @@ export function Timeline({
     const remeasured = startedWidth.current === 0 && measured.width > 0;
     if (!first && !remeasured) return;
     startedWidth.current = measured.width;
+    // 배치가 넓은 화면에서 늘리는 폭과 같은 값으로 재야 늘어난 배치가 딱 100% 가 된다
     const room = sizeRef.current.width - GUTTER - RIGHT_ROOM;
     const fitting = room / layoutRef.current.width;
     apply(atScale(fitting >= 0.75 ? Math.min(1, fitting) : 0.75), 0);
@@ -273,11 +314,6 @@ export function Timeline({
   const mainXs = layout.events
     .filter((event) => event.lane === "MAIN")
     .map((event) => screenX(event.x));
-  // 고른 노드를 맨 위에 그린다
-  const drawOrder = [
-    ...layout.events.filter((event) => event.id !== selectedId),
-    ...layout.events.filter((event) => event.id === selectedId),
-  ];
 
   return (
     <section
@@ -329,11 +365,12 @@ export function Timeline({
           전체 보기
         </ActionButton>
         <ActionButton
+          ref={tipButtonRef}
           variant="neutralOutline"
           size="small"
           className="border-stroke-neutral-weak"
           aria-expanded={tipOpen}
-          onClick={() => setTipOpen((open) => !open)}
+          onClick={() => (tipOpen ? closeTip() : setTipOpen(true))}
         >
           <IconQuestionmarkCircleLine aria-hidden size={16} />
           TIP
@@ -388,7 +425,7 @@ export function Timeline({
               .filter((month) => month.line)
               .map((month) => (
                 <line
-                  key={month.label}
+                  key={month.key}
                   x1={screenX(month.x)}
                   x2={screenX(month.x)}
                   y1={0}
@@ -408,7 +445,7 @@ export function Timeline({
                 className="pointer-events-none stroke-stroke-brand-weak"
               />
             )}
-            {drawOrder.map((event) => {
+            {layout.events.map((event) => {
               const x = screenX(event.x);
               const r = radiusOf(event);
               const main = event.lane === "MAIN";
@@ -416,19 +453,23 @@ export function Timeline({
               const isHovered = event.id === hoverId;
               const isFocused = event.id === focusId;
               const label = labelOf(event);
-              const meta = `${dateText(event)} · 기사 ${event.articleCount}건`;
+              const meta = joined(dateText(event), articlesText(event));
               return (
                 <g
                   key={event.id}
                   transform={`translate(${x},${event.y})`}
                   role="button"
                   tabIndex={0}
-                  aria-pressed={isSelected}
-                  aria-label={`${dateText(event)} ${event.title}, ${LANE_NAME[event.lane]}, 기사 ${event.articleCount}건`}
+                  aria-current={isSelected ? "true" : undefined}
+                  aria-label={[
+                    `${dateText(event)} ${event.title}`,
+                    LANE_NAME[event.lane],
+                    articlesText(event),
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
                   className="cursor-pointer outline-none"
-                  onPointerDown={() => {
-                    pointerFocus.current = true;
-                  }}
+                  onPointerDown={pressNode}
                   onClick={(mouse) => {
                     mouse.stopPropagation();
                     pointerFocus.current = false;
@@ -554,7 +595,7 @@ export function Timeline({
             <g clipPath="url(#timeline-plot)">
               {layout.months.map((month) => (
                 <g
-                  key={month.label}
+                  key={month.key}
                   transform={`translate(${screenX(month.x)},${layout.axisY})`}
                 >
                   {month.line && (
@@ -661,7 +702,12 @@ export function Timeline({
           >
             <p className="t4-bold text-fg-neutral">{tipEvent.title}</p>
             <p className="t3-regular mt-x0_5 text-fg-neutral-muted tabular-nums">
-              {`${dateText(tipEvent)} · 기사 ${tipEvent.articleCount}건 · 언론사 ${tipEvent.publisherCount}곳 · ${LANE_NAME[tipEvent.lane]}`}
+              {joined(
+                dateText(tipEvent),
+                articlesText(tipEvent),
+                publishersText(tipEvent),
+                LANE_NAME[tipEvent.lane],
+              )}
             </p>
           </div>
         )}
@@ -669,11 +715,6 @@ export function Timeline({
           <div
             role="dialog"
             aria-label="타임라인 TIP"
-            onKeyDown={(key) => {
-              if (key.key !== "Escape") return;
-              key.stopPropagation();
-              setTipOpen(false);
-            }}
             className="absolute top-x3 right-x3 z-20 w-[300px] rounded-r4 border border-stroke-neutral-weak bg-bg-layer-floating p-x4 shadow-s3"
           >
             <div className="flex items-center">
@@ -687,8 +728,9 @@ export function Timeline({
               </p>
               <button
                 type="button"
+                ref={tipCloseRef}
                 aria-label="TIP 닫기"
-                onClick={() => setTipOpen(false)}
+                onClick={closeTip}
                 className="ml-auto flex size-x7 items-center justify-center rounded-r2 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
               >
                 <IconXmarkLine aria-hidden size={16} />
