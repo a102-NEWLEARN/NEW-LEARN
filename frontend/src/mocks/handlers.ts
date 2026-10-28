@@ -392,7 +392,10 @@ const ARTICLE_ANGLES = [
   "쟁점 정리",
   "관계자 반응",
 ];
-function articlesOf({ event, issue }: EventEntry): ArticleSummary[] {
+function articlesOf({
+  event,
+  issue,
+}: Pick<EventEntry, "event" | "issue">): ArticleSummary[] {
   const publishers = publishersOf(event);
   return Array.from({ length: event.articleCount }, (_, at) => {
     const id = event.id * 100 + at + 1;
@@ -427,50 +430,100 @@ function issueNotFound(instance: string) {
 // A2 정렬 기준. 같으면 id 내림차순 (docs/api-screen.md A2)
 const ISSUE_SORTS = ["lastEventAt", "createdAt"] as const;
 
-// A13 검색용 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 기사 목록(A7) 가짜가 생기면 그쪽과 합친다
-const articles = [
-  {
-    id: 401,
-    title: "한빛반도체, 텍사스 공장 착공식 열어",
-    summary:
-      "한빛반도체가 텍사스주에서 반도체 공장 착공식을 열고 투자 규모를 밝혔다",
-  },
-  {
-    id: 402,
-    title: "美 공장 인력난에 국내 엔지니어 파견 검토",
-    summary: "현지 숙련 인력이 모자라 국내 엔지니어를 보내는 방안을 검토한다",
-  },
-  {
-    id: 403,
-    title: "한국은행, 기준금리 연 2.50% 동결",
-    summary: "물가와 가계부채를 함께 고려해 금리를 묶었다",
-  },
-  {
-    id: 404,
-    title: "원/달러 환율 1,500원 넘어… 외환당국 구두 개입",
-    summary: "외환당국이 시장 쏠림을 경계한다며 구두 개입에 나섰다",
-  },
-  {
-    id: 405,
-    title: "여야, 내년 예산안 수정 협의 재개",
-    summary: "법정 처리 시한을 앞두고 여야가 다시 마주 앉았다",
-  },
-  {
-    id: 406,
-    title: "의대 증원 재조정안 공개… 의료계 반발",
-    summary: "정부가 내년도 의대 정원 조정안을 내놓자 의료계가 반발했다",
-  },
-  {
-    id: 407,
-    title: "중동 휴전 연장 합의안 초안 공개",
-    summary: "중재국이 휴전을 연장하는 합의안 초안을 공개했다",
-  },
-  {
-    id: 408,
-    title: "국산 거대 언어 모델 AI 공개 시연",
-    summary: "국내 기업이 직접 만든 거대 언어 모델을 처음 공개 시연했다",
-  },
+// 사건으로 묶이지 않은 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 언론사는 presses 에서 돌려 쓴다.
+// A13 검색은 이 기사들에서만 찾고, A7 최신 기사는 사건 기사(articlesOf)와 이 기사들을 함께 준다
+function looseArticle(
+  id: number,
+  code: string,
+  publishedAt: string,
+  title: string,
+  summary: string,
+): ArticleSummary {
+  const { name } = categories.find((category) => category.code === code)!;
+  return {
+    id,
+    title,
+    publisher: presses[id % presses.length],
+    publishedAt,
+    category: { code, name },
+    summary,
+    url: `https://news.example.com/articles/${id}`,
+    mindmapStatus: "SUCCEEDED",
+    bookmarked: false,
+  };
+}
+
+const looseArticles: ArticleSummary[] = [
+  looseArticle(
+    401,
+    "economy",
+    "2026-10-06T10:12:00+09:00",
+    "한빛반도체, 텍사스 공장 착공식 열어",
+    "한빛반도체가 텍사스주에서 반도체 공장 착공식을 열고 투자 규모를 밝혔다",
+  ),
+  looseArticle(
+    402,
+    "economy",
+    "2026-10-09T09:30:00+09:00",
+    "美 공장 인력난에 국내 엔지니어 파견 검토",
+    "현지 숙련 인력이 모자라 국내 엔지니어를 보내는 방안을 검토한다",
+  ),
+  looseArticle(
+    403,
+    "economy",
+    "2026-10-16T11:05:00+09:00",
+    "한국은행, 기준금리 연 2.50% 동결",
+    "물가와 가계부채를 함께 고려해 금리를 묶었다",
+  ),
+  looseArticle(
+    404,
+    "economy",
+    "2026-10-23T08:20:00+09:00",
+    "원/달러 환율 1,500원 넘어… 외환당국 구두 개입",
+    "외환당국이 시장 쏠림을 경계한다며 구두 개입에 나섰다",
+  ),
+  looseArticle(
+    405,
+    "politics",
+    "2026-10-20T14:00:00+09:00",
+    "여야, 내년 예산안 수정 협의 재개",
+    "법정 처리 시한을 앞두고 여야가 다시 마주 앉았다",
+  ),
+  looseArticle(
+    406,
+    "society",
+    "2026-10-18T16:40:00+09:00",
+    "의대 증원 재조정안 공개… 의료계 반발",
+    "정부가 내년도 의대 정원 조정안을 내놓자 의료계가 반발했다",
+  ),
+  looseArticle(
+    407,
+    "world",
+    "2026-10-21T19:10:00+09:00",
+    "중동 휴전 연장 합의안 초안 공개",
+    "중재국이 휴전을 연장하는 합의안 초안을 공개했다",
+  ),
+  looseArticle(
+    408,
+    "it_science",
+    "2026-10-22T13:30:00+09:00",
+    "국산 거대 언어 모델 AI 공개 시연",
+    "국내 기업이 직접 만든 거대 언어 모델을 처음 공개 시연했다",
+  ),
 ];
+
+// A7 — 가짜 기사 전부. 모든 이슈의 사건 기사와 사건으로 묶이지 않은 기사
+function allArticles(): ArticleSummary[] {
+  const eventArticles = issues.flatMap((issue) =>
+    timelineOf(
+      issue.id,
+      issue.title,
+      issue.firstEventAt,
+      issue.lastEventAt,
+    ).flatMap((event) => articlesOf({ event, issue })),
+  );
+  return [...eventArticles, ...looseArticles];
+}
 
 // A13 — 우리가 가진 뉴스 데이터 가운데 검색어가 들어간 것 (2026-10-23 사용자가 정한 규칙).
 // 이슈 · 사건은 이름, 기사는 제목이나 요약에 들어 있으면 준다. 영문은 대소문자를 가리지 않는다.
@@ -490,7 +543,7 @@ function search(q: string): SearchResult {
         title: lastEvent.title,
         issueId: id,
       })),
-    articles: articles
+    articles: looseArticles
       .filter((article) => has(article.title, article.summary))
       .map(({ id, title }) => ({ id, title })),
   };
@@ -605,6 +658,34 @@ export const handlers = [
       size,
       totalElements: all.length,
       totalPages: Math.ceil(all.length / size),
+    } satisfies Page<ArticleSummary>);
+  }),
+  // A7 — 최신 기사. 분야로 거르고 발행 시각 최신순(같으면 id 내림차순), 쪽을 나눈다.
+  // 없는 분야는 404 (docs/api-screen.md A7)
+  http.get("/api/v1/articles", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const code = params.get("category");
+    const page = Number(params.get("page") ?? 0);
+    const size = Number(params.get("size") ?? 20);
+    if (code !== null && !categories.some((item) => item.code === code)) {
+      return problem(
+        404,
+        "CATEGORY_NOT_FOUND",
+        `카테고리를 찾을 수 없다: ${code}`,
+        "/api/v1/articles",
+      );
+    }
+    const matched = allArticles()
+      .filter((article) => code === null || article.category?.code === code)
+      .sort(
+        (a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.id - a.id,
+      );
+    return HttpResponse.json({
+      items: matched.slice(page * size, (page + 1) * size),
+      page,
+      size,
+      totalElements: matched.length,
+      totalPages: Math.ceil(matched.length / size),
     } satisfies Page<ArticleSummary>);
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
