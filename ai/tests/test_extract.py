@@ -93,6 +93,39 @@ def test_title_html_entities_are_restored_for_llm_only():
     assert message.startswith("제목: 권성동 \"민주당[단독] '특검'")
 
 
+@pytest.mark.parametrize(
+    "tail",
+    [
+        "김용희 기자 kimyh@hani.co.kr",
+        "◎공감언론 뉴시스 [email protected] Copyright © NEWSIS.COM, 무단 전재 및 재배포 금지",
+        (
+            "연합뉴스TV 기사문의 및 제보 : 카톡/라인 jebo23 이지현(ji@yna.co.kr) "
+            "당신이 담은 순간이 뉴스입니다! ⓒ연합뉴스TV, 무단 전재-재배포, AI 학습 및 활용 금지 "
+            "- 좋아요 0 - 응원해요 후속 원해요 0"
+        ),
+        "김현민 기자 minkim@etnews.com - ET Events",
+        "[ⓒ 세계일보 & Segye.com, 무단전재 및 재배포 금지]",
+        "영문기사 보기 (View English Article)",
+        "/문영수 기자([email protected])",
+    ],
+)
+def test_tail_notices_of_one_line_body_are_cut(tail):
+    # NewsData 실제 응답(S15P31A102-126)의 꼬리 문구. 본문은 원문 그대로 남는다
+    body = f"첫 문장이다. 끝 문장이다. {tail}"
+    sentences, dropped = split_sentences(body)
+    assert [s["text"] for s in sentences] == ["첫 문장이다.", "끝 문장이다."]
+    assert all(s["text"] in body for s in sentences) and dropped
+
+
+def test_copyright_mention_inside_body_is_kept():
+    body = (
+        "기자는 ⓒ 표기와 무단 전재 금지 문구를 설명했다. "
+        "이어 여러 사례를 길게 소개하며 저작권 문제를 짚었다고 밝혔다."
+    )
+    sentences, dropped = split_sentences(body)
+    assert len(sentences) == 2 and not dropped
+
+
 # ---------------------------------------------------------------- 발생 시점
 
 
