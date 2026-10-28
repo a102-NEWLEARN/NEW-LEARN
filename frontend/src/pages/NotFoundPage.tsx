@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
+import { usePageTitle } from "@/components/usePageTitle";
 
 type NotFoundPageProps = {
   /** 무엇이 없는지. 예: 「이슈를 찾을 수 없어요」 */
@@ -12,10 +13,14 @@ type NotFoundPageProps = {
 export function NotFoundPage({
   title = "페이지를 찾을 수 없어요",
 }: NotFoundPageProps) {
+  usePageTitle(title);
+
   return (
     <div className="flex flex-col items-center gap-x6 px-x4 py-x16 text-center">
-      <h1 className="screen-title text-fg-neutral">{title}</h1>
-      {/* 지금 /home 에는 개발 확인 화면이 뜬다. 홈 화면은 S15P31A102-44 에서 넣는다 */}
+      {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell) */}
+      <h1 tabIndex={-1} className="screen-title text-fg-neutral outline-none">
+        {title}
+      </h1>
       <ActionButton asChild variant="brandSolid">
         <Link to="/home">홈으로</Link>
       </ActionButton>

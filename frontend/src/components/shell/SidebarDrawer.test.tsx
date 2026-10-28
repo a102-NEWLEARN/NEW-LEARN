@@ -5,19 +5,13 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { http, HttpResponse } from "msw/http";
 import { beforeEach, expect, test } from "vitest";
-import { server } from "@/mocks/node";
 import { resizeScreen, stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 767px 이하 — 사이드바가 서랍이 된다 (EXPERIENCE.md 앱 셸 · Responsive & Platform)
 beforeEach(() => {
   stubScreen("narrow");
-  // /home 은 개발 확인 화면이라 헬스를 부른다
-  server.use(
-    http.get("/actuator/health", () => HttpResponse.json({ status: "UP" })),
-  );
 });
 
 const openMenu = async () =>
@@ -71,6 +65,60 @@ test("이슈를 고르면 그 화면으로 가며 서랍이 닫힌다", async ()
 
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(router.state.location.pathname).toBe("/issues/12");
+});
+
+// 서랍(SEED SidePanel)은 닫힐 때 포커스를 메뉴 버튼으로 돌려놓을 수 있다. 그래도 새 화면 제목에 남아야 한다
+test("서랍에서 이슈를 고르면 서랍이 닫힌 뒤에도 포커스가 새 화면 제목에 있다", async () => {
+  renderRoute("/home");
+
+  await openMenu();
+  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  fireEvent.click(await within(drawer).findByRole("button", { name: "경제" }));
+  fireEvent.click(
+    await within(drawer).findByRole("link", {
+      name: "한빛반도체 미국 공장 건설",
+    }),
+  );
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const heading = await screen.findByRole("heading", {
+    level: 1,
+    name: "페이지를 찾을 수 없어요",
+  });
+  // 서랍이 닫히고 조금 지나도 그대로인지
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(heading);
+});
+
+test("서랍에서 빠른 이동을 누르면 서랍이 닫히고 홈 검색창에 포커스가 남는다", async () => {
+  const { router } = renderRoute("/issues/12");
+
+  await openMenu();
+  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  fireEvent.click(within(drawer).getByRole("button", { name: "빠른 이동" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(router.state.location.pathname).toBe("/home");
+  // 서랍이 닫히며 포커스를 메뉴 버튼으로 돌려놓지 않는지 조금 기다려 본다
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(
+    screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
+  );
+});
+
+test("서랍이 열린 채 Ctrl+K 를 누르면 서랍을 닫고 홈 검색창에 포커스한다", async () => {
+  const { router } = renderRoute("/issues/12");
+  await openMenu();
+  await screen.findByRole("dialog", { name: "메뉴" });
+
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(router.state.location.pathname).toBe("/home");
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(
+    screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
+  );
 });
 
 // 좁은 화면에서는 이슈를 고를 때마다 서랍이 닫힌다. 다시 열 때 분야를 또 펼치지 않게 한다

@@ -17,9 +17,10 @@ export function SidebarDrawer({
   onOpenChange,
   ...explorer
 }: SidebarDrawerProps) {
-  // 분야를 펼치는 버튼은 서랍을 두고, 다른 화면으로 가는 링크만 서랍을 닫는다
+  // 분야를 펼치는 버튼은 서랍을 두고, 다른 화면으로 가는 것(링크 · 빠른 이동)만 서랍을 닫는다
   const closeOnLink = (event: MouseEvent) => {
-    if ((event.target as Element).closest("a")) onOpenChange(false);
+    if ((event.target as Element).closest("a, [data-navigates]"))
+      onOpenChange(false);
   };
 
   return (

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { Header } from "@/components/shell/Header";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { SidebarDrawer } from "@/components/shell/SidebarDrawer";
+import {
+  focusSearchRequest,
+  useQuickSearch,
+} from "@/components/shell/useQuickSearch";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
@@ -23,20 +27,48 @@ export function AppShell() {
     onOpenCodeChange: setOpenCategory,
   };
 
+  const quickSearch = useQuickSearch();
+
   // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다.
-  // macOS 한글 입력기는 그 키를 「₩」로 내기도 해서 글자 대신 키 자리(Backslash)로도 본다
+  // ⌘/Ctrl+K 는 빠른 이동 — 홈 검색창으로 간다. 열린 서랍은 닫는다 (EXPERIENCE.md IA 통합 검색).
+  // 한글 입력기는 그 키를 「₩」 · 「ㅏ」로 내기도 해서 글자 대신 키 자리(Backslash · KeyK)로도 본다
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
       const backslash = event.key === "\\" || event.code === "Backslash";
-      if ((event.ctrlKey || event.metaKey) && backslash) {
+      // K 는 Shift · Alt 없이만. 라틴 글자가 왔으면 그 글자로만 본다 — Dvorak 의 Ctrl+T(K 자리)가 걸리지 않게
+      const latin = /^[a-z]$/i.test(event.key);
+      const k =
+        !event.shiftKey &&
+        !event.altKey &&
+        (event.key.toLowerCase() === "k" || (!latin && event.code === "KeyK"));
+      if (backslash) {
         event.preventDefault();
         if (narrow) setDrawerOpen((open) => !open);
         else setSidebarExpanded((expanded) => !expanded);
+      } else if (k) {
+        event.preventDefault();
+        setDrawerOpen(false);
+        quickSearch();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [narrow]);
+  }, [narrow, quickSearch]);
+
+  // 다른 화면으로 가면 포커스를 본문 맨 위 제목(h1)으로 옮긴다 (EXPERIENCE.md Accessibility Floor).
+  // 처음 열 때와 같은 화면에서 쿼리(?category= 등)만 바뀔 때는 옮기지 않는다.
+  // 화면의 h1 에는 tabIndex={-1} 을 줘야 포커스를 받는다. 또 h1 은 데이터를 기다리지 않고 첫 렌더에 그려야 한다 —
+  // 데이터를 받은 뒤에야 h1 을 그리면 그때는 이미 이 효과가 지나가서 포커스가 body 에 남는다
+  const { pathname, state } = useLocation();
+  const shownPath = useRef(pathname);
+  useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    // 빠른 이동으로 왔으면 검색창이 포커스를 가져갔다 (useQuickSearch)
+    if (focusSearchRequest(state) !== undefined) return;
+    mainRef.current?.querySelector<HTMLElement>("h1")?.focus();
+  }, [pathname, state]);
 
   // 로고를 누르면 홈으로 가면서 맨 위로 올린다. 이미 홈이면 스크롤만 올라간다
   const scrollToTop = () => mainRef.current?.scrollTo?.({ top: 0 });
