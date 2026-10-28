@@ -42,15 +42,28 @@ class MatchEventResultTest {
     void newReadsTheNewEventAndIgnoresEventId() {
         var read = MatchEventResult.read(json("""
                 {"decision": "NEW", "eventId": "아무 값", "reason": "후보와 다른 사건이다",
-                 "newEvent": {"title": "한빛반도체 텍사스 공장 착공식", "label": "착공식", "summary": "6일 착공식을 열었다."}}"""));
+                 "newEvent": {"title": "한빛반도체 텍사스 공장 착공식", "label": "착공식", "summary": "6일 착공식을 열었다.",
+                              "role": "REACTION", "reactsTo": "공장 투자 발표"}}"""));
 
         assertThat(read.decision()).isEqualTo(Decision.NEW);
         assertThat(read.eventId()).isNull();
-        assertThat(read.newEvent()).isEqualTo(new NewEvent("한빛반도체 텍사스 공장 착공식", "착공식", "6일 착공식을 열었다."));
+        assertThat(read.newEvent())
+                .isEqualTo(new NewEvent("한빛반도체 텍사스 공장 착공식", "착공식", "6일 착공식을 열었다.", EventRole.REACTION, "공장 투자 발표"));
+    }
+
+    // MAIN 의 reactsTo 는 읽지 않는다 — 반응 대상은 REACTION 에만 있다 (Jira 130)
+    @Test
+    void mainIgnoresReactsTo() {
+        var read = MatchEventResult.read(json("""
+                {"decision": "NEW", "reason": "후보와 다른 사건이다",
+                 "newEvent": {"title": "이름", "label": "착공식", "summary": "요약", "role": "MAIN", "reactsTo": "무언가"}}"""));
+
+        assertThat(read.newEvent()).isEqualTo(new NewEvent("이름", "착공식", "요약", EventRole.MAIN, null));
     }
 
     static Stream<Arguments> rejected() {
-        String newEvent = "\"newEvent\": {\"title\": \"이름\", \"label\": \"착공식\", \"summary\": \"요약\"}";
+        String newEvent =
+                "\"newEvent\": {\"title\": \"이름\", \"label\": \"착공식\", \"summary\": \"요약\", \"role\": \"MAIN\"}";
         return Stream.of(
                 Arguments.of("result 가 객체가 아님", "[]"),
                 Arguments.of("decision 없음", "{\"reason\": \"까닭\", \"eventId\": 97}"),
@@ -82,7 +95,14 @@ class MatchEventResultTest {
                 Arguments.of("reason 에 U+0000", "{\"decision\": \"NEW\", \"reason\": \"까\\u0000닭\", " + newEvent + "}"),
                 Arguments.of(
                         "title 에 U+0000",
-                        "{\"decision\": \"NEW\", \"reason\": \"까닭\", \"newEvent\": {\"title\": \"이\\u0000름\", \"label\": \"착공식\", \"summary\": \"요약\"}}"));
+                        "{\"decision\": \"NEW\", \"reason\": \"까닭\", \"newEvent\": {\"title\": \"이\\u0000름\", \"label\": \"착공식\", \"summary\": \"요약\", \"role\": \"MAIN\"}}"),
+                // 역할을 모르면 타임라인 레인을 정할 수 없다 (Jira 130)
+                Arguments.of(
+                        "NEW 인데 role 없음",
+                        "{\"decision\": \"NEW\", \"reason\": \"까닭\", \"newEvent\": {\"title\": \"이름\", \"label\": \"착공식\", \"summary\": \"요약\"}}"),
+                Arguments.of(
+                        "NEW 인데 role 소문자",
+                        "{\"decision\": \"NEW\", \"reason\": \"까닭\", \"newEvent\": {\"title\": \"이름\", \"label\": \"착공식\", \"summary\": \"요약\", \"role\": \"reaction\"}}"));
     }
 
     @ParameterizedTest(name = "{0}")
