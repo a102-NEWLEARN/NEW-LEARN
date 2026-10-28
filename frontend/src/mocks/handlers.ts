@@ -1,11 +1,18 @@
 import { http, HttpResponse } from "msw/http";
 import type { Category } from "@/api/categories";
+import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
 import type { IssueSummary } from "@/api/issues";
 import type { Member } from "@/api/members";
 import type { SearchResult } from "@/api/search";
 import type { Timeline, TimelineEvent } from "@/api/timeline";
-import type { ItemList, Page } from "@/api/types";
+import type {
+  ArticleSummary,
+  EventRef,
+  ItemList,
+  Page,
+  PublisherRef,
+} from "@/api/types";
 
 // 가짜 API — 백엔드 API 가 생길 때까지 화면 개발 · 테스트에 쓴다 (frontend/README.md 「가짜 API」)
 // 응답 모양은 docs/api-screen.md 예시를 따른다. 값은 지어낸 것이다
@@ -316,6 +323,103 @@ function problem(
   );
 }
 
+// A5 · A6 — 가짜 언론사. 이름은 지어냈다. 앞의 두 곳은 docs/api-screen.md A5 예시다
+const presses: PublisherRef[] = [
+  { code: "bareun", name: "바른신문" },
+  { code: "saebyeok", name: "새벽타임즈" },
+  { code: "hanmaeum", name: "한마음일보" },
+  { code: "nuri", name: "누리경제" },
+  { code: "dongnyeok", name: "동녘방송" },
+];
+
+// A5 사건 요약 — 12번 이슈 사건은 지어 두었다. 116번은 요약이 없는(null) 사건이다
+const eventSummaries: Record<number, string | null> = {
+  113: "한빛반도체가 미국 내 공장 후보지 세 곳을 놓고 검토에 들어갔다고 밝혔다.",
+  114: "한빛반도체가 텍사스 공장 투자 규모를 늘린다고 공식 발표했다. 첫 해 생산 목표도 함께 내놨다.",
+  115: "텍사스 주정부가 공장 유치를 위해 세금 감면과 기반 시설 지원을 묶은 혜택안을 내놨다.",
+  116: null,
+  117: "미국 정부가 반도체 지원법에 따라 한빛반도체에 보조금을 주기로 확정했다.",
+  118: "한빛반도체 이사회가 텍사스 공장 2단계 투자를 승인했다.",
+  119: "한빛반도체가 텍사스주에서 공장 착공식을 열고 양산 일정을 밝혔다.",
+  120: "텍사스 공장에 필요한 엔지니어 수를 두고 보도가 엇갈렸다.",
+};
+
+type EventEntry = {
+  event: TimelineEvent;
+  issue: IssueSummary;
+  events: TimelineEvent[];
+  index: number;
+};
+
+// 모든 가짜 이슈의 A4 사건에서 찾는다
+function findEvent(eventId: number): EventEntry | undefined {
+  for (const issue of issues) {
+    const events = timelineOf(
+      issue.id,
+      issue.title,
+      issue.firstEventAt,
+      issue.lastEventAt,
+    );
+    const index = events.findIndex((event) => event.id === eventId);
+    if (index >= 0) return { event: events[index], issue, events, index };
+  }
+  return undefined;
+}
+
+const eventRef = (event: TimelineEvent | undefined): EventRef | null =>
+  event
+    ? {
+        id: event.id,
+        title: event.title,
+        label: event.label,
+        occurredAt: event.occurredAt,
+      }
+    : null;
+
+// 언론사 publisherCount 곳, code 오름차순 (docs/api-screen.md A5)
+const publishersOf = (event: TimelineEvent) =>
+  presses
+    .slice(0, event.publisherCount)
+    .sort((a, b) => a.code.localeCompare(b.code));
+
+// A6 — 사건마다 기사 articleCount 건. 첫 기사는 사건 시각에, 다음은 세 시간씩 뒤에 나왔다고 지었다.
+// 119번 사건의 마지막 기사는 마인드맵 분석 중(QUEUED)이다
+const ARTICLE_ANGLES = [
+  "",
+  "후속 보도",
+  "현장 분위기",
+  "전문가 분석",
+  "쟁점 정리",
+  "관계자 반응",
+];
+function articlesOf({ event, issue }: EventEntry): ArticleSummary[] {
+  const publishers = publishersOf(event);
+  return Array.from({ length: event.articleCount }, (_, at) => {
+    const id = event.id * 100 + at + 1;
+    return {
+      id,
+      title:
+        at === 0
+          ? event.title
+          : `${event.title} — ${ARTICLE_ANGLES[at % ARTICLE_ANGLES.length] || "추가 보도"}`,
+      publisher: publishers[at % publishers.length],
+      publishedAt: kstIso(Date.parse(event.occurredAt) + at * 3 * 3_600_000),
+      category: issue.categories[0] ?? null,
+      summary: at === 0 ? (eventSummaries[event.id] ?? null) : null,
+      url: `https://news.example.com/articles/${id}`,
+      mindmapStatus:
+        event.id === 119 && at === event.articleCount - 1
+          ? "QUEUED"
+          : "SUCCEEDED",
+      bookmarked: false,
+    };
+  });
+}
+
+function eventNotFound(instance: string) {
+  return problem(404, "EVENT_NOT_FOUND", "사건을 찾을 수 없다", instance);
+}
+
 function issueNotFound(instance: string) {
   return problem(404, "ISSUE_NOT_FOUND", "이슈를 찾을 수 없다", instance);
 }
@@ -466,6 +570,42 @@ export const handlers = [
         found.lastEventAt,
       ),
     } satisfies Timeline);
+  }),
+  // A5 — 사건 패널. 없는 사건은 404 (docs/api-screen.md A5)
+  http.get("/api/v1/events/:eventId", ({ params }) => {
+    const found = findEvent(Number(params.eventId));
+    if (!found) return eventNotFound(`/api/v1/events/${params.eventId}`);
+    const { event, issue, events, index } = found;
+    return HttpResponse.json({
+      ...eventRef(event)!,
+      summary:
+        event.id in eventSummaries
+          ? eventSummaries[event.id]
+          : `「${event.title}」를 다룬 보도를 묶은 사건이다.`,
+      occurredAtBasis: event.occurredAtBasis,
+      issue: { id: issue.id, title: issue.title },
+      articleCount: event.articleCount,
+      publishers: publishersOf(event),
+      previousEvent: eventRef(events[index - 1]),
+      nextEvent: eventRef(events[index + 1]),
+    } satisfies EventDetail);
+  }),
+  // A6 — 사건 관련 기사. 발행 시각 오름차순, 쪽을 나눈다 (docs/api-screen.md A6)
+  http.get("/api/v1/events/:eventId/articles", ({ params, request }) => {
+    const found = findEvent(Number(params.eventId));
+    if (!found)
+      return eventNotFound(`/api/v1/events/${params.eventId}/articles`);
+    const query = new URL(request.url).searchParams;
+    const page = Number(query.get("page") ?? 0);
+    const size = Number(query.get("size") ?? 20);
+    const all = articlesOf(found);
+    return HttpResponse.json({
+      items: all.slice(page * size, (page + 1) * size),
+      page,
+      size,
+      totalElements: all.length,
+      totalPages: Math.ceil(all.length / size),
+    } satisfies Page<ArticleSummary>);
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
   http.get("/api/v1/search", ({ request }) =>
