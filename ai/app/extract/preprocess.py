@@ -33,6 +33,25 @@ INLINE_NOISE = re.compile(
     r"|▶\s*이 기사의 전체 내용 확인하기"
     r"|▶\s*영상 시청"
 )
+# 한 줄 본문 끝에 붙은 안내 문구 · 기자 이메일(NewsData 실제 응답, Jira S15P31A102-126). 문단 끝에서만, 맞는 동안
+# 되풀이해 뗀다 — 본문 중간은 건드리지 않아 남은 문장은 원문 그대로다. 저작권 문구는 뒤에 남는 글자가 짧을 때만
+# (본문 앞 SBS 안내 문구부터 끝까지 지우지 않게)
+TAIL_NOISE = (
+    re.compile(
+        r"\s*[\[<(]?(?:Copyright\s*)?[©ⓒ][^©ⓒ]{0,80}?(?:무단|재배포|AI\s*학습)[^©ⓒ]{0,40}$"
+    ),
+    re.compile(r"\s*-\s*좋아요\s*\d+\s*-\s*응원해요.*$"),  # 연합뉴스TV 반응 버튼
+    re.compile(r"\s*연합뉴스TV 기사문의 및 제보.*$"),
+    re.compile(r"\s*◎공감언론 뉴시스.*$"),
+    re.compile(r"\s*영문기사 보기\s*\(View English Article\)\s*$"),
+    re.compile(r"\s*-\s*ET Events\s*$"),
+    re.compile(r"\s*GoodNews paper\s*$"),
+    # "○○○ 기자 이메일" · "/○○○ 기자(이메일)" · 이메일만 · NewsData 가 가린 "[email protected]"
+    re.compile(
+        r"\s*/?(?:[가-힣]{2,6}\s*)?(?:(?:선임|수석|객원|인턴)?기자\s*)?[\[(]{0,2}"
+        r"(?:[\w.+-]+@[\w-]+(?:\.[\w-]+)+|email\s*protected)[\])]*\s*$"
+    ),
+)
 BYLINE_PREFIX = re.compile(r"^\[[^\]]{0,30}=[^\]]{0,20}기자\]\s*")
 # 마침표 뒤 공백이 있거나, '다.' 바로 뒤에 한글 · 숫자 · 따옴표 · 괄호가 붙어 있으면(한 줄 본문의 편집 오류,
 # "평가했다.17일 …") 나눈다. 소수점("3.5")은 '다.' 뒤가 아니라 그대로 둔다
@@ -50,6 +69,20 @@ def paragraphs_of(body: str) -> list[str]:
     return [line for line in body.splitlines() if line.strip()]
 
 
+def strip_tail(piece: str) -> tuple[str, list[str]]:
+    """문단 끝의 안내 문구를 떼고 (남은 글, 뗀 문구들)을 돌려준다."""
+    cut: list[str] = []
+    changed = True
+    while changed:
+        changed = False
+        for p in TAIL_NOISE:
+            if (m := p.search(piece)) and m.start() > 0:
+                cut.append(m.group(0).strip())
+                piece = piece[: m.start()].rstrip()
+                changed = True
+    return piece, cut
+
+
 def split_sentences(body: str) -> tuple[list[Sentence], list[str]]:
     """문장마다 LLM 용 번호와 원문 위치를 붙인다. 돌려주는 두 번째 값은 지운 안내 문구(로그용).
 
@@ -63,7 +96,8 @@ def split_sentences(body: str) -> tuple[list[Sentence], list[str]]:
         dropped += [m.group(0) for m in INLINE_NOISE.finditer(stripped)]
         s_idx = 0
         for piece in INLINE_NOISE.split(stripped):
-            piece = piece.strip()
+            piece, cut = strip_tail(piece.strip())
+            dropped += cut
             if not piece:
                 continue
             if len(piece) <= NOTICE_LINE_MAX and NOTICE_LINE.fullmatch(piece):
