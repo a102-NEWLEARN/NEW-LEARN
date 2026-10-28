@@ -22,17 +22,17 @@ test("이슈의 사건을 발생 시각 오름차순으로 한 번에 받는다"
   expect(times).toEqual([...times].sort());
 });
 
-test("레인을 정한 사건과 정하지 않은(null) 사건이 있다", async () => {
-  const [decided, undecided] = await Promise.all([
-    fetchTimeline(12),
-    fetchTimeline(13),
-  ]);
+// 레인은 사건의 역할로 늘 값이 있다 — 상황을 바꾸는 행위는 MAIN, 반응 · 평가 · 여론은 SUB (A4, Jira 130)
+test.each([12, 13])(
+  "%i번 이슈의 사건은 모두 레인이 있고 메인 · 서브가 섞여 있다",
+  async (issueId) => {
+    const { events } = await fetchTimeline(issueId);
 
-  expect(new Set(decided.events.map((event) => event.lane))).toEqual(
-    new Set(["MAIN", "SUB"]),
-  );
-  expect(undecided.events.every((event) => event.lane === null)).toBe(true);
-});
+    expect(new Set(events.map((event) => event.lane))).toEqual(
+      new Set(["MAIN", "SUB"]),
+    );
+  },
+);
 
 test("마지막 사건과 사건 · 기사 수가 A2 이슈 목록과 같다", async () => {
   const [timeline, page] = await Promise.all([

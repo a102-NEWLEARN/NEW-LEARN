@@ -46,8 +46,8 @@ const LANE_NAME: Record<TimelineLane, string> = {
   SUB: "서브 흐름",
 };
 const LANE_MEANING: Record<TimelineLane, string> = {
-  MAIN: "후속 · 원인으로 이어진 이슈의 핵심 진행",
-  SUB: "메인 흐름에서 갈라진 반응 · 곁가지 사건",
+  MAIN: "상황을 바꾸는 행위 — 발생 · 결정 · 발표 · 결과 · 공식 조치",
+  SUB: "다른 사건에 대한 반응 · 평가 · 여론 — 논평 · 성명 · 여론조사",
 };
 
 // 노드 반지름 — 메인 흐름이 한 단계 크다 (DESIGN.md 타임라인 노드)

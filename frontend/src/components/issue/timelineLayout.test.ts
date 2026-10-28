@@ -35,9 +35,9 @@ test("사건을 시각 순서로 놓는다", () => {
   expect(layout.events.map((item) => item.id)).toEqual([1, 2]);
 });
 
-test("레인을 정하지 않은(null) 사건은 메인 흐름에 두고, 서브 흐름 사건이 없으면 서브 레인을 두지 않는다", () => {
+test("서브 흐름 사건이 없으면 서브 흐름 레인을 두지 않는다", () => {
   const layout = layoutTimeline(
-    [event(1, at("08-04"), null), event(2, at("09-02"), null)],
+    [event(1, at("08-04"), "MAIN"), event(2, at("09-02"), "MAIN")],
     { now: NOW },
   );
 
@@ -156,13 +156,17 @@ test("사건 날짜는 「MM.DD」로 적고 발생 시점을 첫 기사로 채�
   );
 });
 
-test("모르는 레인 값이 와도 깨지지 않고 메인 흐름에 둔다", () => {
+// 계약상 늘 MAIN · SUB 지만, 값이 빠지거나 모르는 값이 와도 화면이 깨지지 않게
+test("레인 값이 없거나 모르는 값이면 깨지지 않고 메인 흐름에 둔다", () => {
   const layout = layoutTimeline(
-    [event(1, at("08-04"), "OTHER" as TimelineEvent["lane"])],
+    [
+      event(1, at("08-04"), "OTHER" as TimelineEvent["lane"]),
+      event(2, at("08-05"), null as unknown as TimelineEvent["lane"]),
+    ],
     { now: NOW },
   );
 
-  expect(layout.events.map((item) => item.lane)).toEqual(["MAIN"]);
+  expect(layout.events.map((item) => item.lane)).toEqual(["MAIN", "MAIN"]);
 });
 
 test("월 눈금마다 겹치지 않는 key 를 준다", () => {

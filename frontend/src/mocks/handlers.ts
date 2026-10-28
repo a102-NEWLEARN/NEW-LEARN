@@ -147,7 +147,7 @@ function kstIso(ms: number) {
   return `${new Date(ms + 9 * 3600_000).toISOString().slice(0, 19)}+09:00`;
 }
 
-// A4 — 12번 밖의 이슈는 첫 사건과 마지막 사건 사이에 고르게 사건 4개. 백엔드처럼 레인은 null 이다.
+// A4 — 12번 밖의 이슈는 첫 사건과 마지막 사건 사이에 고르게 사건 4개. 셋째는 반응 사건(서브 흐름)이다.
 // id 는 이슈 id × 10 에서 거꾸로 센다(마지막 사건이 × 10 — A13 검색이 이 id 로 사건을 가리킨다)
 function timelineOf(
   id: number,
@@ -158,7 +158,7 @@ function timelineOf(
   if (id === 12) return issue12Events;
   const first = Date.parse(firstEventAt);
   const step = (Date.parse(lastEventAt) - first) / 3;
-  const labels = ["첫 보도", "후속 보도", "쟁점 부각"];
+  const labels = ["첫 보도", "후속 보도", "각계 반응"];
   return [0, 1, 2, 3].map((at) => {
     const last = at === 3;
     const occurredAt =
@@ -167,7 +167,7 @@ function timelineOf(
       id * 10 - 3 + at,
       last ? lastEvents[id].title : `${title} ${labels[at]}`,
       last ? lastEvents[id].label : labels[at],
-      null,
+      at === 2 ? "SUB" : "MAIN",
       occurredAt,
       "EXTRACTED",
       3,

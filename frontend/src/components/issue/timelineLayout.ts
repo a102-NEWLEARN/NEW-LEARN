@@ -29,7 +29,7 @@ const LANES: Record<
 };
 
 export type PlacedEvent = Omit<TimelineEvent, "lane"> & {
-  /** 레인을 정하지 않은(null) 사건은 메인 흐름에 둔다 */
+  /** A4 lane. 계약상 늘 MAIN · SUB 지만 값이 빠지거나 모르는 값이면 메인 흐름에 둔다 */
   lane: TimelineLane;
   /** 그리는 영역 왼쪽 끝에서 잰 가로 자리 (확대 · 축소 전) */
   x: number;
@@ -92,7 +92,7 @@ export function layoutTimeline(
   const sorted = [...input].sort(
     (a, b) => timeOf(a) - timeOf(b) || a.id - b.id,
   );
-  // null 과 모르는 값은 메인 흐름에 둔다
+  // 계약상 늘 MAIN · SUB 다. 빠지거나 모르는 값이 와도 화면이 깨지지 않게 메인 흐름에 둔다
   const laneOf = (event: TimelineEvent): TimelineLane =>
     event.lane === "SUB" ? "SUB" : "MAIN";
 

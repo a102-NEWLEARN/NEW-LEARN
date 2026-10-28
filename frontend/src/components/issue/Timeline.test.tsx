@@ -140,7 +140,7 @@ test("TIP 을 열면 레인 뜻과 「추정」 뜻을 보여 주고 닫을 수 
 
   fireEvent.click(screen.getByRole("button", { name: "TIP" }));
   const tip = screen.getByRole("dialog", { name: "타임라인 TIP" });
-  expect(tip.textContent).toContain("메인 흐름에서 갈라진");
+  expect(tip.textContent).toContain("반응 · 평가 · 여론");
   expect(tip.textContent).toContain("추정");
 
   fireEvent.click(within(tip).getByRole("button", { name: "TIP 닫기" }));

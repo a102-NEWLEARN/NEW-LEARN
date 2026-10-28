@@ -1,7 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/api/client";
 
-/** 메인 흐름 · 서브 흐름. 나누는 기준을 정하기 전에는 null 이다 (docs/api-screen.md A4) */
+/**
+ * 메인 흐름 · 서브 흐름 — 사건의 역할로 나눈다. 상황을 바꾸는 행위(발생 · 결정 · 발표 · 결과 · 공식 조치)는 MAIN,
+ * 다른 사건에 대한 반응 · 평가 · 여론은 SUB. 늘 값이 있다 (docs/api-screen.md A4, Jira 130)
+ */
 export type TimelineLane = "MAIN" | "SUB";
 
 /** 발생 시점을 본문에서 뽑았나(EXTRACTED) · 첫 기사 발행 시각으로 채웠나(FIRST_PUBLISHED) */
@@ -13,7 +16,7 @@ export type TimelineEvent = {
   title: string;
   /** 점 옆에 보이는 짧은 키워드 */
   label: string;
-  lane: TimelineLane | null;
+  lane: TimelineLane;
   occurredAt: string;
   occurredAtBasis: OccurredAtBasis;
   articleCount: number;
