@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import kr.io.newlearn.analysis.AnalysisJobService;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
 import org.assertj.core.data.Offset;
@@ -23,6 +24,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -481,6 +486,83 @@ class EventMatchIntegrationTest {
                 .isEqualTo(2);
     }
 
+    // AC-12 — NEW 면 사건 역할과 반응 대상 한 줄을 사건에 저장한다. 이름 · 키워드처럼 처음 지은 그대로 두는 칸이다
+    @Test
+    void newStoresTheRoleAndWhatItReactsTo() throws Exception {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", createdWith("비판 성명", "\"role\": \"REACTION\", \"reactsTo\": \"2차 유도 작업\"")))
+                .andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventColumn(eventId, "role")).isEqualTo("REACTION");
+        assertThat(eventColumn(eventId, "reacts_to")).isEqualTo("2차 유도 작업");
+    }
+
+    // AC-12 — 역할이 없거나 모르는 값(소문자 · 레인 이름 포함)이면 레인을 정할 수 없어 400, 사건을 만들지 않고 한 번 다시 건다
+    @ParameterizedTest(name = "[{0}]")
+    @ValueSource(strings = {"", "\"role\": null", "\"role\": \"main\"", "\"role\": \"SUB\"", "\"role\": 1"})
+    void newWithoutAKnownRoleIsRejected(String roleFields) throws Exception {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", createdWith("착공식", roleFields)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(linkedEvent(ARTICLE)).isZero();
+        assertThat(count("select attempt from analysis_job where id = " + match))
+                .isEqualTo(2);
+    }
+
+    // 반응 대상 한 줄은 화면 API 로 내보내지 않는 칸이라, 담을 수 없으면 버리고 받는다. MAIN 의 것은 읽지 않는다
+    static Stream<Arguments> reactsToThatCannotBeKept() {
+        return Stream.of(
+                Arguments.of("REACTION 인데 reactsTo 없음", "\"role\": \"REACTION\"", "REACTION"),
+                Arguments.of("REACTION 인데 reactsTo 가 공백", "\"role\": \"REACTION\", \"reactsTo\": \"  \"", "REACTION"),
+                Arguments.of("REACTION 인데 reactsTo 가 글자가 아님", "\"role\": \"REACTION\", \"reactsTo\": 3", "REACTION"),
+                Arguments.of(
+                        "REACTION 인데 reactsTo 에 U+0000",
+                        "\"role\": \"REACTION\", \"reactsTo\": \"구조\\u0000작업\"",
+                        "REACTION"),
+                Arguments.of("MAIN 인데 reactsTo 가 옴", "\"role\": \"MAIN\", \"reactsTo\": \"구조 작업\"", "MAIN"));
+    }
+
+    // AC-12
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("reactsToThatCannotBeKept")
+    void aReactsToThatCannotBeKeptIsStoredAsNull(String why, String roleFields, String role) throws Exception {
+        ready(ARTICLE, 0);
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", createdWith("착공식", roleFields))).andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventColumn(eventId, "role")).isEqualTo(role);
+        assertThat(count("select count(*) from event where reacts_to is null and id = " + eventId))
+                .isEqualTo(1);
+    }
+
+    // AC-12 — EXISTING 의 newEvent 는 역할까지 읽지 않는다(맞지 않는 짝 칸). 붙은 사건의 역할도 그대로다
+    @Test
+    void existingIgnoresTheNewEventRole() throws Exception {
+        ready(ARTICLE, 0);
+        article(3510, "2026-10-05T00:00:00Z");
+        embedding(3510, 10);
+        long eventId = event(3551, "한빛반도체 착공식", "2026-10-08T00:00:00Z", "EXTRACTED");
+        link(3510, eventId, "2026-10-05T00:30:00Z");
+        long match = queuedMatch(ARTICLE);
+        String result = """
+                {"decision": "EXISTING", "eventId": %d, "reason": "같은 착공식이다",
+                 "newEvent": {"role": "모르는 값", "reactsTo": "구조\\u0000작업"}}""".formatted(eventId);
+
+        w1(match, envelope(1, "match-v1", result)).andExpect(status().isNoContent());
+
+        assertThat(linkedEvent(ARTICLE)).isEqualTo(eventId);
+        assertThat(eventColumn(eventId, "role")).isEqualTo("MAIN");
+    }
+
     // AC-3 · AC-5 — 판정이 끝나면 바로 다음 기사가 걸리고, 앞 기사가 만든 사건이 후보에 든다.
     // 나중에 발행된 기사가 붙어도 FIRST_PUBLISHED 시점을 늦추지 않는다
     @Test
@@ -517,17 +599,20 @@ class EventMatchIntegrationTest {
 
     // ── 리뷰 뒤 더함 ──
 
-    // AC-3 — 판정 하나가 W1 없이 30분 넘게 QUEUED 면 판정 줄 전체가 멈춘 것일 수 있다 — 고르기가 WARN 을 남긴다.
-    // 30분 안이면 평소처럼 「기다림」만 남긴다
+    // AC-3 — 판정 하나가 W1 없이 40분 넘게 QUEUED 면 판정 줄 전체가 멈춘 것일 수 있다 — 고르기가 WARN 을 남긴다.
+    // 40분 안이면 평소처럼 「기다림」만 남긴다. 처리 중 워커가 죽으면 다시 가져가기(20분) + 다른 워커의 처리(15분)가 걸려서다
     @Test
     void aJudgmentStuckInQueuedIsWarned(CapturedOutput output) {
         ready(ARTICLE, 0);
         long match = queuedMatch(ARTICLE);
 
+        jdbc.sql("update analysis_job set queued_at = now() - interval '39 minutes' where id = :id")
+                .param("id", match)
+                .update();
         service.dispatchMatch();
         assertThat(output.toString()).contains("판정 고르기 기다림: 판정 작업 " + match).doesNotContain("판정 줄이 멈췄을 수 있다");
 
-        jdbc.sql("update analysis_job set queued_at = now() - interval '31 minutes' where id = :id")
+        jdbc.sql("update analysis_job set queued_at = now() - interval '41 minutes' where id = :id")
                 .param("id", match)
                 .update();
         service.dispatchMatch();
@@ -798,9 +883,14 @@ class EventMatchIntegrationTest {
     }
 
     private static String created(String label) {
+        return createdWith(label, "\"role\": \"MAIN\", \"reactsTo\": null");
+    }
+
+    // roleFields 는 newEvent 안 summary 뒤에 그대로 붙는 JSON 조각이다. 비우면 역할 칸이 없는 newEvent 가 된다
+    private static String createdWith(String label, String roleFields) {
         return """
                 {"decision": "NEW", "eventId": null, "reason": "후보와 다른 사건이다",
-                 "newEvent": {"title": "한빛반도체 텍사스 공장 착공식", "label": "%s", "summary": "한빛반도체가 착공식을 열었다."}}""".formatted(label);
+                 "newEvent": {"title": "한빛반도체 텍사스 공장 착공식", "label": "%s", "summary": "한빛반도체가 착공식을 열었다."%s}}""".formatted(label, roleFields.isEmpty() ? "" : ", " + roleFields);
     }
 
     private ResultActions w1(long jobId, String body) throws Exception {
