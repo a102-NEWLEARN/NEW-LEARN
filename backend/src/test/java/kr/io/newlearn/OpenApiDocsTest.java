@@ -77,8 +77,10 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.tags[2].name").value("사건"))
                 .andExpect(jsonPath("$.tags[3].name").value("기사"))
                 .andExpect(jsonPath("$.tags[4].name").value("회원"))
+                .andExpect(jsonPath("$.tags[5].name").value("용어사전"))
                 .andExpect(jsonPath("$.tags[3].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[4].description", not(emptyOrNullString())))
+                .andExpect(jsonPath("$.tags[5].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[0].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[1].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[2].description", not(emptyOrNullString())))
@@ -196,7 +198,7 @@ class OpenApiDocsTest {
                         .doesNotExist())
                 .andExpect(jsonPath("$.components.schemas.Problem.properties.code.example")
                         .doesNotExist());
-        for (int code : new int[] {400, 401, 403, 404, 409, 429}) {
+        for (int code : new int[] {400, 401, 403, 404, 409, 429, 502}) {
             String content = "$.paths.*.*.responses['" + code + "'].content['" + PROBLEM + "']";
             result.andExpect(jsonPath(content + ".example.status", everyItem(is(code))))
                     .andExpect(jsonPath(content + ".examples.*.value.status", everyItem(is(code))))
@@ -356,6 +358,34 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.components.schemas.BookmarkItem.properties.bookmarkedAt")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.Item").doesNotExist());
+    }
+
+    // A19 용어사전(Jira 102) — 원본 응답의 어느 칸을 옮길지는 키로 실제 응답을 본 뒤 정해서 아직 [확정] 이 아니다
+    @Test
+    void dictionaryApiIsDocumentedWithQueryAndErrors() throws Exception {
+        String operation = op("/api/v1/dictionary");
+        docs().andExpect(jsonPath(operation + ".summary", startsWith("A19 ")))
+                .andExpect(jsonPath(operation + ".tags", contains("용어사전")))
+                .andExpect(jsonPath(operation + ".parameters[*].name", contains("q")))
+                .andExpect(jsonPath(operation + ".parameters[0].description", not(emptyOrNullString())))
+                // 없어도 400 · errors[q] 로 답하려고 필수로 두지 않았다
+                .andExpect(jsonPath(operation + ".parameters[?(@.required == true)]")
+                        .isEmpty())
+                .andExpect(jsonPath(
+                        operation + ".responses['200'].content['application/json'].schema['$ref']",
+                        endsWith("/DictionaryResponse")))
+                .andExpect(jsonPath(operation + ".responses['400'].description", containsString("VALIDATION_FAILED")))
+                .andExpect(
+                        jsonPath(operation + ".responses['502'].description", containsString("DICTIONARY_UNAVAILABLE")))
+                .andExpect(jsonPath(
+                        operation + ".responses['400'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")))
+                .andExpect(jsonPath(
+                        operation + ".responses['502'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")))
+                .andExpect(jsonPath(problemExample(operation, "502") + ".code").value("DICTIONARY_UNAVAILABLE"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.DictionaryItem.properties.pos.type", hasItems("string", "null")));
     }
 
     @Test
