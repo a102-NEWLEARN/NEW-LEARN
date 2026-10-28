@@ -9,11 +9,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.io.newlearn.article.dto.ArticleDetailResponse;
 import kr.io.newlearn.article.dto.ArticleSummaryResponse;
+import kr.io.newlearn.common.security.MemberPrincipal;
 import kr.io.newlearn.common.web.ApiProblem;
 import kr.io.newlearn.common.web.OpenApiConfig;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.common.web.PageResponse;
+import org.jspecify.annotations.Nullable;
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -51,8 +54,9 @@ public class ArticleController {
             @Parameter(description = "대표 카테고리 코드(A1 의 code). 보내지 않으면 전체", example = "economy")
                     @RequestParam(required = false)
                     String category,
-            @ParameterObject @Valid PageQuery query) {
-        return service.list(category, query);
+            @ParameterObject @Valid PageQuery query,
+            @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.list(category, query, me == null ? null : me.id());
     }
 
     @Operation(summary = "[확정] A8 기사 상세", description = "기사 요약 필드에 기자 · 사건 판정 상태 · 소속 사건 · 이슈를 더합니다. 본문은 내보내지 않습니다.")
@@ -73,7 +77,8 @@ public class ArticleController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @GetMapping("/api/v1/articles/{articleId}")
     public ArticleDetailResponse get(
-            @Parameter(description = "기사 ID (A7 항목의 id)", example = "1") @PathVariable long articleId) {
-        return service.get(articleId);
+            @Parameter(description = "기사 ID (A7 항목의 id)", example = "1") @PathVariable long articleId,
+            @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.get(articleId, me == null ? null : me.id());
     }
 }

@@ -18,7 +18,8 @@ class EventServiceTest {
         var summaries = mock(ArticleSummaryAssembler.class);
         var service = new EventService(events, links, articles, summaries);
         assertThatThrownBy(() -> service.get(49)).isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> service.articles(49, new PageQuery(0, 4))).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.articles(49, new PageQuery(0, 4), null))
+                .isInstanceOf(NotFoundException.class);
         verifyNoInteractions(links, articles, summaries);
     }
 }

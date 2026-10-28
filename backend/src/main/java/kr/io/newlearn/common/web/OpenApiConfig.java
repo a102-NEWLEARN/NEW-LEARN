@@ -23,7 +23,8 @@ import org.springframework.context.annotation.Configuration;
                     description = "최신 기사 · 기사 상세와 소속 사건 · 이슈 · 기사 마인드맵 (F01 · F04 · F11)"),
             @Tag(
                     name = OpenApiConfig.TAG_MEMBER,
-                    description = "가입 · 로그인 · 로그아웃 (F12). 세션 쿠키 + CSRF 번호표 — POST 는 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로")
+                    description =
+                            "가입 · 로그인 · 로그아웃 · 내 정보 · 관심 분야 · 북마크 (F12). 세션 쿠키 + CSRF 번호표 — POST · PUT · DELETE 는 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로")
         })
 public class OpenApiConfig {
     public static final String TAG_CATEGORY = "카테고리";
