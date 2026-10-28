@@ -146,3 +146,20 @@ test("TIP 을 열면 레인 뜻과 「추정」 뜻을 보여 주고 닫을 수 
   fireEvent.click(within(tip).getByRole("button", { name: "TIP 닫기" }));
   expect(screen.queryByRole("dialog", { name: "타임라인 TIP" })).toBeNull();
 });
+
+// 처음 그릴 때는 자리 폭을 아직 못 재서 1000px 로 어림한다. 진짜 폭을 재면 처음 배율과 고른 사건 자리를 다시 맞춰야 한다
+test("좁은 화면에서 ?event= 로 고른 마지막 사건도 처음부터 화면 안에 둔다", async () => {
+  const width = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockReturnValue(375);
+  try {
+    await renderTimeline(120);
+
+    const transform = node(/엔지니어 수급 우려/).getAttribute("transform")!;
+    const x = Number(/translate\(([-\d.]+),/.exec(transform)![1]);
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(375);
+  } finally {
+    width.mockRestore();
+  }
+});

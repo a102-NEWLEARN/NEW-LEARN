@@ -201,11 +201,14 @@ export function Timeline({
       centerOn(event, duration);
   };
 
-  // 처음 — 다 들어오면 100%, 아니면 들어오게 줄이되 75% 아래로는 줄이지 않는다. 고른 사건이 있으면 보이게
-  const started = useRef(false);
+  // 처음 — 다 들어오면 100%, 아니면 들어오게 줄이되 75% 아래로는 줄이지 않는다. 고른 사건이 있으면 보이게.
+  // 처음 그릴 때는 자리 폭을 아직 못 재서 어림값(FALLBACK_SIZE)으로 맞춘다. 진짜 폭을 재면 한 번 더 맞춘다
+  const startedWidth = useRef<number | null>(null);
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
+    const first = startedWidth.current === null;
+    const remeasured = startedWidth.current === 0 && measured.width > 0;
+    if (!first && !remeasured) return;
+    startedWidth.current = measured.width;
     const room = sizeRef.current.width - GUTTER - RIGHT_ROOM;
     const fitting = room / layoutRef.current.width;
     apply(atScale(fitting >= 0.75 ? Math.min(1, fitting) : 0.75), 0);
@@ -213,16 +216,16 @@ export function Timeline({
       (event) => event.id === selectedId,
     );
     if (selected) keepInView(selected, 0);
-    // 처음 한 번만 — 그 뒤 고르기는 아래 효과가 맡는다
+    // 폭을 잰 때만 — 그 뒤 고르기는 아래 효과가 맡는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [measured.width]);
 
   // 주소의 ?event= 로 고른 사건이 바뀌면 보이게 옮긴다
   useEffect(() => {
     const selected = layoutRef.current.events.find(
       (event) => event.id === selectedId,
     );
-    if (started.current && selected) keepInView(selected);
+    if (startedWidth.current !== null && selected) keepInView(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
