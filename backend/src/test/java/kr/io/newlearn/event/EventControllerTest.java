@@ -26,12 +26,12 @@ class EventControllerTest {
 
     @Test
     void paginationDefaultsAndExplicitFourItemPageReachService() throws Exception {
-        when(service.articles(eq(49L), any())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
+        when(service.articles(eq(49L), any(), isNull())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
         mvc.perform(get("/api/v1/events/49/articles")).andExpect(status().isOk());
-        verify(service).articles(eq(49L), argThat(q -> q.page() == 0 && q.size() == 20));
+        verify(service).articles(eq(49L), argThat(q -> q.page() == 0 && q.size() == 20), isNull());
         mvc.perform(get("/api/v1/events/49/articles").param("page", "2").param("size", "4"))
                 .andExpect(status().isOk());
-        verify(service).articles(eq(49L), argThat(q -> q.page() == 2 && q.size() == 4));
+        verify(service).articles(eq(49L), argThat(q -> q.page() == 2 && q.size() == 4), isNull());
     }
 
     @Test
