@@ -27,17 +27,17 @@ class ArticleControllerTest {
 
     @Test
     void listDefaultsAndCategoryArePassedToService() throws Exception {
-        when(service.list(any(), any())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
+        when(service.list(any(), any(), isNull())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
         mvc.perform(get("/api/v1/articles"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty());
-        verify(service).list(isNull(), argThat(q -> q.page() == 0 && q.size() == 20));
+        verify(service).list(isNull(), argThat(q -> q.page() == 0 && q.size() == 20), isNull());
         mvc.perform(get("/api/v1/articles")
                         .param("category", "economy")
                         .param("page", "2")
                         .param("size", "3"))
                 .andExpect(status().isOk());
-        verify(service).list(eq("economy"), argThat(q -> q.page() == 2 && q.size() == 3));
+        verify(service).list(eq("economy"), argThat(q -> q.page() == 2 && q.size() == 3), isNull());
     }
 
     @Test
@@ -62,8 +62,9 @@ class ArticleControllerTest {
                 null,
                 null,
                 "https://fixture.invalid",
-                ArticleAnalysisStatus.NONE);
-        when(service.get(42))
+                ArticleAnalysisStatus.NONE,
+                false);
+        when(service.get(42, null))
                 .thenReturn(new ArticleDetailResponse(summary, null, ArticleAnalysisStatus.NONE, null, null));
         mvc.perform(get("/api/v1/articles/42"))
                 .andExpect(status().isOk())

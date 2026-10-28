@@ -71,7 +71,7 @@ class ArticleRepositoryTest {
             em.clear();
             statistics.clear();
             var page = articles.findByReleasedAtIsNotNull(PageRequest.of(0, size, sort));
-            var summaries = assembler.assemble(page.getContent());
+            var summaries = assembler.assemble(page.getContent(), null);
             assertThat(summaries).hasSize(size);
             assertThat(summaries.getFirst().summary()).isEqualTo("우리 요약");
             assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
@@ -81,7 +81,7 @@ class ArticleRepositoryTest {
     @Test
     void nullCategoryAndOptionalEventIssueArePreserved() {
         var article = articles.findByIdAndReleasedAtIsNotNull(4203L).orElseThrow();
-        assertThat(assembler.assemble(java.util.List.of(article)))
+        assertThat(assembler.assemble(java.util.List.of(article), null))
                 .extracting(ArticleSummaryResponse::category)
                 .containsExactly((kr.io.newlearn.category.dto.CategoryRef) null);
         assertThat(links.findByArticleId(4203L)).isEmpty();

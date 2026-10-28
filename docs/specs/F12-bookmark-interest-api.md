@@ -4,6 +4,8 @@
 
 ## 63 북마크
 
+구현은 `kr.io.newlearn.bookmark`와 기존 기사 요약 조립기를 사용한다. API·조회 쿼리는 `BookmarkApiIntegrationTest`, 실제 동시 INSERT 대기는 `BookmarkConcurrencyIntegrationTest`, 스키마·업그레이드·cascade는 `BookmarkSchemaTest`, Swagger는 `OpenApiDocsTest`에서 확인한다. 재개·검증·되돌리는 범위는 [63번 계획](../plans/2026-10-27-article-bookmarks.md)에 둔다.
+
 - AC-1: A20 `PUT /api/v1/members/me/bookmarks/{articleId}` 는 200 과 `{ articleId, bookmarked: true, bookmarkedAt }` 다. 이미 담긴 기사를 또 담아도 같은 응답이고 `bookmark` 에는 한 줄, 담은 시각은 그대로다. 같은 요청 두 개를 동시에 보내도 둘 다 200 · 한 줄이다(500 이 나지 않는다)
 - AC-2: A21 `DELETE` 는 200 과 `{ articleId, bookmarked: false, bookmarkedAt: null }` 다. 안 담긴 기사, 없는 기사 id 를 빼도 같은 응답이다
 - AC-3: A22 `GET /api/v1/members/me/bookmarks` 는 담은 기사를 쪽 없이 전부 `items` 로 준다. 담은 시각 최신순, 같으면 기사 `id` 내림차순. 항목은 기사 요약 + `bookmarked: true` + `bookmarkedAt`. 없으면 빈 `items`

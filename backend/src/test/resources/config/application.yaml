@@ -9,7 +9,8 @@ newlearn:
 # 시험용 앱 하나의 DB 연결을 4개까지로(기본 10). 시험 클래스마다 설정이 다르면 Spring 이 시험용 앱을 따로 띄워 들고 있는데,
 # CI 잡은 DB 하나(.gitlab-ci.yml 의 services)를 모든 시험용 앱이 같이 써서 앱이 10개를 넘으면 PostgreSQL 기본 상한(100)에
 # 걸려 「too many clients」로 실패했다(2026-10-27 Jira 35, MR !274). 로컬은 앱마다 컨테이너를 새로 띄워 걸리지 않는다.
-# 동시성 시험은 한 번에 연결 2 ~ 3개를 쓴다
+# 동시성 시험은 한 번에 연결을 최대 4개 쓴다 — 북마크 동시 담기(BookmarkConcurrencyIntegrationTest)가 막는 연결 1 + 막힌 PUT 2 + 대기 확인 1.
+# 그래서 4 아래로 줄이면 그 시험이 연결 대기(30초) 끝에 실패한다. 다른 동시성 시험은 2 ~ 3개
 spring:
   datasource:
     hikari:

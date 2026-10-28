@@ -65,12 +65,13 @@ public class EventService {
                 next);
     }
 
-    public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query) {
+    // memberId 는 세션 회원, 손님이면 null (ArticleService.list 와 같은 까닭으로 손님용 짧은 판은 두지 않는다)
+    public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query, @Nullable Long memberId) {
         if (!events.existsById(eventId)) throw missing(eventId);
         var pageable = query.toPageable(Sort.by(Sort.Direction.ASC, "publishedAt", "id"));
         var page = articles.findReleasedByEventId(eventId, pageable);
         return PageResponse.from(
-                new PageImpl<>(summaries.assemble(page.getContent()), pageable, page.getTotalElements()));
+                new PageImpl<>(summaries.assemble(page.getContent(), memberId), pageable, page.getTotalElements()));
     }
 
     private static @Nullable EventRef firstRef(List<Event> events) {
