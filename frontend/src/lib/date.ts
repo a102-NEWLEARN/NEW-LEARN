@@ -84,3 +84,34 @@ export function formatTimelineDates(
     return label;
   });
 }
+
+/** 「2026.10.06」 — 사건 발생 날짜처럼 연도까지 적는 날짜 */
+export function formatFullDate(iso: string): string {
+  const { year, month, day } = kstParts(new Date(iso));
+  return `${year}.${month}.${day}`;
+}
+
+// 한국 날짜의 날 수 — 오늘 · 어제를 가를 때 쓴다
+function kstDayNumber(date: Date) {
+  const { year, month, day } = kstParts(date);
+  return Date.UTC(Number(year), Number(month) - 1, Number(day)) / 86_400_000;
+}
+
+/**
+ * 기사 날짜 — 오늘은 「방금 전」 · 「N분 전」 · 「N시간 전」, 어제는 「1일 전」, 그 밖은 「10월 14일」,
+ * 올해가 아니면 「2025년 10월 14일」. 오늘 · 어제 · 올해는 한국 날짜로 가린다 (EXPERIENCE.md 날짜 표 「기사 날짜」)
+ */
+export function formatArticleDate(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+  const days = kstDayNumber(now) - kstDayNumber(date);
+  if (days <= 0) {
+    if (minutes < 1) return "방금 전";
+    if (minutes < 60) return `${minutes}분 전`;
+    return `${Math.floor(minutes / 60)}시간 전`;
+  }
+  if (days === 1) return "1일 전";
+  const { year, month, day } = kstParts(date);
+  const monthDay = `${Number(month)}월 ${Number(day)}일`;
+  return year === kstParts(now).year ? monthDay : `${year}년 ${monthDay}`;
+}

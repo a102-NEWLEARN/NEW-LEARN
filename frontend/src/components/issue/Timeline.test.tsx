@@ -333,3 +333,36 @@ test("Alt · Ctrl · Cmd 만 누른 것은 키보드 입력으로 치지 않는�
 
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
+
+// 사건을 고르면 오른쪽 패널이 열리며 타임라인이 좁아진다 — 고른 사건이 오른쪽으로 밀려나면 다시 보이게 옮긴다
+test("타임라인 폭이 줄어 고른 사건이 오른쪽 끝에 걸리면 다시 보이게 옮긴다", async () => {
+  const callbacks: (() => void)[] = [];
+  const original = globalThis.ResizeObserver;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  let width = 1216;
+  const spy = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockImplementation(() => width);
+  try {
+    await renderTimeline(119);
+    expect(nodeX(/착공식/)).toBeLessThan(1216 - 210);
+
+    width = 796;
+    act(() => callbacks.forEach((callback) => callback()));
+
+    await waitFor(() => expect(nodeX(/착공식/)).toBeLessThan(796 - 210));
+  } finally {
+    spy.mockRestore();
+    vi.stubGlobal("ResizeObserver", original);
+  }
+});

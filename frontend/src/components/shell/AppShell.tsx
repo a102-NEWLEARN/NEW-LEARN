@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { Header } from "@/components/shell/Header";
 import { Sidebar } from "@/components/shell/Sidebar";
@@ -8,6 +8,7 @@ import {
   useQuickSearch,
 } from "@/components/shell/useQuickSearch";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
+import type { ShellContext } from "@/components/shell/useShell";
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
 // 화면 높이에 맞추고 본문만 스크롤해서 헤더가 늘 위에 붙어 있다.
@@ -28,6 +29,11 @@ export function AppShell() {
   };
 
   const quickSearch = useQuickSearch();
+  // 화면에 건네는 일 — 사건 패널이 열리면 사이드바를 접는다 (useShell)
+  const shell = useMemo<ShellContext>(
+    () => ({ collapseSidebar: () => setSidebarExpanded(false) }),
+    [],
+  );
 
   // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다.
   // ⌘/Ctrl+K 는 빠른 이동 — 홈 검색창으로 간다. 열린 서랍은 닫는다 (EXPERIENCE.md IA 통합 검색).
@@ -95,7 +101,7 @@ export function AppShell() {
           />
         )}
         <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
-          <Outlet />
+          <Outlet context={shell} />
         </main>
       </div>
     </div>
