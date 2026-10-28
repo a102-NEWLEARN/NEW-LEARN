@@ -8,6 +8,7 @@ import {
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test } from "vitest";
 import { server } from "@/mocks/node";
+import { stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 이슈 화면 — 앱과 같은 라우트(src/routes.tsx)로 연다. 12번 이슈는 가짜 사건 8개를 가진다 (src/mocks/handlers.ts)
@@ -199,26 +200,29 @@ test.each(["/api/v1/issues/12", "/api/v1/issues/12/timeline"])(
   },
 );
 
-test("너무 큰 id 는 서버에 묻지 않고 찾을 수 없음이다", async () => {
-  const asked: string[] = [];
-  const count = ({ request }: { request: Request }) => {
-    const { pathname } = new URL(request.url);
-    if (pathname.startsWith("/api/v1/issues/")) asked.push(pathname);
-  };
-  server.events.on("request:start", count);
-  onTestFinished(() => {
-    server.events.removeListener("request:start", count);
-  });
-  renderRoute("/issues/99999999999999999999");
+test.each(["99999999999999999999", "9007199254740993"])(
+  "자바스크립트 숫자로 틀림없이 옮길 수 없는 id(%s)는 서버에 묻지 않고 찾을 수 없음이다",
+  async (id) => {
+    const asked: string[] = [];
+    const count = ({ request }: { request: Request }) => {
+      const { pathname } = new URL(request.url);
+      if (pathname.startsWith("/api/v1/issues/")) asked.push(pathname);
+    };
+    server.events.on("request:start", count);
+    onTestFinished(() => {
+      server.events.removeListener("request:start", count);
+    });
+    renderRoute(`/issues/${id}`);
 
-  expect(
-    await screen.findByRole("heading", {
-      level: 1,
-      name: "이슈를 찾을 수 없어요",
-    }),
-  ).toBeDefined();
-  expect(asked).toEqual([]);
-});
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "이슈를 찾을 수 없어요",
+      }),
+    ).toBeDefined();
+    expect(asked).toEqual([]);
+  },
+);
 
 test("도구줄 개수가 0이면 그 항목을 뺀다", async () => {
   server.use(
@@ -235,4 +239,20 @@ test("도구줄 개수가 0이면 그 항목을 뺀다", async () => {
 
   expect(await screen.findByText(/· 사건 4$/)).toBeDefined();
   expect(screen.queryByText(/기사 0/)).toBeNull();
+});
+
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 서랍 안에서 누른 Esc 는 서랍만
+test("좁은 화면에서 TIP 을 연 채 서랍을 열고 Esc 를 누르면 서랍만 닫힌다", async () => {
+  stubScreen("narrow");
+  renderRoute("/issues/12");
+  fireEvent.click(await screen.findByRole("button", { name: "TIP" }));
+  fireEvent.click(await screen.findByRole("button", { name: "메뉴 열기" }));
+  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+
+  fireEvent.keyDown(drawer, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "메뉴" })).toBeNull(),
+  );
+  expect(screen.getByRole("dialog", { name: "타임라인 TIP" })).toBeDefined();
 });

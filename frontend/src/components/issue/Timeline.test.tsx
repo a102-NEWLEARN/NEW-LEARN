@@ -257,6 +257,8 @@ test("노드를 누르다 끌어도(클릭 없이 손을 떼도) 다음 키보�
 
   fireEvent.pointerDown(node(/착공식/));
   fireEvent.pointerUp(window);
+  // 끌기를 마친 뒤 Tab 으로 다음 노드에 간다
+  fireEvent.keyDown(document.body, { key: "Tab" });
   act(() => node(/공식 발표/).focus());
 
   expect(screen.getByRole("tooltip").textContent).toContain("공식 발표");
@@ -295,4 +297,17 @@ test("키보드로 화면 밖 노드에 가면 그 노드가 보이게 옮긴다
   } finally {
     width.mockRestore();
   }
+});
+
+// 터치 탭은 pointerdown → pointerup → (touchend 뒤) mousedown 에서 포커스 → click 순서다. 손을 뗀 뒤에 포커스가 온다
+test("터치로 탭한 노드에도 키보드용 툴팁 · 테두리를 남기지 않는다", async () => {
+  await renderTimeline();
+  const target = node(/착공식/);
+
+  fireEvent.pointerDown(target);
+  fireEvent.pointerUp(target);
+  act(() => target.focus());
+  fireEvent.click(target);
+
+  expect(screen.queryByRole("tooltip")).toBeNull();
 });

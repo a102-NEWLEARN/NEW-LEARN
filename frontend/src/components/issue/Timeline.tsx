@@ -131,19 +131,24 @@ export function Timeline({
   const [hoverId, setHoverId] = useState<number | null>(null);
   // 키보드로 포커스한 노드 — 포커스 테두리와 툴팁을 띄운다
   const [focusId, setFocusId] = useState<number | null>(null);
-  // 노드를 마우스 · 터치로 누르는 중인가. 그때 받은 포커스는 키보드 포커스로 보지 않는다.
-  // 손을 떼면 어디서든 푼다 — 끌기로 끝나 click 이 없어도 다음 키보드 포커스를 막지 않게
-  const pointerFocus = useRef(false);
-  const pressNode = () => {
-    pointerFocus.current = true;
-    const release = () => {
-      pointerFocus.current = false;
-      window.removeEventListener("pointerup", release);
-      window.removeEventListener("pointercancel", release);
+  // 마지막 입력이 키보드였나 — 키보드로 받은 포커스에만 테두리 · 툴팁을 띄운다. 마우스 · 터치로 누른 노드가
+  // 받은 포커스는 호버가 맡는다. 「누르는 중」으로는 못 가린다 — 터치는 손을 뗀 뒤에야 포커스가 온다
+  const keyboardInput = useRef(true);
+  useEffect(() => {
+    const onKey = () => {
+      keyboardInput.current = true;
     };
-    window.addEventListener("pointerup", release);
-    window.addEventListener("pointercancel", release);
-  };
+    const onPointer = () => {
+      keyboardInput.current = false;
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pointerdown", onPointer, true);
+    };
+  }, []);
+  const sectionRef = useRef<HTMLElement>(null);
   const [tipOpen, setTipOpen] = useState(false);
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const tipCloseRef = useRef<HTMLButtonElement>(null);
@@ -152,12 +157,16 @@ export function Timeline({
     setTipOpen(false);
     tipButtonRef.current?.focus();
   };
-  // 열면 포커스를 창 안으로. 열려 있는 동안 Esc 는 어디서 눌러도 이 창만 닫는다 (Interaction Primitives)
+  // 열면 포커스를 창 안으로. 열려 있는 동안 타임라인에서(또는 아무것에도 포커스가 없을 때) 누른 Esc 가 닫는다.
+  // 서랍처럼 다른 창 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
   useEffect(() => {
     if (!tipOpen) return;
     tipCloseRef.current?.focus();
     const onKeyDown = (key: globalThis.KeyboardEvent) => {
-      if (key.key !== "Escape") return;
+      if (key.key !== "Escape" || key.isComposing) return;
+      const target = key.target as Node | null;
+      if (target !== document.body && !sectionRef.current?.contains(target))
+        return;
       key.preventDefault();
       setTipOpen(false);
       tipButtonRef.current?.focus();
@@ -317,6 +326,7 @@ export function Timeline({
 
   return (
     <section
+      ref={sectionRef}
       aria-labelledby="timeline-title"
       className="flex min-h-0 flex-1 flex-col"
     >
@@ -469,21 +479,15 @@ export function Timeline({
                     .filter(Boolean)
                     .join(", ")}
                   className="cursor-pointer outline-none"
-                  onPointerDown={pressNode}
                   onClick={(mouse) => {
                     mouse.stopPropagation();
-                    pointerFocus.current = false;
                     onSelect(event.id);
                   }}
                   onKeyDown={(key) => onNodeKeyDown(key, event.id)}
                   onMouseEnter={() => setHoverId(event.id)}
                   onMouseLeave={() => setHoverId(null)}
                   onFocus={() => {
-                    // 마우스로 눌러 받은 포커스에는 포커스 테두리 · 툴팁을 남기지 않는다 (호버가 맡는다)
-                    if (pointerFocus.current) {
-                      pointerFocus.current = false;
-                      return;
-                    }
+                    if (!keyboardInput.current) return;
                     setFocusId(event.id);
                     keepInView(event);
                   }}
