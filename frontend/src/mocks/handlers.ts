@@ -1,8 +1,10 @@
 import { http, HttpResponse } from "msw/http";
 import type { Category } from "@/api/categories";
+import type { IssueDetail } from "@/api/issue";
 import type { IssueSummary } from "@/api/issues";
 import type { Member } from "@/api/members";
 import type { SearchResult } from "@/api/search";
+import type { Timeline, TimelineEvent } from "@/api/timeline";
 import type { ItemList, Page } from "@/api/types";
 
 // 가짜 API — 백엔드 API 가 생길 때까지 화면 개발 · 테스트에 쓴다 (frontend/README.md 「가짜 API」)
@@ -33,7 +35,149 @@ const lastEvents: Record<number, { title: string; label: string }> = {
   52: { title: "저궤도 위성 서비스 요금제 발표", label: "요금제 발표" },
 };
 
-// A2 — 분야마다 이슈 개수를 위 issueCount 와 맞췄다. 12번은 docs/api-screen.md A2 예시다
+// A4 — 12번 이슈의 사건. 레인을 정한 사건(MAIN · SUB), 발생 시점을 첫 기사로 채운 사건(FIRST_PUBLISHED),
+// 같은 시각에 같은 레인 · 다른 레인 사건을 일부러 넣었다. 마지막 사건이 A2 의 lastEvent 다
+const issue12Events: TimelineEvent[] = [
+  event(
+    113,
+    "한빛반도체, 미국 공장 후보지 검토 착수",
+    "후보지 검토",
+    "MAIN",
+    "2026-08-04T00:00:00+09:00",
+    "EXTRACTED",
+    3,
+    2,
+  ),
+  event(
+    114,
+    "한빛반도체, 텍사스 공장 투자 확대 공식 발표",
+    "공식 발표",
+    "MAIN",
+    "2026-08-21T00:00:00+09:00",
+    "EXTRACTED",
+    5,
+    3,
+  ),
+  event(
+    115,
+    "텍사스 주정부, 세제 혜택 패키지 제시",
+    "세제 혜택",
+    "SUB",
+    "2026-08-21T00:00:00+09:00",
+    "FIRST_PUBLISHED",
+    2,
+    2,
+  ),
+  event(
+    116,
+    "현지 주민 설명회에서 용수 사용 우려 제기",
+    "용수 우려",
+    "SUB",
+    "2026-09-02T09:00:00+09:00",
+    "FIRST_PUBLISHED",
+    2,
+    2,
+  ),
+  event(
+    117,
+    "미국 정부, 반도체 보조금 지급 확정",
+    "보조금 확정",
+    "MAIN",
+    "2026-09-15T00:00:00+09:00",
+    "EXTRACTED",
+    6,
+    4,
+  ),
+  event(
+    118,
+    "한빛반도체 이사회, 추가 투자 승인",
+    "추가 투자 승인",
+    "MAIN",
+    "2026-09-15T00:00:00+09:00",
+    "EXTRACTED",
+    4,
+    3,
+  ),
+  event(
+    119,
+    "한빛반도체 텍사스 공장 착공식",
+    "착공식",
+    "MAIN",
+    "2026-10-06T00:00:00+09:00",
+    "EXTRACTED",
+    5,
+    4,
+  ),
+  event(
+    120,
+    "텍사스 공장 엔지니어 수급 우려 보도",
+    "인력 수급 우려",
+    "SUB",
+    "2026-10-09T08:41:00+09:00",
+    "FIRST_PUBLISHED",
+    4,
+    2,
+  ),
+];
+
+function event(
+  id: number,
+  title: string,
+  label: string,
+  lane: TimelineEvent["lane"],
+  occurredAt: string,
+  occurredAtBasis: TimelineEvent["occurredAtBasis"],
+  articleCount: number,
+  publisherCount: number,
+): TimelineEvent {
+  return {
+    id,
+    title,
+    label,
+    lane,
+    occurredAt,
+    occurredAtBasis,
+    articleCount,
+    publisherCount,
+  };
+}
+
+// 한국 시각 문자열 「2026-09-01T09:00:00+09:00」
+function kstIso(ms: number) {
+  return `${new Date(ms + 9 * 3600_000).toISOString().slice(0, 19)}+09:00`;
+}
+
+// A4 — 12번 밖의 이슈는 첫 사건과 마지막 사건 사이에 고르게 사건 4개. 백엔드처럼 레인은 null 이다.
+// id 는 이슈 id × 10 에서 거꾸로 센다(마지막 사건이 × 10 — A13 검색이 이 id 로 사건을 가리킨다)
+function timelineOf(
+  id: number,
+  title: string,
+  firstEventAt: string,
+  lastEventAt: string,
+): TimelineEvent[] {
+  if (id === 12) return issue12Events;
+  const first = Date.parse(firstEventAt);
+  const step = (Date.parse(lastEventAt) - first) / 3;
+  const labels = ["첫 보도", "후속 보도", "쟁점 부각"];
+  return [0, 1, 2, 3].map((at) => {
+    const last = at === 3;
+    const occurredAt =
+      at === 0 ? firstEventAt : last ? lastEventAt : kstIso(first + step * at);
+    return event(
+      id * 10 - 3 + at,
+      last ? lastEvents[id].title : `${title} ${labels[at]}`,
+      last ? lastEvents[id].label : labels[at],
+      null,
+      occurredAt,
+      "EXTRACTED",
+      3,
+      2,
+    );
+  });
+}
+
+// A2 — 분야마다 이슈 개수를 위 issueCount 와 맞췄다. 12번은 docs/api-screen.md A2 예시다.
+// 사건 · 기사 수와 마지막 사건은 A4 사건 목록(timelineOf)에서 센다
 function issue(
   id: number,
   code: string,
@@ -42,6 +186,8 @@ function issue(
   lastEventAt: string,
 ): IssueSummary {
   const category = categories.find((item) => item.code === code)!;
+  const events = timelineOf(id, title, firstEventAt, lastEventAt);
+  const last = events[events.length - 1];
   return {
     id,
     title,
@@ -49,13 +195,18 @@ function issue(
     summary:
       id === 12 ? "한빛반도체가 텍사스 공장 투자를 늘리고 착공했다" : null,
     categories: [{ code: category.code, name: category.name }],
-    eventCount: 4,
-    articleCount: 12,
+    eventCount: events.length,
+    articleCount: events.reduce((sum, item) => sum + item.articleCount, 0),
     publisherCount: 4,
     firstEventAt,
     lastEventAt,
     createdAt: firstEventAt,
-    lastEvent: { id: id * 10, ...lastEvents[id], occurredAt: lastEventAt },
+    lastEvent: {
+      id: last.id,
+      title: last.title,
+      label: last.label,
+      occurredAt: last.occurredAt,
+    },
   };
 }
 
@@ -163,6 +314,10 @@ function problem(
     { type: "about:blank", title: code, status, detail, instance, code },
     { status },
   );
+}
+
+function issueNotFound(instance: string) {
+  return problem(404, "ISSUE_NOT_FOUND", "이슈를 찾을 수 없다", instance);
 }
 
 // A2 정렬 기준. 같으면 id 내림차순 (docs/api-screen.md A2)
@@ -276,6 +431,41 @@ export const handlers = [
       totalElements: matched.length,
       totalPages: Math.ceil(matched.length / size),
     } satisfies Page<IssueSummary>);
+  }),
+  // A3 — A2 항목에서 lastEvent 만 뺀 모양. 없는 이슈는 404 (docs/api-screen.md A3)
+  http.get("/api/v1/issues/:issueId", ({ params }) => {
+    const found = issues.find((item) => item.id === Number(params.issueId));
+    if (!found) return issueNotFound(`/api/v1/issues/${params.issueId}`);
+    const { id, title, summary, eventCount, articleCount, publisherCount } =
+      found;
+    const { categories, firstEventAt, lastEventAt, createdAt } = found;
+    return HttpResponse.json({
+      id,
+      title,
+      summary,
+      categories,
+      eventCount,
+      articleCount,
+      publisherCount,
+      firstEventAt,
+      lastEventAt,
+      createdAt,
+    } satisfies IssueDetail);
+  }),
+  // A4 — 그 이슈의 사건 전부. 없는 이슈는 404 (docs/api-screen.md A4)
+  http.get("/api/v1/issues/:issueId/timeline", ({ params }) => {
+    const found = issues.find((item) => item.id === Number(params.issueId));
+    if (!found)
+      return issueNotFound(`/api/v1/issues/${params.issueId}/timeline`);
+    return HttpResponse.json({
+      issueId: found.id,
+      events: timelineOf(
+        found.id,
+        found.title,
+        found.firstEventAt,
+        found.lastEventAt,
+      ),
+    } satisfies Timeline);
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
   http.get("/api/v1/search", ({ request }) =>
