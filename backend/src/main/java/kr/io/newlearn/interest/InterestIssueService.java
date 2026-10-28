@@ -29,10 +29,9 @@ public class InterestIssueService {
 
     @Transactional
     public InterestIssueStateResponse add(long memberId, long issueId) {
-        interests.insertIfAbsent(memberId, issueId);
-        // 충돌한 INSERT가 끝난 다음 문장에서 읽어 최초 저장 시각을 그대로 반환한다.
+        // 넣기와 저장 시각 읽기를 한 문장으로 — 돌려받은 행이 없으면 없는 이슈다(InterestIssueRepository.add)
         var saved = interests
-                .findById(new InterestIssueId(memberId, issueId))
+                .add(memberId, issueId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ISSUE_NOT_FOUND, "이슈를 찾을 수 없다: " + issueId));
         return new InterestIssueStateResponse(issueId, true, ApiTime.toKst(saved.getCreatedAt()));
     }

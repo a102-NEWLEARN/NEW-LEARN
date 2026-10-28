@@ -103,7 +103,9 @@ class InterestIssueApiIntegrationTest {
             add(mine, 4102)
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.interestedAt").value("2020-01-01T09:00:00+09:00"));
-        assertThat(jdbc.sql("select count(*) from interest_issue")
+        // 이 회원 것만 센다 — 표에 커밋하는 다른 시험이 생겨도 순서에 흔들리지 않게
+        assertThat(jdbc.sql("select count(*) from interest_issue where member_id=:id")
+                        .param("id", memberId("interest64_state"))
                         .query(Long.class)
                         .single())
                 .isEqualTo(1);
@@ -116,6 +118,23 @@ class InterestIssueApiIntegrationTest {
         add(mine, 4102)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.interestedAt", not("2020-01-01T09:00:00+09:00")));
+    }
+
+    // 다시 저장해도 표를 한 문장으로만 건드린다. 넣기와 시각 읽기를 두 문장으로 나누면 그 사이에 해제가 끼어들어
+    // 있는 이슈인데도 404 가 난다(PUT · DELETE 경합) — 북마크 담기(BookmarkRepository.add)와 같은 까닭
+    @Test
+    void savingAnExistingInterestTouchesTheTableOnce() throws Exception {
+        Cookie mine = join("interest64_once");
+        add(mine, 4102).andExpect(status().isOk());
+        var stats = emf.unwrap(SessionFactory.class).getStatistics();
+        em.flush();
+        em.clear();
+        stats.clear();
+        add(mine, 4102)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.interested").value(true));
+        // 이슈 있는지 보기 · 넣기 · 시각 읽기가 한 문장
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(1);
     }
 
     @Test
