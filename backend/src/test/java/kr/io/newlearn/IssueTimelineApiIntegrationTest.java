@@ -71,11 +71,25 @@ class IssueTimelineApiIntegrationTest {
                 .andExpect(jsonPath("$.events[1].articleCount").value(0))
                 .andExpect(jsonPath("$.events[2].articleCount").value(0))
                 .andExpect(jsonPath("$.events[2].publisherCount").value(0))
-                .andExpect(jsonPath("$.events[0].lane").hasJsonPath())
-                .andExpect(jsonPath("$.events[0].lane").isEmpty())
+                .andExpect(jsonPath("$.events[0].lane").value("MAIN"))
                 .andExpect(jsonPath("$.relations").doesNotExist())
                 .andExpect(jsonPath("$.events[0].relations").doesNotExist())
                 .andExpect(jsonPath("$.page").doesNotExist());
+    }
+
+    // 레인은 사건 역할로 계산한다 — MAIN 은 메인 흐름, REACTION 은 서브 흐름. 반응 대상 한 줄은 내보내지 않는다
+    // (docs/api-screen.md A4, Jira 130)
+    @Test
+    void laneFollowsTheEventRole() throws Exception {
+        jdbc.sql("update event set role='REACTION', reacts_to='이슈 전반' where id=4123")
+                .update();
+
+        mvc.perform(get("/api/v1/issues/4102/timeline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].lane").value("MAIN"))
+                .andExpect(jsonPath("$.events[1].lane").value("MAIN"))
+                .andExpect(jsonPath("$.events[2].lane").value("SUB"))
+                .andExpect(jsonPath("$.events[2].reactsTo").doesNotExist());
     }
 
     @Test

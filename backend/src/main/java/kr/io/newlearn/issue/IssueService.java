@@ -74,7 +74,7 @@ public class IssueService {
                                     e.getId(),
                                     e.getTitle(),
                                     e.getLabel(),
-                                    null,
+                                    TimelineEvent.Lane.of(e.getRole()),
                                     ApiTime.toKst(e.getOccurredAt()),
                                     e.getOccurredAtBasis(),
                                     count.articleCount(),

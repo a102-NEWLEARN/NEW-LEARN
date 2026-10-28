@@ -45,6 +45,13 @@ public class Event {
     @Enumerated(EnumType.STRING)
     private OccurredAtBasis occurredAtBasis;
 
+    // 타임라인 레인을 정한다(MAIN → 메인 흐름, REACTION → 서브 흐름). 이름 · 키워드처럼 처음 지은 그대로 둔다 (Jira 130)
+    @Enumerated(EnumType.STRING)
+    private EventRole role;
+
+    // REACTION 이면 무엇에 대한 반응인지 한 줄. 저장만 하고 화면 API 로는 아직 내보내지 않는다
+    private @Nullable String reactsTo;
+
     @CreationTimestamp
     private Instant createdAt;
 
@@ -52,11 +59,19 @@ public class Event {
     private Instant updatedAt;
 
     public Event(
-            String title, String label, @Nullable String summary, Instant occurredAt, OccurredAtBasis occurredAtBasis) {
+            String title,
+            String label,
+            @Nullable String summary,
+            Instant occurredAt,
+            OccurredAtBasis occurredAtBasis,
+            EventRole role,
+            @Nullable String reactsTo) {
         this.title = title;
         this.label = label;
         this.summary = summary;
         this.occurredAt = occurredAt;
         this.occurredAtBasis = occurredAtBasis;
+        this.role = role;
+        this.reactsTo = reactsTo;
     }
 }
