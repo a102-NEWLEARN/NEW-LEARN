@@ -1,11 +1,14 @@
 package kr.io.newlearn;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Map;
+import kr.io.newlearn.common.web.OpenApiConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,6 +59,12 @@ class OpenApiDocsTest {
 
     static String op(String method, String path) {
         return "$.paths['" + path + "']." + method;
+    }
+
+    static final String PROBLEM = OpenApiConfig.PROBLEM_JSON;
+
+    static String problemExample(String operation, String code) {
+        return operation + ".responses['" + code + "'].content['" + PROBLEM + "'].example";
     }
 
     @Test
@@ -171,6 +181,72 @@ class OpenApiDocsTest {
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.Problem.properties.properties")
                         .doesNotExist());
+    }
+
+    // 오류 예시는 응답 코드마다 그 상태와 code 로 보인다 — Problem 칸에 예시를 박으면 404 아래에도 400 이 보인다
+    @Test
+    void errorExamplesMatchTheirResponseCode() throws Exception {
+        var result = docs();
+        result.andExpect(jsonPath("$.components.schemas.Problem.properties.title.example")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.Problem.properties.status.example")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.Problem.properties.code.example")
+                        .doesNotExist());
+        for (int code : new int[] {400, 401, 403, 404, 409, 429}) {
+            String content = "$.paths.*.*.responses['" + code + "'].content['" + PROBLEM + "']";
+            result.andExpect(jsonPath(content + ".example.status", everyItem(is(code))))
+                    .andExpect(jsonPath(content + ".examples.*.value.status", everyItem(is(code))))
+                    // 예시가 빠진 오류 응답이 없다
+                    .andExpect(
+                            jsonPath(content + "[?(!@.example && !@.examples)]").isEmpty());
+        }
+        String article = problemExample(op("/api/v1/articles/{articleId}"), "404");
+        String profile = problemExample(op("/api/v1/members/me"), "401");
+        String signUp = problemExample(op("post", "/api/v1/members"), "409");
+        String login = problemExample(op("post", "/api/v1/auth/login"), "429");
+        String change = problemExample(op("put", "/api/v1/members/me/categories"), "403");
+        String list = problemExample(op("/api/v1/articles"), "400");
+        result.andExpect(jsonPath(article + ".title").value("Not Found"))
+                .andExpect(jsonPath(article + ".status").value(404))
+                .andExpect(jsonPath(article + ".code").value("ARTICLE_NOT_FOUND"))
+                // 주소의 {articleId} 는 인자 예시로 채운다
+                .andExpect(jsonPath(article + ".instance").value("/api/v1/articles/1"))
+                .andExpect(jsonPath(profile + ".code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath(signUp + ".code").value("LOGIN_ID_TAKEN"))
+                .andExpect(jsonPath(login + ".code").value("TOO_MANY_REQUESTS"))
+                .andExpect(jsonPath(change + ".code").value("FORBIDDEN"))
+                .andExpect(jsonPath(list + ".code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath(list + ".instance").value("/api/v1/articles"));
+        // A9 의 404 는 code 가 둘이라 예시도 둘이다
+        String mindmap = op("/api/v1/articles/{articleId}/mindmap") + ".responses['404'].content['" + PROBLEM + "']";
+        result.andExpect(jsonPath(mindmap + ".examples.ARTICLE_NOT_FOUND.value.code")
+                        .value("ARTICLE_NOT_FOUND"))
+                .andExpect(jsonPath(mindmap + ".examples.MINDMAP_NOT_FOUND.value.code")
+                        .value("MINDMAP_NOT_FOUND"))
+                .andExpect(jsonPath(mindmap + ".example").doesNotExist());
+    }
+
+    // 기사는 분석 결과가 처음 저장된 뒤부터 보인다 — 투입만 하고 결과가 없어도 404 (docs/api.md 1절 「공개 전 기사」, Jira 34)
+    @Test
+    void articleNotFoundSaysNotYetPublic() throws Exception {
+        var result = docs();
+        for (String path : new String[] {"/api/v1/articles/{articleId}", "/api/v1/articles/{articleId}/mindmap"}) {
+            result.andExpect(jsonPath(op(path) + ".responses['404'].description", containsString("없거나 공개 전 기사")))
+                    .andExpect(jsonPath(op(path) + ".responses['404'].description", not(containsString("투입"))));
+        }
+    }
+
+    // 상태 enum 하나를 두 칸이 같이 쓴다 — 칸마다 실제로 나오는 값만 보인다 (docs/api-screen.md A7 · A8 표)
+    @Test
+    void analysisStatusFieldsListOnlyTheirOwnValues() throws Exception {
+        String[] mindmap = {"NONE", "QUEUED", "SUCCEEDED", "FAILED", "NOT_ANALYZABLE"};
+        String[] eventMatch = {"NONE", "QUEUED", "SUCCEEDED", "FAILED", "NO_EVENT"};
+        String summary = "$.components.schemas.ArticleSummaryResponse.properties";
+        String detail = "$.components.schemas.ArticleDetailResponse.properties";
+        docs().andExpect(jsonPath(summary + ".mindmapStatus.enum", containsInAnyOrder(mindmap)))
+                .andExpect(jsonPath(detail + ".mindmapStatus.enum", containsInAnyOrder(mindmap)))
+                .andExpect(jsonPath(detail + ".eventMatchStatus.enum", containsInAnyOrder(eventMatch)));
     }
 
     // 가입 · 로그인 · 로그아웃(A14 ~ A16, Jira 62) — 성공 응답과 오류 응답이 실제와 같다
