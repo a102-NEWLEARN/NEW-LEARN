@@ -311,3 +311,25 @@ test("터치로 탭한 노드에도 키보드용 툴팁 · 테두리를 남기�
 
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
+
+test("TIP 이 열린 채 노드에서 Esc 를 누르면 TIP 을 닫고, 한글 조합 중 Esc 는 넘긴다", async () => {
+  await renderTimeline();
+  fireEvent.click(screen.getByRole("button", { name: "TIP" }));
+
+  fireEvent.keyDown(node(/착공식/), { key: "Escape", isComposing: true });
+  expect(screen.getByRole("dialog", { name: "타임라인 TIP" })).toBeDefined();
+
+  fireEvent.keyDown(node(/착공식/), { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "타임라인 TIP" })).toBeNull();
+});
+
+test("Alt · Ctrl · Cmd 만 누른 것은 키보드 입력으로 치지 않는다 — 창을 오가도 마우스로 누른 노드에 툴팁이 안 뜬다", async () => {
+  await renderTimeline();
+  const target = node(/착공식/);
+
+  fireEvent.pointerDown(target);
+  fireEvent.keyDown(document.body, { key: "Alt" });
+  act(() => target.focus());
+
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});

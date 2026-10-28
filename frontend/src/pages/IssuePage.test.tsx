@@ -256,3 +256,13 @@ test("좁은 화면에서 TIP 을 연 채 서랍을 열고 Esc 를 누르면 서
   );
   expect(screen.getByRole("dialog", { name: "타임라인 TIP" })).toBeDefined();
 });
+
+test("넓은 화면에서 TIP 만 열려 있으면 타임라인 밖(이슈 제목)에서 누른 Esc 도 TIP 을 닫는다", async () => {
+  renderRoute("/issues/12");
+  fireEvent.click(await screen.findByRole("button", { name: "TIP" }));
+  const heading = await title();
+
+  fireEvent.keyDown(heading, { key: "Escape" });
+
+  expect(screen.queryByRole("dialog", { name: "타임라인 TIP" })).toBeNull();
+});

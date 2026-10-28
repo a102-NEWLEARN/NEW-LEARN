@@ -34,6 +34,8 @@ import { useElementSize } from "@/components/issue/useElementSize";
 const SCALE_EXTENT: [number, number] = [0.5, 4];
 const ZOOM_OUT = 0.8;
 const ZOOM_IN = 1.25;
+// 혼자 눌러도 키보드로 옮긴 것이 아닌 키
+const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift", "AltGraph"]);
 // 잴 수 없을 때(jsdom) 쓰는 타임라인 자리 크기
 const FALLBACK_SIZE = { width: 1000, height: 520 };
 // 오른쪽 끝에서 라벨이 들어갈 자리. 고른 · 포커스한 사건이 여기 걸치면 화면 안으로 옮긴다
@@ -135,7 +137,9 @@ export function Timeline({
   // 받은 포커스는 호버가 맡는다. 「누르는 중」으로는 못 가린다 — 터치는 손을 뗀 뒤에야 포커스가 온다
   const keyboardInput = useRef(true);
   useEffect(() => {
-    const onKey = () => {
+    // 수정키만 누른 것(Alt+Tab 으로 창을 오갈 때 등)은 치지 않는다 — 브라우저의 :focus-visible 과 같다
+    const onKey = (key: globalThis.KeyboardEvent) => {
+      if (MODIFIER_KEYS.has(key.key)) return;
       keyboardInput.current = true;
     };
     const onPointer = () => {
@@ -148,25 +152,26 @@ export function Timeline({
       window.removeEventListener("pointerdown", onPointer, true);
     };
   }, []);
-  const sectionRef = useRef<HTMLElement>(null);
   const [tipOpen, setTipOpen] = useState(false);
   const tipButtonRef = useRef<HTMLButtonElement>(null);
   const tipCloseRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
   // TIP 을 닫으면 포커스를 연 버튼으로 돌린다 (EXPERIENCE.md Accessibility Floor)
   const closeTip = () => {
     setTipOpen(false);
     tipButtonRef.current?.focus();
   };
-  // 열면 포커스를 창 안으로. 열려 있는 동안 타임라인에서(또는 아무것에도 포커스가 없을 때) 누른 Esc 가 닫는다.
-  // 서랍처럼 다른 창 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
+  // 열면 포커스를 창 안으로. 열려 있는 동안 누른 Esc 는 이 창을 닫는다. 다만 서랍처럼 다른 창(dialog) 안에서 누른
+  // Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
   useEffect(() => {
     if (!tipOpen) return;
     tipCloseRef.current?.focus();
     const onKeyDown = (key: globalThis.KeyboardEvent) => {
       if (key.key !== "Escape" || key.isComposing) return;
-      const target = key.target as Node | null;
-      if (target !== document.body && !sectionRef.current?.contains(target))
-        return;
+      const layer = (key.target as Element | null)?.closest?.(
+        '[role="dialog"]',
+      );
+      if (layer && layer !== tipRef.current) return;
       key.preventDefault();
       setTipOpen(false);
       tipButtonRef.current?.focus();
@@ -326,7 +331,6 @@ export function Timeline({
 
   return (
     <section
-      ref={sectionRef}
       aria-labelledby="timeline-title"
       className="flex min-h-0 flex-1 flex-col"
     >
@@ -717,6 +721,7 @@ export function Timeline({
         )}
         {tipOpen && (
           <div
+            ref={tipRef}
             role="dialog"
             aria-label="타임라인 TIP"
             className="absolute top-x3 right-x3 z-20 w-[300px] rounded-r4 border border-stroke-neutral-weak bg-bg-layer-floating p-x4 shadow-s3"
