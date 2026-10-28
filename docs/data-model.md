@@ -269,11 +269,11 @@ erDiagram
 | `issue.summary` | text | 아니오 | 한두 문장 요약(AI 생성). 이슈에 사건이 붙을 때마다 AI 가 다시 만들어 덮어쓴다. 지난 요약은 화면에 보이지 않아 남기지 않는다(2026-10-20). 만들다 실패하면 비어 있을 수 있다 |
 | `issue.created_at` · `updated_at` | timestamptz | 예 | 만든 · 고친 시각. 검색창 아래 「새로 생성된 이슈」는 `created_at` 최신순이다(2026-10-20) |
 | `issue_category.issue_id` | bigint | 기본 키 · 외래 키 | 어느 이슈 |
-| `issue_category.category_code` | text | 기본 키 · 외래 키 | 어느 카테고리. 이슈 하나가 카테고리 여러 개에 걸칠지는 실제 데이터를 본 뒤 정한다(2026-10-20). 테이블은 여러 개를 받을 수 있게 둔다 |
+| `issue_category.category_code` | text | 기본 키 · 외래 키 | 어느 카테고리. 지금은 이슈 하나에 하나다(아래, 2026-10-29 사용자). 테이블은 여러 개를 받을 수 있게 둔다 |
 
 - **이슈는 사건 3개가 모이면 만든다**(2026-10-20 팀 회의). **새 사건이 생기면** 분석 단계 `ISSUE` 가 판단해, 이슈에 붙이거나(요약을 다시 만듦), 이슈 밖 사건들과 새 이슈를 만들거나(이름 · 요약을 함께 지음), 아직 두기로 한다. 이미 있는 사건에 기사만 붙을 때는 걸지 않는다. 어떤 사건들을 한 이슈로 묶을지는 실험으로 정한다(5절). 단계 모양은 `docs/api-internal.md` 5절(제안)
 - 사건이 1~2개뿐이라 이슈가 없는 동안 그 사건의 기사는 개별 기사로 보인다(최신 기사 목록 · 기사 상세)
-- `issue_category` 는 이슈를 만들거나 사건을 붙일 때 API 가 그 이슈 기사들의 대표 카테고리로 채운다고 가정한다(5절 2번). 대표 카테고리가 없는 기사는 셈에서 뺀다. 채우지 않으면 AI 가 만든 이슈가 카테고리별 목록(F02)에 나오지 않는다
+- `issue_category` 는 이슈를 만들거나 사건을 붙일 때 API 가 다시 채운다 — 그 이슈 기사들의 대표 카테고리 중 기사가 가장 많은 것 하나, 같으면 카테고리 `sort_order` 가 앞선 것(2026-10-29 사용자). 한두 기사가 엉뚱하게 분류돼도 다른 분야 목록에 뜨지 않게 하려는 것이다. 대표 카테고리가 없는 기사는 셈에서 뺀다. 채우지 않으면 AI 가 만든 이슈가 카테고리별 목록(F02)에 나오지 않는다
 - 이슈 헤더의 기간 · 사건 수 · 기사 수 · 언론사 수 · 최근 사건 날짜(PRD FR-20 · FR-4)는 저장하지 않고 조회할 때 계산한다. 느리면 잰 뒤에 캐시를 둔다(Jira 41)
 
 ### event — 사건 (F06 동일 사건 기사 클러스터링 · F07)
@@ -328,14 +328,14 @@ erDiagram
 | `status` | text | 예 | `QUEUED`(대기 또는 처리 중) → `SUCCEEDED` · `FAILED`. 바뀌는 길은 `docs/api-internal.md` 6절 |
 | `requested_by` | text | 예 | 누가 요청했나. 지금은 `BATCH`(수집 배치가 투입) 하나. 사용자 URL 입력은 뺐다(2026-10-20) |
 | `attempt` | int | 예 | 몇 번째 시도인가(1부터). 다시 돌리면 올린다. 늦게 온 옛 결과를 가르는 데 쓴다 |
-| `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다. `MATCH_EVENT` 는 `[{ eventId, similarity }]`(가까운 순서) — 다시 걸 때 이 후보로 메시지를 다시 만든다(2026-10-27 Jira 35) |
+| `candidates` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 에 보낸 후보(사건 · 이슈 ID). 판정이 후보 밖을 고르면 거절하려고 남긴다. `MATCH_EVENT` 는 `[{ eventId, similarity }]`(가까운 순서) — 다시 걸 때 이 후보로 메시지를 다시 만든다(2026-10-27 Jira 35). `ISSUE` 는 `{ issues: [{ issueId, similarity }], events: [{ eventId, similarity }] }` — 고를 때와 다시 걸 때마다 새로 계산한다. 비어 있으면 아직 고르지 않은 대기 작업이다(2026-10-29 Jira 40, `docs/api-internal.md` 3 · 4절) |
 | `result` | jsonb | 아니오 | `MATCH_EVENT` · `ISSUE` 의 판정 기록 `{ reason, model, promptVersion }`. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다(2026-10-26, AI 답). 칸은 V4 에서 더했고(Jira 30) `MATCH_EVENT` 는 Jira 35 가, `ISSUE` 는 Jira 40 이 쓴다 |
 | `error_code` | text | 아니오 | 실패했을 때 작업 실패 코드(`docs/api.md` 2절) |
 | `error_message` | text | 아니오 | 실패 설명. 개발자용이라 화면에 그대로 보이지 않는다 |
 | `created_at` | timestamptz | 예 | 작업을 만든 시각 |
 | `started_at` · `finished_at` | timestamptz | 아니오 | 워커가 결과와 함께 보낸 시작 · 끝 시각 |
 | `queued_at` | timestamptz | 예 | 이번 시도가 `QUEUED` 가 된 때 — 처음 만들 때와 다시 걸 때. 큐에 못 넣은 작업을 찾는 기준(V4, Jira 30) |
-| `published_at` | timestamptz | 아니오 | 이번 시도를 큐에 넣은 때. 비어 있으면 아직 못 넣었다 — 1분 지나면 스케줄러가 다시 넣는다(메시지를 만들 수 있는 단계만. Jira 40 전의 `ISSUE` 대기 작업은 그대로 둔다, `api-internal.md` 3절). 다시 걸면 비운다(V4, Jira 30) |
+| `published_at` | timestamptz | 아니오 | 이번 시도를 큐에 넣은 때. 비어 있으면 아직 못 넣었다 — 1분 지나면 스케줄러가 다시 넣는다(넣을 작업만 — 후보가 빈 `ISSUE` 대기 작업은 고르기가 넣는다, `api-internal.md` 3절). 다시 걸면 비운다(V4, Jira 30) |
 | `retry_at` | timestamptz | 아니오 | 실패한 시도를 다시 걸 때 — API 가 실패를 받은 때 + 간격(`docs/api.md` 2절). 다시 걸지 않으면 비운다. 스케줄러는 이 시각이 지난 실패만 읽어, 멈춘 실패가 아무리 쌓여도 앞을 막지 않는다(V4, Jira 30) |
 
 - 기사 하나 · 단계 하나에 한 행이다. 다시 돌리면 같은 행의 `attempt` 를 올리고 `status` 를 `QUEUED` 로 되돌린다. 몇 번까지 · 언제 다시 돌릴지는 `docs/api.md` 2절 「작업 실패 코드」(최대 3번)
@@ -448,7 +448,7 @@ erDiagram
 | # | 무엇 | 지금 가정 | 어디서 정하나 |
 |---|---|---|---|
 | 1 | 한 기사가 여러 사건에 속하나 | 하나 (PRD FR-9) | SSOT 8절 |
-| 2 | 어떤 사건 3개를 한 이슈로 묶나, 사건이 여러 이슈에 속하나, `issue_category` 를 무엇으로 채우나 | `ISSUE` 단계가 판단(제안). 사건 하나는 이슈 하나. `issue_category` 는 이슈 기사들의 대표 카테고리 | AI 실험 · SSOT 8절 |
+| 2 | 어떤 사건 3개를 한 이슈로 묶나, 사건이 여러 이슈에 속하나, `issue_category` 를 무엇으로 채우나 | `ISSUE` 단계가 판단(제안). 사건 하나는 이슈 하나. `issue_category` 는 이슈 기사들의 대표 카테고리 중 가장 많은 것 하나(2026-10-29 사용자, 2절 issue) | AI 실험 · SSOT 8절 |
 | 3 | 동일 사건 판정 기준, 기사가 몇 개 모여야 사건으로 보이나 | 판정 점수 칸 없음(판정 기록은 `analysis_job.result`). 대표 사건이 있는 기사는 하나로도 사건을 만든다 | AI 실험 (Q34) |
 | 7 | 원본 분류 → 5개 대응 행, 이슈가 카테고리 여러 개에 걸치나 | 행 없음. 맞출 값이 없으면 `category_code` 비움. NewsData 에서 본 값(2026-10-22 응답 50건, 여러 개가 같이 옴): `top` · `politics` · `business` · `technology` · `world` · `crime` · `domestic` · `health` · `environment` · `lifestyle` · `sports` · `entertainment`. `top` 은 주제가 아니라 비운다 | BE — 이 값으로 행을 채울 때 |
 | 8 | 기사가 언제 화면에 보이나(`released_at`) | **정함(2026-10-26 사용자, Jira 34)** — 분석이 끝난 뒤부터. EXTRACT 결과를 처음 저장한 때 `released_at` 을 채운다(2절). B1 은 분석만 건다 | Q21 |
