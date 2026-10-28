@@ -66,7 +66,19 @@ helm upgrade --install kps oci://ghcr.io/prometheus-community/charts/kube-promet
 
 ## 5. 로그 찾기 (Grafana › Explore › 자료원 Loki)
 
-설치 뒤 실제로 돌려 보고 채운다.
+중괄호 `{}` 안은 라벨로 고르기(빠름), `|=` 는 글자로 거르기다. 라벨은 `namespace` · `pod` · `container` · `app` · `node` · `stream`(stdout · stderr). 아래는 2026-10-28 실제로 돌려 본 것이다.
+
+| 무엇을 | LogQL |
+|---|---|
+| backend 로그 | `{namespace="app", container="backend"}` |
+| 사라진 Pod 의 로그 — 이름을 알면 | `{namespace="app", pod="backend-577656b48b-5ttpw"}` |
+| 글자로 거르기 | `{namespace="app", container="backend"} \|= "Started BackendApplication"` |
+| 수준으로 거르기 — 스프링 글자 로그 | ``{namespace="app", container="backend"} \| regexp `^\S+\s+(?P<level>[A-Z]+)\s` \| level="WARN"`` |
+| 수준별 줄 수 | ``sum by (level) (count_over_time({namespace="app", container="backend"} \| regexp `^\S+\s+(?P<level>TRACE\|DEBUG\|INFO\|WARN\|ERROR)\s` [3h]))`` |
+
+- 스프링은 수준을 5칸에 오른쪽으로 맞춰 찍어(` INFO` · `ERROR`) 공백 수가 줄마다 달라서 `pattern` 은 맞지 않는다 — `regexp` 를 쓴다. 정규식은 역따옴표(`` ` ``)로 감싸야 역슬래시가 그대로 간다
+- Loki 가 스스로 붙이는 `detected_level` 은 스프링 글자 로그의 WARN 을 잡지 못했다(`unknown`) — 쓰지 않는다
+- 그래서 로그 모양은 글자 그대로 둔다(JSON 으로 바꾸지 않아도 수준으로 거를 수 있다)
 
 ## 6. 되돌리기
 
@@ -83,4 +95,7 @@ helm uninstall alloy -n monitoring && helm uninstall loki -n monitoring
 - Loki 차트 기본값은 나눠 띄우는 구성(SimpleScalable)에 캐시(memcached) · gateway · canary 까지 켠다 — 값 파일로 끄고 `helm template` 자원 목록으로 확인했다
 - Loki 의 규칙 감시 보조 컨테이너(`loki-sc-rules`)는 기본으로 켜져 있고, 켜 두면 **클러스터의 모든 ConfigMap · Secret 을 읽는 ClusterRole** 이 붙는다 — `sidecar.rules.enabled: false`. 끄면 ClusterRole 은 이름만 남고 규칙이 빈다
 - Alloy 차트 기본 권한도 Secret 을 읽는다 — Pod 읽기만 남겼다. 차트 틀이 `rbac.rules` 와 `rbac.clusterRules` 를 이어 붙여서 한쪽을 `[]` 로 두면 YAML 이 깨진다(같은 규칙을 양쪽에)
-- Loki 차트 7.5.0 은 앱 판이 3.6.16 으로 적혀 있지만 이미지 태그는 3.6.11 로 고정돼 있다 — 차트가 함께 시험한 판이라 그대로 쓴다
+- Loki 차트 7.5.0 은 앱 판이 3.6.16 으로 적혀 있지만 이미지 태그는 3.6.11 로 고정돼 있다 — 차트가 함께 시험한 판이라 그대로 쓴다(`helm list` · 설치 NOTES 에는 3.6.16 이 찍힌다)
+- 처음 켜면 Alloy 가 서버에 남은 옛 로그 파일을 처음부터 훑는다. 7일보다 오래된 줄은 Loki 가 400 으로 거절한다(`reject_old_samples_max_age: 168h`) — 관리 서버 Alloy 에 처음 1분 동안 오류 4줄, 그 뒤로는 없음
+- 수집기는 라벨에 `filename`(로그 파일 경로)과 `service_name` 을 더 붙인다 — Loki 3 기본 동작
+- 팝업 계정은 Grafana Viewer 라 기본값으로는 Explore 에 들어가지 못하고 첫 화면으로 돌아온다 — `grafana.ini` 의 `users.viewers_can_edit: true`(`monitoring-values.yaml`)로 열었다. Viewer 가 대시보드를 화면에서 잠깐 고쳐 볼 수는 있지만 저장은 못 한다(사용자 결정)
