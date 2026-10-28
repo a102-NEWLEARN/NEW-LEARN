@@ -130,7 +130,8 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  // Enter 를 누르고 결과를 기다리는 검색어. 목록을 닫으면 지워서 그 사이의 Esc · Tab · 바깥 누르기가 이동을 취소한다
+  // Enter 를 누르고 결과를 기다리는 검색어. 목록을 닫으면 지운다 — 그 사이에 Esc 를 누르거나
+  // 검색창 밖으로 나가면(바깥 누르기 · Tab · 창 바꾸기) 이동을 취소한다. Tab 으로 ✕ 에 가는 것은 안이라 그대로다
   const waiting = useRef<string | null>(null);
   const word = text.trim();
   const searched = useDebounced(word, SEARCH_DELAY);

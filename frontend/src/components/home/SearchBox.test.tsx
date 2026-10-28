@@ -166,6 +166,33 @@ test("결과가 오기 전에 Esc 로 닫으면 결과가 와도 옮기지 않�
   expect(router.state.location.pathname).toBe("/home");
 });
 
+test.each([
+  [
+    "바깥을 누르면",
+    () => fireEvent.mouseDown(screen.getByRole("button", { name: "바깥" })),
+  ],
+  [
+    "검색창 밖으로 나가면",
+    () => act(() => screen.getByRole("button", { name: "바깥" }).focus()),
+  ],
+])("결과가 오기 전에 %s 결과가 와도 옮기지 않는다", async (_, leave) => {
+  const { router, queryClient } = renderSearch();
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+
+  fireEvent.change(input(), { target: { value: "금리" } });
+  fireEvent.keyDown(input(), { key: "Enter" });
+  leave();
+  await waitFor(() =>
+    expect(
+      queryClient.getQueryData(searchQuery("금리").queryKey),
+    ).toBeDefined(),
+  );
+  await act(async () => {});
+
+  expect(router.state.location.pathname).toBe("/home");
+});
+
 test("앞 검색어의 결과가 남아 있는 동안에는 그 줄을 고를 수 없고 칠하지도 않는다", async () => {
   renderSearch();
   await openWith("공장");
