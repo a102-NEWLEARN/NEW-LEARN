@@ -16,4 +16,5 @@ public record IssueCardResponse(
         @Nullable OffsetDateTime firstEventAt,
         @Nullable OffsetDateTime lastEventAt,
         OffsetDateTime createdAt,
-        @Nullable EventRef lastEvent) {}
+        @Nullable EventRef lastEvent,
+        boolean interested) {}

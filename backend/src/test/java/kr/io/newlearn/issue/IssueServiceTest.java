@@ -10,6 +10,7 @@ import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.event.EventRepository;
+import kr.io.newlearn.interest.InterestIssueRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -19,11 +20,13 @@ class IssueServiceTest {
     IssueQueryRepository queries = mock(IssueQueryRepository.class);
     IssueRepository issues = mock(IssueRepository.class);
     EventRepository events = mock(EventRepository.class);
-    IssueService service = new IssueService(categories, queries, issues, events);
+    InterestIssueRepository interests = mock(InterestIssueRepository.class);
+    IssueService service =
+            new IssueService(categories, queries, issues, events, interests, new IssueCardAssembler(queries));
 
     @Test
     void missingIssueDoesNotReadTimelineOrReferences() {
-        assertThatThrownBy(() -> service.get(999)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.get(999, null)).isInstanceOf(NotFoundException.class);
         verify(queries, never()).findCategories(any());
         assertThatThrownBy(() -> service.timeline(999)).isInstanceOf(NotFoundException.class);
         verifyNoInteractions(events);
@@ -40,7 +43,7 @@ class IssueServiceTest {
 
     @Test
     void unknownCategoryStopsBeforeAggregate() {
-        assertThatThrownBy(() -> service.list("unknown", "lastEventAt", new PageQuery(null, null)))
+        assertThatThrownBy(() -> service.list("unknown", "lastEventAt", new PageQuery(null, null), null))
                 .isInstanceOf(NotFoundException.class);
         verifyNoInteractions(queries);
     }
@@ -49,10 +52,12 @@ class IssueServiceTest {
     void emptyPageDoesNotQueryReferences() {
         when(queries.findCards(isNull(), eq("lastEventAt"), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
-        assertThat(service.list(null, "lastEventAt", new PageQuery(null, null)).items())
+        assertThat(service.list(null, "lastEventAt", new PageQuery(null, null), null)
+                        .items())
                 .isEmpty();
         verify(queries, never()).findCategories(any());
         verify(queries, never()).findLastEvents(any());
+        verifyNoInteractions(interests);
     }
 
     @Test
@@ -68,7 +73,7 @@ class IssueServiceTest {
                 .thenReturn(List.of(new IssueQueryRepository.CategoryRow(1, "politics", "정치")));
         when(queries.findLastEvents(List.of(1L)))
                 .thenReturn(List.of(new IssueQueryRepository.EventRow(1, 3, "사건", "키워드", time)));
-        var card = service.list("politics", "createdAt", new PageQuery(null, null))
+        var card = service.list("politics", "createdAt", new PageQuery(null, null), null)
                 .items()
                 .getFirst();
         assertThat(card.summary()).isNull();
@@ -77,5 +82,7 @@ class IssueServiceTest {
         assertThat(card.categories()).hasSize(1);
         verify(queries).findCategories(List.of(1L));
         verify(queries).findLastEvents(List.of(1L));
+        assertThat(card.interested()).isFalse();
+        verifyNoInteractions(interests);
     }
 }
