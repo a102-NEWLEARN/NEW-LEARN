@@ -28,6 +28,8 @@
   — `AnalysisJobQueueIntegrationTest.waitingIssueJobsDoNotCrowdOutOthers`(Jira 40 에서 이름을 바꿈)
 - AC-12(Jira 130, 2026-10-28): `NEW` 면 `newEvent.role`(`MAIN` · `REACTION`)과 `reactsTo` 를 사건에 저장한다. `role` 이 없거나 모르는 값(소문자 포함)이면 400. `REACTION` 의 `reactsTo` 가 비었거나 U+0000 이면 null, `MAIN` 의 `reactsTo` 는 읽지 않는다. `EXISTING` 의 `newEvent` 는 `role` 까지 읽지 않는다
   — `newStoresTheRoleAndWhatItReactsTo` · `newWithoutAKnownRoleIsRejected` · `aReactsToThatCannotBeKeptIsStoredAsNull` · `existingIgnoresTheNewEventRole`
+- AC-13(Jira 134, 2026-10-29): `NEW` 이고 `REACTION` 이면 `newEvent.reactsToEventId` 를 사건(`event.reacts_to_event_id`)에 저장한다 — 이번 판정에 보낸 후보 사건 안일 때만. 후보 밖이거나 정수가 아니면(글자 · 소수) 400 대신 null 로 받고 경고 로그를 남긴다. 없거나 null 이면 조용히 null, `MAIN` 의 것은 읽지 않는다. 역할 칸에는 DB 기본값이 없어(V10) 역할 없이는 사건을 만들 수 없다
+  — `newReactionStoresTheTargetEventAmongTheCandidates` · `aTargetThatCannotBeKeptIsStoredAsNull`, `MatchEventResultTest.reactionTargetThatIsNotAnIntegerIsNull` · `mainIgnoresReactsTo`, V10 은 `EventReactsToSchemaTest`, A4 에 싣는 규칙은 F07 AC-4(`IssueTimelineApiIntegrationTest.reactsToEventIdIsSentOnlyForATargetInTheSameIssue`)
 
 ## 알아 둘 것
 

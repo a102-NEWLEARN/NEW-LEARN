@@ -72,19 +72,24 @@ public class IssueService {
         if (!issues.existsById(issueId)) throw missingIssue(issueId);
         var ordered = events.findByIssue_IdOrderByOccurredAtAscIdAsc(issueId);
         if (ordered.isEmpty()) return new TimelineResponse(issueId, List.of());
-        var counts = queries.findEventCounts(ordered.stream().map(Event::getId).toList()).stream()
+        var ids = ordered.stream().map(Event::getId).toList();
+        var counts = queries.findEventCounts(ids).stream()
                 .collect(Collectors.toMap(IssueQueryRepository.EventCountRow::eventId, c -> c));
+        // 반응 대상이 다른 이슈 · 이슈 밖이면 이 타임라인에 그릴 수 없어 싣지 않는다. 이미 읽은 사건으로 가려 쿼리가 늘지 않는다
+        var sameIssue = Set.copyOf(ids);
         return new TimelineResponse(
                 issueId,
                 ordered.stream()
                         .map(e -> {
                             var count = counts.getOrDefault(
                                     e.getId(), new IssueQueryRepository.EventCountRow(e.getId(), 0, 0));
+                            @Nullable Long target = e.getReactsToEventId();
                             return new TimelineEvent(
                                     e.getId(),
                                     e.getTitle(),
                                     e.getLabel(),
                                     TimelineEvent.Lane.of(e.getRole()),
+                                    target != null && sameIssue.contains(target) ? target : null,
                                     ApiTime.toKst(e.getOccurredAt()),
                                     e.getOccurredAtBasis(),
                                     count.articleCount(),
