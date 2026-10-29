@@ -1,10 +1,9 @@
 package kr.io.newlearn.dictionary;
 
-import java.text.Normalizer;
 import java.util.List;
 import kr.io.newlearn.common.error.ApiException;
 import kr.io.newlearn.common.error.ErrorCode;
-import kr.io.newlearn.common.error.FieldErrorItem;
+import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.dictionary.dto.DictionaryItem;
 import kr.io.newlearn.dictionary.dto.DictionaryResponse;
 import org.jspecify.annotations.Nullable;
@@ -16,8 +15,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class DictionaryService {
 
-    // 50자는 우리 제안이다 — Open API 안내에 검색어 길이 제한이 없다(2026-10-29 확인)
-    static final int MAX_LENGTH = 50;
+    // 검색어 규칙(공백 · NFC · 50자)은 A13 통합 검색과 같이 쓴다(QueryText). 문구는 용어사전 창에 맞춘 것이다
     static final String BLANK = "찾을 단어를 입력해 주세요";
     static final String TOO_LONG = "찾을 단어는 50자까지예요";
 
@@ -32,7 +30,7 @@ public class DictionaryService {
     }
 
     public DictionaryResponse search(@Nullable String q) {
-        String query = normalize(q);
+        String query = QueryText.normalize(q, BLANK, TOO_LONG);
         List<DictionaryItem> items = cache.get(query).orElseGet(() -> {
             if (!quota.tryTake()) {
                 throw new ApiException(ErrorCode.DICTIONARY_UNAVAILABLE, "사전 하루 호출 한도를 넘었다");
@@ -45,21 +43,5 @@ public class DictionaryService {
             return found;
         });
         return DictionaryResponse.of(query, items);
-    }
-
-    // 앞뒤 공백을 지우고 NFC 로 맞춘다 — 자모로 나뉘어(NFD) 온 한글도 같은 검색어가 된다. 길이는 글자(코드포인트) 수다
-    static String normalize(@Nullable String q) {
-        String query = q == null ? "" : Normalizer.normalize(q.strip(), Normalizer.Form.NFC);
-        if (query.isEmpty()) {
-            throw invalid(BLANK);
-        }
-        if (query.codePointCount(0, query.length()) > MAX_LENGTH) {
-            throw invalid(TOO_LONG);
-        }
-        return query;
-    }
-
-    private static ApiException invalid(String reason) {
-        return new ApiException(ErrorCode.VALIDATION_FAILED, "q: " + reason, List.of(new FieldErrorItem("q", reason)));
     }
 }
