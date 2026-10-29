@@ -1,0 +1,46 @@
+# 입구 상한 서비스(envoy-ratelimit)로 들어오는 길 — 실제로 부르는 Pod 만 (Jira S15P31A102-136)
+# 상한 서비스는 Envoy 가 부르는 gRPC 8081(mTLS) · 지표 19001 말고도 막을 평문 포트 둘을 연다(2026-10-29 관리 서버 호스트에서 확인)
+#   8080 — kubelet 상태 확인(/healthcheck)과 /json(상한 판정을 JSON 으로 묻는 길, 없는 domain 으로 POST 하면 200).
+#          gRPC 판정과 같은 처리를 탄다고 보면 실제 domain · IP 를 넣어 남의 IP 바구니를 채울 수 있는 길이다(그렇게 해 보지는 않았다)
+#   6070 — 디버그(/debug/pprof · /rlconfig · /stats), 인증 없음
+# 정책이 없으면 클러스터 안 어느 Pod 든(러너 잡 · 시험 Pod 등) 이 둘에 닿는다
+# 받는 길: Envoy → 8081(상한 판정), Prometheus → 19001(지표, ratelimit-podmonitor.yaml)
+# 그대로 남는 길: 워커 노드 호스트에서 오는 것(kubelet 상태 확인 8080 · 호스트 네트워크 Pod) — Cilium 은 로컬 호스트 통신을 기본으로 허용한다
+#   https://docs.cilium.io/en/v1.20/security/policy/layer3/ 「Entities Based」 host
+#   /rlconfig(지금 걸린 상한 규칙)를 볼 때는 `kubectl -n envoy-gateway-system port-forward deploy/envoy-ratelimit 6070` — Pod 안 localhost 로 들어가 정책 밖이다
+# 상한 서비스가 거는 연결(컨트롤러 xDS 18001 · Redis 6379)은 나가는 길이라 이 정책과 상관없다. Redis 쪽 받는 길은 services/data/netpol.yaml
+# Envoy · 컨트롤러 Pod 는 고르지 않는다 — Envoy 는 바깥 손님을 hostPort 로 받는다
+# 이름표는 Envoy Gateway 가 붙인다(v1.9.2) — 판을 올리면 다시 본다. 틀렸을 때 결과는 셋으로 갈린다
+#   - endpointSelector 가 틀리면 아무 Pod 도 고르지 않아 보호가 소리 없이 사라진다(상한은 돈다)
+#   - Envoy 쪽이 틀리면 Envoy 가 8081 에 못 닿아 상한이 소리 없이 풀린다(failClosed 기본 false)
+#   - Prometheus 쪽이 틀리면 지표 수집 up 이 0 이 된다
+#   → 반영 뒤 SSOT 6절 「외부 입구」의 질의와, 한 분 칸 안 101번째가 429 인지(SSOT 10절의 측정 방법)로 확인한다
+# 네임스페이스 이름표가 없는 규칙은 이 정책의 네임스페이스(envoy-gateway-system)로 한정된다
+#   https://docs.cilium.io/en/v1.20/security/policy/kubernetes/ 「Namespaces」
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ratelimit-ingress
+  namespace: envoy-gateway-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: envoy-ratelimit
+  ingress:
+    # 상한 판정 — Envoy 와 상한 서비스는 둘 다 워커에 있다
+    - fromEndpoints:
+        - matchLabels:
+            gateway.envoyproxy.io/owning-gateway-name: public
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP
+    # 지표 — Prometheus 는 관리 서버에 있어 노드를 건넌다
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "19001"
+              protocol: TCP

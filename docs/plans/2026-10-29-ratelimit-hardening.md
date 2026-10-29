@@ -76,7 +76,7 @@
 ## 작업 순서
 
 - [x] Jira 새 티켓(스토리 포인트 2, 135 와 연결) 만들고 진행 중. 브랜치는 `origin/infra` 가 `origin/dev` 와 같은지 본 뒤 그 위에 — S15P31A102-136. 그사이 infra 에 Jira 135 문서 바로잡기(966173c)가, dev 에 계획 체크(9a5362f)가 따로 들어가 서로 조금씩 앞서 있다 → `origin/infra`(32e8dcc) 위에 만들고, infra → dev MR 이 두 쪽을 합친다
-- [ ] ① 지표 — 파일 · 서버 쪽 시험 적용(`--dry-run=server`) · 게이트 · reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 봄, infra → dev 는 사용자 승인) → 확인 → 증거를 infra → dev MR 댓글로
+- [x] ① 지표 — 파일 · 서버 쪽 시험 적용(`--dry-run=server`) · 게이트 · reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 봄, infra → dev 는 사용자 승인) → 확인 → 증거를 infra → dev MR 댓글로 — !401 → infra 8df85ce6, !406 → dev 0fce0529(15:31, GitLab 장애로 「conflict」 표시가 남아 MR 을 닫았다 열어 다시 계산). 15:32:55 동기화, 15:34 두 대상 `up` 1 · 오류 없음, 판정 지표 rule/1 ~ 3, 새 시계열 47개 · Prometheus 메모리 482 → 492MiB
 - [ ] ② 정책 — 반영 전 접속 시험(사용자) → 파일 · 시험 적용 · 게이트 · reviewer → MR → infra → dev → 반영 뒤 접속 시험 · 상한 다시 재기 → MR 댓글
 - [ ] ③ · ④ Helm 값 — 파일 · `helm template` 대조 · 게이트 · reviewer → MR → infra → dev → 컨트롤러 · 상한 서비스 새 Pod 확인 · 상한 다시 재기 · 캐시 지표 → MR 댓글
 - [ ] 실측 문서 MR → dev, Jira 새 티켓 완료, 분야 브랜치 넷 dev 에 맞춤
