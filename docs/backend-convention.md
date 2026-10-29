@@ -20,14 +20,14 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 정해진 값 칸은 Java enum + `@Enumerated(EnumType.STRING)` 이고, 마이그레이션에 같은 값의 `CHECK` 를 둔다. ORDINAL(순서 번호 저장)은 쓰지 않는다 — enum 순서를 바꾸면 옛 값의 뜻이 바뀐다
 - 칸 타입 짝: `smallint` → `short`, `jsonb` → `String` + `@JdbcTypeCode(SqlTypes.JSON)`(빼면 앱이 뜨지 않는다), `text[]` → `List<String>` + `@JdbcTypeCode(SqlTypes.ARRAY)`(빈 목록으로 시작)
 - 두 칸을 합친 키는 `@EmbeddedId` 일반 클래스(`Serializable`, `equals` · `hashCode`). 키 칸이 외래 키이기도 하면 `@MapsId`
-- 테이블은 Flyway 마이그레이션만 바꾼다(`ddl-auto: validate`). 번호 · 바꾸는 법은 `docs/data-model.md` 7절. 예시는 `backend/src/main/java/kr/io/newlearn/` 의 엔티티 14개
+- 테이블은 Flyway 마이그레이션만 바꾼다(`ddl-auto: validate`). 번호 · 바꾸는 법은 `docs/data-model.md` 7절. 예시는 `backend/src/main/java/kr/io/newlearn/` 의 엔티티들
 
 ## 3. 요청 · 응답
 
 - 요청 · 응답은 Java `record` 다. 엔티티를 그대로 내보내지 않는다
 - 시각: 응답 DTO 로 옮길 때 `ApiTime.toKst(entity.getPublishedAt())` 를 쓴다. `+09:00` · 초 단위 `OffsetDateTime` 이 된다. 요청 시각은 `OffsetDateTime` 으로 받는다 — 오프셋이 없으면 따로 검사하지 않아도 400 이다. `spring.jackson.time-zone` 은 두지 않는다(두면 모든 시각이 그 시간대로 바뀐다)
 - 목록: `@Valid PageQuery query` 로 받고 `query.toPageable(Sort.by(…))` 로 리포지토리를 부른 뒤 `PageResponse.from(page.map(XxxResponse::from))` 로 돌려준다. Spring 의 `Pageable` 인자를 바로 받지 않는다 — 범위 밖 값을 400 대신 조용히 고친다
-- 입력 검사: 검증 어노테이션마다 `message` 에 화면에 그대로 보일 한국어 문장을 쓴다(예: `@Size(min = 4, message = "아이디는 4자 이상이에요")`). 이 문장이 `errors[].reason` 이 된다. 빼면 기본 문구(영어일 수 있다)가 나간다
+- 입력 검사: 검증 어노테이션마다 `message` 에 화면에 그대로 보일 한국어 문장을 쓴다(예: `@Size(max = 20, message = "이름은 20자까지예요")`). 이 문장이 `errors[].reason` 이 된다. 빼면 기본 문구(영어일 수 있다)가 나간다
 - 컨트롤러 클래스에 `@Validated` 를 붙이지 않는다. 붙이면 다른 예외가 나서 400 이 아니라 500 이 된다
 - 쿼리 파라미터에 `+` 가 들어가면(시각의 `+09:00`) `%2B` 로 보낸다. 서버는 쿼리의 `+` 를 공백으로 읽는다
 
