@@ -21,10 +21,10 @@ A19 용어사전(MR !359)은 env `STDICT_API_KEY` 로 표준국어대사전 키�
 
 ## 작업 순서
 
-- [ ] 스크립트 · `backend.yaml` · README 를 고친 뒤 infra 검사(`.claude/stack.md` §3 infra 의 포맷 · 린트 · 테스트, 셸 문법 `bash -n`)
-- [ ] 커밋 · push → MR(→ infra) → 파이프라인 통과
-- [ ] 사용자가 한다(값을 물어 TTY 가 필요하다): ① 새 스크립트를 EC2 로 보내기 ② `ssh -t … "bash infra/server/seal-secrets.sh stdict"` ③ 봉인 파일 가져오기. 명령은 한 줄씩, 어디서 돌리는지와 끝 표시까지 안내한다
-- [ ] 봉인 파일 + `resources` 한 줄을 커밋 → 파이프라인 → (머지 · 배포 뒤) `kubectl -n app rollout restart deploy/backend` 는 사용자가 한다
+- [x] 스크립트 · `backend.yaml` · README 를 고친 뒤 infra 검사(`.claude/stack.md` §3 infra 의 포맷 · 린트 · 테스트, 셸 문법 `bash -n`)
+- [x] 커밋 · push → MR(→ infra) → 파이프라인 통과
+- [x] 사용자가 한다(값을 물어 TTY 가 필요하다): ① 새 스크립트를 EC2 로 보내기 ② `ssh -t … "bash infra/server/seal-secrets.sh stdict"` ③ 봉인 파일 가져오기. 명령은 한 줄씩, 어디서 돌리는지와 끝 표시까지 안내한다
+- [x] 봉인 파일 + `resources` 한 줄을 커밋(2026-10-29, EC2 에서 사용자가 봉인 · 「나무」 확인 통과) → 파이프라인 → (머지 · 배포 뒤) `kubectl -n app rollout restart deploy/backend` 는 사용자가 한다
 
 ## 안 바꿀 것
 

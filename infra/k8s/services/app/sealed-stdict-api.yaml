@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: stdict-api
+  namespace: app
+spec:
+  encryptedData:
+    STDICT_API_KEY: AgBlBYxvMFdHFpZr2OGGCFgaBt9VA4QQ6dZfPt+FbyK+rRpNgCxD8au1jlW+eVmTzWXP1L2f/AVjf9vzrXz4SXC2+iLfUa7rHDysMHHOHOyfrq8rfJzOko//8qtsy4eK67Ltreg5QWqm+7WJUW+GQ6YVRnCXWyXwZhGLD8QDCalz7fLS3SfygR+ZIpHyz5VRWwiUqO5+sUHkpy8w0aMvctZI9PDmsTkg1+z6uzHu9X/oqfIwU4Vov3rcOc2wZYxDXKEZts4vl/pRWaS5CtMVfwLHMdq8T5esiQzYbF9hGq+LClpK7YSB8V+FhDGlMQWHPQQGKTerB8wMP7boEXHY7O8XhvNbdYHR/m0hosh/uPtIaJLp7EKX/SBiN9rW7oz0Eccf3OQVQJxzIDbu+uk8UmzdyJCK3kJ3MtvonqvYGUD8CWwrMhJfga2knlKl3PuzVLJmffkl1WU/jQ+55sealHB1o+7SQ6PApTEqlNvfIAeVUUFPH1et3RpsMrlVP6FuLNZlpR3kEgwFRfOEnlMHHY4Phqo9NQ0Iyj6MAbXQckM5COmEWaoEBNv8fQbxgW05eONIuLCE1YkQbsGUpoS9V8zN/qoiuhLvZaApmgoYqeSYc62lqKNRB8SEFgfXqS2p1rGm7qoioPlNMXsNgcqle2nmR23ENcn3V2RfDeD+H43I/r2KNknZ4Vd/X/BImtOT/OfimG+64lvxmWyIT+srQssMgATi81nQ5/GuSM3rAE0uDQ==
+  template:
+    metadata:
+      name: stdict-api
+      namespace: app
