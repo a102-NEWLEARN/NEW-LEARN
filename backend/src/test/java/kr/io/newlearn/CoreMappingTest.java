@@ -198,6 +198,7 @@ class CoreMappingTest {
                         Instant.parse("2026-10-05T15:00:00Z"),
                         OccurredAtBasis.EXTRACTED,
                         EventRole.MAIN,
+                        null,
                         null))
                 .getId();
         em.flush();
@@ -423,6 +424,7 @@ class CoreMappingTest {
                 Instant.parse("2026-10-05T15:00:00Z"),
                 OccurredAtBasis.EXTRACTED,
                 EventRole.MAIN,
+                null,
                 null));
         articleEventRepository.save(new ArticleEvent(article, event));
         em.flush();

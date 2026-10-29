@@ -85,8 +85,8 @@ class IssueTimelineQueryTest {
             jdbc.sql("delete from event where issue_id=4800").update();
             for (int n = 1; n <= size; n++) {
                 jdbc.sql("""
-                    insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at)
-                    values (:id,4800,'사건','키워드','2026-10-20T00:00:00Z','EXTRACTED',now(),now())
+                    insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                    values (:id,4800,'사건','키워드','2026-10-20T00:00:00Z','EXTRACTED',now(),now(),'MAIN')
                     """).param("id", 48000 + n).update();
             }
             em.clear();

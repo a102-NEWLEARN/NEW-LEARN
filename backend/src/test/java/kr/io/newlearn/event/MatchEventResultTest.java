@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -43,22 +44,36 @@ class MatchEventResultTest {
         var read = MatchEventResult.read(json("""
                 {"decision": "NEW", "eventId": "아무 값", "reason": "후보와 다른 사건이다",
                  "newEvent": {"title": "한빛반도체 텍사스 공장 착공식", "label": "착공식", "summary": "6일 착공식을 열었다.",
-                              "role": "REACTION", "reactsTo": "공장 투자 발표"}}"""));
+                              "role": "REACTION", "reactsTo": "공장 투자 발표", "reactsToEventId": 12}}"""));
 
         assertThat(read.decision()).isEqualTo(Decision.NEW);
         assertThat(read.eventId()).isNull();
         assertThat(read.newEvent())
-                .isEqualTo(new NewEvent("한빛반도체 텍사스 공장 착공식", "착공식", "6일 착공식을 열었다.", EventRole.REACTION, "공장 투자 발표"));
+                .isEqualTo(
+                        new NewEvent("한빛반도체 텍사스 공장 착공식", "착공식", "6일 착공식을 열었다.", EventRole.REACTION, "공장 투자 발표", 12L));
     }
 
-    // MAIN 의 reactsTo 는 읽지 않는다 — 반응 대상은 REACTION 에만 있다 (Jira 130)
+    // MAIN 의 reactsTo · reactsToEventId 는 읽지 않는다 — 반응 대상은 REACTION 에만 있다 (Jira 130 · 134)
     @Test
     void mainIgnoresReactsTo() {
         var read = MatchEventResult.read(json("""
                 {"decision": "NEW", "reason": "후보와 다른 사건이다",
-                 "newEvent": {"title": "이름", "label": "착공식", "summary": "요약", "role": "MAIN", "reactsTo": "무언가"}}"""));
+                 "newEvent": {"title": "이름", "label": "착공식", "summary": "요약", "role": "MAIN", "reactsTo": "무언가",
+                              "reactsToEventId": 12}}"""));
 
-        assertThat(read.newEvent()).isEqualTo(new NewEvent("이름", "착공식", "요약", EventRole.MAIN, null));
+        assertThat(read.newEvent()).isEqualTo(new NewEvent("이름", "착공식", "요약", EventRole.MAIN, null, null));
+    }
+
+    // 반응 대상 사건 번호는 선택 값이라 정수가 아니면 거절하지 않고 null 로 받는다 (Jira 134). 후보 안인지는 처리기가 본다
+    @ParameterizedTest(name = "[{0}]")
+    @ValueSource(strings = {"\"12\"", "12.5", "true", "{}", "null"})
+    void reactionTargetThatIsNotAnIntegerIsNull(String target) {
+        var read = MatchEventResult.read(json("""
+                {"decision": "NEW", "reason": "후보와 다른 사건이다",
+                 "newEvent": {"title": "이름", "label": "성명", "summary": "요약", "role": "REACTION", "reactsTo": "착공식",
+                              "reactsToEventId": %s}}""".formatted(target)));
+
+        assertThat(read.newEvent()).isEqualTo(new NewEvent("이름", "성명", "요약", EventRole.REACTION, "착공식", null));
     }
 
     static Stream<Arguments> rejected() {

@@ -92,6 +92,38 @@ class IssueTimelineApiIntegrationTest {
                 .andExpect(jsonPath("$.events[2].reactsTo").doesNotExist());
     }
 
+    // 반응 대상 사건 번호는 대상이 같은 이슈의 사건일 때만 싣는다 — 화면이 같은 타임라인 안에서 반응 점선을 그린다.
+    // 다른 이슈 · 이슈 밖 사건이면 null. 칸은 늘 있다 (docs/api-screen.md A4, 2026-10-28)
+    @Test
+    void reactsToEventIdIsSentOnlyForATargetInTheSameIssue() throws Exception {
+        jdbc.sql("""
+                insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                values (4199,null,'이슈 밖 사건','독립','2026-10-19T00:00:00Z','EXTRACTED',now(),now(),'MAIN')
+                """).update();
+        reactsTo(4121, 4199); // 이슈 밖
+        reactsTo(4122, 4111); // 다른 이슈(4101)
+        reactsTo(4123, 4121); // 같은 이슈
+
+        mvc.perform(get("/api/v1/issues/4102/timeline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].reactsToEventId").hasJsonPath())
+                .andExpect(jsonPath("$.events[0].reactsToEventId").isEmpty())
+                .andExpect(jsonPath("$.events[1].reactsToEventId").hasJsonPath())
+                .andExpect(jsonPath("$.events[1].reactsToEventId").isEmpty())
+                .andExpect(jsonPath("$.events[2].reactsToEventId").value(4121));
+        mvc.perform(get("/api/v1/issues/4101/timeline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].reactsToEventId").hasJsonPath())
+                .andExpect(jsonPath("$.events[0].reactsToEventId").isEmpty());
+    }
+
+    private void reactsTo(long eventId, long targetId) {
+        jdbc.sql("update event set role='REACTION', reacts_to_event_id=:target where id=:id")
+                .param("target", targetId)
+                .param("id", eventId)
+                .update();
+    }
+
     @Test
     void existingEmptyIssueReturnsZeroHeaderAndEmptyTimeline() throws Exception {
         mvc.perform(get("/api/v1/issues/4800"))

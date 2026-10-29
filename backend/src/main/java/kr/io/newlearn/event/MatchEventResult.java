@@ -2,28 +2,33 @@ package kr.io.newlearn.event;
 
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 
-// W1 MATCH_EVENT 결과(봉투의 result) — docs/api-internal.md 5절 (Jira 35, 사건 역할 Jira 130)
+// W1 MATCH_EVENT 결과(봉투의 result) — docs/api-internal.md 5절 (Jira 35, 사건 역할 Jira 130, 반응 대상 사건 번호 Jira 134)
 // 저장할 수 없으면 거절한다(400, 한 번 다시). 맞지 않는 짝 칸(EXISTING 의 newEvent, NEW 의 eventId)은 읽지 않는다.
-// eventId 가 보낸 후보 안인지는 작업의 candidates 를 봐야 해서 처리기(MatchEventResultHandler)가 본다
+// eventId · reactsToEventId 가 보낸 후보 안인지는 작업의 candidates 를 봐야 해서 처리기(MatchEventResultHandler)가 본다
 // eventId 는 EXISTING 일 때만, newEvent 는 NEW 일 때만 채운다
 public record MatchEventResult(
         Decision decision, @Nullable Long eventId, @Nullable NewEvent newEvent, String reason) {
+
+    private static final Logger log = LoggerFactory.getLogger(MatchEventResult.class);
 
     public enum Decision {
         EXISTING,
         NEW
     }
 
-    // 사건 이름 · 키워드 · 요약 · 역할 · 반응 대상. 길이는 프롬프트로 맞추고 API 는 막지 않는다(넘치면 화면이 줄임표로 자름)
-    // reactsTo 는 REACTION 일 때만 채운다
+    // 사건 이름 · 키워드 · 요약 · 역할 · 반응 대상(한 줄 · 사건 번호). 길이는 프롬프트로 맞추고 API 는 막지 않는다(넘치면 화면이 줄임표로 자름)
+    // reactsTo · reactsToEventId 는 REACTION 일 때만 채운다
     public record NewEvent(
             String title,
             String label,
             String summary,
             EventRole role,
-            @Nullable String reactsTo) {}
+            @Nullable String reactsTo,
+            @Nullable Long reactsToEventId) {}
 
     public static MatchEventResult read(JsonNode result) {
         if (!result.isObject()) {
@@ -56,12 +61,14 @@ public record MatchEventResult(
             throw invalid("NEW 인데 newEvent 가 없다");
         }
         var role = role(newEvent.path("role"));
+        boolean reaction = role == EventRole.REACTION;
         return new NewEvent(
                 text(newEvent.path("title"), "newEvent.title"),
                 text(newEvent.path("label"), "newEvent.label"),
                 text(newEvent.path("summary"), "newEvent.summary"),
                 role,
-                role == EventRole.REACTION ? keptOrNull(newEvent.path("reactsTo")) : null);
+                reaction ? keptOrNull(newEvent.path("reactsTo")) : null,
+                reaction ? targetOrNull(newEvent.path("reactsToEventId")) : null);
     }
 
     // 역할을 모르면 타임라인 레인을 정할 수 없어 거절한다. 값 목록은 대문자라 소문자 · 레인 이름(SUB)도 거절 (docs/api.md 1절)
@@ -82,6 +89,18 @@ public record MatchEventResult(
             return null;
         }
         return node.stringValue();
+    }
+
+    // 반응 대상 사건 번호는 선택 값이라 정수가 아니면(글자 · 소수) 거절하지 않고 버린다 — 화면은 점선만 안 그린다.
+    // 없거나 null 이면 「이슈 전반」에 대한 반응이라 조용히 받고, 그 밖은 판정이 지어낸 값일 수 있어 경고를 남긴다(AI 팀장 제안)
+    private static @Nullable Long targetOrNull(JsonNode node) {
+        if (node.isInt() || node.isLong()) {
+            return node.longValue();
+        }
+        if (!node.isMissingNode() && !node.isNull()) {
+            log.warn("반응 대상 사건 번호가 정수가 아니라 null 로 받는다: reactsToEventId={}", node);
+        }
+        return null;
     }
 
     // 비거나 공백뿐이면 거절. U+0000 은 PostgreSQL text · jsonb 가 받지 않아 저장에서 500 이 나므로 거절 — EXTRACT 와 같은 기준

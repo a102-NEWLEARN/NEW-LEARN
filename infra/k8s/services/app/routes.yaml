@@ -19,6 +19,36 @@ spec:
       backendRefs:
         - name: backend
           port: 8080
+    # 주소별 요청 수 상한을 붙이는 길 셋 (ratelimit.yaml, Jira S15P31A102-135) — 이름은 그 파일의 sectionName 이다
+    # 정확 경로(Exact)가 위 /api 접두사보다 먼저 고른다(Gateway API 규칙 우선순위). 가는 곳은 같은 backend 다
+    # 용어사전은 메서드를 가리지 않는다 — GET 만 걸면 HEAD 로 같은 결과를 받아 가는 길이 남는다
+    - name: dictionary
+      matches:
+        - path:
+            type: Exact
+            value: /api/v1/dictionary
+      backendRefs:
+        - name: backend
+          port: 8080
+    - name: login
+      matches:
+        - path:
+            type: Exact
+            value: /api/v1/auth/login
+          method: POST
+      backendRefs:
+        - name: backend
+          port: 8080
+    # 가입만 — GET /api/v1/members/me(내 정보)는 경로가 달라 위 /api 로 간다
+    - name: signup
+      matches:
+        - path:
+            type: Exact
+            value: /api/v1/members
+          method: POST
+      backendRefs:
+        - name: backend
+          port: 8080
     # 헬스는 이 한 경로만 연다 — 다른 actuator 경로는 밖에 안 연다
     - matches:
         - path:
