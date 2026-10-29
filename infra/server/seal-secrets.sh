@@ -11,6 +11,7 @@
 #   bash infra/server/seal-secrets.sh pg-backup-s3  DB 주간 백업을 S3 에 올리는 키(올리기만 되는 IAM 사용자) · 버킷 이름 → data
 #   bash infra/server/seal-secrets.sh gms           AI 워커가 SSAFY GMS 를 부를 키 — 봉인 전에 그 키로 GMS 를 불러 본다 → ai
 #   bash infra/server/seal-secrets.sh internal-api  직원용 문(/internal/v1) 출입증 — 워커 · 배치 키를 무작위로 만든다(묻지 않음) → app 에 둘 · ai 에 워커 키
+#   bash infra/server/seal-secrets.sh stdict        용어사전(A19)이 표준국어대사전을 부를 키 — 봉인 전에 그 키로 「나무」를 찾아본다 → app
 # 만든 파일은 관리자 PC 로 가져와 저장소의 자리에 넣고 커밋한다 (봉인 파일은 저장소에 둬도 된다)
 #   ssh <EC2> 'cat ~/sealed/sealed-basic-auth-argocd.yaml' > infra/k8s/admin-ui/sealed-basic-auth-argocd.yaml
 # 봉인은 Secret 이름 · 네임스페이스에 묶인다(strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다
@@ -19,7 +20,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,13p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,14p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -223,6 +224,36 @@ case "${1:-}" in
     echo "관리자 PC 로 가져와 infra/k8s/services/app/sealed-internal-api.yaml · infra/k8s/services/ai/sealed-internal-api.yaml 로 (두 kustomization.yaml 의 resources 에도 한 줄씩)"
     # env 는 컨테이너가 뜰 때만 읽는다 — 봉인 파일만 넣는 MR 은 Pod 를 바꾸지 않는다
     echo "Secret 이 풀린 뒤: kubectl -n app rollout restart deploy/backend && kubectl -n ai rollout restart deploy/ai"
+    ;;
+  stdict)
+    need_tty
+    # backend 의 용어사전(A19)이 국립국어원 표준국어대사전 Open API 를 부를 키 — backend Deployment 의 STDICT_API_KEY 가 이 이름 · 키를 읽는다 (docs/api-screen.md A19, Jira 102)
+    # 키는 사전 누리집 「오픈 API 사용 신청」 화면에 있다(계정당 하나, 하루 50,000건)
+    read -rsp "표준국어대사전 인증 키 (화면에 안 보인다): " key
+    echo
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    # 공식 안내의 키 모양 — 16진수 32자리
+    [[ "$key" =~ ^[0-9A-Fa-f]{32}$ ]] || { unset key; echo "❌ 16진수 32자리가 아니다 — 복사한 키를 확인한다" >&2; exit 2; }
+    # 봉인하기 전에 이 키로 결과가 있는 낱말(「나무」)을 찾아본다. 틀린 키는 오류가 아니라 결과 없음과 같은 200 + 빈 본문이 와서
+    # (2026-10-29 확인) 앱은 틀린 키를 못 가린다 — 여기서 「word」 칸이 있는 답을 받아야 봉인한다
+    # 키가 주소의 쿼리에 실려서 curl 설정(url 한 줄)을 표준 입력으로 넘긴다(ps 에 안 보임). q 는 「나무」를 UTF-8 로 인코딩한 값
+    resp="$(printf 'url = "https://stdict.korean.go.kr/api/search.do?key=%s&q=%%EB%%82%%98%%EB%%AC%%B4&req_type=json"\n' "$key" \
+      | curl -s -w '\n%{http_code}' --max-time 15 -K - || true)"
+    code="${resp##*$'\n'}"
+    body="${resp%$'\n'*}"
+    # 본문은 찍지 않는다 — 길이만. grep -q 파이프는 printf 를 SIGPIPE 로 죽일 수 있어 셸 패턴으로 본다
+    if [ "$code" = 200 ] && [[ "$body" == *'"word"'* ]]; then
+      echo "표준국어대사전 키 확인 — 「나무」 결과를 받았다"
+    else
+      unset key
+      echo "❌ 이 키로 「나무」를 찾지 못했다 (HTTP $code, 본문 ${#body}자) — 봉인하지 않는다. 틀린 키는 빈 본문(0자)이 온다" >&2
+      exit 1
+    fi
+    printf '%s' "$key" | seal stdict-api app STDICT_API_KEY "$OUT/sealed-stdict-api.yaml"
+    unset key resp body
+    echo "관리자 PC 로 가져와 infra/k8s/services/app/sealed-stdict-api.yaml 로 (kustomization.yaml 의 resources 에도 한 줄)"
+    # env 는 컨테이너가 뜰 때만 읽는다 — 봉인 파일만 넣는 MR 은 Pod 를 바꾸지 않는다
+    echo "Secret 이 풀린 뒤: kubectl -n app rollout restart deploy/backend"
     ;;
   *)
     usage

@@ -14,7 +14,7 @@
   — `candidatesAreTheNearestFiveEvents` · `messageCarriesThePrimaryEventAndCandidateEvidence` · `matchIsQueuedEvenWithoutCandidates` · `CandidateEventFinderTest.similarityIsOneMinusDistanceClampedToZeroAndOne` · `MindmapContentTest.coreReturnsTheCoreLeafAtTheIndexOrNull`
 - AC-5: `EXISTING` 이면 기사가 그 사건에 붙고 사건의 이름 · 키워드 · 요약은 그대로다. 사건 시점이 발행 시각으로 채운 것(`FIRST_PUBLISHED`)이고 붙는 기사가 더 이르면 그 발행 시각으로 당긴다. 본문에서 뽑은 시점(`EXTRACTED`)은 당기지 않고, 더 늦은 기사가 붙어도 늦추지 않는다
   — `existingLinksTheArticleAndKeepsTheEvent` · `existingPullsAFirstPublishedOccurredAtEarlier` · `theNextArticleSeesTheEventTheFirstOneCreated`
-- AC-6: `NEW` 면 사건을 만들고(발생 시점 = EXTRACT 가 뽑은 시점 · `EXTRACTED`, 없으면 이 기사의 발행 시각 · `FIRST_PUBLISHED`, 이슈는 비움) 기사를 붙이고 ISSUE 작업을 만든다. ISSUE 메시지 공장은 Jira 40 이라 큐에는 아직 넣지 않는다
+- AC-6: `NEW` 면 사건을 만들고(발생 시점 = EXTRACT 가 뽑은 시점 · `EXTRACTED`, 없으면 이 기사의 발행 시각 · `FIRST_PUBLISHED`, 이슈는 비움) 기사를 붙이고 ISSUE 작업을 후보 없이 만든다. 그 작업을 큐에 넣는 일은 ISSUE 고르기 몫이다(`F07-issue-assign.md`)
   — `newCreatesTheEventAndAnIssueJob` · `newWithoutAnExtractedTimeUsesThePublishedTime`
 - AC-7: 판정 기록 `{reason, model, promptVersion}` 이 `analysis_job.result` 에 남는다
   — `existingLinksTheArticleAndKeepsTheEvent` · `newCreatesTheEventAndAnIssueJob`
@@ -24,8 +24,8 @@
   — `existingLinksTheArticleAndKeepsTheEvent`(A8 을 불러 봄) · `ArticleApiIntegrationTest.statusesAndOptionalRelationsFollowStoredFacts`
 - AC-10: 후보 찾기 시간을 1만 7천 건 정확 검색으로 잰 값이 `SSOT.md` 10절에 있다
   — 2026-10-27 줄(데워진 뒤 중앙값 약 77ms)
-- AC-11(구현 중 더함): 1분 스케줄러의 「못 넣은 작업 넣기」는 메시지 공장이 있는 단계만 읽는다. 공장이 없는 단계(Jira 40 전의 ISSUE)의 작업이 한 번에 읽는 수(100)를 채워도 다른 단계의 작업이 막히지 않는다
-  — `AnalysisJobQueueIntegrationTest.jobsWithoutAMessageFactoryDoNotCrowdOutOthers`
+- AC-11(구현 중 더함): 1분 스케줄러의 「못 넣은 작업 넣기」는 넣을 작업만 읽는다. 넣지 않는 작업(Jira 40 전에는 메시지 공장이 없던 ISSUE, 지금은 후보가 빈 ISSUE 대기 작업)이 한 번에 읽는 수(100)를 채워도 다른 단계의 작업이 막히지 않는다
+  — `AnalysisJobQueueIntegrationTest.waitingIssueJobsDoNotCrowdOutOthers`(Jira 40 에서 이름을 바꿈)
 - AC-12(Jira 130, 2026-10-28): `NEW` 면 `newEvent.role`(`MAIN` · `REACTION`)과 `reactsTo` 를 사건에 저장한다. `role` 이 없거나 모르는 값(소문자 포함)이면 400. `REACTION` 의 `reactsTo` 가 비었거나 U+0000 이면 null, `MAIN` 의 `reactsTo` 는 읽지 않는다. `EXISTING` 의 `newEvent` 는 `role` 까지 읽지 않는다
   — `newStoresTheRoleAndWhatItReactsTo` · `newWithoutAKnownRoleIsRejected` · `aReactsToThatCannotBeKeptIsStoredAsNull` · `existingIgnoresTheNewEventRole`
 
@@ -33,14 +33,14 @@
 
 - 판정을 거는 곳은 `MatchDispatcher` 하나다. 처리기 안에서 걸지 않고, 커밋이 끝난 상태만 보고 다음 기사를 고른다. W1 처리 뒤(성공 · 실패 모두)와 1분 스케줄러가 새 트랜잭션에서 부른다. API Pod 둘이 같이 골라도 트랜잭션 잠금(`pg_advisory_xact_lock`) 하나로 줄을 선다. 같은 기사를 두 번 거는 일은 `unique (article_id, stage)` 가 먼저 막아서, 동시 시험은 잠금이 없어도 초록이다 — 잠금이 막는 것(서로 다른 두 기사를 동시에 거는 것)은 시험으로 재현하지 못했다
 - 판정 하나가 다시 걸 예정으로 남으면 뒤 판정이 모두 기다린다. 다시 걸기는 최대 3번이고 가장 긴 간격이 5분 + 15분이라, 약 20분 뒤 멈춘 실패가 되면 넘어간다. 기다리는 동안 「판정 고르기 기다림: 판정 작업 N」 로그가 남는다
-- **`QUEUED` 인 판정에 W1 이 끝내 안 오면 판정 줄 전체가 멈춘다**(넣은 뒤 메시지를 잃음 · 워커가 W1 없이 ack). 저절로 풀지 않는다 — 30분이 넘으면 WARN 「판정 줄이 멈췄을 수 있다」를 남기고, 푸는 법(그 작업의 `published_at` 을 비워 다시 넣기)은 `api-internal.md` 3절에 있다
+- **`QUEUED` 인 판정에 W1 이 끝내 안 오면 판정 줄 전체가 멈춘다**(넣은 뒤 메시지를 잃음 · 워커가 W1 없이 ack). 저절로 풀지 않는다 — 40분이 넘으면 WARN 「판정 줄이 멈췄을 수 있다」를 남기고, 푸는 법(그 작업의 `published_at` 을 비워 다시 넣기)은 `api-internal.md` 3절에 있다
 - 받은 글자를 오류 문구에 붙일 때는 JSON 노드로 찍는다. 날것으로 붙이면 U+0000 이 실패 기록(`error_message`)에 들어가 DB 가 거절하고, 400 대신 500 이 나 작업이 `QUEUED` 로 남는다
 - 사건 시점 당기기는 엔티티를 고쳐 저장하지 않고 조건부 갱신 한 줄(`EventRepository.pullOccurredAt`)로 한다. 엔티티를 저장하면 Hibernate 가 모든 칸을 다시 써서, 그사이 이슈 붙이기(Jira 40)가 바꾼 `issue_id` 를 옛 값으로 덮을 수 있다
 - 벡터는 엔티티로 매핑하지 않고 `JdbcClient` 와 pgvector 글자 표기(`cast(:vector as vector)`)로 저장 · 비교한다 — Hibernate 벡터 의존성 없이
 
 ## 이 티켓에서 하지 않는 것
 
-- ISSUE 메시지 · 이슈 붙이기 · 만들기 · ISSUE 를 한 번에 하나씩 거는 고르기 — Jira 40. 35 가 만든 ISSUE 작업은 「걸 차례를 기다리는」 표시다(`api-internal.md` 3절)
+- ISSUE 메시지 · 이슈 붙이기 · 만들기 · ISSUE 를 한 번에 하나씩 거는 고르기 — Jira 40(`F07-issue-assign.md`). 35 가 만든 ISSUE 작업은 「걸 차례를 기다리는」 대기 작업이다(`api-internal.md` 3절)
 - 판정 기준 · 프롬프트 · 임베딩 입력 길이 — AI 팀. HNSW 인덱스 — 잰 값이 느릴 때 따로
 - 다시 분석 · 판정을 다시 거는 길(API · 화면)
 - 워커가 EMBED · MATCH_EVENT 결과를 만드는 코드 — AI 팀. 받을 때 보는 것은 `api-internal.md` 5절에 두었다

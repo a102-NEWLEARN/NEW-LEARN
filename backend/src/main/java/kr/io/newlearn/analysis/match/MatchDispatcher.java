@@ -26,7 +26,7 @@ public class MatchDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(MatchDispatcher.class);
 
-    // 판정 고르기를 줄 세우는 트랜잭션 잠금(pg_advisory_xact_lock)의 키. 이 앱이 쓰는 advisory lock 은 이것 하나다
+    // 판정 고르기를 줄 세우는 트랜잭션 잠금(pg_advisory_xact_lock)의 키. ISSUE 고르기는 40(IssueDispatcher)
     static final long LOCK = 35L;
 
     // 판정이 이만큼 QUEUED 면 멈춘 것으로 보고 WARN. 건강한 판정은 워커 상한(15분) 안에 끝나고, 처리 중 워커가 죽어도
