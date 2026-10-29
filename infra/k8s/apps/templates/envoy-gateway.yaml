@@ -17,6 +17,36 @@ spec:
     repoURL: docker.io/envoyproxy
     chart: gateway-helm
     targetRevision: v1.9.2
+    helm:
+      # 주소별 요청 수 상한을 global 로 센다 — 상한 서비스(envoy-ratelimit)를 띄우고 Redis 에 센다 (Jira S15P31A102-135, services/app/ratelimit.yaml)
+      # local 상한의 「IP 마다」(sourceCIDR Distinct)가 이 판(v1.9.2 · Envoy 1.39.1)에서 동작하지 않았다 — 2026-10-29 실측, SSOT 6절 「외부 입구」
+      # 차트 기본값(config.envoyGateway 의 provider · gateway 등)은 Helm 이 이 값과 합친다
+      valuesObject:
+        config:
+          envoyGateway:
+            rateLimit:
+              # 상한 서비스를 못 부르면 요청을 통과시킨다(failClosed 기본 false) — 사이트는 돌고 상한만 풀린다
+              backend:
+                type: Redis
+                redis:
+                  # 세션 · 작업 큐와 같은 Redis(data/redis.yaml). 상한 키는 1분 만료라 양이 작다. 들어오는 길은 data/netpol.yaml
+                  url: redis.data.svc.cluster.local:6379
+            provider:
+              kubernetes:
+                rateLimitDeployment:
+                  container:
+                    # 기본값(요청 메모리 512Mi)이 커서 줄인다 — 실제 사용량은 SSOT 10절
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 64Mi
+                      limits:
+                        memory: 256Mi
+        deployment:
+          pod:
+            annotations:
+              # 차트는 설정(ConfigMap)이 바뀌어도 컨트롤러를 다시 띄우지 않는다 — 위 config 를 바꾸면 이 값을 올려 새로 뜨게 한다
+              newlearn.io/config-revision: "ratelimit-global-1"
   destination:
     server: https://kubernetes.default.svc
     namespace: envoy-gateway-system
