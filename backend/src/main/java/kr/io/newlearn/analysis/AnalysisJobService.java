@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
+import kr.io.newlearn.analysis.issue.IssueDispatcher;
 import kr.io.newlearn.analysis.match.MatchDispatcher;
 import kr.io.newlearn.analysis.queue.AnalysisMessageFactory;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
@@ -49,6 +50,7 @@ public class AnalysisJobService {
     private final ApplicationEventPublisher events;
     private final JobPublisher publisher;
     private final MatchDispatcher matches;
+    private final IssueDispatcher issues;
     private final TransactionTemplate transaction;
 
     public AnalysisJobService(
@@ -58,10 +60,12 @@ public class AnalysisJobService {
             ApplicationEventPublisher events,
             JobPublisher publisher,
             MatchDispatcher matches,
+            IssueDispatcher issues,
             PlatformTransactionManager transactions) {
         this.jobs = jobs;
         this.handlers = handlers;
         this.matches = matches;
+        this.issues = issues;
         for (AnalysisMessageFactory factory : factories) {
             for (AnalysisStage stage : factory.stages()) {
                 if (messages.put(stage, factory) != null) {
@@ -102,7 +106,8 @@ public class AnalysisJobService {
     }
 
     // W1 — 이번 시도의 결과를 저장한다. 처리기가 결과를 거절하면(ResultSchemaInvalidException) 처리기가 쓴 것은 되돌리고,
-    // 새 트랜잭션에서 RESULT_SCHEMA_INVALID 로 실패를 남긴 뒤(바로 한 번 더 건다) 400 을 준다.
+    // 새 트랜잭션에서 RESULT_SCHEMA_INVALID 로 실패를 남긴 뒤(바로 한 번 더 건다) 400 을 준다. 결과는 맞는데 그사이 저장할 상태가
+    // 바뀌었으면(ResultConflictException, ISSUE) 같은 식으로 JOB_STATE_CONFLICT 를 남기고(바로 다시, 시도 3까지) 409 를 준다.
     // 그 밖의 예상 밖 오류(처리기 버그 · 처리기 없음)는 INTERNAL 로 실패를 남기고 500 — 남기지 않으면 작업이 QUEUED 로 남아
     // 워커가 메시지를 다시 가져갈 때마다 GMS 를 상한 없이 부른다
     public void receiveResult(long jobId, JobResultRequest request) {
@@ -141,14 +146,27 @@ public class AnalysisJobService {
                     request.finishedAtOr(now),
                     now));
             throw new ApiException(ErrorCode.RESULT_SCHEMA_INVALID, e.getMessage());
+        } catch (ResultConflictException e) {
+            // ISSUE 결과는 맞는데 그사이 사건 · 이슈가 바뀌었다 — 처리기가 쓴 것은 되돌아갔다. JOB_STATE_CONFLICT 로 실패를 남기면
+            // 정책상 바로 다시 걸린다(시도 3까지). 워커는 409 를 받고 ack 한다 (api-internal.md 5절, Jira 40)
+            transaction.executeWithoutResult(status -> recordFailure(
+                    lockCurrentAttempt(jobId, attempt),
+                    ErrorCode.JOB_STATE_CONFLICT.name(),
+                    e.getMessage(),
+                    request.startedAtOr(now),
+                    request.finishedAtOr(now),
+                    now));
+            throw new ApiException(ErrorCode.JOB_STATE_CONFLICT, e.getMessage());
         } catch (ApiException e) {
             throw e; // 404 · 409 — 작업을 건드리지 않는다
         } catch (RuntimeException e) {
             recordUnexpected(jobId, attempt, request, now, e);
             throw e;
         } finally {
-            // 성공 · 실패 모두 — 판정이 끝났거나 멈췄으면 다음 기사를, EXTRACT · EMBED 가 끝났으면 이 기사를 걸 차례일 수 있다
+            // 성공 · 실패 모두 — 판정이 끝났거나 멈췄으면 다음 기사를, EXTRACT · EMBED 가 끝났으면 이 기사를 걸 차례일 수 있다.
+            // 판정이 새 사건을 만들었거나 ISSUE 가 끝났거나 멈췄으면 다음 ISSUE 를 걸 차례일 수 있다
             dispatchMatchQuietly();
+            dispatchIssueQuietly();
         }
     }
 
@@ -188,6 +206,11 @@ public class AnalysisJobService {
         transaction.executeWithoutResult(status -> matches.next().ifPresent(job -> queueAfterCommit(List.of(job))));
     }
 
+    // 다음 ISSUE 고르기(Jira 40) — 고른 ISSUE 작업을 커밋 뒤 큐에 넣는다. W1 을 처리한 뒤와 1분 스케줄러가 부른다
+    public void dispatchIssue() {
+        transaction.executeWithoutResult(status -> issues.next().ifPresent(job -> queueAfterCommit(List.of(job))));
+    }
+
     // W1 뒤에 고르다 실패해도 W1 응답은 그대로 둔다 — 1분 스케줄러가 다시 고른다
     private void dispatchMatchQuietly() {
         try {
@@ -197,7 +220,25 @@ public class AnalysisJobService {
         }
     }
 
-    // 실패를 남기고 다시 걸 때(retry_at)를 정한다. 바로 걸 코드(RESULT_SCHEMA_INVALID)면 그 자리에서 건다.
+    private void dispatchIssueQuietly() {
+        try {
+            dispatchIssue();
+        } catch (RuntimeException e) {
+            log.warn("W1 뒤 ISSUE 고르기를 건너뛴다 — 1분 스케줄러가 다시 고른다", e);
+        }
+    }
+
+    // 실패한 작업을 attempt + 1 로 다시 건 뒤(트랜잭션 안) — 단계 공장이 바로 넣으라면 커밋 뒤 큐에 넣는다.
+    // ISSUE 는 후보를 비워 대기 작업으로 돌아가고 고르기가 다시 고른다(IssueMessageFactory.requeueNow)
+    private void queueRequeued(AnalysisJob job) {
+        AnalysisMessageFactory factory = messages.get(job.getStage());
+        if (factory == null || factory.requeueNow(job)) {
+            queueAfterCommit(List.of(job));
+        }
+    }
+
+    // 실패를 남기고 다시 걸 때(retry_at)를 정한다. 바로 걸 코드(RESULT_SCHEMA_INVALID · JOB_STATE_CONFLICT)면 그 자리에서 건다 —
+    // ISSUE 는 큐에 바로 넣지 않고 대기 작업으로 돌아간다(queueRequeued).
     // 간격은 API 가 실패를 받은 때부터 잰다 — 워커 시계가 틀려도 밀리지 않게
     private void recordFailure(
             AnalysisJob job,
@@ -213,7 +254,7 @@ public class AnalysisJobService {
         job.fail(code, message, startedAt, finishedAt, retryAt);
         if (decision.kind() == RetryPolicy.Kind.NOW) {
             job.requeue(now);
-            queueAfterCommit(List.of(job));
+            queueRequeued(job);
         }
     }
 
@@ -234,7 +275,7 @@ public class AnalysisJobService {
                     if (changed != 1) {
                         return false; // 다른 Pod 가 먼저 걸었다
                     }
-                    queueAfterCommit(List.of(jobs.findById(candidate.getId()).orElseThrow()));
+                    queueRequeued(jobs.findById(candidate.getId()).orElseThrow());
                     return true;
                 });
                 if (Boolean.TRUE.equals(done)) {
@@ -252,9 +293,12 @@ public class AnalysisJobService {
     // 이번 차례를 끝낸다 — Redis 가 끊겼으면 나머지도 못 넣는다
     public int publishUnpublished(Instant now) {
         int published = 0;
-        List<AnalysisJob> candidates =
-                jobs.findByStatusAndPublishedAtIsNullAndQueuedAtBeforeAndStageInOrderByQueuedAtAsc(
-                        AnalysisJobStatus.QUEUED, now.minus(UNPUBLISHED_AFTER), messages.keySet(), Limit.of(BATCH));
+        List<AnalysisJob> candidates = jobs.findUnpublished(
+                AnalysisJobStatus.QUEUED,
+                now.minus(UNPUBLISHED_AFTER),
+                messages.keySet(),
+                AnalysisStage.ISSUE,
+                Limit.of(BATCH));
         for (AnalysisJob candidate : candidates) {
             AnalysisMessageFactory factory = messages.get(candidate.getStage());
             if (factory == null) {

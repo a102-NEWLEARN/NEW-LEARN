@@ -28,6 +28,10 @@ class RetryPolicyTest {
                 Arguments.of("INTERNAL", 2, Kind.STOP, null),
                 Arguments.of("RESULT_SCHEMA_INVALID", 1, Kind.NOW, Duration.ZERO),
                 Arguments.of("RESULT_SCHEMA_INVALID", 2, Kind.STOP, null),
+                // ISSUE 저장 때 그사이 상태가 바뀜 — 바로, 시도 3까지 (Jira 40)
+                Arguments.of("JOB_STATE_CONFLICT", 1, Kind.NOW, Duration.ZERO),
+                Arguments.of("JOB_STATE_CONFLICT", 2, Kind.NOW, Duration.ZERO),
+                Arguments.of("JOB_STATE_CONFLICT", 3, Kind.STOP, null),
                 // 다시 걸지 않는 코드 · 모르는 코드 · 코드 없음
                 Arguments.of("LLM_INPUT_TOO_LONG", 1, Kind.STOP, null),
                 Arguments.of("LLM_REFUSED", 1, Kind.STOP, null),

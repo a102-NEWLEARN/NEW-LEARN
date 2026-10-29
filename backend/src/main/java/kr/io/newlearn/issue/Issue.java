@@ -37,4 +37,9 @@ public class Issue {
         this.title = title;
         this.summary = summary;
     }
+
+    // ISSUE ATTACH — 새 사건까지 넣어 다시 지은 요약으로 덮어쓴다. 이름은 바꾸지 않는다 (api-internal.md 5절)
+    public void rewriteSummary(String summary) {
+        this.summary = summary;
+    }
 }
