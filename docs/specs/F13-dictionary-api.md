@@ -11,7 +11,8 @@
 - AC-6: Redis 저장 · 읽기가 실패해도(가득 참 · 끊김 · 깨진 값) 사전 결과를 그대로 준다.
 - AC-7: 인증 키는 응답 · 예외 설명 · 로그에 나오지 않는다. 검색어와 사전이 준 오류 문구를 로그에 남기지 않는다.
 - AC-8: Swagger 에 「용어사전」 태그 · `q` 설명 · 400 · 502 Problem 예시가 있다. 실제 응답을 확인해 `[확정] A19` 를 붙였다.
+- AC-9(Jira 135, 2026-10-29): 사전을 부르려 한 수(사전 오류 포함)를 한국 날짜 단위로 세어 하루 한도(설정 `newlearn.dictionary.daily-limit`, 사이트 45,000 — Open API 한도 50,000 의 90%)를 넘으면 사전을 부르지 않고 502 `DICTIONARY_UNAVAILABLE` 이다. 저장해 둔 결과는 세지 않는다. 세는 키 `dictquota:<날짜>` 에는 만료(2일)가 있고 검색어 키와 섞이지 않는다. Redis 가 실패하면 세지 않고 부른다.
 
-시험: AC-1 · 2 · 3 · 5 는 `DictionaryApiIntegrationTest`, AC-4 · 7 은 `dictionary/StdictClientTest`, AC-6 은 `dictionary/DictionaryCacheTest`, AC-8 은 `OpenApiDocsTest`.
+시험: AC-1 · 2 · 3 · 5 는 `DictionaryApiIntegrationTest`, AC-4 · 7 은 `dictionary/StdictClientTest`, AC-6 은 `dictionary/DictionaryCacheTest`, AC-8 은 `OpenApiDocsTest`, AC-9 는 `DictionaryQuotaIntegrationTest` · `dictionary/DictionaryQuotaTest`.
 
 실제 키로 확인한 것(2026-10-29, 나무 · 구원투수 · 사과 · 먹다 · 뷁뷁뷁): 칸은 공식 예시와 같다. 표제어마다 첫 뜻풀이 하나(`sense` 객체)가 온다. 구 표제어 품사는 「품사 없음」 글자다. 결과 없음은 200 + 빈 본문이다(틀린 키와 같음). 하루 한도는 50,000건이다(신청 화면 안내).

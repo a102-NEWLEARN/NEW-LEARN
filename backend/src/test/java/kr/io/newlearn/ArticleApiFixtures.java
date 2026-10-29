@@ -6,6 +6,15 @@ final class ArticleApiFixtures {
     private ArticleApiFixtures() {}
 
     static void insert(JdbcClient jdbc) {
+        insert(jdbc, true);
+    }
+
+    // 사건 역할 칸(V8)이 생기기 전 스키마 — CoreSchemaTest(V2) · BookmarkSchemaTest(V6). V10 부터 role 에 기본값이 없어 지금 스키마에는 꼭 넣는다
+    static void insertBeforeEventRole(JdbcClient jdbc) {
+        insert(jdbc, false);
+    }
+
+    private static void insert(JdbcClient jdbc, boolean eventRole) {
         jdbc.sql("insert into press values ('article42', '테스트신문')").update();
         for (int n = 1; n <= 11; n++) {
             jdbc.sql("""
@@ -47,11 +56,13 @@ final class ArticleApiFixtures {
         job(jdbc, 4211, "EXTRACT", "QUEUED");
         jdbc.sql("insert into issue(id,title,created_at,updated_at) values (4200,'이슈',now(),now())")
                 .update();
+        String role = eventRole ? ",role" : "";
+        String main = eventRole ? ",'MAIN'" : "";
         jdbc.sql("""
-                insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at)
-                values (4200,4200,'사건','키워드','2026-10-20T00:00:00Z','EXTRACTED',now(),now()),
-                       (4201,null,'이슈 밖 사건','독립','2026-10-20T00:00:00Z','EXTRACTED',now(),now())
-                """).update();
+                insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at%s)
+                values (4200,4200,'사건','키워드','2026-10-20T00:00:00Z','EXTRACTED',now(),now()%s),
+                       (4201,null,'이슈 밖 사건','독립','2026-10-20T00:00:00Z','EXTRACTED',now(),now()%s)
+                """.formatted(role, main, main)).update();
         jdbc.sql("insert into article_event values (4201,4200,now()),(4206,4201,now())")
                 .update();
     }
