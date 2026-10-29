@@ -4,7 +4,7 @@ import type { Category } from "@/api/categories";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
 import type { IssueSummary } from "@/api/issues";
-import type { Member } from "@/api/members";
+import type { Member, SignUpRequest } from "@/api/members";
 import type { BranchType, Mindmap, MindmapBranch } from "@/api/mindmap";
 import type { SearchResult } from "@/api/search";
 import type { Timeline, TimelineEvent } from "@/api/timeline";
@@ -311,6 +311,12 @@ const me: Member = {
     { code: "it_science", name: "IT·과학" },
   ],
 };
+
+// A14 · A18 — 회원 정보의 관심 분야. 겹친 코드는 하나로, 순서는 A1 순서다 (docs/api-screen.md 1절 「회원 정보」)
+const memberCategories = (codes: string[]) =>
+  categories
+    .filter((category) => codes.includes(category.code))
+    .map(({ code, name }) => ({ code, name }));
 
 // 오류 응답 — Problem Details + code (docs/api.md 2절)
 function problem(
@@ -820,6 +826,34 @@ export const handlers = [
       );
     }
     return HttpResponse.json(mindmapOf(found.article));
+  }),
+  // A14 · A15 · A16 · A18 — 가짜 API 는 상태를 기억하지 않는다. 가입 · 로그인은 늘 성공하고 관심 분야를 바꿔도
+  // A17 은 그대로다. 오류(400 · 401 · 409 · 429)는 테스트에서 server.use 로 바꿔 본다
+  http.post("/api/v1/members", async ({ request }) => {
+    const body = (await request.json()) as SignUpRequest;
+    return HttpResponse.json(
+      {
+        id: 8,
+        loginId: body.loginId,
+        name: body.name,
+        categories: memberCategories(body.categoryCodes),
+      } satisfies Member,
+      { status: 201, headers: { Location: "/api/v1/members/me" } },
+    );
+  }),
+  http.post("/api/v1/auth/login", () => HttpResponse.json(me)),
+  http.post(
+    "/api/v1/auth/logout",
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+  http.put("/api/v1/members/me/categories", async ({ request }) => {
+    const { categoryCodes } = (await request.json()) as {
+      categoryCodes: string[];
+    };
+    return HttpResponse.json({
+      ...me,
+      categories: memberCategories(categoryCodes),
+    } satisfies Member);
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
   http.get("/api/v1/search", ({ request }) =>
