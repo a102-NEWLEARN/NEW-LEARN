@@ -1,4 +1,4 @@
-# 외부 입구 — EnvoyProxy · GatewayClass · Gateway · 인증서 발급자 · 인증서 · http→https 넘기기 (infra/k8s/gateway)
+# 외부 입구 — EnvoyProxy · GatewayClass · Gateway · 인증서 발급자 · 인증서 · http→https 넘기기 · 상한 판정 지표 수집 (infra/k8s/gateway)
 # envoy-gateway · cert-manager 앱이 CRD 를 깔기 전에는 실패한다. 그래서 dry-run 을 건너뛰고 다시 시도한다
 apiVersion: argoproj.io/v1alpha1
 kind: Application
