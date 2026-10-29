@@ -21,9 +21,9 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | AI 분석 워커 | FastAPI (Python) | 작업 큐 소비, 임베딩, LLM 호출(LangChain) |
 | LLM | SSAFY GMS (gpt-6-luna) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
 | DB | PostgreSQL + pgvector | 기사 원본, 분석 결과, 임베딩 저장·유사도 검색 |
-| 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐, 로그인 세션 |
+| 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐, 로그인 세션, 입구 요청 수 상한의 셈 |
 | 뉴스 수집 배치 | 운영 시 쿠버네티스 CronJob (구현 언어 미정) | NewsData.io 수집(하루 두 번 00 · 12시), 데이터셋 적재(검증용) |
-| 외부 입구 | Envoy Gateway | HTTPS 요청을 화면·API로 분배 |
+| 외부 입구 | Envoy Gateway (+ 상한 서비스 envoy-ratelimit) | HTTPS 요청을 화면·API로 분배, 주소별 요청 수 상한 |
 | 모니터링 | Prometheus, Grafana | 지표 수집, 대시보드 |
 
 언어·프레임워크 버전은 2026-10-18에 현재 안정 버전을 확인해 정했다. 목록은 `.claude/stack.md` 2절, 정확한 값은 각 영역의 매니페스트(`package.json`·`build.gradle`·`pyproject.toml`)와 `compose.yaml`의 이미지 태그다.
@@ -250,7 +250,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답. 실제 서버에서도 확인했다(2026-10-22, Jira S15P31A102-91) — 관리자 PC → SSAFY 도메인:80 → ufw → Envoy hostPort → hello
 - 한계: 워커가 1대라 80을 잡은 Envoy Pod가 둘일 수 없다. 기본 교체 전략(새 Pod 먼저)이면 새 Pod가 「free ports」 부족으로 Pending에 멈춘다 → 교체 전략을 maxSurge 0 · maxUnavailable 1(옛 Pod 먼저 내리기)로 둔다. 그래서 Envoy를 바꿀 때(Envoy Gateway 업그레이드 · EnvoyProxy 변경) 잠깐 끊긴다(잰 시간은 10절). 앱 배포는 Envoy를 재시작하지 않아 해당하지 않는다
 - 443도 같은 방식이다 — 컨테이너 10443 → hostPort 443 (2026-10-22, Jira S15P31A102-93)
-- 주소별 요청 수 상한(2026-10-29 사용자, Jira S15P31A102-135): 로그인 없이 부르는 A19 용어사전 · A15 로그인 · A14 가입을 손님 IP 마다 1분 100 · 20 · 10건으로 막는다. 무차별 대입 · 계정 찍어 내기 · 사전 하루 한도 소진을 앱이 아니라 입구에서 막으려는 것이다. Envoy 안에서 세는 local 상한이다 — Envoy Pod 가 하나라 바구니가 하나고, 손님 IP 는 hostPort 로 바로 받아 Envoy 가 본다(2026-10-29 접근 로그에서 서로 다른 공인 주소 41개 확인). 넘으면 Envoy 가 429 `RATE_LIMITED`(`Retry-After: 60`)를 만든다(`docs/api.md` 2절). 값은 `infra/k8s/services/app/ratelimit.yaml` · `routes.yaml`. 한계: 같은 공인 IP 를 여럿이 쓰면(발표장 와이파이) 바구니도 하나다. Envoy 가 다시 뜨면 센 수가 비워진다. 사전 하루 한도(50,000건)는 앱이 따로 센다(`docs/api-screen.md` A19)
+- 주소별 요청 수 상한(2026-10-29 사용자, Jira S15P31A102-135): 로그인 없이 부르는 A19 용어사전 · A15 로그인 · A14 가입을 손님 IP 마다 1분 100 · 20 · 10건으로 막는다. 무차별 대입 · 계정 찍어 내기 · 사전 하루 한도 소진을 앱이 아니라 입구에서 막으려는 것이다. global 상한이다 — Envoy 가 요청마다 상한 서비스(`envoy-ratelimit`, `envoy-gateway-system`)에 묻고 상한 서비스가 Redis(`data/redis`)에 센다. 처음엔 Envoy 안에서 세는 local 로 걸었지만 「IP 마다」(`sourceCIDR` `Distinct`)가 Envoy Gateway v1.9.2 에서 동작하지 않았다(2026-10-29 실측 — 102번 모두 통과, Envoy 통계 `rate_limited 0`). 손님 IP 는 hostPort 로 바로 받아 Envoy 가 본다(2026-10-29 접근 로그에서 서로 다른 공인 주소 41개 확인). 넘으면 Envoy 가 429 `RATE_LIMITED`(`Retry-After: 60`)를 만든다(`docs/api.md` 2절). 값은 `infra/k8s/services/app/ratelimit.yaml` · `routes.yaml`, 켜는 설정은 `infra/k8s/apps/templates/envoy-gateway.yaml` 의 Helm 값, Redis 로 가는 길은 `infra/k8s/services/data/netpol.yaml`. 한계: 상한 서비스나 Redis 가 죽으면 상한이 풀리고 요청은 통과한다(`failClosed` 기본 false — 사이트는 돈다). 같은 공인 IP 를 여럿이 쓰면(발표장 와이파이) 바구니도 하나다. Envoy Gateway 설정을 바꾸면 컨트롤러를 새로 띄워야 해서 Helm 값의 `newlearn.io/config-revision` 을 같이 올린다. 사전 하루 한도(50,000건)는 앱이 따로 센다(`docs/api-screen.md` A19)
 
 ### 도메인 · HTTPS
 
@@ -375,6 +375,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 2026-10-26 | 기사 · 이슈 응답은 누가 불러도 같다 → 로그인하면 `bookmarked` · `interested` 가 그 회원 기준(손님은 false). 이름 「스크랩」 → 「북마크」 | 사용자 결정(Jira S15P31A102-114) — 프로토타입 v21 이 기사 · 이슈마다 북마크 · 별표 상태를 보여 준다. 화면 문구는 UX 문서 규칙대로 「북마크」. 담기 · 빼기는 겹쳐도 그대로(`PUT` · `DELETE`, 응답은 바뀐 상태 200), 목록은 쪽 없이 전부, 화면 문구 고정 — FE 에 묻지 않고 정한 약속으로(`docs/api-screen.md` A20 ~ A25) |
 | 2026-10-26 | 기사가 화면에 보이는 때: B1 투입 때(분석 중으로 보임) → EXTRACT 결과를 처음 저장한 때 | 사용자 결정(Jira 34) — 분석이 끝난 기사부터 보이게. B1 은 분석만 건다. 화면의 「분석 중」은 기사 목록 · 상세에 나오지 않는다 |
 | 2026-10-28 | 관계 종류 선 · 새사실 태그를 그리지 않는다(2026-10-20 「선 종류 · 새사실 태그 없음」) → 관계 선 가운데 반응 점선 하나는 그린다 — 반응 사건과 대상 사건이 같은 이슈이고 화면에 둘 다 보일 때만. 메인 레인 사건을 시간순으로 잇는 선(메인 흐름 띠)은 처음부터 그린다(프로토타입 v21 — 「사건 사이 선을 그리지 않는다」고 옮겨 적은 문서들은 2026-10-29 바로잡음). 판정이 보낸 후보 안에서 대상 사건 번호를 고르고(`event.reacts_to_event_id`, V10) A4 가 `reactsToEventId` 로 싣는다(`docs/api-screen.md` A4) | 2026-10-28 합의(AI 제안, 사용자 「이어서 넣기」) — 메인 · 서브 두 레인만으로는 무엇에 대한 반응인지 보이지 않는다. 후보 밖 번호는 400 대신 null 로 받는다. 2026-10-29 구현(Jira 134) |
+| 2026-10-29 | 입구 요청 수 상한: Envoy 안에서 세는 local → 상한 서비스 + Redis 로 세는 global | local 의 「IP 마다」(`sourceCIDR` `Distinct`)가 Envoy Gateway v1.9.2(Envoy 1.39.1)에서 동작하지 않았다 — 용어사전 102번 모두 통과, Envoy 통계 `rate_limited 0`(모든 요청이 상한 없는 기본 바구니로 감). 공식 문서의 「IP 마다」 예시는 global 이다(Jira 135) |
 
 ## 10. 잰 것
 
