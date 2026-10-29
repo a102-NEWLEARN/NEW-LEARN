@@ -11,19 +11,17 @@ export type Member = {
   categories: { code: string; name: string }[];
 };
 
+/** A14 가입 요청. 칸마다 규칙은 docs/api-screen.md A14 */
 export type SignUpRequest = {
-  /** 영문 소문자 · 숫자 · _ 로 4 ~ 20자 */
   loginId: string;
-  /** 8 ~ 64자 */
   password: string;
-  /** 20자까지 */
   name: string;
-  /** 관심 분야 코드. 1개 이상 */
+  /** 관심 분야 코드 */
   categoryCodes: string[];
 };
 
 /**
- * A14 가입 (docs/api-screen.md A14). 성공하면 201 과 회원 정보를 받고 곧바로 로그인된다.
+ * A14 가입. 성공하면 201 과 회원 정보를 받고 곧바로 로그인된다.
  * 규칙에 안 맞으면 400 VALIDATION_FAILED — errors 에 칸과 화면에 보일 문장이 온다. 아이디가 이미 있으면 409 LOGIN_ID_TAKEN
  */
 export function signUp(body: SignUpRequest) {

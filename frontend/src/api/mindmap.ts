@@ -7,7 +7,10 @@ import { api } from "@/api/client";
  */
 export type BranchType = "CORE" | "CAUSE" | "REACTION" | "OUTLOOK";
 
-/** 가지 하나. 잎은 한 개 이상이고 워커가 보낸 순서 그대로다. CORE 의 첫 잎이 이 기사의 대표 사건이다 */
+/**
+ * 가지 하나. 잎은 한 개 이상이고 워커가 보낸 순서 그대로다.
+ * 대표 사건이 있는 기사면 CORE 의 첫 잎이 그 사건이다 — 없는 기사(A8 NO_EVENT)는 첫 잎에 뜻이 없다 (docs/api-screen.md 3절 「잎 순서」)
+ */
 export type MindmapBranch = {
   type: BranchType;
   items: { text: string }[];

@@ -53,3 +53,20 @@ test.each(["post", "put", "delete"] as const)(
     expect(header).toBe("token-123");
   },
 );
+
+test("번호표가 바뀌면 다음 요청부터 새 값을 싣는다 — 로그인 · 로그아웃 때 서버가 새로 준다", async () => {
+  const headers: (string | null)[] = [];
+  server.use(
+    http.post("/api/v1/csrf-check", ({ request }) => {
+      headers.push(request.headers.get("X-XSRF-TOKEN"));
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+
+  document.cookie = "XSRF-TOKEN=before-login";
+  await api.post("/csrf-check");
+  document.cookie = "XSRF-TOKEN=after-login";
+  await api.post("/csrf-check");
+
+  expect(headers).toEqual(["before-login", "after-login"]);
+});

@@ -64,3 +64,10 @@ test("없는 분야 코드는 404 CATEGORY_NOT_FOUND 다", async () => {
     code: "CATEGORY_NOT_FOUND",
   });
 });
+
+test("빈 분야 코드도 404 CATEGORY_NOT_FOUND 다 — 전체를 주지 않는다", async () => {
+  await expect(fetchArticles({ category: "" })).rejects.toMatchObject({
+    status: 404,
+    code: "CATEGORY_NOT_FOUND",
+  });
+});

@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
+import { fetchArticle } from "@/api/article";
 import { addBookmark, fetchBookmarks, removeBookmark } from "@/api/bookmarks";
 import { server } from "@/mocks/node";
 
@@ -67,6 +68,13 @@ test("나의 뉴스함은 담은 기사를 담은 시각 최신순으로 받는�
   expect(items.every((item) => item.bookmarked)).toBe(true);
   const times = items.map((item) => item.bookmarkedAt);
   expect(times).toEqual([...times].sort().reverse());
+});
+
+test("뉴스함에 든 기사는 기사 상세에서도 담긴 것으로 온다", async () => {
+  const items = await fetchBookmarks();
+  const details = await Promise.all(items.map((item) => fetchArticle(item.id)));
+
+  expect(details.every((article) => article.bookmarked)).toBe(true);
 });
 
 test("손님이 나의 뉴스함을 열면 401 UNAUTHORIZED 를 던진다", async () => {

@@ -17,7 +17,7 @@ import type {
   PublisherRef,
 } from "@/api/types";
 
-// 가짜 API — 백엔드 API 가 생길 때까지 화면 개발 · 테스트에 쓴다 (frontend/README.md 「가짜 API」)
+// 가짜 API — 화면 개발(npm run dev:mock)과 테스트에 쓴다 (frontend/README.md 「가짜 API」)
 // 응답 모양은 docs/api-screen.md 예시를 따른다. 값은 지어낸 것이다
 
 // A1 — 코드 · 이름은 docs/data-model.md 2절의 다섯 개(제안), 순서는 docs/mvp-overview.md 2-1.
@@ -391,6 +391,14 @@ const publishersOf = (event: TimelineEvent) =>
     .slice(0, event.publisherCount)
     .sort((a, b) => a.code.localeCompare(b.code));
 
+// A22 — 가짜 회원이 담아 둔 기사와 담은 시각 (지어낸 것). 상태를 기억하지 않아서 담기 · 빼기를 해도 그대로다.
+// 가짜 회원은 늘 로그인해 있어서 기사 응답(A6 · A7 · A8)의 bookmarked 도 이 표를 따른다 (docs/api.md 1절 「내 상태 칸」)
+const bookmarkedAts: Record<number, string> = {
+  11902: "2026-10-26T14:03:00+09:00",
+  403: "2026-10-24T09:12:00+09:00",
+  407: "2026-10-27T21:40:00+09:00",
+};
+
 // A6 — 사건마다 기사 articleCount 건. 첫 기사는 사건 시각에, 다음은 세 시간씩 뒤에 나왔다고 지었다.
 // 119번 사건의 마지막 기사는 마인드맵 분석 중(QUEUED)이다
 const ARTICLE_ANGLES = [
@@ -423,7 +431,7 @@ function articlesOf({
         event.id === 119 && at === event.articleCount - 1
           ? "QUEUED"
           : "SUCCEEDED",
-      bookmarked: false,
+      bookmarked: id in bookmarkedAts,
     };
   });
 }
@@ -458,7 +466,7 @@ function looseArticle(
     summary,
     url: `https://news.example.com/articles/${id}`,
     mindmapStatus: "SUCCEEDED",
-    bookmarked: false,
+    bookmarked: id in bookmarkedAts,
   };
 }
 
@@ -581,13 +589,6 @@ const findArticle = (articleId: number) =>
 function articleNotFound(instance: string) {
   return problem(404, "ARTICLE_NOT_FOUND", "기사를 찾을 수 없다", instance);
 }
-
-// A22 — 가짜 회원이 담아 둔 기사와 담은 시각 (지어낸 것). 상태를 기억하지 않아서 담기 · 빼기를 해도 그대로다
-const bookmarkedAts: Record<number, string> = {
-  11901: "2026-10-26T14:03:00+09:00",
-  403: "2026-10-24T09:12:00+09:00",
-  407: "2026-10-27T21:40:00+09:00",
-};
 
 // A8 기자 이름 — 지어낸 것. 넷째 자리는 기자 이름이 없는(null) 기사다
 const REPORTERS = ["김민정 기자", "이도윤 기자", "박서연 기자", null];
