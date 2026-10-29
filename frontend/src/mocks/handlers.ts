@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw/http";
 import type { ArticleDetail, EventMatchStatus } from "@/api/article";
+import type { BookmarkItem, BookmarkState } from "@/api/bookmarks";
 import type { Category } from "@/api/categories";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
@@ -581,6 +582,13 @@ function articleNotFound(instance: string) {
   return problem(404, "ARTICLE_NOT_FOUND", "기사를 찾을 수 없다", instance);
 }
 
+// A22 — 가짜 회원이 담아 둔 기사와 담은 시각 (지어낸 것). 상태를 기억하지 않아서 담기 · 빼기를 해도 그대로다
+const bookmarkedAts: Record<number, string> = {
+  11901: "2026-10-26T14:03:00+09:00",
+  403: "2026-10-24T09:12:00+09:00",
+  407: "2026-10-27T21:40:00+09:00",
+};
+
 // A8 기자 이름 — 지어낸 것. 넷째 자리는 기자 이름이 없는(null) 기사다
 const REPORTERS = ["김민정 기자", "이도윤 기자", "박서연 기자", null];
 
@@ -856,6 +864,41 @@ export const handlers = [
     } satisfies Member);
   }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
+  // A20 · A21 · A22 — 담기는 이미 담긴 기사면 담은 시각을 그대로 두고, 없는 기사면 404. 빼기는 기사를 확인하지 않는다.
+  // 나의 뉴스함은 담은 시각 최신순(같으면 기사 id 내림차순) (docs/api-screen.md A20 ~ A22)
+  http.put("/api/v1/members/me/bookmarks/:articleId", ({ params }) => {
+    const articleId = Number(params.articleId);
+    if (!findArticle(articleId)) {
+      return articleNotFound(
+        `/api/v1/members/me/bookmarks/${params.articleId}`,
+      );
+    }
+    return HttpResponse.json({
+      articleId,
+      bookmarked: true,
+      bookmarkedAt: bookmarkedAts[articleId] ?? kstIso(Date.now()),
+    } satisfies BookmarkState);
+  }),
+  http.delete("/api/v1/members/me/bookmarks/:articleId", ({ params }) =>
+    HttpResponse.json({
+      articleId: Number(params.articleId),
+      bookmarked: false,
+      bookmarkedAt: null,
+    } satisfies BookmarkState),
+  ),
+  http.get("/api/v1/members/me/bookmarks", () => {
+    const items = articleEntries()
+      .filter(({ article }) => article.id in bookmarkedAts)
+      .map(({ article }) => ({
+        ...article,
+        bookmarked: true,
+        bookmarkedAt: bookmarkedAts[article.id],
+      }))
+      .sort(
+        (a, b) => b.bookmarkedAt.localeCompare(a.bookmarkedAt) || b.id - a.id,
+      );
+    return HttpResponse.json({ items } satisfies ItemList<BookmarkItem>);
+  }),
   http.get("/api/v1/search", ({ request }) =>
     HttpResponse.json(search(new URL(request.url).searchParams.get("q") ?? "")),
   ),
