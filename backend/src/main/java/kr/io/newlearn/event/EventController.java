@@ -56,7 +56,7 @@ public class EventController {
 
     @Operation(
             summary = "[확정] A6 사건 관련 기사",
-            description = "투입 기사만 발행 시각·ID 오름차순으로 줍니다. 처음 4건은 size=4 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
+            description = "투입 기사만 발행 시각·ID 오름차순으로 줍니다. 처음 5건은 size=5 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",

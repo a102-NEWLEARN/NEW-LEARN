@@ -60,7 +60,7 @@ class CoreSchemaTest {
                         .migrate();
                 connection.setSchema(schema);
                 JdbcClient upgrade = JdbcClient.create(new SingleConnectionDataSource(connection, true));
-                ArticleApiFixtures.insert(upgrade);
+                ArticleApiFixtures.insertBeforeEventRole(upgrade);
                 assertThat(upgrade.sql("update article set source_summary = '삭제 대상 기존 값' where id = 4201")
                                 .update())
                         .isEqualTo(1);

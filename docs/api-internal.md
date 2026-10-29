@@ -255,12 +255,12 @@ flowchart LR
 |---|---|---|---|
 | `decision` | enum | `EXISTING`(후보 중 하나와 같은 사건) · `NEW`(새 사건) | — |
 | `eventId` | number · null | `EXISTING` 일 때 고른 후보 사건. 후보에 없으면 400 | `article_event.event_id` |
-| `newEvent` | object · null | `NEW` 일 때 `{ title, label, summary, role, reactsTo }` — 사건 이름 · 키워드(「첫 목격」) · 요약 · 역할 · 반응 대상. 판정과 같은 호출에서 짓는다. `role` 은 행위의 역할로 나눈다(주체가 아니라) — `MAIN` 상황을 바꾸는 행위(발생 · 결정 · 발표 · 결과 · 공식 조치), `REACTION` 다른 사건에 대한 반응 · 평가 · 여론(논평 · 성명 · 여론조사 발표 등). `reactsTo` 는 `REACTION` 일 때 무엇에 대한 반응인지 한 줄(이슈 전반이면 「이슈 전반」), `MAIN` 이면 null(2026-10-28 AI 제안, Jira 130). 길이(제안): 키워드 2 ~ 10자 명사구, 이름 한 줄 40자 안, 요약 1 ~ 2문장. 길이는 프롬프트로 맞추고 API 는 막지 않는다(넘치면 화면이 줄임표로 자름). 셋 중 빈 값이 있으면 400 | `event.title` · `label` · `summary` · `role` · `reacts_to` 로 사건을 만든다. `issue_id` 는 비워 둔다 |
+| `newEvent` | object · null | `NEW` 일 때 `{ title, label, summary, role, reactsTo, reactsToEventId }` — 사건 이름 · 키워드(「첫 목격」) · 요약 · 역할 · 반응 대상 한 줄 · 반응 대상 사건 번호. 판정과 같은 호출에서 짓는다. `role` 은 행위의 역할로 나눈다(주체가 아니라) — `MAIN` 상황을 바꾸는 행위(발생 · 결정 · 발표 · 결과 · 공식 조치), `REACTION` 다른 사건에 대한 반응 · 평가 · 여론(논평 · 성명 · 여론조사 발표 등). `reactsTo` 는 `REACTION` 일 때 무엇에 대한 반응인지 한 줄(이슈 전반이면 「이슈 전반」), `MAIN` 이면 null(2026-10-28 AI 제안, Jira 130). `reactsToEventId` 는 `REACTION` 이 이번 메시지의 후보 사건(`candidates`) 가운데 하나에 대한 반응이면 그 사건 번호, 아니면 null(이슈 전반 · 후보 밖 사건에 대한 반응). 화면이 반응 점선을 그리는 데 쓴다(2026-10-28 합의 「이어서 넣기」, Jira 134). 길이(제안): 키워드 2 ~ 10자 명사구, 이름 한 줄 40자 안, 요약 1 ~ 2문장. 길이는 프롬프트로 맞추고 API 는 막지 않는다(넘치면 화면이 줄임표로 자름). 셋 중 빈 값이 있으면 400 | `event.title` · `label` · `summary` · `role` · `reacts_to` · `reacts_to_event_id` 로 사건을 만든다. `issue_id` 는 비워 둔다 |
 | `reason` | string | 판정 까닭 한두 문장. 잘못 묶인 사건을 찾고 프롬프트 버전끼리 비교할 때 쓴다 | 봉투의 `model` · `promptVersion` 과 함께 `analysis_job.result` 에 `{ reason, model, promptVersion }` 로 |
 
 - `NEW` 면 API 가 사건을 만들고 `ISSUE` 작업을 건다. 발생 시점은 `EXTRACT` 의 `occurredAt`, 없으면 그 기사의 발행 시각이다(`occurred_at_basis` 로 구분)
 - 사건에 기사가 늘어도 이름 · 키워드 · 요약 · 역할 · 반응 대상은 처음 지은 그대로 둔다. 사건은 한 번 일어난 일이라 크게 바뀌지 않고, 다시 쓰면 거의 모든 판정의 출력이 길어진다. 첫 기사가 짧은 속보라 요약이 부족한지는 평가하며 다시 본다(2026-10-21 BE 안, `data-model.md` 5절 13번)
-- 역할은 이 표대로 판정이 새 사건을 만들 때 정한다(2026-10-28 합의). 운영 전 기반도 같은 판정을 발행 순서대로 돌려 만든다(`SSOT.md` 2절). 반응 대상 사건 번호(`reactsToEventId`)를 받을지는 이야기 중이다(`SSOT.md` 8절) — 정해질 때까지는 이 절의 표가 계약이다
+- 역할은 이 표대로 판정이 새 사건을 만들 때 정한다(2026-10-28 합의). DB 에 기본값이 없어(V10) 역할 없이는 사건을 만들 수 없다. 운영 전 기반도 같은 판정을 발행 순서대로 돌려 만든다(`SSOT.md` 2절)
 - `EXISTING` 으로 붙는 기사가 사건의 지금 시점보다 이르고, 그 시점이 발행 시각으로 채운 것(`FIRST_PUBLISHED`)이면 그 기사의 발행 시각으로 당긴다(`data-model.md` event 「다시 계산한다」). 본문에서 뽑은 시점(`EXTRACTED`)은 그대로 두고, 늦은 기사가 붙어도 늦추지 않는다(2026-10-27 Jira 35)
 - API 가 MATCH_EVENT 결과를 받을 때(2026-10-27 BE 안, Jira 35). EXTRACT 와 같은 기준이다 — 저장할 수 없으면 400(한 번 다시 건다), 버려도 같으면 받는다
 
@@ -271,10 +271,12 @@ flowchart LR
 | `NEW` 인데 `newEvent` 가 없거나 `title` · `label` · `summary` 중 없거나 공백뿐인 값 | 400 |
 | `NEW` 인데 `newEvent.role` 이 없거나 `MAIN` · `REACTION` 이 아님(소문자 포함) | 400 — 타임라인 레인을 정할 수 없다 |
 | `REACTION` 인데 `reactsTo` 가 없거나 공백뿐이거나 U+0000 이 있음 | null 로 받는다 — 화면 API 로 내보내지 않는 칸이라 버려도 화면이 같다 |
-| `MAIN` 의 `reactsTo` | 읽지 않는다(null 로 저장) |
+| `MAIN` 의 `reactsTo` · `reactsToEventId` | 읽지 않는다(null 로 저장) |
+| `REACTION` 인데 `reactsToEventId` 가 정수가 아님(`"97"` · `97.5` 포함) 또는 보낸 후보에 없음 | null 로 받고 경고 로그를 남긴다 — 선택 값이라 거절하면 판정을 다시 걸어 GMS 를 한 번 더 부르게 된다. 화면은 점선만 안 그린다(2026-10-28 AI 팀장 제안, Jira 134) |
+| `REACTION` 인데 `reactsToEventId` 가 없거나 null | null 로 받는다(이슈 전반에 대한 반응) |
 | `reason` 이 없거나 공백뿐 | 400 |
 | 저장하는 글자(`reason` · `newEvent` 셋 · 봉투의 `model` · `promptVersion`)에 U+0000 | 400 — PostgreSQL text · jsonb 가 받지 않는다 |
-| 맞지 않는 짝 칸(`EXISTING` 의 `newEvent` — `role` · `reactsTo` 포함, `NEW` 의 `eventId`) | 읽지 않는다 |
+| 맞지 않는 짝 칸(`EXISTING` 의 `newEvent` — `role` · `reactsTo` · `reactsToEventId` 포함, `NEW` 의 `eventId`) | 읽지 않는다 |
 | 봉투의 `model` · `promptVersion` 이 없음 | 받는다. 판정 기록에 null 로 남긴다 |
 
 `ISSUE` 결과 (제안)

@@ -667,8 +667,8 @@ class IssueStageIntegrationTest {
         article(id, category);
         embedding(id, degrees);
         jdbc.sql("""
-                insert into event(id,title,label,summary,occurred_at,occurred_at_basis,created_at,updated_at)
-                values (:id,:title,:label,:summary,cast(:at as timestamptz),'EXTRACTED',now(),now())
+                insert into event(id,title,label,summary,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                values (:id,:title,:label,:summary,cast(:at as timestamptz),'EXTRACTED',now(),now(),'MAIN')
                 """)
                 .param("id", id)
                 .param("title", "사건 " + id)
