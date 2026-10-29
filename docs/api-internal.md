@@ -86,11 +86,15 @@ flowchart LR
   - 진행 중인 판정이 없으면 판정할 기사 중 **발행 시각이 가장 이른 것** 하나를 고른다. 판정할 기사 = `EXTRACT` · `EMBED` 모두 `SUCCEEDED`, 대표 사건 번호가 있음, 판정 작업이 아직 없음, 사건에 안 묶임. 앞 기사가 아직 `EXTRACT` 중이면 기다리지 않고 다음 기사를 판정한다 — 기다리면 실패로 멈춘 기사 하나가 뒤를 모두 막는다. 나중에 더 이른 기사가 붙으면 사건 시점을 당긴다(5절 「MATCH_EVENT 결과를 받을 때」)
   - API Pod 둘이 같이 골라도 트랜잭션 잠금 하나(`pg_advisory_xact_lock`)로 줄을 선다. 기사 · 작업 행은 잠그지 않는다
 - `ISSUE` 도 한 번에 하나씩 돈다. API 는 앞 `ISSUE` 결과를 저장한 뒤 다음 작업을 걸고, **그때** 후보를 계산한다. 다시 돌릴 때(`attempt + 1`)도 후보를 새로 계산한다. 같은 사건들로 이슈가 둘 생기거나, 이미 이슈에 든 사건을 다른 이슈가 가져가지 않게 하려는 것이다
+  - 고르는 규칙(2026-10-29 BE 안, Jira 40). ISSUE 를 거는 곳은 「다음 ISSUE 고르기」 한 군데다. W1 결과를 처리한 뒤(성공 · 실패 모두)와 1분 스케줄러가 부른다. 판정 고르기와 따로 돌고 트랜잭션 잠금(`pg_advisory_xact_lock`)의 키도 다르다 — 판정은 ISSUE 를 기다리지 않는다
+  - ISSUE 작업이 하나라도 진행 중이면 기다린다. 진행 중 = 후보(`candidates`)가 있는 `QUEUED`, 또는 `FAILED` 인데 다시 걸 예정(`retry_at` 있음). 후보가 빈 `QUEUED` 는 아직 고르지 않은 대기 작업이다(아래 「`ISSUE` 는 … 때만 건다」)
+  - 진행 중이 없으면 대기 작업 중 작업 번호가 가장 작은 것 — 사건이 생긴 순서 — 하나를 골라 후보를 계산해 `candidates` 에 남기고 큐에 넣는다(4절). 고를 때 `queued_at` 도 지금으로 적는다 — 대기 작업은 판정 때 만들어져 오래됐을 수 있어서, 그대로 두면 아래 멈춤 WARN 이 방금 고른 작업에 나고 「못 넣은 작업 넣기」의 1분 기다림이 먹히지 않는다. 기다린 시간은 `created_at` 에 남는다. 그 기사의 사건이 없거나 이미 이슈 안이면(사람이 고친 경우) 묻지 않고 그 작업을 `SUCCEEDED` 로 끝내고 다음 대기 작업을 본다
+  - `QUEUED` 인 ISSUE 에 W1 이 끝내 오지 않으면 ISSUE 줄 전체가 멈춘다 — 판정과 같다. 그래서 워커는 ISSUE 메시지도 실패여도 반드시 W1 으로 끝내고, ack 는 W1 을 보낸 뒤에 한다. 같은 ISSUE 작업이 고른 뒤 40분 넘게 `QUEUED` 면 고르기가 WARN 「ISSUE 줄이 멈췄을 수 있다: ISSUE 작업 N」을 남긴다. 푸는 법은 판정과 같다(위)
 - `MATCH_EVENT` 는 `EXTRACT` 와 `EMBED` 가 둘 다 끝나고 `EXTRACT` 결과의 `primaryCoreIndex` 가 null 이 아닐 때만 건다. 판정에 기사의 대표 사건 · 발생 시점과 벡터가 다 필요하다. 대표 사건이 없는 기사(운세 · 시세표 · 축사 · 해설)는 판정 · 이슈를 걸지 않는다 — 가짜 사건이 생기지 않고 GMS 호출이 두 번 준다. AI 실험 117건 중 10건이 이랬다. 이 기사는 마인드맵만 갖고, 화면에는 `eventMatchStatus` 가 `NO_EVENT` 로 보인다(6절). `EMBED` 는 대표 사건과 상관없이 그대로 돈다 — 사건이 없는 기사는 후보 사건 계산에서 저절로 빠진다
 - **다시 분석(재분석)은 마인드맵만 바꾼다**(2026-10-26 BE 결정). 프롬프트 · 모델을 바꿔 이미 분석한 기사를 다시 돌릴 때, 이미 사건에 붙은 기사(`article_event` 가 있음)는 `MATCH_EVENT` 를 다시 걸지 않고 사건 연결도 그대로 둔다. 새 `primaryCoreIndex` 가 null 이거나 다른 잎을 가리켜도 연결은 남기고, 새 결과와 기존 연결이 어긋난 기사는 프롬프트 판끼리 비교하는 데 쓴다(`article_mindmap.prompt_version` · `analysis_job.result`). 사건에 다시 묶는 일은 판정을 따로 다시 돌릴 때만 한다(Jira 30)
 - `ISSUE` 는 `MATCH_EVENT` 가 새 사건을 만들었을 때만 건다(`decision` 이 `NEW`). 이슈 요약은 이슈에 **사건**이 붙을 때 다시 만들기 때문에(2026-10-20), 이미 있는 사건에 기사만 붙을 때는 걸지 않는다
-  - `NEW` 결과를 저장할 때 API 는 `ISSUE` 작업을 `QUEUED` 로 만들어 두고 큐에는 넣지 않는다(2026-10-27 Jira 35) — 「걸 차례를 기다리는」 표시다. `ISSUE` 메시지 · 고르기는 Jira 40 몫이고, 40 은 위 「`ISSUE` 도 한 번에 하나씩」대로 이 대기 작업을 하나씩 골라 그때 후보를 계산해 넣는다. 못 넣은 작업 넣기(아래)가 대기 작업을 한꺼번에 넣지 않게 하는 것도 40 이 정한다
-- 1분 스케줄러의 「못 넣은 작업 넣기」는 메시지를 만들 수 있는 단계의 작업만 읽는다(2026-10-27 Jira 35). 한 번에 오래된 순서로 100개를 읽는데, 메시지를 못 만드는 단계(지금은 `ISSUE`)의 작업이 그 자리를 채우면 Redis 가 잠깐 끊겨 못 넣은 판정 작업이 다시 들어가지 못하고 판정 줄 전체가 멈춘다
+  - `NEW` 결과를 저장할 때 API 는 `ISSUE` 작업을 후보 없이 `QUEUED` 로 만들어 두고 큐에는 넣지 않는다(2026-10-27 Jira 35) — 「걸 차례를 기다리는」 대기 작업이다. 위 「`ISSUE` 도 한 번에 하나씩」의 고르기가 하나씩 골라 그때 후보를 계산해 넣는다(2026-10-29 Jira 40)
+- 1분 스케줄러의 「못 넣은 작업 넣기」는 넣을 작업만 읽는다 — 메시지를 만들 수 있는 단계이고, `ISSUE` 면 고르기가 후보를 남긴 작업이다(2026-10-27 Jira 35, 2026-10-29 Jira 40). 후보가 빈 `ISSUE` 대기 작업은 고르기만 넣는다. 한 번에 오래된 순서로 100개를 읽는데, 넣지 않을 작업이 그 자리를 채우면 Redis 가 잠깐 끊겨 못 넣은 판정 작업이 다시 들어가지 못하고 판정 줄 전체가 멈춘다
 
 ## 4. 작업 메시지 — API → 큐 → 워커
 
@@ -158,10 +162,27 @@ flowchart LR
 |---|---|---|---|
 | `articleId` · `jobId` · `attempt` | number | 새 사건을 만든 기사 · 이 작업 · 몇 번째 시도인지 | `article.id` · `analysis_job` |
 | `event` | `{ id, title, label, summary, occurredAt }` | 이번에 새로 생긴 사건 | `event` |
-| `candidateIssues[]` | `{ issueId, title, summary, events[] }` | 붙일지도 모르는 이슈. 최대 5개(시작값). `events[]` 는 그 이슈의 최근 사건 5개의 `{ title, label, occurredAt }` — 사건이 많은 이슈도 프롬프트 길이가 일정하게 | 계산 — 비슷한 기사들의 사건이 속한 이슈 |
-| `candidateEvents[]` | `{ eventId, title, label, summary, occurredAt, similarity }` | 아직 이슈 밖에 있는 비슷한 사건. 새 이슈를 만들 때 함께 묶을 후보. 최대 10개(시작값), 비슷한 순서 | 계산 — 비슷한 기사들의 사건 중 `issue_id` 가 빈 것 |
+| `candidateIssues[]` | `{ issueId, title, summary, events[] }` | 붙일지도 모르는 이슈. 최대 5개(시작값), 비슷한 순서. `events[]` 는 그 이슈의 최근 사건 5개의 `{ title, label, occurredAt }` 를 발생 시점 순서로(오래된 것부터) — 사건이 많은 이슈도 프롬프트 길이가 일정하게 | 계산 — 비슷한 기사들의 사건이 속한 이슈 |
+| `candidateEvents[]` | `{ eventId, title, label, summary, occurredAt, similarity }` | 아직 이슈 밖에 있고 이번 사건보다 먼저 생긴 비슷한 사건. 새 이슈를 만들 때 함께 묶을 후보. 최대 10개(시작값), 비슷한 순서 | 계산 — 비슷한 기사들의 사건 중 `issue_id` 가 비고 `id` 가 이번 사건보다 작은 것 |
 
-보낸 이슈 · 사건 ID 는 `analysis_job.candidates` 에 남긴다.
+후보 고르기(2026-10-29 BE 안, Jira 40)
+
+- 이번 사건을 만든 기사(`analysis_job.article_id`)의 벡터로 판정 후보와 같이 잰다 — 사건에 묶인 기사 벡터와의 코사인 거리를 인덱스 없이 정확 검색으로 재고, 사건은 그 사건 기사 중 가장 가까운 것, 이슈는 그 이슈 사건들의 기사 중 가장 가까운 것으로 대표한다. `similarity` 도 판정 후보와 같다
+- 기사는 이번 사건이 생길 때까지 묶인 것만 잰다(`article_event.linked_at` 이 이번 기사를 묶은 때 이하). 판정 줄이 앞서 나가 나중에 붙인 기사까지 재면 판정이 얼마나 앞섰느냐에 따라 후보가 달라진다
+- `candidateEvents` 는 이번 사건보다 먼저 생긴(`event.id` 가 작은) 사건만 싣는다(2026-10-29 사용자). ISSUE 는 사건이 생긴 순서로 하나씩 돌아서, 「그때까지 생긴 사건」만 보고 판단해야 다시 돌려도 같은 결과가 나온다(발행순 재실행, `SSOT.md` 2절). 판정 줄이 앞서 만든 나중 사건은 자기 ISSUE 차례에 이번 사건을 후보로 본다
+- 후보가 0개여도 건다
+- 후보는 고를 때 계산해 `candidates` 에 `{ "issues": [{ "issueId": 3, "similarity": 0.81 }], "events": [{ "eventId": 97, "similarity": 0.77 }] }` 로 남긴다. 결과가 후보 안인지 이 칸으로 본다. 큐에 못 넣은 작업을 다시 넣을 때(같은 시도)는 이 후보로 메시지를 다시 만든다
+- 다시 걸 때(`attempt + 1`)는 후보를 비워 대기 작업으로 돌려보내고, 고르기가 다시 골라 그때 후보를 새로 계산한다. 앞 작업은 모두 끝났으니 번호가 가장 작아 맨 앞이다. 판정은 다시 걸 때도 처음 후보를 쓰지만, ISSUE 후보는 그사이 이슈가 생기고 사건이 묶여 낡는다
+
+```json
+{
+  "articleId": 512, "jobId": 905, "attempt": 1,
+  "event": { "id": 120, "title": "해경, 북항 상어 포획 작전 시작", "label": "포획 작전", "summary": "…", "occurredAt": "2026-10-07T09:00:00+09:00" },
+  "candidateIssues": [{ "issueId": 3, "title": "부산 북항 상어 출몰", "summary": "…",
+    "events": [{ "title": "북항친수공원 수로에 상어 출몰", "label": "첫 목격", "occurredAt": "2026-10-05T14:00:00+09:00" }] }],
+  "candidateEvents": [{ "eventId": 97, "title": "…", "label": "…", "summary": "…", "occurredAt": "2026-10-06T00:00:00+09:00", "similarity": 0.77 }]
+}
+```
 
 ## 5. W1. 결과 전달 — `POST /internal/v1/analysis-jobs/{jobId}/result`
 
@@ -268,8 +289,20 @@ flowchart LR
 | `reason` | string | 판단 까닭 한두 문장. 평가 · 디버깅용 | `MATCH_EVENT` 와 같이 `analysis_job.result` 에 |
 
 - `NONE` 이면 사건은 이슈 밖에 남는다. 그 기사들은 개별 기사로 보인다(`data-model.md` 2절 issue)
-- 저장할 때 API 가 다시 확인한다 — 이번 사건과 `eventIds` 의 사건이 모두 아직 이슈 밖(`issue_id` 가 빔)이고, `ATTACH` 의 이슈가 있어야 한다. 아니면 409 `JOB_STATE_CONFLICT` 로 거절하고 이 작업을 후보를 새로 계산해 다시 건다
-- `issue_category` 는 API 가 이슈 기사들의 대표 카테고리로 채운다(가정, `data-model.md` 5절 2번). 워커 결과에는 넣지 않는다
+- `ATTACH` · `CREATE` 를 저장할 때 API 가 다시 확인한다 — 이번 사건이 있고, 이번 사건과 `eventIds` 의 사건이 모두 아직 이슈 밖(`issue_id` 가 빔)이고, `ATTACH` 의 이슈가 있어야 한다. 아니면 409 `JOB_STATE_CONFLICT` 로 거절하고, 그 시도를 `FAILED` · `error_code` `JOB_STATE_CONFLICT` 로 적은 뒤 후보를 새로 계산해 바로 다시 건다(시도 3까지, `api.md` 2절). 확인과 바꾸기는 한 문장이다 — `issue_id` 가 빈 사건만 바꾸고, 바뀐 행 수가 사건 수와 다르면 되돌린다(2026-10-29 Jira 40). ISSUE 는 한 번에 하나씩이라 정상 흐름에서는 나오지 않고, 사람이 사건 · 이슈를 고쳤을 때 나온다
+- `issue_category` 는 이슈를 만들 때와 사건을 붙일 때 API 가 다시 채운다(규칙은 `data-model.md` issue 절). 워커 결과에는 넣지 않는다
+- API 가 ISSUE 결과를 받을 때(2026-10-29 BE 안, Jira 40). EXTRACT · MATCH_EVENT 와 같은 기준이다 — 저장할 수 없으면 400(한 번 다시 건다), 버려도 같으면 받는다
+
+| 경우 | API |
+|---|---|
+| `decision` 이 없거나 `ATTACH` · `CREATE` · `NONE` 이 아님(소문자 포함) | 400 |
+| `ATTACH` 인데 `issueId` 가 없거나 정수가 아님(`"3"` · `3.5` 포함), 또는 보낸 후보에 없음 | 400 |
+| `CREATE` 인데 `eventIds` 가 배열이 아니거나, 정수가 아닌 값 · 같은 사건 두 번 · 보낸 후보 밖 사건이 있거나, 이번 사건이 없거나, 합쳐 3개가 안 됨 | 400 |
+| `CREATE` 인데 `issueTitle` · `issueSummary` 가 없거나 공백뿐, `ATTACH` 인데 `issueSummary` 가 없거나 공백뿐 | 400 — 화면에 그릴 글이다 |
+| `reason` 이 없거나 공백뿐 | 400 |
+| 저장하는 글자(`reason` · `issueTitle` · `issueSummary` · 봉투의 `model` · `promptVersion`)에 U+0000 | 400 — PostgreSQL text · jsonb 가 받지 않는다 |
+| 맞지 않는 짝 칸(`ATTACH` 의 `eventIds` · `issueTitle`, `CREATE` 의 `issueId`, `NONE` 의 `issueId` · `eventIds` · `issueTitle` · `issueSummary`) | 읽지 않는다 |
+| 봉투의 `model` · `promptVersion` 이 없음 | 받는다. 판정 기록에 null 로 남긴다 |
 
 API 응답
 
