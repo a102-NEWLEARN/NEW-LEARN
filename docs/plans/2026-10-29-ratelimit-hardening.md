@@ -63,9 +63,9 @@
 **③ · ④ 로컬 캐시 · 설정 판 자동 표시 (MR → infra → dev)**
 
 - `infra/k8s/apps/templates/envoy-gateway.yaml`
-  - 지금 `valuesObject.config` 덩어리를 같은 파일 위쪽 `{{- define "newlearn.envoyGatewayConfig" -}}` 로 옮기고, 그 자리는 `{{- include "newlearn.envoyGatewayConfig" . | nindent 10 }}`
+  - 지금 `valuesObject.config` 덩어리를 같은 파일 위쪽 `{{- define "newlearn-apps.envoyGatewayConfig" -}}` 로 옮기고, 그 자리는 `{{- include "newlearn-apps.envoyGatewayConfig" . | nindent 10 }}`
   - 그 덩어리의 `rateLimitDeployment.container` 에 `env: [{name: LOCAL_CACHE_SIZE_IN_BYTES, value: "1048576"}]`(1MiB)
-  - `newlearn.io/config-revision` 값을 `{{ include "newlearn.envoyGatewayConfig" . | sha256sum | trunc 16 | quote }}` 로. 주석: 덩어리 안의 주석만 바꿔도 값이 바뀌어 컨트롤러가 한 번 새로 뜬다(해는 없다)
+  - `newlearn.io/config-revision` 값을 `{{ include "newlearn-apps.envoyGatewayConfig" . | sha256sum | trunc 16 | quote }}` 로. 주석: 덩어리 안의 주석만 바꿔도 값이 바뀌어 컨트롤러가 한 번 새로 뜬다(해는 없다)
 - `SSOT.md` 6절 「외부 입구」 — 「설정을 바꾸면 `newlearn.io/config-revision` 을 같이 올린다」 → 「config 덩어리의 sha256 이라 저절로 바뀐다」, 캐시 한 문장
 
 **마지막 — 실측 기록 (문서 MR → dev)**
@@ -77,7 +77,7 @@
 
 - [x] Jira 새 티켓(스토리 포인트 2, 135 와 연결) 만들고 진행 중. 브랜치는 `origin/infra` 가 `origin/dev` 와 같은지 본 뒤 그 위에 — S15P31A102-136. 그사이 infra 에 Jira 135 문서 바로잡기(966173c)가, dev 에 계획 체크(9a5362f)가 따로 들어가 서로 조금씩 앞서 있다 → `origin/infra`(32e8dcc) 위에 만들고, infra → dev MR 이 두 쪽을 합친다
 - [x] ① 지표 — 파일 · 서버 쪽 시험 적용(`--dry-run=server`) · 게이트 · reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 봄, infra → dev 는 사용자 승인) → 확인 → 증거를 infra → dev MR 댓글로 — !401 → infra 8df85ce6, !406 → dev 0fce0529(15:31, GitLab 장애로 「conflict」 표시가 남아 MR 을 닫았다 열어 다시 계산). 15:32:55 동기화, 15:34 두 대상 `up` 1 · 오류 없음, 판정 지표 rule/1 ~ 3, 새 시계열 47개 · Prometheus 메모리 482 → 492MiB
-- [ ] ② 정책 — 반영 전 접속 시험(사용자) → 파일 · 시험 적용 · 게이트 · reviewer → MR → infra → dev → 반영 뒤 접속 시험 · 상한 다시 재기 → MR 댓글
+- [x] ② 정책 — 반영 전 접속 시험(사용자) → 파일 · 시험 적용 · 게이트 · reviewer → MR → infra → dev → 반영 뒤 접속 시험 · 상한 다시 재기 → MR 댓글 — !407 → infra 78a16792, !408 → dev 8bb6468a(16:15:07, 정책 16:15:12 생성 · VALID). 시험 Pod(워커 · 관리 서버) 포트 넷: 전 15:48 모두 open → 뒤 16:21 · 16:22 두 번 모두 timed out. 관리 서버 호스트 길도 200 → 시간 초과. 용어사전 16:16:17 ~ 23 에 101번 → 100번 200 · 1번 429, 같은 때 EC2 200. 풀림 · 오류 0, 수집 up 1. 첫 MR 파이프라인은 GitLab 장애로 잡이 코드를 못 받아(500) 실패 → MR 에 새 파이프라인
 - [ ] ③ · ④ Helm 값 — 파일 · `helm template` 대조 · 게이트 · reviewer → MR → infra → dev → 컨트롤러 · 상한 서비스 새 Pod 확인 · 상한 다시 재기 · 캐시 지표 → MR 댓글
 - [ ] 실측 문서 MR → dev, Jira 새 티켓 완료, 분야 브랜치 넷 dev 에 맞춤
 
@@ -124,11 +124,12 @@
 - 사이트: 컨트롤러 Pod 주석이 이 PC 에서 그린 해시와 같음 · 상한 서비스 Pod env 에 `LOCAL_CACHE_SIZE_IN_BYTES=1048576` · 두 Pod 재시작 0 · 상한 서비스 메모리
 - 용어사전 101번 + 20번 더 → 429 그대로, 캐시로 답한 수가 오름(넘긴 뒤 요청은 Redis 대신 캐시로 답함). 같은 때 EC2 는 200
   - 상한 서비스는 이 수를 `…over_limit_with_local_cache` 로 세는데(이미지 커밋의 `src/stats/manager_impl.go`), Envoy Gateway 가 넣은 statsd 이름 규칙(`statsd-exporter-config`)에 이 줄이 없다. 그래서 이름이 도메인 · 키를 붙여 자동으로 만들어질 것으로 본다(`ratelimit_go_*` 처럼 — 반영 뒤 실제 이름을 확인한다). Prometheus 에서 `{__name__=~"ratelimit_service_.*over_limit_with_local_cache"}` 로 찾는다(① 의 남기기 규칙 `ratelimit_service_.*` 에 든다)
-- `envoy_cluster_ratelimit_error` · `failure_mode_allowed` 0
+- `envoy_cluster_ratelimit_error` · `failure_mode_allowed` 가 상한 서비스 교체가 끝난 뒤로 늘지 않음(교체 순간 옛 Pod 와의 연결이 끊기며 오를 수 있고, Envoy 가 뜬 뒤 쌓이는 수라 내려가지 않는다 — reviewer 지적)
+- Envoy Pod 생성 시각이 그대로(hostPort 라 다시 뜨면 잠깐 끊긴다 — 이번 변경은 Envoy 를 건드리지 않아야 한다)
 
 ## 되돌리는 법
 
 - 셋 모두 해당 MR 을 Revert → infra → dev. Argo CD 가 prune · selfHeal 이라 PodMonitor · 정책이 지워지고 Helm 값이 돌아간다. 데이터 변화 없음
 - ② 에서 상한이 풀린 것이 보이면 Revert 를 먼저 머지한다(손으로 지워도 selfHeal 이 다시 만든다)
 - ③ · ④ 를 되돌리면 주석 값이 다시 바뀌어 컨트롤러가 한 번 더 새로 뜬다. 상한 서비스는 캐시 없이 다시 뜬다
-- Redis 의 상한 키는 1분 만료라 남지 않는다
+- Redis 의 상한 키는 1분 칸이 끝나고 0 ~ 299초 뒤 사라진다(만료 흔들기 기본 300초)
