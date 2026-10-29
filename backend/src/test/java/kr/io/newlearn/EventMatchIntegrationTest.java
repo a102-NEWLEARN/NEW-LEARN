@@ -408,7 +408,7 @@ class EventMatchIntegrationTest {
     }
 
     // AC-6 · AC-7 — NEW 면 사건을 만들고(발생 시점 = 뽑은 시점) 기사를 붙이고 ISSUE 작업을 만든다.
-    // ISSUE 메시지 공장은 Jira 40 이라 큐에는 아직 안 들어간다(published_at 이 빔)
+    // 진행 중인 ISSUE 가 없으면 그 W1 뒤에 ISSUE 고르기가 바로 후보를 붙여 넣는다(Jira 40, F07-issue-assign.md)
     @Test
     void newCreatesTheEventAndAnIssueJob() throws Exception {
         ready(ARTICLE, 0); // 마인드맵의 occurred_at 은 2026-10-05T15:00Z
@@ -426,10 +426,10 @@ class EventMatchIntegrationTest {
         assertThat(count("select count(*) from event where issue_id is null and id = " + eventId))
                 .isEqualTo(1);
         assertThat(jdbc.sql("""
-                        select status || ' ' || coalesce(published_at::text, '안 넣음') from analysis_job
-                        where article_id = :id and stage = 'ISSUE'
+                        select status || case when candidates is null or published_at is null then ' 안 넣음' else ' 넣음' end
+                        from analysis_job where article_id = :id and stage = 'ISSUE'
                         """).param("id", ARTICLE).query(String.class).single())
-                .isEqualTo("QUEUED 안 넣음");
+                .isEqualTo("QUEUED 넣음");
         assertThat(matchRecord(ARTICLE).get("reason").asString()).isEqualTo("후보와 다른 사건이다");
     }
 

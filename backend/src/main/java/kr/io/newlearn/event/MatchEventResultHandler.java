@@ -22,7 +22,7 @@ import tools.jackson.databind.json.JsonMapper;
 // AnalysisJobService.receiveResult 가 작업 행을 잠근 트랜잭션 안에서 부른다. 판정은 한 번에 하나씩이라(MatchDispatcher)
 // 판정끼리 같은 사건을 두고 다투지 않는다. 잠금 순서는 작업 행 → 사건 행이다 — 시점을 당길 때(pullOccurredAt) 사건 행을
 // UPDATE 로 잠그고, 연결 · ISSUE 작업을 넣을 때 외래 키 검사가 기사 · 사건 행에 KEY SHARE 를 잡는다.
-// 이슈 붙이기(Jira 40)가 같은 사건 행을 고칠 때 이 순서를 맞춘다(AnalysisResultHandler 의 잠금 순서)
+// 이슈 붙이기(IssueResultHandler, Jira 40)도 같은 순서로 사건 행을 고친다(AnalysisResultHandler 의 잠금 순서)
 @Component
 class MatchEventResultHandler implements AnalysisResultHandler {
 
@@ -67,7 +67,7 @@ class MatchEventResultHandler implements AnalysisResultHandler {
         links.save(new ArticleEvent(article, event));
         if (match.decision() == MatchEventResult.Decision.NEW) {
             // 새 사건만 이슈에 붙일지 묻는다(api-internal.md 3절). 큐에는 넣지 않는다 — 「걸 차례를 기다리는」 표시다.
-            // ISSUE 도 한 번에 하나씩이라 Jira 40 이 이 작업을 하나씩 골라 그때 후보를 계산해 넣는다
+            // ISSUE 도 한 번에 하나씩이라 고르기(IssueDispatcher, Jira 40)가 이 작업을 하나씩 골라 그때 후보를 계산해 넣는다
             jobs.save(new AnalysisJob(article, AnalysisStage.ISSUE, RequestedBy.BATCH, null));
         }
         job.recordResult(
