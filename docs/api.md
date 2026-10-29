@@ -3,7 +3,7 @@
 화면(FE) · 수집 배치 · AI 워커가 API 서버와 주고받는 모양이다. 테이블 설계는 `docs/data-model.md`, 용어는 `docs/glossary.md`.
 
 - **v0 (2026-10-19, Jira S15P31A102-28 · 80)**: 확정 기능(F01~F08 · F11)의 흐름 A · B 에 필요한 것만 담았다
-- **v1 (2026-10-21, Jira S15P31A102-99)**: 10-20 팀 회의 · 10-21 마인드맵 회의 결과를 더했다. 사용자 URL 분석(A10 · A11 · A12)을 지우고, 회원(A14 ~ A18) · 용어사전(A19) · 이슈를 만드는 분석 단계(`ISSUE`, 제안)를 더했다. 아직 코드가 없다
+- **v1 (2026-10-21, Jira S15P31A102-99)**: 10-20 팀 회의 · 10-21 마인드맵 회의 결과를 더했다. 사용자 URL 분석(A10 · A11 · A12)을 지우고, 회원(A14 ~ A18) · 용어사전(A19) · 이슈를 만드는 분석 단계(`ISSUE`, 제안)를 더했다. 이때는 아직 코드가 없었다 — 지금 구현 상태는 5절 Jira 표
 - **v1.2 (2026-10-26, Jira S15P31A102-114)**: 북마크 · 관심 이슈(A20 ~ A25)를 더하고, 기사 · 이슈 응답에 회원 기준 `bookmarked` · `interested` 칸을 더했다(1절 「내 상태 칸」). 담기 · 빼기는 바뀐 상태를 200 으로 돌려주고 화면 문구를 고정했다. FE 질문 7 · 8번은 정한 약속으로 바꿨다
 - **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 작업 실패 코드 `INPUT_NOT_ANALYZABLE` · `LLM_UNAVAILABLE` · `RESULT_SCHEMA_INVALID`(API 가 적음)를 더하고 4절 AI 질문을 닫았다. 워커 계약의 바뀐 곳은 `api-internal.md` v1.1
 - 1절 공통 규칙은 나중에 바꾸면 비싸서 먼저 정한다. FE · AI 와 합의하기 전까지는 제안이다(`SSOT.md` 8절)
@@ -81,7 +81,7 @@ HTTP 상태는 「어떤 종류의 실패인가」를, `code` 는 「정확히 �
 | `detail` | string | 개발자용 설명. 내부 사정이 들어갈 수 있어 화면에 그대로 보이지 않는다 |
 | `instance` | string | 오류가 난 요청 주소. 로그를 찾을 때 쓴다 |
 | `code` | string | 이 프로젝트의 오류 코드(아래 표). 화면 · 워커는 이것으로 갈라 처리한다 |
-| `errors` | array · 없을 수 있음 | `VALIDATION_FAILED` 일 때만. `{ "field", "reason" }` — 어느 칸이 왜 틀렸나. `reason` 은 화면에 그대로 보일 한국어 문장이다(「아이디는 4자 이상이에요」, 2026-10-21) |
+| `errors` | array · 없을 수 있음 | `VALIDATION_FAILED` 일 때만. `{ "field", "reason" }` — 어느 칸이 왜 틀렸나. `reason` 은 화면에 그대로 보일 한국어 문장이다(「아이디는 영문 소문자 · 숫자 · _ 로 4~20자여야 해요」, 2026-10-21) |
 
 ```json
 {
@@ -170,7 +170,7 @@ flowchart LR
   R --> I["/issues — A2 목록 · A3 헤더 · A4 타임라인"]
   R --> E["/events — A5 사건 패널 · A6 관련 기사"]
   R --> AR["/articles — A7 최신 기사 · A8 상세 · A9 마인드맵"]
-  R --> Q["/search — A13 통합 검색 (자리만)"]
+  R --> Q["/search — A13 통합 검색 (MVP, 구현 전)"]
   R --> M["/members — A14 가입 · A17 내 정보 · A18 관심 분야"]
   M --> MS["/me/bookmarks — A20 · A21 담기 · 빼기 · A22 나의 뉴스함<br/>/me/interest-issues — A23 · A24 저장 · 해제 · A25 목록"]
   R --> AU["/auth — A15 로그인 · A16 로그아웃"]
@@ -190,7 +190,7 @@ flowchart LR
 | A7 | `GET /api/v1/articles` | 최신 기사 (F01 뉴스 데이터 적재·조회, Jira 42) |
 | A8 | `GET /api/v1/articles/{articleId}` | 기사 상세와 소속 사건 · 이슈 (F01, F11 기사·이슈 양방향 연결) |
 | A9 | `GET /api/v1/articles/{articleId}/mindmap` | 기사 마인드맵 — 흐름지도 · 마인드맵 두 보기 (F04 기사 마인드맵 생성, Jira 56) |
-| A13 | `GET /api/v1/search` | 통합 검색 — 자리만 (Jira 43) |
+| A13 | `GET /api/v1/search` | 통합 검색 — MVP, 구현 전 (Jira 43) |
 | A14 | `POST /api/v1/members` | 가입 — 아이디 · 비밀번호 · 이름 · 관심 분야 (F12 회원 · 관심 분야, Jira 62) |
 | A15 | `POST /api/v1/auth/login` | 로그인 (F12, Jira 62) |
 | A16 | `POST /api/v1/auth/logout` | 로그아웃 (F12, Jira 62) |
@@ -214,7 +214,7 @@ flowchart TD
   C1 --> U2(["사용자 — 이슈 카드를 누름"])
   U2 -->|"화면 → API"| C2["GET /issues/12 (A3) · GET /issues/12/timeline (A4) — 이슈 헤더와 사건 노드를 받음"]
   C2 --> U3(["사용자 — 사건 노드를 누름"])
-  U3 -->|"화면 → API"| C3["GET /events/98 (A5) · GET /events/98/articles?size=4 (A6) — 사건 요약과 관련 기사 4건을 받음"]
+  U3 -->|"화면 → API"| C3["GET /events/98 (A5) · GET /events/98/articles?size=5 (A6) — 사건 요약과 관련 기사 5건을 받음"]
   C3 --> U4(["사용자 — 기사를 누름"])
   U4 -->|"화면 → API"| C4["GET /articles/456 (A8) · GET /articles/456/mindmap (A9) — 기사 상세와 마인드맵을 받음"]
 ```
@@ -241,9 +241,9 @@ flowchart TD
 FE
 
 1. 1절 공통 규칙 — 봉투 없음 · Problem Details 와 `code` · 숫자 ID · `+09:00` · `page` 0부터 — 를 그대로 써도 되나. 카테고리 코드·순서는 `data-model.md` 2절로 확정했다(2026-10-23)
-2. 타임라인(A4)을 페이지 없이 한 번에 받아도 되나. 이슈 하나에 사건이 몇 개까지 그려지나. 레인 기준이 정해지기 전 `lane` 이 `null` 이면 어떻게 그리나 → 2026-10-28 기준을 정해 `lane` 은 늘 값이 있다(사건 역할, Jira 130). 그려질 사건 수는 화면이 레인마다 고른다(`api-screen.md` A4, 2026-10-28)
+2. (풀림, 2026-10-28) A4 이슈 타임라인은 페이지 없이 한 번에 준다. `lane` 은 사건 역할로 늘 값이 있고(Jira 130), 그려질 사건 수는 화면이 레인마다 고른다(`api-screen.md` A4)
 3. 홈에서 관심 분야를 먼저 보여 주는 방식(생각 중, 2026-10-20)을 A2 의 `category` 여러 번 부르기로 할지, 한 번에 받는 인자를 둘지
-4. 통합 검색(A13)을 MVP 에 넣나. 검색창 아래 「새로 생성된 이슈」는 A2 `sort=createdAt&size=…` 로 정했다. 몇 개 보일지는 미정
+4. (풀림, 2026-10-29) A13 통합 검색은 MVP 다(PRD FR-3 P0 「빠른 이동」, 사용자). 응답 모양은 `api-screen.md` A13, 세부는 Jira 43 구현 계획에서 정한다. 검색창 아래 「새로 생성된 이슈」는 A2 `sort=createdAt&size=…` 이고 몇 개 보일지만 남았다(`api-screen.md` A2)
 5. 기사 목록 요약이 `null` 일 때(분석 전 · 실패 · 우리 요약을 끈 동안) 화면에 무엇을 보이나. NewsData 요약으로 대신하던 길은 없앴다(2026-10-26)
 6. user-flow 의 「데이터가 아직 없는 이슈 — 준비 중 + 사건 · 기사 수」를 화면에 어떻게 보이나. 사건 0개인 기존 이슈의 API 조회는 `api-screen.md` A3·A4로 확정했다(2026-10-23). 정상 생성의 사건 3개 조건은 유지한다
 
@@ -274,12 +274,12 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 65 | A17 · A18 (내 정보 · 관심 분야) | 선호 언론사 · 추천은 뺐다 |
 | 63 | A20 · A21 · A22 (북마크 담기 · 빼기 · 나의 뉴스함), A6 · A7 · A8 의 `bookmarked` | 2026-10-28 구현(`docs/specs/F12-bookmark-interest-api.md`). 표 `bookmark` 는 V7. 담기는 한 문장(`insert … on conflict do update … returning`)이라 동시에 담거나 빼도 500 이 나지 않고 처음 담은 시각이 남는다 |
 | 64 | A23 · A24 · A25 (관심 이슈 저장 · 해제 · 목록), A2 · A3 의 `interested` | 같음. 표 `interest_issue`. 「지난 방문 이후 새 사건」은 보류 |
-| 102 | A19 용어사전 | 2026-10-29 구현(`docs/specs/F13-dictionary-api.md`). 인증 키를 넣기 전이라 사이트에서는 늘 502 다 |
+| 102 | A19 용어사전 | 2026-10-29 구현 · 사이트 반영(`docs/specs/F13-dictionary-api.md`). 키는 봉인 Secret `stdict-api`(SSOT 5절) |
 | 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 보류(다시 열 때 새 티켓) |
-| 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | |
-| 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | |
-| 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현한다(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |
-| 43 | A13 (자리만) | 보류 — MVP 여부 미정(4절 FE 4번) |
+| 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | 2026-10-26 구현(`docs/specs/F03-F07-analysis-job-queue.md`) |
+| 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | 2026-10-27 구현(`docs/specs/F06-event-match.md`) |
+| 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현 · 사이트 반영(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |
+| 43 | A13 통합 검색 | MVP(2026-10-29 사용자, PRD FR-3 P0). 검색 범위 · 길이 · 유형별 개수 · 찾는 방식은 구현 계획에서 정한다 |
 | 57 기사 URL 분석 | — | 2026-10-20 팀 회의로 MVP 에서 빼서 티켓을 닫았다 |
 
 ---
