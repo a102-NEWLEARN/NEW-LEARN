@@ -44,7 +44,7 @@ F02 카테고리별 뉴스·이슈 조회의 A13 `GET /api/v1/search?q=` 를 확
 - [x] 실패하는 시험 — 구현 전 13개 단언 실패(새 10 · 문서 3) — `SearchApiIntegrationTest` · `OpenApiDocsTest` 를 먼저 쓰고 돌려, 컨트롤러가 없어 404 · 문서에 경로가 없어 **단언에서** 실패하는 기록을 남김
 - [x] 구현 — `QueryText` 로 옮기기(용어사전 시험 그대로 초록) → 검색 패키지 → 시험 통과
 - [x] 문서 — 스펙 · 계약 · `api.md` · `data-model.md` 를 코드와 다시 대조
-- [ ] `/verify`(포맷 · 린트 · 테스트 · 빌드, 되돌림 확인, `bootRun` 으로 실제 호출) · reviewer 조수 → 커밋 → MR(→ backend) → **파이프라인 성공을 본 뒤** 머지 → backend → dev → 이미지 굽기 → 태그 MR(사이트 반영은 사용자 승인 뒤)
+- [x] `/verify`(포맷 · 린트 · 테스트 · 빌드, 되돌림 확인, `bootRun` 으로 실제 호출) · reviewer 조수 → 커밋 → MR(→ backend) → **파이프라인 성공을 본 뒤** 머지 → backend → dev → 이미지 굽기 → 태그 MR(사이트 반영은 사용자 승인 뒤) — 시험 475개, reviewer 고쳐야 함 1(최신순 시험 데이터) 고침, !416 → backend 3d5cc208 · !417 → dev 7f6661b4 · 태그 !418 08:41:23 머지(backend 48c8f49b → 7f6661b4), 모든 MR 파이프라인 success 뒤 머지
 - [ ] 사이트 확인(AC-9) · 학습 기록(파일별 코드 캡처) · 가이드 장면 · 면접 기록 · `/feature-done`
 
 ## 안 바꿀 것
