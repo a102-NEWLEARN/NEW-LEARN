@@ -1,9 +1,12 @@
 import { http, HttpResponse } from "msw/http";
+import type { ArticleDetail, EventMatchStatus } from "@/api/article";
+import type { BookmarkItem, BookmarkState } from "@/api/bookmarks";
 import type { Category } from "@/api/categories";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
 import type { IssueSummary } from "@/api/issues";
-import type { Member } from "@/api/members";
+import type { Member, SignUpRequest } from "@/api/members";
+import type { BranchType, Mindmap, MindmapBranch } from "@/api/mindmap";
 import type { SearchResult } from "@/api/search";
 import type { Timeline, TimelineEvent } from "@/api/timeline";
 import type {
@@ -14,7 +17,7 @@ import type {
   PublisherRef,
 } from "@/api/types";
 
-// 가짜 API — 백엔드 API 가 생길 때까지 화면 개발 · 테스트에 쓴다 (frontend/README.md 「가짜 API」)
+// 가짜 API — 화면 개발(npm run dev:mock)과 테스트에 쓴다 (frontend/README.md 「가짜 API」)
 // 응답 모양은 docs/api-screen.md 예시를 따른다. 값은 지어낸 것이다
 
 // A1 — 코드 · 이름은 docs/data-model.md 2절의 다섯 개(제안), 순서는 docs/mvp-overview.md 2-1.
@@ -310,6 +313,12 @@ const me: Member = {
   ],
 };
 
+// A14 · A18 — 회원 정보의 관심 분야. 겹친 코드는 하나로, 순서는 A1 순서다 (docs/api-screen.md 1절 「회원 정보」)
+const memberCategories = (codes: string[]) =>
+  categories
+    .filter((category) => codes.includes(category.code))
+    .map(({ code, name }) => ({ code, name }));
+
 // 오류 응답 — Problem Details + code (docs/api.md 2절)
 function problem(
   status: number,
@@ -382,6 +391,14 @@ const publishersOf = (event: TimelineEvent) =>
     .slice(0, event.publisherCount)
     .sort((a, b) => a.code.localeCompare(b.code));
 
+// A22 — 가짜 회원이 담아 둔 기사와 담은 시각 (지어낸 것). 상태를 기억하지 않아서 담기 · 빼기를 해도 그대로다.
+// 가짜 회원은 늘 로그인해 있어서 기사 응답(A6 · A7 · A8)의 bookmarked 도 이 표를 따른다 (docs/api.md 1절 「내 상태 칸」)
+const bookmarkedAts: Record<number, string> = {
+  11902: "2026-10-26T14:03:00+09:00",
+  403: "2026-10-24T09:12:00+09:00",
+  407: "2026-10-27T21:40:00+09:00",
+};
+
 // A6 — 사건마다 기사 articleCount 건. 첫 기사는 사건 시각에, 다음은 세 시간씩 뒤에 나왔다고 지었다.
 // 119번 사건의 마지막 기사는 마인드맵 분석 중(QUEUED)이다
 const ARTICLE_ANGLES = [
@@ -392,7 +409,10 @@ const ARTICLE_ANGLES = [
   "쟁점 정리",
   "관계자 반응",
 ];
-function articlesOf({ event, issue }: EventEntry): ArticleSummary[] {
+function articlesOf({
+  event,
+  issue,
+}: Pick<EventEntry, "event" | "issue">): ArticleSummary[] {
   const publishers = publishersOf(event);
   return Array.from({ length: event.articleCount }, (_, at) => {
     const id = event.id * 100 + at + 1;
@@ -411,7 +431,7 @@ function articlesOf({ event, issue }: EventEntry): ArticleSummary[] {
         event.id === 119 && at === event.articleCount - 1
           ? "QUEUED"
           : "SUCCEEDED",
-      bookmarked: false,
+      bookmarked: id in bookmarkedAts,
     };
   });
 }
@@ -427,50 +447,201 @@ function issueNotFound(instance: string) {
 // A2 정렬 기준. 같으면 id 내림차순 (docs/api-screen.md A2)
 const ISSUE_SORTS = ["lastEventAt", "createdAt"] as const;
 
-// A13 검색용 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 기사 목록(A7) 가짜가 생기면 그쪽과 합친다
-const articles = [
-  {
-    id: 401,
-    title: "한빛반도체, 텍사스 공장 착공식 열어",
-    summary:
-      "한빛반도체가 텍사스주에서 반도체 공장 착공식을 열고 투자 규모를 밝혔다",
-  },
-  {
-    id: 402,
-    title: "美 공장 인력난에 국내 엔지니어 파견 검토",
-    summary: "현지 숙련 인력이 모자라 국내 엔지니어를 보내는 방안을 검토한다",
-  },
-  {
-    id: 403,
-    title: "한국은행, 기준금리 연 2.50% 동결",
-    summary: "물가와 가계부채를 함께 고려해 금리를 묶었다",
-  },
-  {
-    id: 404,
-    title: "원/달러 환율 1,500원 넘어… 외환당국 구두 개입",
-    summary: "외환당국이 시장 쏠림을 경계한다며 구두 개입에 나섰다",
-  },
-  {
-    id: 405,
-    title: "여야, 내년 예산안 수정 협의 재개",
-    summary: "법정 처리 시한을 앞두고 여야가 다시 마주 앉았다",
-  },
-  {
-    id: 406,
-    title: "의대 증원 재조정안 공개… 의료계 반발",
-    summary: "정부가 내년도 의대 정원 조정안을 내놓자 의료계가 반발했다",
-  },
-  {
-    id: 407,
-    title: "중동 휴전 연장 합의안 초안 공개",
-    summary: "중재국이 휴전을 연장하는 합의안 초안을 공개했다",
-  },
-  {
-    id: 408,
-    title: "국산 거대 언어 모델 AI 공개 시연",
-    summary: "국내 기업이 직접 만든 거대 언어 모델을 처음 공개 시연했다",
-  },
+// 이슈로 묶이지 않은 가짜 기사 — 위 가짜 이슈들과 어울리게 지어냈다. 언론사는 presses 에서 돌려 쓴다.
+// A13 검색은 이 기사들에서만 찾고, A7 최신 기사는 사건 기사(articlesOf)와 이 기사들을 함께 준다
+function looseArticle(
+  id: number,
+  code: string,
+  publishedAt: string,
+  title: string,
+  summary: string,
+): ArticleSummary {
+  const { name } = categories.find((category) => category.code === code)!;
+  return {
+    id,
+    title,
+    publisher: presses[id % presses.length],
+    publishedAt,
+    category: { code, name },
+    summary,
+    url: `https://news.example.com/articles/${id}`,
+    mindmapStatus: "SUCCEEDED",
+    bookmarked: id in bookmarkedAts,
+  };
+}
+
+const looseArticles: ArticleSummary[] = [
+  looseArticle(
+    401,
+    "economy",
+    "2026-10-06T10:12:00+09:00",
+    "한빛반도체, 텍사스 공장 착공식 열어",
+    "한빛반도체가 텍사스주에서 반도체 공장 착공식을 열고 투자 규모를 밝혔다",
+  ),
+  looseArticle(
+    402,
+    "economy",
+    "2026-10-09T09:30:00+09:00",
+    "美 공장 인력난에 국내 엔지니어 파견 검토",
+    "현지 숙련 인력이 모자라 국내 엔지니어를 보내는 방안을 검토한다",
+  ),
+  looseArticle(
+    403,
+    "economy",
+    "2026-10-16T11:05:00+09:00",
+    "한국은행, 기준금리 연 2.50% 동결",
+    "물가와 가계부채를 함께 고려해 금리를 묶었다",
+  ),
+  looseArticle(
+    404,
+    "economy",
+    "2026-10-23T08:20:00+09:00",
+    "원/달러 환율 1,500원 넘어… 외환당국 구두 개입",
+    "외환당국이 시장 쏠림을 경계한다며 구두 개입에 나섰다",
+  ),
+  looseArticle(
+    405,
+    "politics",
+    "2026-10-20T14:00:00+09:00",
+    "여야, 내년 예산안 수정 협의 재개",
+    "법정 처리 시한을 앞두고 여야가 다시 마주 앉았다",
+  ),
+  looseArticle(
+    406,
+    "society",
+    "2026-10-18T16:40:00+09:00",
+    "의대 증원 재조정안 공개… 의료계 반발",
+    "정부가 내년도 의대 정원 조정안을 내놓자 의료계가 반발했다",
+  ),
+  looseArticle(
+    407,
+    "world",
+    "2026-10-21T19:10:00+09:00",
+    "중동 휴전 연장 합의안 초안 공개",
+    "중재국이 휴전을 연장하는 합의안 초안을 공개했다",
+  ),
+  looseArticle(
+    408,
+    "it_science",
+    "2026-10-22T13:30:00+09:00",
+    "국산 거대 언어 모델 AI 공개 시연",
+    "국내 기업이 직접 만든 거대 언어 모델을 처음 공개 시연했다",
+  ),
 ];
+
+type ArticleEntry = {
+  article: ArticleSummary;
+  eventMatchStatus: EventMatchStatus;
+  event: EventRef | null;
+  issue: IssueSummary | null;
+};
+
+// A8 — 이슈로 묶이지 않은 기사의 사건 찾기 상태. 적지 않은 기사는 대표 사건이 없어 묶지 않는 기사(NO_EVENT)다.
+// 402 는 사건을 찾았지만 이슈가 아직 없다 — 이슈는 사건 3개가 모여야 생긴다 (docs/api-screen.md A8).
+// 902번 사건은 A5 가짜에 없다
+const looseMatches: Record<
+  number,
+  Pick<ArticleEntry, "eventMatchStatus" | "event">
+> = {
+  401: { eventMatchStatus: "QUEUED", event: null },
+  402: {
+    eventMatchStatus: "SUCCEEDED",
+    event: {
+      id: 902,
+      title: "국내 엔지니어 텍사스 파견 검토",
+      label: "엔지니어 파견",
+      occurredAt: "2026-10-09T00:00:00+09:00",
+    },
+  },
+};
+
+// A7 · A8 · A9 — 가짜 기사 전부와 속한 사건 · 이슈. 모든 이슈의 사건 기사와 이슈로 묶이지 않은 기사다
+function articleEntries(): ArticleEntry[] {
+  const eventArticles = issues.flatMap((issue) =>
+    timelineOf(
+      issue.id,
+      issue.title,
+      issue.firstEventAt,
+      issue.lastEventAt,
+    ).flatMap((event) =>
+      articlesOf({ event, issue }).map((article) => ({
+        article,
+        eventMatchStatus: "SUCCEEDED" as const,
+        event: eventRef(event),
+        issue,
+      })),
+    ),
+  );
+  const loose = looseArticles.map((article) => ({
+    article,
+    ...(looseMatches[article.id] ?? {
+      eventMatchStatus: "NO_EVENT",
+      event: null,
+    }),
+    issue: null,
+  }));
+  return [...eventArticles, ...loose];
+}
+
+const findArticle = (articleId: number) =>
+  articleEntries().find((entry) => entry.article.id === articleId);
+
+function articleNotFound(instance: string) {
+  return problem(404, "ARTICLE_NOT_FOUND", "기사를 찾을 수 없다", instance);
+}
+
+// A8 기자 이름 — 지어낸 것. 넷째 자리는 기자 이름이 없는(null) 기사다
+const REPORTERS = ["김민정 기자", "이도윤 기자", "박서연 기자", null];
+
+const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
+  type,
+  items: texts.map((text) => ({ text })),
+});
+
+// A9 — 11901(119번 사건의 첫 기사)은 docs/api-screen.md 3절 예시에 잎을 더했다
+const mindmap11901: MindmapBranch[] = [
+  branch(
+    "CORE",
+    "한빛반도체가 10월 6일 텍사스 공장 착공식을 열었다",
+    "첫 해 생산 목표와 투자 규모를 함께 밝혔다",
+  ),
+  branch("CAUSE", "미국 보조금 조건을 맞추려고 착공을 앞당겼다"),
+  branch(
+    "REACTION",
+    "업계: 인력 수급이 가장 큰 숙제라는 지적",
+    "텍사스 주정부: 일자리가 늘 것이라며 환영",
+  ),
+  branch("OUTLOOK", "2028년 양산 목표는 그대로라고 밝혔다"),
+];
+
+// A9 — 나머지 기사는 지어낸 문장으로 가지를 채운다. 내용 있는 가지만 오는 경우를 만들려고
+// id 가 3의 배수면 원인·배경, 짝수면 반응 가지를 뺀다
+function mindmapOf({ id, title, summary, publishedAt }: ArticleSummary) {
+  const branches =
+    id === 11901
+      ? mindmap11901
+      : [
+          branch("CORE", summary ?? title),
+          id % 3 === 0
+            ? null
+            : branch("CAUSE", "앞서 나온 결정이 이번 일로 이어졌다"),
+          id % 2 === 0
+            ? null
+            : branch(
+                "REACTION",
+                "관계자들은 결과를 지켜보겠다는 반응을 보였다",
+              ),
+          branch("OUTLOOK", "후속 조치가 이어질 전망이다"),
+        ].filter((item) => item !== null);
+  return {
+    articleId: id,
+    schemaVersion: "mindmap-v1",
+    generatedAt: kstIso(Date.parse(publishedAt) + 65_000),
+    aiGenerated: true,
+    title,
+    branches,
+  } satisfies Mindmap;
+}
 
 // A13 — 우리가 가진 뉴스 데이터 가운데 검색어가 들어간 것 (2026-10-23 사용자가 정한 규칙).
 // 이슈 · 사건은 이름, 기사는 제목이나 요약에 들어 있으면 준다. 영문은 대소문자를 가리지 않는다.
@@ -490,7 +661,7 @@ function search(q: string): SearchResult {
         title: lastEvent.title,
         issueId: id,
       })),
-    articles: articles
+    articles: looseArticles
       .filter((article) => has(article.title, article.summary))
       .map(({ id, title }) => ({ id, title })),
   };
@@ -607,7 +778,128 @@ export const handlers = [
       totalPages: Math.ceil(all.length / size),
     } satisfies Page<ArticleSummary>);
   }),
+  // A7 — 최신 기사. 분야로 거르고 발행 시각 최신순(같으면 id 내림차순), 쪽을 나눈다.
+  // 없는 분야는 404 (docs/api-screen.md A7)
+  http.get("/api/v1/articles", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const code = params.get("category");
+    const page = Number(params.get("page") ?? 0);
+    const size = Number(params.get("size") ?? 20);
+    if (code !== null && !categories.some((item) => item.code === code)) {
+      return problem(
+        404,
+        "CATEGORY_NOT_FOUND",
+        `카테고리를 찾을 수 없다: ${code}`,
+        "/api/v1/articles",
+      );
+    }
+    const matched = articleEntries()
+      .map((entry) => entry.article)
+      .filter((article) => code === null || article.category?.code === code)
+      .sort(
+        (a, b) => b.publishedAt.localeCompare(a.publishedAt) || b.id - a.id,
+      );
+    return HttpResponse.json({
+      items: matched.slice(page * size, (page + 1) * size),
+      page,
+      size,
+      totalElements: matched.length,
+      totalPages: Math.ceil(matched.length / size),
+    } satisfies Page<ArticleSummary>);
+  }),
+  // A8 — 기사 요약에 기자 · 사건 찾기 상태 · 사건 · 이슈를 더한다. 없는 기사는 404 (docs/api-screen.md A8)
+  http.get("/api/v1/articles/:articleId", ({ params }) => {
+    const found = findArticle(Number(params.articleId));
+    if (!found) return articleNotFound(`/api/v1/articles/${params.articleId}`);
+    const { article, eventMatchStatus, event, issue } = found;
+    return HttpResponse.json({
+      ...article,
+      reporter: REPORTERS[article.id % REPORTERS.length],
+      eventMatchStatus,
+      event,
+      issue: issue && { id: issue.id, title: issue.title },
+    } satisfies ArticleDetail);
+  }),
+  // A9 — 결과는 마인드맵 분석이 끝난(SUCCEEDED) 기사에만 있다. 없으면 404 MINDMAP_NOT_FOUND,
+  // 없는 기사는 404 ARTICLE_NOT_FOUND (docs/api-screen.md A9)
+  http.get("/api/v1/articles/:articleId/mindmap", ({ params }) => {
+    const instance = `/api/v1/articles/${params.articleId}/mindmap`;
+    const found = findArticle(Number(params.articleId));
+    if (!found) return articleNotFound(instance);
+    if (found.article.mindmapStatus !== "SUCCEEDED") {
+      return problem(
+        404,
+        "MINDMAP_NOT_FOUND",
+        "마인드맵 결과가 없다",
+        instance,
+      );
+    }
+    return HttpResponse.json(mindmapOf(found.article));
+  }),
+  // A14 · A15 · A16 · A18 — 가짜 API 는 상태를 기억하지 않는다. 가입 · 로그인은 늘 성공하고 관심 분야를 바꿔도
+  // A17 은 그대로다. 오류(400 · 401 · 409 · 429)는 테스트에서 server.use 로 바꿔 본다
+  http.post("/api/v1/members", async ({ request }) => {
+    const body = (await request.json()) as SignUpRequest;
+    return HttpResponse.json(
+      {
+        id: 8,
+        loginId: body.loginId,
+        name: body.name,
+        categories: memberCategories(body.categoryCodes),
+      } satisfies Member,
+      { status: 201, headers: { Location: "/api/v1/members/me" } },
+    );
+  }),
+  http.post("/api/v1/auth/login", () => HttpResponse.json(me)),
+  http.post(
+    "/api/v1/auth/logout",
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+  http.put("/api/v1/members/me/categories", async ({ request }) => {
+    const { categoryCodes } = (await request.json()) as {
+      categoryCodes: string[];
+    };
+    return HttpResponse.json({
+      ...me,
+      categories: memberCategories(categoryCodes),
+    } satisfies Member);
+  }),
   http.get("/api/v1/members/me", () => HttpResponse.json(me)),
+  // A20 · A21 · A22 — 담기는 이미 담긴 기사면 담은 시각을 그대로 두고, 없는 기사면 404. 빼기는 기사를 확인하지 않는다.
+  // 나의 뉴스함은 담은 시각 최신순(같으면 기사 id 내림차순) (docs/api-screen.md A20 ~ A22)
+  http.put("/api/v1/members/me/bookmarks/:articleId", ({ params }) => {
+    const articleId = Number(params.articleId);
+    if (!findArticle(articleId)) {
+      return articleNotFound(
+        `/api/v1/members/me/bookmarks/${params.articleId}`,
+      );
+    }
+    return HttpResponse.json({
+      articleId,
+      bookmarked: true,
+      bookmarkedAt: bookmarkedAts[articleId] ?? kstIso(Date.now()),
+    } satisfies BookmarkState);
+  }),
+  http.delete("/api/v1/members/me/bookmarks/:articleId", ({ params }) =>
+    HttpResponse.json({
+      articleId: Number(params.articleId),
+      bookmarked: false,
+      bookmarkedAt: null,
+    } satisfies BookmarkState),
+  ),
+  http.get("/api/v1/members/me/bookmarks", () => {
+    const items = articleEntries()
+      .filter(({ article }) => article.id in bookmarkedAts)
+      .map(({ article }) => ({
+        ...article,
+        bookmarked: true,
+        bookmarkedAt: bookmarkedAts[article.id],
+      }))
+      .sort(
+        (a, b) => b.bookmarkedAt.localeCompare(a.bookmarkedAt) || b.id - a.id,
+      );
+    return HttpResponse.json({ items } satisfies ItemList<BookmarkItem>);
+  }),
   http.get("/api/v1/search", ({ request }) =>
     HttpResponse.json(search(new URL(request.url).searchParams.get("q") ?? "")),
   ),
