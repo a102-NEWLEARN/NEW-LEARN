@@ -25,7 +25,7 @@
 - AC-10: 후보 찾기 시간을 1만 7천 건 정확 검색으로 잰 값이 `SSOT.md` 10절에 있다
   — 2026-10-27 줄(데워진 뒤 중앙값 약 77ms)
 - AC-11(구현 중 더함): 1분 스케줄러의 「못 넣은 작업 넣기」는 넣을 작업만 읽는다. 넣지 않는 작업(Jira 40 전에는 메시지 공장이 없던 ISSUE, 지금은 후보가 빈 ISSUE 대기 작업)이 한 번에 읽는 수(100)를 채워도 다른 단계의 작업이 막히지 않는다
-  — `AnalysisJobQueueIntegrationTest.jobsWithoutAMessageFactoryDoNotCrowdOutOthers`
+  — `AnalysisJobQueueIntegrationTest.waitingIssueJobsDoNotCrowdOutOthers`(Jira 40 에서 이름을 바꿈)
 - AC-12(Jira 130, 2026-10-28): `NEW` 면 `newEvent.role`(`MAIN` · `REACTION`)과 `reactsTo` 를 사건에 저장한다. `role` 이 없거나 모르는 값(소문자 포함)이면 400. `REACTION` 의 `reactsTo` 가 비었거나 U+0000 이면 null, `MAIN` 의 `reactsTo` 는 읽지 않는다. `EXISTING` 의 `newEvent` 는 `role` 까지 읽지 않는다
   — `newStoresTheRoleAndWhatItReactsTo` · `newWithoutAKnownRoleIsRejected` · `aReactsToThatCannotBeKeptIsStoredAsNull` · `existingIgnoresTheNewEventRole`
 
