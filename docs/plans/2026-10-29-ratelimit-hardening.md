@@ -76,9 +76,9 @@
 ## 작업 순서
 
 - [x] Jira 새 티켓(스토리 포인트 2, 135 와 연결) 만들고 진행 중. 브랜치는 `origin/infra` 가 `origin/dev` 와 같은지 본 뒤 그 위에 — S15P31A102-136. 그사이 infra 에 Jira 135 문서 바로잡기(966173c)가, dev 에 계획 체크(9a5362f)가 따로 들어가 서로 조금씩 앞서 있다 → `origin/infra`(32e8dcc) 위에 만들고, infra → dev MR 이 두 쪽을 합친다
-- [x] ① 지표 — 파일 · 서버 쪽 시험 적용(`--dry-run=server`) · 게이트 · reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 봄, infra → dev 는 사용자 승인) → 확인 → 증거를 infra → dev MR 댓글로 — !401 → infra 8df85ce6, !406 → dev 0fce0529(15:31, GitLab 장애로 「conflict」 표시가 남아 MR 을 닫았다 열어 다시 계산). 15:32:55 동기화, 15:34 두 대상 `up` 1 · 오류 없음, 판정 지표 rule/1 ~ 3, 새 시계열 47개 · Prometheus 메모리 482 → 492MiB
-- [x] ② 정책 — 반영 전 접속 시험(사용자) → 파일 · 시험 적용 · 게이트 · reviewer → MR → infra → dev → 반영 뒤 접속 시험 · 상한 다시 재기 → MR 댓글 — !407 → infra 78a16792, !408 → dev 8bb6468a(16:15:07, 정책 16:15:12 생성 · VALID). 시험 Pod(워커 · 관리 서버) 포트 넷: 전 15:48 모두 open → 뒤 16:21 · 16:22 두 번 모두 timed out. 관리 서버 호스트 길도 200 → 시간 초과. 용어사전 16:16:17 ~ 23 에 101번 → 100번 200 · 1번 429, 같은 때 EC2 200. 풀림 · 오류 0, 수집 up 1. 첫 MR 파이프라인은 GitLab 장애로 잡이 코드를 못 받아(500) 실패 → MR 에 새 파이프라인
-- [ ] ③ · ④ Helm 값 — 파일 · `helm template` 대조 · 게이트 · reviewer → MR → infra → dev → 컨트롤러 · 상한 서비스 새 Pod 확인 · 상한 다시 재기 · 캐시 지표 → MR 댓글
+- [x] ① 지표 — 파일 · 서버 쪽 시험 적용(`--dry-run=server`) · 게이트 · reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 봄, infra → dev 는 사용자 승인) → 확인 → 증거를 infra → dev MR 댓글로 — !401 → infra 8df85ce6, !406 → dev 0fce0529(15:31, GitLab 장애로 「conflict」 표시가 남아 MR 을 닫았다 열어 다시 계산). 결과는 `SSOT.md` 10절
+- [x] ② 정책 — 반영 전 접속 시험(사용자) → 파일 · 시험 적용 · 게이트 · reviewer → MR → infra → dev → 반영 뒤 접속 시험 · 상한 다시 재기 → MR 댓글 — !407 → infra 78a16792, !408 → dev 8bb6468a(16:15:07). 결과는 `SSOT.md` 10절. 첫 MR 파이프라인은 GitLab 장애로 잡이 코드를 못 받아(500) 실패 → MR 에 새 파이프라인
+- [x] ③ · ④ Helm 값 — 파일 · `helm template` 대조 · 게이트 · reviewer → MR → infra → dev → 컨트롤러 · 상한 서비스 새 Pod 확인 · 상한 다시 재기 · 캐시 지표 → MR 댓글 — !409 → infra e0ffd5a1, !410 → dev bcdeb05f(16:47:31). 결과는 `SSOT.md` 10절. reviewer 지적으로 바로잡은 사실 둘: v1.9.2 컨트롤러는 설정 파일을 감시해 다시 읽기도 한다(그래도 kubelet 반영을 기다리지 않으려고 해시 주석을 둔다), 상한 키 만료는 1분이 아니라 칸 끝 + 0 ~ 299초. 계획 때 짐작한 `…over_limit_with_local_cache` 이름의 시계열은 나오지 않아, 캐시 수는 다른 길로 읽었다(읽는 법은 `SSOT.md` 10절)
 - [ ] 실측 문서 MR → dev, Jira 새 티켓 완료, 분야 브랜치 넷 dev 에 맞춤
 
 ## 안 바꿀 것
