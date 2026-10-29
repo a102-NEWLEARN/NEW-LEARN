@@ -250,6 +250,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - kind 리허설로 확인했다(2026-10-18, Jira S15P31A102-77) — 이 PC → kind 워커 80 → Envoy → hello 앱 응답. 실제 서버에서도 확인했다(2026-10-22, Jira S15P31A102-91) — 관리자 PC → SSAFY 도메인:80 → ufw → Envoy hostPort → hello
 - 한계: 워커가 1대라 80을 잡은 Envoy Pod가 둘일 수 없다. 기본 교체 전략(새 Pod 먼저)이면 새 Pod가 「free ports」 부족으로 Pending에 멈춘다 → 교체 전략을 maxSurge 0 · maxUnavailable 1(옛 Pod 먼저 내리기)로 둔다. 그래서 Envoy를 바꿀 때(Envoy Gateway 업그레이드 · EnvoyProxy 변경) 잠깐 끊긴다(잰 시간은 10절). 앱 배포는 Envoy를 재시작하지 않아 해당하지 않는다
 - 443도 같은 방식이다 — 컨테이너 10443 → hostPort 443 (2026-10-22, Jira S15P31A102-93)
+- 주소별 요청 수 상한(2026-10-29 사용자, Jira S15P31A102-135): 로그인 없이 부르는 A19 용어사전 · A15 로그인 · A14 가입을 손님 IP 마다 1분 100 · 20 · 10건으로 막는다. 무차별 대입 · 계정 찍어 내기 · 사전 하루 한도 소진을 앱이 아니라 입구에서 막으려는 것이다. Envoy 안에서 세는 local 상한이다 — Envoy Pod 가 하나라 바구니가 하나고, 손님 IP 는 hostPort 로 바로 받아 Envoy 가 본다(2026-10-29 접근 로그에서 서로 다른 공인 주소 41개 확인). 넘으면 Envoy 가 429 `RATE_LIMITED`(`Retry-After: 60`)를 만든다(`docs/api.md` 2절). 값은 `infra/k8s/services/app/ratelimit.yaml` · `routes.yaml`. 한계: 같은 공인 IP 를 여럿이 쓰면(발표장 와이파이) 바구니도 하나다. Envoy 가 다시 뜨면 센 수가 비워진다. 사전 하루 한도(50,000건)는 앱이 따로 센다(`docs/api-screen.md` A19)
 
 ### 도메인 · HTTPS
 
@@ -345,7 +346,6 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 | 임베딩 입력 길이 — 모델은 BGE-m3-ko · 1024차원으로 정했다(2026-10-23, 3절). 남은 것은 제목 · 본문 앞부분 중 무엇을 넣을지다. CPU 2스레드에서 리드(제목 + 앞 두 문장)는 기사당 약 1.2초, 본문 앞 800자는 약 4.3초다(10절). `EMBED` 는 `EXTRACT` 와 동시에 돌아 우리 요약을 못 쓴다. 검색은 인덱스 없이 정확 검색 — 1만 7천 건에 약 77ms 라 그대로 둔다(2026-10-27 잼, 10절) | AI | 3절, `docs/data-model.md` |
 | 마인드맵 렌더링 라이브러리 | FE | — |
 | AI 평가셋 위치 · 회귀 기준 | AI | 3절, Jira S15P31A102-33 |
-| API 인증 — 남은 것은 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전의 주소별 요청 수 상한이다(무차별 대입 · 사전 하루 한도 소진 막기 — 앱이 아니라 입구 Envoy 에서 하자는 안, Jira 62 에서 뺐다). 내부 API(`/internal/v1`)는 출입증 두 장(워커 키 W1 · 배치 키 B1, `X-Internal-Key`)으로 정했다(2026-10-26 Jira 30, `docs/api.md` 1절). 정한 것: 헬스 · 둘러보기 · 가입 · 로그인 · 용어사전만 로그인 없이 연다(2026-10-22 Jira 100, `backend` 의 `SecurityConfig`). 화면 로그인은 세션 쿠키 · Redis 세션 · CSRF 번호표 쿠키(2026-10-21). 로그인 하루 유지 · 같은 아이디 5번 틀리면 1분 잠금(429 `TOO_MANY_REQUESTS`)은 2026-10-26 Jira 62 | BE · Infra | `docs/api.md` 1절, `docs/api-screen.md` A15 |
 | API 공통 규칙 v0(응답 · 오류 형식 · 식별자 · 시간 · 목록) 합의 — AI 는 워커 쪽 규칙에 동의했다(2026-10-23). FE 확인 전이다 | BE · FE · AI | `docs/api.md` 1절, Jira S15P31A102-28 |
 | 어떤 사건 3개를 한 이슈로 묶는지(이슈는 사건 3개가 모이면 AI 가 만들고 이름도 그때 짓는다고 2026-10-20 정함), 사건 하나가 여러 이슈에 속할 수 있는지 | AI · 팀 | `docs/data-model.md` 5절 |
 | 한 기사가 여러 사건에 속할 수 있는지 (PRD FR-9) | AI · BE | `docs/data-model.md` 5절 |

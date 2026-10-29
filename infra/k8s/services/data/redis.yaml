@@ -35,7 +35,7 @@ spec:
       containers:
         - name: redis
           image: redis:8.10.2
-          # maxmemory 1gb 에 AOF 다시 쓰기(fork)가 메모리를 더 쓴다 — 상한은 2Gi (docs/api-screen.md 「Infra 와 정한다」)
+          # maxmemory 1gb 에 AOF 다시 쓰기(fork)가 메모리를 더 쓴다 — 상한은 2Gi (SSOT.md 6절 「저장소·백업」)
           args: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "noeviction"]
           ports:
             - name: redis
