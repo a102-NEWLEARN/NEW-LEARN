@@ -40,7 +40,7 @@ public class DictionaryController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "502",
-            description = "DICTIONARY_UNAVAILABLE — 표준국어대사전이 답하지 않거나 오류 · 읽을 수 없는 응답을 줌, 또는 인증 키가 없음",
+            description = "DICTIONARY_UNAVAILABLE — 표준국어대사전이 답하지 않거나 오류 · 읽을 수 없는 응답을 줌, 인증 키가 없음, 또는 그날 사전 호출 한도를 넘음",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,

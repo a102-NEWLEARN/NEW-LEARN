@@ -49,8 +49,12 @@ public class Event {
     @Enumerated(EnumType.STRING)
     private EventRole role;
 
-    // REACTION 이면 무엇에 대한 반응인지 한 줄. 저장만 하고 화면 API 로는 아직 내보내지 않는다
+    // REACTION 이면 무엇에 대한 반응인지 한 줄. 저장만 하고 화면 API 로는 내보내지 않는다
     private @Nullable String reactsTo;
+
+    // REACTION 이면 반응하는 사건 — 판정에 보낸 후보 안일 때만 채운다. A4 이슈 타임라인이 같은 이슈의 사건일 때만 내보낸다 (Jira 134)
+    // 사건을 읽을 때 대상 사건까지 읽지 않게 번호로만 둔다
+    private @Nullable Long reactsToEventId;
 
     @CreationTimestamp
     private Instant createdAt;
@@ -65,7 +69,8 @@ public class Event {
             Instant occurredAt,
             OccurredAtBasis occurredAtBasis,
             EventRole role,
-            @Nullable String reactsTo) {
+            @Nullable String reactsTo,
+            @Nullable Long reactsToEventId) {
         this.title = title;
         this.label = label;
         this.summary = summary;
@@ -73,5 +78,6 @@ public class Event {
         this.occurredAtBasis = occurredAtBasis;
         this.role = role;
         this.reactsTo = reactsTo;
+        this.reactsToEventId = reactsToEventId;
     }
 }

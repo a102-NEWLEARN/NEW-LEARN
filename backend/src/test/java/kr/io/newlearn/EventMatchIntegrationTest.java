@@ -563,6 +563,58 @@ class EventMatchIntegrationTest {
         assertThat(eventColumn(eventId, "role")).isEqualTo("MAIN");
     }
 
+    // AC-13 — REACTION 의 반응 대상 사건 번호가 보낸 후보 안이면 저장한다. 화면이 반응 점선을 그리는 데 쓴다(2026-10-28)
+    @Test
+    void newReactionStoresTheTargetEventAmongTheCandidates(CapturedOutput output) throws Exception {
+        long target = candidateEvent();
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", createdWith("비판 성명", reactionTo(String.valueOf(target)))))
+                .andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventId).as("새 사건을 만들었다").isNotIn(0L, target);
+        assertThat(eventColumn(eventId, "role")).isEqualTo("REACTION");
+        assertThat(reactsToEventId(eventId)).containsExactly(target);
+        assertThat(output.toString()).doesNotContain("반응 대상 사건 번호가");
+    }
+
+    // 반응 대상 사건 번호는 선택 값이라, 담을 수 없으면 400 대신 null 로 받는다 — 거절하면 판정을 다시 걸어 GMS 를 한 번 더 부른다.
+    // 후보 밖 · 정수 아님은 판정이 지어낸 번호일 수 있어 경고를 남긴다(AI 팀장 제안). 없음 · null 은 「이슈 전반」이라 조용히 받는다
+    static Stream<Arguments> targetsThatCannotBeKept() {
+        return Stream.of(
+                Arguments.of(
+                        "보낸 후보 밖", "\"role\": \"REACTION\", \"reactsTo\": \"착공식\", \"reactsToEventId\": 3552", true),
+                Arguments.of(
+                        "글자", "\"role\": \"REACTION\", \"reactsTo\": \"착공식\", \"reactsToEventId\": \"3551\"", true),
+                Arguments.of("소수", "\"role\": \"REACTION\", \"reactsTo\": \"착공식\", \"reactsToEventId\": 3551.5", true),
+                Arguments.of("없음", "\"role\": \"REACTION\", \"reactsTo\": \"이슈 전반\"", false),
+                Arguments.of(
+                        "null", "\"role\": \"REACTION\", \"reactsTo\": \"이슈 전반\", \"reactsToEventId\": null", false),
+                Arguments.of("MAIN 이면 읽지 않음", "\"role\": \"MAIN\", \"reactsToEventId\": 3551", false));
+    }
+
+    // AC-13
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("targetsThatCannotBeKept")
+    void aTargetThatCannotBeKeptIsStoredAsNull(String why, String roleFields, boolean warned, CapturedOutput output)
+            throws Exception {
+        assertThat(candidateEvent()).isEqualTo(3551);
+        event(3552, "묶인 기사가 없는 사건"); // 기사 벡터로 못 재서 후보에 안 들어간다
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", createdWith("비판 성명", roleFields))).andExpect(status().isNoContent());
+
+        long eventId = linkedEvent(ARTICLE);
+        assertThat(eventId).as("새 사건을 만들었다").isNotIn(0L, 3551L, 3552L);
+        assertThat(reactsToEventId(eventId)).containsOnlyNulls();
+        if (warned) {
+            assertThat(output.toString()).contains("반응 대상 사건 번호가");
+        } else {
+            assertThat(output.toString()).doesNotContain("반응 대상 사건 번호가");
+        }
+    }
+
     // AC-3 · AC-5 — 판정이 끝나면 바로 다음 기사가 걸리고, 앞 기사가 만든 사건이 후보에 든다.
     // 나중에 발행된 기사가 붙어도 FIRST_PUBLISHED 시점을 늦추지 않는다
     @Test
@@ -781,8 +833,8 @@ class EventMatchIntegrationTest {
 
     private long event(long id, String title, String occurredAt, String basis) {
         jdbc.sql("""
-                insert into event(id,title,label,summary,occurred_at,occurred_at_basis,created_at,updated_at)
-                values (:id,:title,'착공식','사건 요약',cast(:at as timestamptz),:basis,now(),now())
+                insert into event(id,title,label,summary,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                values (:id,:title,'착공식','사건 요약',cast(:at as timestamptz),:basis,now(),now(),'MAIN')
                 """)
                 .param("id", id)
                 .param("title", title)
@@ -859,6 +911,28 @@ class EventMatchIntegrationTest {
                 .query(OffsetDateTime.class)
                 .single()
                 .toInstant();
+    }
+
+    // 기사 3510 이 묶인 사건 3551 — 판정 기사(ARTICLE)의 후보에 든다
+    private long candidateEvent() {
+        ready(ARTICLE, 0);
+        article(3510, "2026-10-05T00:00:00Z");
+        embedding(3510, 10);
+        long eventId = event(3551, "한빛반도체 착공식", "2026-10-08T00:00:00Z", "EXTRACTED");
+        link(3510, eventId, "2026-10-05T00:30:00Z");
+        return eventId;
+    }
+
+    // 한 행짜리 목록 — 칸이 아직 없으면 「결과 없음」 예외가 아니라 단언에서 갈리게 to_jsonb 로 읽는다
+    private List<Long> reactsToEventId(long eventId) {
+        return jdbc.sql("select (to_jsonb(e)->>'reacts_to_event_id')::bigint from event e where id = :id")
+                .param("id", eventId)
+                .query((rs, n) -> rs.getObject(1, Long.class))
+                .list();
+    }
+
+    private static String reactionTo(String target) {
+        return "\"role\": \"REACTION\", \"reactsTo\": \"착공식\", \"reactsToEventId\": " + target;
     }
 
     private String eventColumn(long eventId, String column) {
