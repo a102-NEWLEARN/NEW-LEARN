@@ -6,6 +6,15 @@ final class CategoryIssueFixtures {
     private CategoryIssueFixtures() {}
 
     static void insert(JdbcClient jdbc) {
+        insert(jdbc, true);
+    }
+
+    // 사건 역할 칸(V8)이 생기기 전 스키마 — InterestIssueSchemaTest(V7). V10 부터 role 에 기본값이 없어 지금 스키마에는 꼭 넣는다
+    static void insertBeforeEventRole(JdbcClient jdbc) {
+        insert(jdbc, false);
+    }
+
+    private static void insert(JdbcClient jdbc, boolean eventRole) {
         jdbc.sql("insert into press(code,name) values ('fixture41','테스트 언론사'), ('hidden41','미투입 언론사')")
                 .update();
         jdbc.sql("""
@@ -17,14 +26,16 @@ final class CategoryIssueFixtures {
         jdbc.sql(
                         "insert into issue_category values (4101,'politics'),(4102,'economy'),(4102,'politics'),(4103,'world')")
                 .update();
+        String role = eventRole ? ",role" : "";
+        String main = eventRole ? ",'MAIN'" : "";
         for (long issue = 4101; issue <= 4103; issue++) {
             for (int n = 1; n <= 3; n++) {
                 long event = (issue - 4100) * 10 + 4100 + n;
                 String day = issue == 4103 ? "19" : n == 1 ? "20" : "22";
                 jdbc.sql("""
-                        insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at)
-                        values (:id,:issue,'사건','키워드',cast(:at as timestamptz),'EXTRACTED',now(),now())
-                        """)
+                        insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at%s)
+                        values (:id,:issue,'사건','키워드',cast(:at as timestamptz),'EXTRACTED',now(),now()%s)
+                        """.formatted(role, main))
                         .param("id", event)
                         .param("issue", issue)
                         .param("at", "2026-10-" + day + "T00:00:00Z")

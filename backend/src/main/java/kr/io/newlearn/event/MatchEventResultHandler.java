@@ -62,7 +62,7 @@ class MatchEventResultHandler implements AnalysisResultHandler {
         // read 가 EXISTING 이면 eventId 를, NEW 면 newEvent 를 채운다
         Event event = switch (match.decision()) {
             case EXISTING -> attach(job, article, Objects.requireNonNull(match.eventId()));
-            case NEW -> create(article, Objects.requireNonNull(match.newEvent()));
+            case NEW -> create(job, article, Objects.requireNonNull(match.newEvent()));
         };
         links.save(new ArticleEvent(article, event));
         if (match.decision() == MatchEventResult.Decision.NEW) {
@@ -83,9 +83,7 @@ class MatchEventResultHandler implements AnalysisResultHandler {
     // 보낸 후보 안의 사건이어야 한다 — 후보 밖이면 판정이 엉뚱한 사건을 지어냈거나 옛 메시지다
     // 이름 · 키워드 · 요약은 처음 지은 그대로 둔다(api-internal.md 5절). 발생 시점만 더 이른 기사면 당긴다
     private Event attach(AnalysisJob job, Article article, long eventId) {
-        boolean sent = CandidateEventFinder.read(jsonMapper, job.getCandidates()).stream()
-                .anyMatch(candidate -> candidate.eventId() == eventId);
-        if (!sent) {
+        if (!sent(job, eventId)) {
             throw new ResultSchemaInvalidException("eventId 가 보낸 후보에 없다: " + eventId);
         }
         events.pullOccurredAt(eventId, article.getPublishedAt(), OccurredAtBasis.FIRST_PUBLISHED, Instant.now());
@@ -93,7 +91,13 @@ class MatchEventResultHandler implements AnalysisResultHandler {
     }
 
     // 발생 시점 = EXTRACT 가 뽑은 시점, 없으면 이 기사의 발행 시각(FIRST_PUBLISHED) (api-internal.md 5절)
-    private Event create(Article article, MatchEventResult.NewEvent created) {
+    // 반응 대상 사건 번호도 보낸 후보 안이어야 한다. 선택 값이라 밖이면 400 대신 버리고 경고만 남긴다(Jira 134, AI 팀장 제안)
+    private Event create(AnalysisJob job, Article article, MatchEventResult.NewEvent created) {
+        @Nullable Long target = created.reactsToEventId();
+        if (target != null && !sent(job, target)) {
+            log.warn("반응 대상 사건 번호가 보낸 후보에 없어 null 로 받는다: 판정 작업 {} reactsToEventId={}", job.getId(), target);
+            target = null;
+        }
         @Nullable
         Instant extracted = mindmaps.findById(article.getId())
                 .map(ArticleMindmap::getOccurredAt)
@@ -107,7 +111,13 @@ class MatchEventResultHandler implements AnalysisResultHandler {
                 occurredAt,
                 basis,
                 created.role(),
-                created.reactsTo()));
+                created.reactsTo(),
+                target));
+    }
+
+    private boolean sent(AnalysisJob job, long eventId) {
+        return CandidateEventFinder.read(jsonMapper, job.getCandidates()).stream()
+                .anyMatch(candidate -> candidate.eventId() == eventId);
     }
 
     // 판정 기록(jsonb)은 U+0000 을 받지 않는다 — 저장에서 500 이 나지 않게 받을 때 거절한다. 비어 있으면 null 로 남긴다

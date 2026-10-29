@@ -29,7 +29,7 @@ class InterestIssueSchemaTest {
                                 "select version from flyway_schema_history where success and version is not null order by installed_rank")
                         .query(String.class)
                         .list())
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
         assertThat(jdbc.sql(
                                 "select count(*) from flyway_schema_history where version='9' and script='V9__interest_issue.sql' and success")
                         .query(Long.class)
@@ -66,7 +66,7 @@ class InterestIssueSchemaTest {
                         .migrate();
                 connection.setSchema(schema);
                 var db = JdbcClient.create(new SingleConnectionDataSource(connection, true));
-                CategoryIssueFixtures.insert(db);
+                CategoryIssueFixtures.insertBeforeEventRole(db);
                 db.sql(
                                 "insert into member(id,login_id,password_hash,name,created_at) values (6401,'schema64a','fixture','독자',now()),(6402,'schema64b','fixture','다른독자',now())")
                         .update();
@@ -118,6 +118,7 @@ class InterestIssueSchemaTest {
                         .dataSource(dataSource)
                         .schemas(schema)
                         .defaultSchema(schema)
+                        .target("9")
                         .load()
                         .migrate();
                 assertThat(result.migrationsExecuted).isEqualTo(1);

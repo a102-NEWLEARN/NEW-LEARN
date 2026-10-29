@@ -66,6 +66,8 @@ newlearn:
   # 사이트는 사이트 반영 때 봉인 Secret 을 env 로 넣는다(Infra). 로컬은 루트 .env
   dictionary:
     stdict-key: ${STDICT_API_KEY:}
+    # 사전을 하루에 부르는 수의 상한 — Open API 한도 50,000건의 90%. 넘으면 그날은 부르지 않고 502 (Jira 135)
+    daily-limit: 45000
 
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
