@@ -48,7 +48,8 @@ class OpenApiDocsTest {
             Map.entry("/api/v1/members/me", "A17"),
             Map.entry("/api/v1/members/me/bookmarks", "A22"),
             Map.entry("/api/v1/members/me/interest-issues", "A25"),
-            Map.entry("/api/v1/dictionary", "A19"));
+            Map.entry("/api/v1/dictionary", "A19"),
+            Map.entry("/api/v1/search", "A13"));
 
     @Autowired
     MockMvc mvc;
@@ -73,15 +74,18 @@ class OpenApiDocsTest {
 
     @Test
     void tagsAreKoreanInScreenOrderAndLegendExplainsConfirmed() throws Exception {
+        // 통합 검색은 홈에서 카테고리와 같은 화면이라 카테고리 바로 뒤다(Jira 43)
         docs().andExpect(jsonPath("$.tags[0].name").value("카테고리"))
-                .andExpect(jsonPath("$.tags[1].name").value("이슈"))
-                .andExpect(jsonPath("$.tags[2].name").value("사건"))
-                .andExpect(jsonPath("$.tags[3].name").value("기사"))
-                .andExpect(jsonPath("$.tags[4].name").value("회원"))
-                .andExpect(jsonPath("$.tags[5].name").value("용어사전"))
+                .andExpect(jsonPath("$.tags[1].name").value("통합 검색"))
+                .andExpect(jsonPath("$.tags[2].name").value("이슈"))
+                .andExpect(jsonPath("$.tags[3].name").value("사건"))
+                .andExpect(jsonPath("$.tags[4].name").value("기사"))
+                .andExpect(jsonPath("$.tags[5].name").value("회원"))
+                .andExpect(jsonPath("$.tags[6].name").value("용어사전"))
                 .andExpect(jsonPath("$.tags[3].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[4].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[5].description", not(emptyOrNullString())))
+                .andExpect(jsonPath("$.tags[6].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[0].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[1].description", not(emptyOrNullString())))
                 .andExpect(jsonPath("$.tags[2].description", not(emptyOrNullString())))
@@ -359,6 +363,27 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.components.schemas.BookmarkItem.properties.bookmarkedAt")
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.Item").doesNotExist());
+    }
+
+    // A13 통합 검색(Jira 43, 스펙 F02-search-api AC-8) — 계약대로 시험을 마쳐 [확정](2026-10-30)
+    @Test
+    void searchApiIsDocumentedWithQueryAndValidationError() throws Exception {
+        String operation = op("/api/v1/search");
+        docs().andExpect(jsonPath(operation + ".summary", startsWith("[확정] A13 ")))
+                .andExpect(jsonPath(operation + ".tags", contains("통합 검색")))
+                .andExpect(jsonPath(operation + ".parameters[*].name", contains("q")))
+                .andExpect(jsonPath(operation + ".parameters[0].description", not(emptyOrNullString())))
+                // 없어도 400 · errors[q] 로 답하려고 필수로 두지 않았다(A19 와 같다)
+                .andExpect(jsonPath(operation + ".parameters[?(@.required == true)]")
+                        .isEmpty())
+                .andExpect(jsonPath(
+                        operation + ".responses['200'].content['application/json'].schema['$ref']",
+                        endsWith("/SearchResponse")))
+                .andExpect(jsonPath(operation + ".responses['400'].description", containsString("VALIDATION_FAILED")))
+                .andExpect(jsonPath(
+                        operation + ".responses['400'].content['application/problem+json'].schema['$ref']",
+                        endsWith("/Problem")))
+                .andExpect(jsonPath(problemExample(operation, "400") + ".code").value("VALIDATION_FAILED"));
     }
 
     // A19 용어사전(Jira 102) — 실제 키로 응답 모양을 확인한 뒤 [확정](2026-10-29)

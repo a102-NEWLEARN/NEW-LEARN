@@ -472,7 +472,7 @@ erDiagram
 | 기능 | 테이블 | API |
 |---|---|---|
 | F01 뉴스 데이터 적재·조회 | `article` · `press` · `press_mapping` · `category_mapping` · `ingest_run` · `analysis_job` | A7 · A8, 투입 B1 |
-| F02 카테고리별 뉴스·이슈 조회 | `category` · `issue_category` · `issue` · `article` | A1 · A2(새로 생성된 이슈 순 포함) · A7, 빠른 이동 A13 |
+| F02 카테고리별 뉴스·이슈 조회 | `category` · `issue_category` · `issue` · `article` · `event`(A13 제목 검색) | A1 · A2(새로 생성된 이슈 순 포함) · A7, 빠른 이동 A13 |
 | F03 기사 핵심 정보 구조화 | `analysis_job`(`EXTRACT`) · `article_mindmap` | W1 (`EXTRACT`) |
 | F04 기사 마인드맵 생성 | `article_mindmap.content` | A9 (흐름지도 · 마인드맵 두 보기) |
 | F05 노드 상세 및 근거 확인 | 추후(2026-10-21). 근거는 `article_mindmap.content` 에 데이터로만 | — |
