@@ -11,7 +11,7 @@
 | `ufw-worker.sh` | Lightsail 방화벽 — 22 · 80 · 443 · wg0 들이기, Pod 주소 범위 포워딩 | Lightsail |
 | `join-worker.sh` | 컨트롤 플레인이 찍은 토큰으로 kubeadm join | Lightsail |
 | `bootstrap-argocd.sh` | Argo CD → 저장소 읽기 Secret(배포 토큰) → kubeseal → 루트 Application. 그 뒤는 Argo CD 가 Git 을 따라 깐다 | EC2 (워커 join 뒤) |
-| `seal-secrets.sh` | 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) · `db`(DB 계정, 무작위) · `ghcr`(이미지 받기 토큰) · `gms`(AI 워커의 GMS 키) · `internal-api`(직원용 문 출입증, 무작위) 등 — 전체는 스크립트 머리 | EC2 |
+| `seal-secrets.sh` | 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일로 만든다 — `basic-auth`(관리 화면 팝업 계정) · `db`(DB 계정, 무작위) · `ghcr`(이미지 받기 토큰) · `gms`(AI 워커의 GMS 키) · `internal-api`(직원용 문 출입증, 무작위) · `stdict`(용어사전의 표준국어대사전 키) 등 — 전체는 스크립트 머리 | EC2 |
 
 설정 값은 스크립트 밖에 있다 — kubeadm 은 `infra/k8s/kubeadm/`, Cilium 은 `infra/k8s/bootstrap/cilium-values.yaml` 위에 `cilium-values.prod.yaml`, Argo CD 는 `argocd-values.yaml` 위에 `argocd-values.prod.yaml`, GitLab Runner 는 `infra/k8s/bootstrap/gitlab-runner-values.yaml`, 모니터링은 `monitoring-values.yaml` · `prometheus-pv.yaml` · `ci-exporter/`.
 쿠버네티스 판은 `infra/k8s/kubeadm/init.yaml` 의 `kubernetesVersion` 한 곳에만 적는다. `common.sh` 가 그 값을 읽어 패키지를 고정한다.
@@ -269,7 +269,7 @@ PostgreSQL · Redis(`infra/k8s/services/data`) · backend · frontend(`app`) · 
 - **태그 바꾸기**: 보통은 CI 가 한다 — dev 에서 이미지를 구우면 `w5:deploy-mr` 잡이 `deploy/app` · `deploy/ai` 로 태그 MR 을 연다(`SSOT.md` 6절 「배포 흐름」). 사람은 그 MR 을 확인하고 머지한다. 손으로 바꿀 때는 `infra/k8s/services/app · ai/kustomization.yaml` 의 `newTag` 를 바꾸는 MR — 태그는 **dev push 파이프라인이 GHCR 에 올린 것만** 쓴다(MR 파이프라인은 굽기만 하고 올리지 않는다, 2026-10-22 MR 의 커밋을 적었다가 ImagePullBackOff). 되돌리기는 그 MR 을 Revert
 - **태그 MR 토큰** (Maintainer, GitLab 화면): Settings › Access tokens — 이름 `deploy-mr-bot` · 역할 Developer · 범위 `api` · 만료 2026-11-30 → Settings › CI/CD › Variables 에 `DEPLOY_MR_TOKEN`(Masked and hidden · Protect). 토큰이 만료되면 dev 파이프라인의 `w5:deploy-mr` 가 401 로 빨개진다
 - **떠 있는 판 · backend 로그 · env**: 판은 `kubectl -n app get deploy backend -o jsonpath='{.spec.template.spec.containers[0].image}'`, 로그는 `kubectl -n app logs deploy/backend --since=10m`(재시작했으면 `--previous` 로 직전 하나). Argo CD 화면에서는 app 앱 → backend Pod → LOGS. 로그는 그 Pod 가 사는 동안만 있다 — 배포로 Pod 가 바뀌면 옛 로그는 없다. 넣는 env 는 `infra/k8s/services/app/backend.yaml` 이 원본이고 비밀값은 봉인 Secret 에서 온다(위 1번). 사이트 전용 설정 파일(스프링 프로필)은 두지 않는다 — backend `application.yaml` 의 빈칸을 env 로 채운다(2026-10-28, Jira S15P31A102-29)
-- **ai 임베딩 모델 · GMS 키** — 모델 캐시 확인 · 판 바꾸기 · 키 봉인은 `infra/server/ai-worker.md`
+- **ai 임베딩 모델 · GMS 키 · 용어사전 키** — 모델 캐시 확인 · 판 바꾸기 · GMS 키 봉인은 `infra/server/ai-worker.md`. 용어사전(A19)의 표준국어대사전 키(사전 누리집 「오픈 API 사용 신청」 화면, 계정당 하나)는 바뀐 스크립트를 보낸 뒤(위 「서버로 보내기」) `ssh -t ubuntu@<EC2 탄력적 IP> "bash infra/server/seal-secrets.sh stdict"` — 그 키로 「나무」를 찾아 결과가 와야 `app` 에 봉인하고(틀린 키는 빈 본문이라 backend 가 못 가린다) 가져올 자리 · 다시 띄우는 명령을 찍는다. 봉인 전에는 용어사전이 502 다(Jira 102)
 - **DB · Redis 데이터 살리기**: PVC 를 지워도 PV 와 워커 폴더(`/var/lib/newlearn/local-path/pvc-…`)는 남는다(Retain) — 새 PVC 는 그것을 쓰지 않고 빈 DB 로 뜬다. 살리려면 PV 의 `spec.claimRef` 를 지워(`kubectl patch pv <이름> --type json -p '[{"op":"remove","path":"/spec/claimRef"}]'`) 새 PVC 가 그 PV 를 잡게 한다(PVC 에 `volumeName: <이름>`)
 - 백업(pg_dump) — 매일 관리 서버에 남긴다. 처음 한 번 · 확인 · 되살리는 법은 `infra/server/db-backup.md`
 

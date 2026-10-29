@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 // Swagger 화면(/swagger-ui.html) · OpenAPI 문서(/v3/api-docs)의 이름 · 태그 · 뜻풀이 (Jira 107 · 112)
 // 계약의 원본은 docs/api.md 다 — 이 문서는 컨트롤러 코드에서 만든 사본이라 둘이 다르면 docs/api.md 를 따른다
-// 태그는 화면 순서(카테고리 → 이슈 → 사건 → 기사 → 회원)로 둔다. 컨트롤러는 아래 상수로 태그를 단다
+// 태그는 화면 순서(카테고리 → 이슈 → 사건 → 기사 → 회원 → 용어사전)로 둔다. 컨트롤러는 아래 상수로 태그를 단다
 // 명세대로 만들고 시험을 마친 작업만 summary 앞에 [확정] 을 붙인다. 아직 없는 API 는 넣지 않는다
 // 오류 응답(@ApiResponse)을 적는 작업은 200 도 함께 적는다 — 응답을 하나라도 적으면 springdoc 이
 // 성공 응답을 따로 만들지 않는다. 200 의 모양은 적지 않아도 반환 타입에서 채운다
@@ -24,7 +24,8 @@ import org.springframework.context.annotation.Configuration;
             @Tag(
                     name = OpenApiConfig.TAG_MEMBER,
                     description =
-                            "가입 · 로그인 · 로그아웃 · 내 정보 · 관심 분야 · 북마크 (F12). 세션 쿠키 + CSRF 번호표 — POST · PUT · DELETE 는 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로")
+                            "가입 · 로그인 · 로그아웃 · 내 정보 · 관심 분야 · 북마크 (F12). 세션 쿠키 + CSRF 번호표 — POST · PUT · DELETE 는 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로"),
+            @Tag(name = OpenApiConfig.TAG_DICTIONARY, description = "단어 뜻 찾기 — 국립국어원 표준국어대사전을 서버가 대신 부른다 (F13)")
         })
 public class OpenApiConfig {
     public static final String TAG_CATEGORY = "카테고리";
@@ -32,6 +33,7 @@ public class OpenApiConfig {
     public static final String TAG_ARTICLE = "기사";
     public static final String TAG_EVENT = "사건";
     public static final String TAG_MEMBER = "회원";
+    public static final String TAG_DICTIONARY = "용어사전";
 
     // 오류 응답 본문 — RFC 9457 Problem Details 에 code 를 더한 모양 (docs/api.md 1절 「오류」)
     public static final String PROBLEM_JSON = "application/problem+json";

@@ -62,6 +62,10 @@ newlearn:
   internal:
     worker-key: ${INTERNAL_WORKER_KEY:}
     batch-key: ${INTERNAL_BATCH_KEY:}
+  # 용어사전(A19, Jira 102) — 국립국어원 표준국어대사전 Open API 인증 키. 비어 있으면 사전을 부르지 않고 502 DICTIONARY_UNAVAILABLE
+  # 사이트는 사이트 반영 때 봉인 Secret 을 env 로 넣는다(Infra). 로컬은 루트 .env
+  dictionary:
+    stdict-key: ${STDICT_API_KEY:}
 
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
