@@ -70,6 +70,14 @@ spec:
                   name: internal-api
                   key: INTERNAL_BATCH_KEY
                   optional: true
+            # 용어사전(A19)이 부르는 표준국어대사전 Open API 키 (Jira 102, docs/api-screen.md A19)
+            # 봉인(seal-secrets.sh stdict) 전에는 Secret 이 없어 값이 비고, 비면 사전을 부르지 않고 502 — 닫힌 채로 시작
+            - name: STDICT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stdict-api
+                  key: STDICT_API_KEY
+                  optional: true
           # POSTGRES_DB · POSTGRES_USER · POSTGRES_PASSWORD (sealed-postgres-auth.yaml — data 의 DB 와 같은 값)
           envFrom:
             - secretRef:
