@@ -21,7 +21,7 @@ spec:
           port: 8080
     # 주소별 요청 수 상한을 붙이는 길 셋 (ratelimit.yaml, Jira S15P31A102-135) — 이름은 그 파일의 sectionName 이다
     # 정확 경로(Exact)가 위 /api 접두사보다 먼저 고른다(Gateway API 규칙 우선순위). 가는 곳은 같은 backend 다
-    # 용어사전은 메서드를 가리지 않는다 — GET 만 걸면 HEAD 로 같은 결과를 받아 가는 길이 남는다
+    # 용어사전은 메서드를 가리지 않는다 — 모든 메서드를 한 바구니로 세서 메서드를 바꿔 피해 갈 길이 없다(GET 말고는 앱이 401 로 돌려보낸다, 2026-10-29 실측)
     - name: dictionary
       matches:
         - path:
