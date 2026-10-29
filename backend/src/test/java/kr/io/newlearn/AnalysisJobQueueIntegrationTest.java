@@ -435,10 +435,10 @@ class AnalysisJobQueueIntegrationTest {
         assertThat(service.publishUnpublished(T0.plus(Duration.ofHours(1)))).isZero();
     }
 
-    // 메시지 공장이 없는 단계(ISSUE — Jira 40)의 작업은 아예 읽지 않는다. 판정(NEW)이 만든 ISSUE 작업이 한 번에 읽는 수(100)보다
-    // 많이 쌓여도, 다른 단계의 못 넣은 작업이 그 뒤에 막히지 않는다 (Jira 35)
+    // 후보가 빈 ISSUE 대기 작업은 아예 읽지 않는다 — 고르기만 넣는다(Jira 40, 그 전에는 ISSUE 에 메시지 공장이 없었다).
+    // 판정(NEW)이 만든 대기 작업이 한 번에 읽는 수(100)보다 많이 쌓여도, 다른 단계의 못 넣은 작업이 그 뒤에 막히지 않는다 (Jira 35)
     @Test
-    void jobsWithoutAMessageFactoryDoNotCrowdOutOthers() {
+    void waitingIssueJobsDoNotCrowdOutOthers() {
         for (long id = 3100; id < 3200; id++) {
             article(id);
             job(id, "ISSUE", "QUEUED", 1, null, null, T0.minus(Duration.ofHours(1)), null, null);

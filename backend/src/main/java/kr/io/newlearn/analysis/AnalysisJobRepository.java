@@ -55,9 +55,20 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> 
     int requeueFailed(Long id, int attempt, AnalysisJobStatus failed, AnalysisJobStatus queued, Instant now);
 
     // 큐에 못 넣은 작업 — QUEUED 인데 넣었다는 표시가 없고 QUEUED 가 된 지 오래됐다.
-    // 메시지를 만들 수 있는 단계만 읽는다 — 공장이 없는 단계(ISSUE, Jira 40 전)의 작업이 한 번에 읽는 수를 채우면 다른 단계가 막힌다
-    List<AnalysisJob> findByStatusAndPublishedAtIsNullAndQueuedAtBeforeAndStageInOrderByQueuedAtAsc(
-            AnalysisJobStatus status, Instant queuedBefore, Collection<AnalysisStage> stages, Limit limit);
+    // 넣을 작업만 읽는다 — 메시지를 만들 수 있는 단계이고, ISSUE 면 고르기가 후보를 남긴 작업이다. 후보가 빈 ISSUE 대기 작업은
+    // 고르기(IssueDispatcher)만 넣는다. 넣지 않을 작업이 한 번에 읽는 수를 채우면 다른 단계가 막힌다 (Jira 35 · 40)
+    @Query("""
+            select j from AnalysisJob j
+            where j.status = :status and j.publishedAt is null and j.queuedAt < :queuedBefore and j.stage in :stages
+              and (j.stage <> :picked or j.candidates is not null)
+            order by j.queuedAt
+            """)
+    List<AnalysisJob> findUnpublished(
+            AnalysisJobStatus status,
+            Instant queuedBefore,
+            Collection<AnalysisStage> stages,
+            AnalysisStage picked,
+            Limit limit);
 
     // 다시 걸 때가 된 실패 — 다시 걸지 않는 실패는 retry_at 이 비어 있어 읽히지 않는다(앞을 막지 않는다)
     List<AnalysisJob> findByStatusAndRetryAtLessThanEqualOrderByRetryAtAsc(
@@ -88,4 +99,23 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> 
             limit 1
             """)
     Optional<Long> findNextMatchArticle();
+
+    // ISSUE 고르기(IssueDispatcher, Jira 40) — 진행 중인 ISSUE 작업. 후보가 있는 QUEUED, 또는 실패했는데 다시 걸 예정이면 진행 중이다.
+    // 후보가 빈 QUEUED 는 아직 고르지 않은 대기 작업이고, 다시 걸지 않는 실패도 진행 중이 아니다
+    @Query(nativeQuery = true, value = """
+            select id from analysis_job
+            where stage = 'ISSUE'
+              and ((status = 'QUEUED' and candidates is not null) or (status = 'FAILED' and retry_at is not null))
+            order by id limit 1
+            """)
+    Optional<Long> findIssueInFlight();
+
+    // ISSUE 고르기 — 대기 작업 중 작업 번호가 가장 작은 것. 판정 NEW 가 사건과 같이 만들어서 사건이 생긴 순서다.
+    // 다시 거는 작업도 후보를 비워 여기로 돌아온다 — 앞 작업은 모두 끝났으니 번호가 가장 작아 맨 앞이다
+    @Query(nativeQuery = true, value = """
+            select id from analysis_job
+            where stage = 'ISSUE' and status = 'QUEUED' and candidates is null
+            order by id limit 1
+            """)
+    Optional<Long> findNextWaitingIssue();
 }
