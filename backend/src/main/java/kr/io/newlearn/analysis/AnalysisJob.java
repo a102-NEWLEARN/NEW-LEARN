@@ -46,7 +46,7 @@ public class AnalysisJob {
     private int attempt;
 
     // jsonb 칸. MATCH_EVENT · ISSUE 에 보낸 후보를 JSON 글자 그대로 둔다.
-    // MATCH_EVENT 는 [{eventId, similarity}](MatchDispatcher, Jira 35), ISSUE 는 Jira 40
+    // MATCH_EVENT 는 [{eventId, similarity}](MatchDispatcher, Jira 35), ISSUE 는 {issues, events}(IssueDispatcher, 40)
     @JdbcTypeCode(SqlTypes.JSON)
     private @Nullable String candidates;
 
@@ -118,6 +118,19 @@ public class AnalysisJob {
         this.queuedAt = now;
         this.publishedAt = null;
         this.retryAt = null;
+    }
+
+    // ISSUE 고르기가 고를 때 후보를 남긴다. QUEUED 가 된 때도 지금으로 — 대기 작업은 판정 NEW 때 만들어져 queued_at 이 오래됐을
+    // 수 있다. 그대로 두면 멈춤 WARN(40분)이 방금 고른 작업에 나고, 못 넣은 작업 넣기의 1분 기다림이 먹히지 않아 같은 메시지를
+    // 두 번 넣을 수 있다. 기다린 시간은 created_at 에 남는다 (Jira 40, api-internal.md 3절)
+    public void pick(String candidates, Instant now) {
+        this.candidates = candidates;
+        this.queuedAt = now;
+    }
+
+    // 다시 걸 때 ISSUE 는 후보를 비워 대기 작업으로 돌려보낸다 — 고르기가 다시 골라 그때 후보를 새로 계산한다 (Jira 40)
+    public void clearCandidates() {
+        this.candidates = null;
     }
 
     // 판정 기록 { reason, model, promptVersion } — MATCH_EVENT(Jira 35) · ISSUE(Jira 40) 처리기가 결과를 저장할 때 쓴다

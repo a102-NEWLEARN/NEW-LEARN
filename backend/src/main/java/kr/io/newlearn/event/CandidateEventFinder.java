@@ -66,8 +66,8 @@ public class CandidateEventFinder {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    // 1 − 코사인 거리를 0 ~ 1 로 자른다. 영벡터는 거리가 NaN 이라 0
-    static double similarity(double distance) {
+    // 1 − 코사인 거리를 0 ~ 1 로 자른다. 영벡터는 거리가 NaN 이라 0. ISSUE 후보(IssueCandidateFinder)도 같이 쓴다
+    public static double similarity(double distance) {
         double similarity = 1 - distance;
         return Double.isNaN(similarity) ? 0 : Math.clamp(similarity, 0.0, 1.0);
     }

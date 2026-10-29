@@ -33,7 +33,10 @@ public final class RetryPolicy {
             "LLM_OUTPUT_INVALID", new Rule(2, List.of(Duration.ofMinutes(1))),
             "INTERNAL", new Rule(2, List.of(Duration.ofMinutes(1))),
             // W1 에서 API 가 저장을 거절한 시도 — 바로 한 번만 더
-            "RESULT_SCHEMA_INVALID", new Rule(2, List.of(Duration.ZERO)));
+            "RESULT_SCHEMA_INVALID", new Rule(2, List.of(Duration.ZERO)),
+            // ISSUE 결과를 저장하려는데 그사이 사건 · 이슈가 바뀐 시도(W1 409) — 워커 잘못이 아니라 후보를 새로 계산해 바로, 시도 3까지
+            // (Jira 40, api-internal.md 5절)
+            "JOB_STATE_CONFLICT", new Rule(MAX_ATTEMPTS, List.of(Duration.ZERO, Duration.ZERO)));
 
     private RetryPolicy() {}
 

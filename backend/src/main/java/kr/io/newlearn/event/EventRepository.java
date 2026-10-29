@@ -1,6 +1,7 @@
 package kr.io.newlearn.event;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -40,4 +41,14 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             where e.id = :id and e.occurredAtBasis = :basis and e.occurredAt > :publishedAt
             """)
     int pullOccurredAt(Long id, Instant publishedAt, OccurredAtBasis basis, Instant now);
+
+    // ISSUE ATTACH · CREATE — 아직 이슈 밖인 사건만 이슈에 넣는다(Jira 40, api-internal.md 5절). 확인과 바꾸기가 한 문장이라
+    // 돌려받은 수가 보낸 사건 수보다 작으면 그사이 다른 이슈에 들어간 사건이 있다 — 부른 쪽이 되돌린다.
+    // pullOccurredAt 처럼 바꿀 칸만 고치고 clearAutomatically 를 쓰지 않는다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            update event set issue_id = :issueId, updated_at = :now
+            where id in (:eventIds) and issue_id is null
+            """)
+    int assignIssue(long issueId, Collection<Long> eventIds, Instant now);
 }

@@ -11,7 +11,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-// 이슈가 걸친 카테고리. 이슈 기사들의 대표 카테고리로 API 가 채운다(가정, data-model.md 5절 2번)
+// 이슈가 걸친 카테고리. ISSUE 가 이슈 기사들의 대표 카테고리 중 가장 많은 것 하나로 채운다 (data-model.md issue 절, IssueCategoryRepository)
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
