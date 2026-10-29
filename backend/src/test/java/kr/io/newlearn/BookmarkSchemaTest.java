@@ -50,7 +50,7 @@ class BookmarkSchemaTest {
                         .migrate();
                 connection.setSchema(schema);
                 var db = JdbcClient.create(new SingleConnectionDataSource(connection, true));
-                ArticleApiFixtures.insert(db);
+                ArticleApiFixtures.insertBeforeEventRole(db);
                 // 확장은 public에 설치돼 있다. 시험 스키마로 전환한 연결에서도 타입을 정확히 찾는다.
                 db.sql("""
                         insert into article_embedding(article_id,model,embedding)
