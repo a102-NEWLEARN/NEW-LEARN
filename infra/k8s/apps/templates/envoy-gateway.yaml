@@ -1,5 +1,40 @@
 # Envoy Gateway 컨트롤러 — 공식 Helm 차트(OCI). Gateway API CRD 도 같이 깐다
 # ServerSideApply: CRD 가 커서 일반 apply 의 주석 크기 제한(262,144바이트)에 걸린다 (Envoy Gateway 문서 「Install with Argo CD」)
+{{- /*
+Envoy Gateway 설정(차트 값 config) 덩어리 — 아래 valuesObject.config 와 컨트롤러 Pod 주석 newlearn.io/config-revision 이 같이 쓴다
+차트는 설정(ConfigMap)이 바뀌어도 컨트롤러를 다시 띄우지 않는다. 컨트롤러가 설정 파일을 감시해 다시 읽기는 하지만(v1.9.2 시작 로그 「watching for changes」)
+kubelet 이 ConfigMap 을 Pod 에 옮겨 줄 때까지 기다려야 한다. 그래서 이 덩어리의 sha256 앞 16자를 Pod 주석에 두어, 바꾸면 컨트롤러가 바로 새로 뜬다 (Jira S15P31A102-136)
+덩어리 밖 차트 값(global.images · imageRegistry 등)은 해시에 들지 않는다 — 지금은 쓰지 않는다
+덩어리 안의 # 주석만 바꿔도 값이 바뀌어 컨트롤러가 한 번 새로 뜬다 — Envoy 는 마지막 설정으로 계속 받아 해는 없다
+*/ -}}
+{{- define "newlearn-apps.envoyGatewayConfig" -}}
+envoyGateway:
+  rateLimit:
+    # 상한 서비스를 못 부르면 요청을 통과시킨다(failClosed 기본 false) — 사이트는 돌고 상한만 풀린다
+    backend:
+      type: Redis
+      redis:
+        # 세션 · 작업 큐와 같은 Redis(data/redis.yaml). 상한 키는 1분 칸이 끝나고 0 ~ 299초 뒤 사라져 양이 작다
+        # (만료 흔들기 EXPIRATION_JITTER_MAX_SECONDS 기본 300, envoyproxy/ratelimit src/settings/settings.go). 들어오는 길은 data/netpol.yaml
+        url: redis.data.svc.cluster.local:6379
+  provider:
+    kubernetes:
+      rateLimitDeployment:
+        container:
+          # 넘긴 키(IP 바구니)를 상한 서비스 안에 기억해 그 키는 Redis 를 다시 읽지 않는다 — 넘긴 IP 가 계속 보내도 Redis 에 쓰지 않는다
+          # 1MiB(freecache 가 처음에 잡는다). 기본 0 이면 꺼짐(envoyproxy/ratelimit README 「Local Cache」)
+          # Envoy Gateway 는 기본 env 뒤에 붙이고 같은 이름이면 바꾼다(internal/infrastructure/kubernetes/resource/resource.go 의 ExpectedContainerEnv, v1.9.2)
+          env:
+            - name: LOCAL_CACHE_SIZE_IN_BYTES
+              value: "1048576"
+          # 기본값(요청 메모리 512Mi)이 커서 줄인다 — 실제 사용량은 SSOT 10절
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+{{- end }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,30 +58,12 @@ spec:
       # 차트 기본값(config.envoyGateway 의 provider · gateway 등)은 Helm 이 이 값과 합친다
       valuesObject:
         config:
-          envoyGateway:
-            rateLimit:
-              # 상한 서비스를 못 부르면 요청을 통과시킨다(failClosed 기본 false) — 사이트는 돌고 상한만 풀린다
-              backend:
-                type: Redis
-                redis:
-                  # 세션 · 작업 큐와 같은 Redis(data/redis.yaml). 상한 키는 1분 만료라 양이 작다. 들어오는 길은 data/netpol.yaml
-                  url: redis.data.svc.cluster.local:6379
-            provider:
-              kubernetes:
-                rateLimitDeployment:
-                  container:
-                    # 기본값(요청 메모리 512Mi)이 커서 줄인다 — 실제 사용량은 SSOT 10절
-                    resources:
-                      requests:
-                        cpu: 50m
-                        memory: 64Mi
-                      limits:
-                        memory: 256Mi
+          {{- include "newlearn-apps.envoyGatewayConfig" . | nindent 10 }}
         deployment:
           pod:
             annotations:
-              # 차트는 설정(ConfigMap)이 바뀌어도 컨트롤러를 다시 띄우지 않는다 — 위 config 를 바꾸면 이 값을 올려 새로 뜨게 한다
-              newlearn.io/config-revision: "ratelimit-global-1"
+              # 위 config 덩어리의 sha256 앞 16자(맨 위 주석) — 사람이 올리지 않는다
+              newlearn.io/config-revision: {{ include "newlearn-apps.envoyGatewayConfig" . | sha256sum | trunc 16 | quote }}
   destination:
     server: https://kubernetes.default.svc
     namespace: envoy-gateway-system
