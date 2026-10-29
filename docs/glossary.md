@@ -55,7 +55,7 @@ flowchart LR
 | 잎 | 가지 아래 문장 하나 | `article_mindmap.content` 안 | `branches[].items[].text` |
 | 근거 문장 | 잎의 바탕이 된, 원문에 글자 그대로 있는 문장. 화면에 보이지 않고 저장만 한다 | `article_mindmap.content` 안 | `evidence` (A9 에는 없음) |
 | 요약 | 한두 문장으로 줄인 설명. 기사 · 사건 · 이슈마다 따로 있다. 기사 요약은 우리 AI 요약 하나다(NewsData 요약은 쓰지 않는다, 2026-10-26) | `article_mindmap.summary` · `event.summary` · `issue.summary` | `summary` |
-| 사건 관계 | 후속 · 반응 · 반박 같은 사건 사이 선 (P1). 화면은 반응 점선(위 「반응 대상」)만 그리고 다른 관계는 그리지 않는다 | `event_relation`(만들지 않음) | 없음 (그리기로 하면 `relations`) |
+| 사건 관계 | 후속 · 원인 · 반응 · 반박처럼 종류가 있는 사건 사이 선 (P1). 화면은 관계 선 가운데 반응 점선(위 「반응 대상」)만 그리고 다른 종류는 그리지 않는다. 메인 레인 사건을 시간순으로 잇는 선(메인 흐름 띠)은 관계가 아니라 늘 그린다 | `event_relation`(만들지 않음) | 없음 (그리기로 하면 `relations`) |
 | 회원 · 관심 분야 | 아이디 · 비밀번호 · 이름으로 가입한 사용자와 그가 고른 카테고리(여러 개, 고칠 수 있음) | `member` · `member_category` | A14 ~ A18, `categories` |
 | 북마크 · 나의 뉴스함 | 회원이 기사 옆 북마크 아이콘으로 담아 둔 기사와 그 목록 화면. 화면 문구는 「북마크」다 — 「스크랩」은 쓰지 않는다(2026-10-26) | `bookmark` | A20 ~ A22, `bookmarked` · `bookmarkedAt` |
 | 관심 이슈(별표) | 회원이 이슈 이름 옆 별표로 저장한 이슈. 마이페이지에서 모아 본다. 관심 분야(카테고리)와 다르다 | `interest_issue` | A23 ~ A25, `interested` · `interestedAt` |
