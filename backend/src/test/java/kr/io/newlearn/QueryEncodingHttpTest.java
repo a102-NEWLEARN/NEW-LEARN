@@ -48,4 +48,24 @@ class QueryEncodingHttpTest {
         // 어느 인자인지는 Tomcat 이 메시지 글자로만 알려 줘 짚지 않는다(깨진 JSON 과 같다)
         assertThat(body.has("errors")).isFalse();
     }
+
+    // 카테고리 코드에 U+0000 이 들면 없는 코드와 같은 404 다. PostgreSQL 이 이 글자를 받지 못해 전에는 500 이었다 (Jira 43 후속)
+    // MockMvc 도 %00 을 풀어 주지만, 실제 Tomcat 을 지나도 같은지 여기서 본다
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "/api/v1/issues?category=%00",
+                "/api/v1/issues?category=politics%00",
+                "/api/v1/articles?category=%00"
+            })
+    void nulInCategoryIs404(String pathAndQuery) throws Exception {
+        HttpResponse<String> response = http.send(
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + pathAndQuery))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(404);
+        assertThat(JSON.readTree(response.body()).path("code").asString()).isEqualTo("CATEGORY_NOT_FOUND");
+    }
 }
