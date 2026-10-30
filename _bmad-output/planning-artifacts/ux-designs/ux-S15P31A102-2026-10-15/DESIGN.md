@@ -3,7 +3,7 @@ version: alpha
 name: NEW:LEARN
 description: 뉴스 기사를 6하원칙 마인드맵과 이슈의 흐름으로 보여 주는 웹 서비스. SEED Design 을 그대로 쓰고 브랜드 색과 NEW:LEARN 패턴만 얹는다. 이 문서는 SEED 와 달라진 것과 화면을 만들 때 자주 찾는 SEED 값(참고)을 적는다.
 status: draft
-updated: 2026-10-19
+updated: 2026-10-30
 sources:
   - imports/newlearn-design-system-v2/README.md
   - imports/newlearn-design-system-v2/tokens.css
@@ -47,10 +47,26 @@ colors:
   stroke-brand-solid: '{colors.brand-dark}'
   stroke-brand-weak: '{colors.brand-main}'
   stroke-neutral-weak: '{colors.brand-border}'
-  # SEED 에 없는 새 역할 3개
+  # SEED 에 없는 새 역할 19개 — 브랜드 3개와 기사 마인드맵 가지 4색 16개
   fg-brand-accent: '{colors.brand-main}'
   bg-brand-accent: '{colors.brand-main}'
   bg-accent-lime: '{colors.brand-accent-lime}'
+  mindmap-core-fill: '#EEEAFE'
+  mindmap-core-stroke: '#8B6CF0'
+  mindmap-core-line: '#CDBFF8'
+  mindmap-core-text: '#5B3FC4'
+  mindmap-cause-fill: '#EEF8D8'
+  mindmap-cause-stroke: '#8DBF3F'
+  mindmap-cause-line: '#CFE6A2'
+  mindmap-cause-text: '#4F7A12'
+  mindmap-reaction-fill: '#DCF5EA'
+  mindmap-reaction-stroke: '#3FB585'
+  mindmap-reaction-line: '#A6DFC5'
+  mindmap-reaction-text: '#1E7A55'
+  mindmap-outlook-fill: '#FDF1D0'
+  mindmap-outlook-stroke: '#D19A2E'
+  mindmap-outlook-line: '#ECD08A'
+  mindmap-outlook-text: '#8A5E06'
 typography:
   # SEED 텍스트 스타일과 다른 NEW:LEARN 패턴 텍스트 스타일 2가지. 나머지는 SEED 스타일 그대로다
   pattern-body-sm:
@@ -131,7 +147,7 @@ NEW:LEARN 화면은 **SEED Design 을 그대로 쓰고 브랜드 색과 NEW:LEAR
 | --- | --- | --- |
 | 새 기본 색 | 11개 | Colors |
 | 값을 바꾼 SEED 역할 | 14개 | Colors |
-| 새 역할 | 3개 | Colors |
+| 새 역할 | 19개 (마인드맵 가지 색 16개 포함) | Colors |
 | SEED 에 없는 텍스트 스타일 | 2가지 | Typography |
 | 라이트 테마 고정 | — | Brand & Style |
 | 그림자를 쓰는 곳 | 뜨는 요소만 | Elevation & Depth |
@@ -140,7 +156,7 @@ NEW:LEARN 화면은 **SEED Design 을 그대로 쓰고 브랜드 색과 NEW:LEAR
 | 쓰지 않는 표현 | — | Do's and Don'ts |
 | **그대로 쓰는 것** | 글꼴 · 간격 토큰, 모서리 · 그림자 토큰 값 | 각 절 첫 문장 |
 
-기사 마인드맵(F04 · F05) 화면과 이슈 에볼루션 맵(F07) 배치는 아직 정하지 않았다. 맨 끝 「아직 정하지 않은 것」을 먼저 본다.
+기사 마인드맵(F04 · F05) 화면은 가지 색만 정했다(Colors). 마인드맵 노드 모양 · 배치와 이슈 에볼루션 맵(F07) 배치는 아직 정하지 않았다. 맨 끝 「아직 정하지 않은 것」을 먼저 본다.
 
 ## Brand & Style
 
@@ -213,13 +229,25 @@ SEED 의 색 모드를 라이트로 고정한다 (`data-seed-color-mode="light-o
 
 SEED 원래 값은 `@seed-design/css` 3.0.2 의 라이트 값이다 (2026-10-19 확인). SEED 는 색 값을 메이저 버전에서만 바꾼다.
 
-**새 역할 3개** — SEED 에 없어서 NEW:LEARN 이 더한 역할이다.
+**새 역할 19개** — SEED 에 없어서 NEW:LEARN 이 더한 역할이다. 브랜드 3개와 기사 마인드맵 가지 4색 16개다.
 
 | 역할 | 값 | 쓰는 곳 |
 | --- | --- | --- |
 | `fg-brand-accent` | #28CDAA `brand-main` | 장식용 민트 아이콘 · 그래픽 |
 | `bg-brand-accent` | #28CDAA `brand-main` | 그래프 · 타임라인 노드 채움 |
 | `bg-accent-lime` | #C7F36C `brand-accent-lime` | 랜딩페이지 포인트 (`landing-accent`) |
+
+**기사 마인드맵 가지 4색** — 가지마다 채움 · 테두리 · 선 · 글자 네 역할을 둔다. 이름은 `mindmap-<가지>-<fill · stroke · line · text>` 이고, 마인드맵 그래프에서만 쓴다. 값은 프로토타입 v21 `MM_TONE` 이다 (2026-10-30, S15P31A102-58).
+
+| 가지 | 채움 `fill` | 테두리 `stroke` | 선 `line` | 글자 `text` |
+| --- | --- | --- | --- | --- |
+| 핵심 내용 `core` | #EEEAFE | #8B6CF0 | #CDBFF8 | #5B3FC4 |
+| 원인·배경 `cause` | #EEF8D8 | #8DBF3F | #CFE6A2 | #4F7A12 |
+| 반응 `reaction` | #DCF5EA | #3FB585 | #A6DFC5 | #1E7A55 |
+| 전망 `outlook` | #FDF1D0 | #D19A2E | #ECD08A | #8A5E06 |
+
+- 글자색은 흰 바탕 5.1 ~ 7.1:1, 그 가지 채움색 위 4.6 ~ 6.0:1 로 본문 글자 기준(4.5:1)을 넘는다.
+- 테두리색은 흰 바탕 2.2 ~ 3.8:1 로 그림 기준(3:1)에 셋이 못 미친다. **노드는 늘 가지 이름 글자와 함께 두어** 색만으로 가지를 가리지 않는다.
 
 **대비** — 흰 배경 대비는 위 표에 있다. 여기에는 다른 바탕 위의 대비만 적는다.
 
@@ -394,7 +422,8 @@ SEED 컴포넌트(Action Button · Tabs · Chip · Dialog · Side Panel · Snack
 
 ## 아직 정하지 않은 것
 
-- **F04 기사 마인드맵 생성 · F05 노드 상세 및 근거 확인 화면** — v2 에 없다. 노드 모양 · 6하원칙 갈래 구분 · 배치를 정해야 한다.
+- **F04 기사 마인드맵 생성 · F05 노드 상세 및 근거 확인 화면** — v2 에 없다. 가지 색은 정했다(Colors, 2026-10-30). 노드 모양 · 배치는 S15P31A102-58 에서 프로토타입 v21 을 따라 만든 뒤 여기에 옮긴다.
+- **원인·배경 가지의 연두(#8DBF3F · #4F7A12)** — Do's and Don'ts 의 「올리브색 쓰지 않기」에 걸리는지 팀이 확인한다.
 - **F07 이슈 에볼루션 맵의 배치** — 노드 · 선 · 상태 라벨 모양은 Timeline 패턴을 따른다. v2 Timeline 은 세로 목록이라 시간축 · 레인 같은 맵 배치는 아직 정하지 않았다.
 - **SEED 에 브랜드 색을 입히는 방법** — v2 는 SEED CSS 변수(`--seed-color-*`)를 덮어쓰라고 적었지만 SEED 공식 문서에서 이 방법을 지원한다는 근거는 아직 못 찾았다. S15P31A102-83 에서 확인한다.
 - **스크롤할 때 상단 내비게이션 아래 구분** — SEED 는 그림자나 선으로 나누라고 하지만 NEW:LEARN 은 뜨는 요소에만 그림자를 쓴다. 선으로 할지 `shadow-s1` 을 허용할지 정해야 한다.

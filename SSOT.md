@@ -332,6 +332,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 - Windows는 저장소를 WSL2 리눅스 파일 시스템 안에 클론한다 (C: 드라이브 폴더를 연결하면 파일 변경이 컨테이너에 안 닿는다)
 - amd64·arm64를 모두 지원하는 이미지만 쓴다. 운영 이미지는 CI에서만 빌드한다
 - 백엔드 린트는 컴파일 안에서 도는 javac 경고 · Error Prone · NullAway 다. 경고는 컴파일 실패다(2026-10-27, Jira S15P31A102-124). 후보 여섯 개를 그때 코드에 돌려 골랐다 — Checkstyle 은 경고 대부분이 Spotless 서식과 부딪히고, PMD · SpotBugs 는 오탐과 늘어나는 시간이 더 컸다(10절). Spring 문서가 앱 코드에 NullAway 를 권한다. 명령은 `.claude/stack.md` 3절, 쓰는 법은 `docs/backend-convention.md` 9절
+- 화면 테스트의 기본 대기(Testing Library `findBy` · `waitFor`)는 3초다(2026-10-30, 사용자 결정). 테스트 파일을 함께 돌릴 때 PC 가 바쁘면 파일마다 첫 가짜 API 응답이 1초를 넘어, 사건 패널 · 이슈 화면 · 기사 화면 첫 테스트가 돌아가며 실패했다(전체 실행이 평소 15초에서 37 ~ 45초로 느려졌을 때). 혼자 돌리면 통과했다. 설정은 `frontend/src/test/setup.ts`
 - 쓰는 법과 막히는 곳은 `docs/dev-environment.md`
 
 ## 8. 못 정한 것

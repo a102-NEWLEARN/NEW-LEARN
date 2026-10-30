@@ -22,17 +22,10 @@ import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useShell } from "@/components/shell/useShell";
 import { usePageTitle } from "@/components/usePageTitle";
 import { formatPeriod } from "@/lib/date";
+import { toId } from "@/lib/id";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 const NOT_FOUND_TITLE = "이슈를 찾을 수 없어요";
-
-// 주소의 id — 1 이상의 정수만. 그 밖에는 null.
-// 자바스크립트 숫자로 틀림없이 옮길 수 있는 데까지만 받는다 — 넘으면 다른 id 로 바뀌거나 서버가 400 을 준다
-function toId(raw: string | null | undefined) {
-  if (!raw || !/^[1-9]\d*$/.test(raw)) return null;
-  const id = Number(raw);
-  return Number.isSafeInteger(id) ? id : null;
-}
 
 const isNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "ISSUE_NOT_FOUND";

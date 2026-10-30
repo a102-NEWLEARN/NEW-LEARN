@@ -91,6 +91,23 @@ export function formatFullDate(iso: string): string {
   return `${year}.${month}.${day}`;
 }
 
+const hourMinute = new Intl.DateTimeFormat("en-US", {
+  timeZone: TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/**
+ * 「2026.10.06 14:30」 — 기사 헤더의 발행 일시. 한국 시각 00:00 이면 시각 없이 날짜만 온 기사로 보고 날짜만 적는다
+ * (프로토타입 v21 fmtDateTime)
+ */
+export function formatFullDateTime(iso: string): string {
+  const time = hourMinute.format(new Date(iso));
+  const date = formatFullDate(iso);
+  return time === "00:00" ? date : `${date} ${time}`;
+}
+
 // 한국 날짜의 날 수 — 오늘 · 어제를 가를 때 쓴다
 function kstDayNumber(date: Date) {
   const { year, month, day } = kstParts(date);
