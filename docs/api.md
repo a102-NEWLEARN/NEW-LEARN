@@ -173,7 +173,7 @@ flowchart LR
   R --> I["/issues — A2 목록 · A3 헤더 · A4 타임라인"]
   R --> E["/events — A5 사건 패널 · A6 관련 기사"]
   R --> AR["/articles — A7 최신 기사 · A8 상세 · A9 마인드맵"]
-  R --> Q["/search — A13 통합 검색 (MVP, 구현 전)"]
+  R --> Q["/search — A13 통합 검색"]
   R --> M["/members — A14 가입 · A17 내 정보 · A18 관심 분야"]
   M --> MS["/me/bookmarks — A20 · A21 담기 · 빼기 · A22 나의 뉴스함<br/>/me/interest-issues — A23 · A24 저장 · 해제 · A25 목록"]
   R --> AU["/auth — A15 로그인 · A16 로그아웃"]
@@ -193,7 +193,7 @@ flowchart LR
 | A7 | `GET /api/v1/articles` | 최신 기사 (F01 뉴스 데이터 적재·조회, Jira 42) |
 | A8 | `GET /api/v1/articles/{articleId}` | 기사 상세와 소속 사건 · 이슈 (F01, F11 기사·이슈 양방향 연결) |
 | A9 | `GET /api/v1/articles/{articleId}/mindmap` | 기사 마인드맵 — 흐름지도 · 마인드맵 두 보기 (F04 기사 마인드맵 생성, Jira 56) |
-| A13 | `GET /api/v1/search` | 통합 검색 — MVP, 구현 전 (Jira 43) |
+| A13 | `GET /api/v1/search` | 통합 검색 — 이슈 · 사건 · 기사 제목 (F02 카테고리별 뉴스·이슈 조회, Jira 43) |
 | A14 | `POST /api/v1/members` | 가입 — 아이디 · 비밀번호 · 이름 · 관심 분야 (F12 회원 · 관심 분야, Jira 62) |
 | A15 | `POST /api/v1/auth/login` | 로그인 (F12, Jira 62) |
 | A16 | `POST /api/v1/auth/logout` | 로그아웃 (F12, Jira 62) |
@@ -246,7 +246,7 @@ FE
 1. 1절 공통 규칙 — 봉투 없음 · Problem Details 와 `code` · 숫자 ID · `+09:00` · `page` 0부터 — 를 그대로 써도 되나. 카테고리 코드·순서는 `data-model.md` 2절로 확정했다(2026-10-23)
 2. (풀림, 2026-10-28) A4 이슈 타임라인은 페이지 없이 한 번에 준다. `lane` 은 사건 역할로 늘 값이 있고(Jira 130), 그려질 사건 수는 화면이 레인마다 고른다(`api-screen.md` A4)
 3. 홈에서 관심 분야를 먼저 보여 주는 방식(생각 중, 2026-10-20)을 A2 의 `category` 여러 번 부르기로 할지, 한 번에 받는 인자를 둘지
-4. (풀림, 2026-10-29) A13 통합 검색은 MVP 다(PRD FR-3 P0 「빠른 이동」, 사용자). 응답 모양은 `api-screen.md` A13, 세부는 Jira 43 구현 계획에서 정한다. 검색창 아래 「새로 생성된 이슈」는 A2 `sort=createdAt&size=…` 이고 몇 개 보일지만 남았다(`api-screen.md` A2)
+4. (풀림, 2026-10-29) A13 통합 검색은 MVP 다(PRD FR-3 P0 「빠른 이동」, 사용자). 응답 모양과 찾는 규칙은 `api-screen.md` A13(규칙은 2026-10-30 Jira 43 에서 정함). 검색창 아래 「새로 생성된 이슈」는 A2 `sort=createdAt&size=…` 이고 몇 개 보일지만 남았다(`api-screen.md` A2)
 5. 기사 목록 요약이 `null` 일 때(분석 전 · 실패 · 우리 요약을 끈 동안) 화면에 무엇을 보이나. NewsData 요약으로 대신하던 길은 없앴다(2026-10-26)
 6. user-flow 의 「데이터가 아직 없는 이슈 — 준비 중 + 사건 · 기사 수」를 화면에 어떻게 보이나. 사건 0개인 기존 이슈의 API 조회는 `api-screen.md` A3·A4로 확정했다(2026-10-23). 정상 생성의 사건 3개 조건은 유지한다
 
@@ -282,7 +282,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | 2026-10-26 구현(`docs/specs/F03-F07-analysis-job-queue.md`) |
 | 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | 2026-10-27 구현(`docs/specs/F06-event-match.md`) |
 | 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현 · 사이트 반영(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |
-| 43 | A13 통합 검색 | MVP(2026-10-29 사용자, PRD FR-3 P0). 검색 범위 · 길이 · 유형별 개수 · 찾는 방식은 구현 계획에서 정한다 |
+| 43 | A13 통합 검색 | MVP(2026-10-29 사용자, PRD FR-3 P0). 2026-10-30 구현 · 사이트 반영(`docs/specs/F02-search-api.md`, 규칙은 `api-screen.md` A13) |
 | 57 기사 URL 분석 | — | 2026-10-20 팀 회의로 MVP 에서 빼서 티켓을 닫았다 |
 
 ---
