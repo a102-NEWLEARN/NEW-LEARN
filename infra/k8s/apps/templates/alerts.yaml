@@ -1,0 +1,34 @@
+# 경보 — Prometheus 경보 규칙과 Alertmanager 가 읽는 Mattermost 웹훅 SealedSecret (infra/k8s/alerts, Jira S15P31A102-138)
+# 모니터링 차트(kube-prometheus-stack)는 사람이 helm 으로 올리고(SSOT 6절), 규칙 · Secret 만 이 앱이 맡는다
+# PrometheusRule CRD 는 그 차트가 깐다 — 없으면 dry-run 을 건너뛰고 다시 시도한다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alerts
+  namespace: argocd
+  annotations:
+    # Sealed Secrets(-1) 뒤
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/alerts
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
