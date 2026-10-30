@@ -11,8 +11,8 @@ import { shellRoute } from "@/routes";
 import { renderRoute, renderWithProviders } from "@/test/render";
 
 // 앱과 같은 provider · 라우트 목록으로 연다. provider 를 빼먹으면 첫 화면이 깨지는 것을 여기서 잡는다
-test("/ 를 열면 셸 안의 /home 홈으로 간다", async () => {
-  const { router } = renderRoute("/");
+test("/home 을 열면 셸 안에 홈을 띄운다", async () => {
+  const { router } = renderRoute("/home");
 
   const header = await screen.findByRole("banner");
   expect(
