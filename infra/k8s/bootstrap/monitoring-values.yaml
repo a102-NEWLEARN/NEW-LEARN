@@ -5,9 +5,52 @@
 # 노드가 컨트롤 플레인 하나뿐이라 모든 Pod 가 control-plane taint 를 견디고 그 노드를 고른다. 워커가 붙으면 옮길지 다시 정한다
 # CPU 예약은 작게 — 노드 예약 1000m(컨트롤 플레인 950m + 러너 50m) + 모니터링 + CI 잡 550m 가 2000m 안에 들어야 CI 잡이 뜬다
 
-# 알림 받을 곳이 아직 없다 (Mattermost 웹훅이 되는지 확인한 뒤)
+# 경보 — Mattermost 「A102 배포알림」 채널로 (2026-10-30 사용자, Jira 138). 규칙은 infra/k8s/alerts/rules.yaml(Argo CD 앱 alerts)
+# 차트 기본 경보 규칙(defaultRules)은 그대로 평가하지만 채널로는 안 보낸다 — notify: mattermost 이름표가 붙은 우리 규칙만 보낸다
+#   켜던 날 기본 경보 넷이 이미 울리고 있었다(Watchdog · Alertmanager 에 안 이어짐 · CPU · 메모리 예약 과다) — 다 보내면 채널이 묻힌다
+# 웹훅 주소는 봉인 Secret alertmanager-mattermost(키 url, seal-secrets.sh alertmanager)를 파일로 붙여 읽는다 — 이 파일 · 저장소에 주소가 없다
+#   Mattermost 들어오는 웹훅은 Slack 모양 글을 받아 slack_configs 를 쓴다. 글쓴이는 웹훅을 만든 사람 이름에 BOT 표시(SSOT 6절 「배포 흐름」)
+# 이 값을 바꾸면 늘 하던 helm upgrade(infra/server/README.md 「모니터링」) — 설정은 Pod 안의 reloader 가 다시 읽는다
 alertmanager:
-  enabled: false
+  enabled: true
+  config:
+    route:
+      receiver: "null"
+      group_by: [alertname]
+      # 처음 30초 모아 보내고, 같은 묶음의 새 경보는 5분마다, 계속 울리면 12시간마다 다시
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      routes:
+        - receiver: mattermost
+          matchers:
+            - notify = "mattermost"
+    receivers:
+      - name: "null"
+      - name: mattermost
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/alertmanager-mattermost/url
+            send_resolved: true
+            title: '{{ if eq .Status "firing" }}🔴 경보{{ else }}✅ 풀림{{ end }} — {{ .CommonLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ if .Annotations.description }} — {{ .Annotations.description }}{{ end }}{{ "\n" }}{{ end }}'
+  alertmanagerSpec:
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    # 노드 CPU 예약이 켜던 날 1330m / 2000m(CI 잡 550m 를 더하면 1880m) — 작게
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+    # /etc/alertmanager/secrets/<이름>/<키> 로 붙는다
+    secrets:
+      - alertmanager-mattermost
+    # 디스크 없음 — 다시 뜨면 잠시 꺼 둔 경보(silence) 기록만 사라진다
 
 # kubeadm 은 etcd · controller-manager · scheduler 를 127.0.0.1 에만 열고, kube-proxy 는 없다(Cilium 이 대신함) — 못 긁는 대상과 그 규칙을 끈다
 kubeEtcd:
