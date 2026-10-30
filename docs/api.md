@@ -282,7 +282,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | 2026-10-26 구현(`docs/specs/F03-F07-analysis-job-queue.md`) |
 | 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | 2026-10-27 구현(`docs/specs/F06-event-match.md`) |
 | 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현 · 사이트 반영(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |
-| 43 | A13 통합 검색 | MVP(2026-10-29 사용자, PRD FR-3 P0). 2026-10-30 구현(`docs/specs/F02-search-api.md`, 규칙은 `api-screen.md` A13) |
+| 43 | A13 통합 검색 | MVP(2026-10-29 사용자, PRD FR-3 P0). 2026-10-30 구현 · 사이트 반영(`docs/specs/F02-search-api.md`, 규칙은 `api-screen.md` A13) |
 | 57 기사 URL 분석 | — | 2026-10-20 팀 회의로 MVP 에서 빼서 티켓을 닫았다 |
 
 ---
