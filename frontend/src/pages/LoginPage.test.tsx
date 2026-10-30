@@ -129,8 +129,9 @@ test("아이디 앞뒤 빈칸은 빼고 보낸다", async () => {
 
   await fillAndSubmit(" seojin ", " pass word ");
 
-  await waitFor(() =>
-    expect(bodies).toEqual([{ loginId: "seojin", password: " pass word " }]),
+  await waitFor(
+    () =>
+      expect(bodies).toEqual([{ loginId: "seojin", password: " pass word " }]), // secret-scan:allow — 시험용 값
   );
 });
 

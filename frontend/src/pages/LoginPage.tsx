@@ -90,7 +90,7 @@ export function LoginPage() {
     const password = String(form.get("password") ?? "");
     const errors: FieldErrors = {};
     if (!loginId) errors.loginId = "아이디를 입력해 주세요.";
-    if (!password) errors.password = "비밀번호를 입력해 주세요.";
+    if (!password) errors.password = "비밀번호를 입력해 주세요."; // secret-scan:allow — 안내 문구다
     setFieldErrors(errors);
     setFailure(null);
     if (errors.loginId || errors.password) {
