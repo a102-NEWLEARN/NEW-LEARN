@@ -15,8 +15,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class DictionaryService {
 
-    // 검색어 규칙(공백 · NFC · 50자)은 A13 통합 검색과 같이 쓴다(QueryText). 문구는 용어사전 창에 맞춘 것이다
+    // 검색어 규칙(공백 · NFC · NUL · 50자)은 A13 통합 검색과 같이 쓴다(QueryText). 문구는 용어사전 창에 맞춘 것이다
     static final String BLANK = "찾을 단어를 입력해 주세요";
+    static final String NUL = "찾을 단어에 쓸 수 없는 글자가 들어 있어요";
     static final String TOO_LONG = "찾을 단어는 50자까지예요";
 
     private final DictionarySource source;
@@ -30,7 +31,7 @@ public class DictionaryService {
     }
 
     public DictionaryResponse search(@Nullable String q) {
-        String query = QueryText.normalize(q, BLANK, TOO_LONG);
+        String query = QueryText.normalize(q, BLANK, NUL, TOO_LONG);
         List<DictionaryItem> items = cache.get(query).orElseGet(() -> {
             if (!quota.tryTake()) {
                 throw new ApiException(ErrorCode.DICTIONARY_UNAVAILABLE, "사전 하루 호출 한도를 넘었다");

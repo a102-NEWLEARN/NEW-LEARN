@@ -142,6 +142,20 @@ class DictionaryApiIntegrationTest {
         verify(source, times(1)).search(anyString());
     }
 
+    // AC-3 — U+0000(NUL)이 든 검색어도 사전을 부르지 않고 400. 전에는 그대로 사전에 넘기고 query 에 NUL 을 돌려줬다
+    @Test
+    void nulCharacterIs400() throws Exception {
+        for (String withNul : new String[] {"\u0000", "나\u0000무"}) {
+            search(withNul)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.errors.length()").value(1))
+                    .andExpect(jsonPath("$.errors[0].field").value("q"))
+                    .andExpect(jsonPath("$.errors[0].reason").value("찾을 단어에 쓸 수 없는 글자가 들어 있어요"));
+        }
+        verifyNoInteractions(source);
+    }
+
     // AC-5 — 공백 · 유니코드 조합만 다른 검색어는 같은 검색어다. 하루 안에 사전을 한 번만 부른다
     @Test
     void sameWordIsAskedOnceEvenWithSpacesOrDecomposedHangul() throws Exception {
