@@ -13,6 +13,7 @@ import { ApiError } from "@/api/error";
 import { type Mindmap, mindmapQuery } from "@/api/mindmap";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
+import { FlowView } from "@/components/article/FlowView";
 import { MindmapView } from "@/components/article/MindmapView";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
@@ -26,9 +27,8 @@ const NOT_FOUND_TITLE = "기사를 찾을 수 없어요";
 const KNOWN_SCHEMA = "mindmap-v1";
 
 type View = "flow" | "map";
-// 1차(S15P31A102-58)는 마인드맵 보기만 있어서 view 가 없으면 마인드맵이다.
-// 흐름지도 보기를 넣는 2차에서 흐름지도를 기본으로 바꾼다 (EXPERIENCE.md 보기 탭)
-const DEFAULT_VIEW: View = "map";
+// view 가 없으면 흐름지도다 (EXPERIENCE.md 보기 탭)
+const DEFAULT_VIEW: View = "flow";
 const toView = (raw: string | null): View =>
   raw === "flow" || raw === "map" ? raw : DEFAULT_VIEW;
 
@@ -43,7 +43,7 @@ const drawable = (mindmap: Mindmap | undefined): mindmap is Mindmap =>
 const isMindmapNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "MINDMAP_NOT_FOUND";
 
-// 기사 마인드맵 화면 `/articles/:articleId` — 기사 헤더(A8)와 보기 탭, F04 기사 마인드맵 생성의 마인드맵 보기(A9)
+// 기사 마인드맵 화면 `/articles/:articleId` — 기사 헤더(A8)와 보기 탭, F04 기사 마인드맵 생성의 흐름지도 · 마인드맵 보기(A9)
 // (EXPERIENCE.md Information Architecture, 프로토타입 v21 MindmapScreen). 고른 보기는 `?view=` 에 둔다.
 // 셸이 <main> 을 줄 것이라 여기서는 쓰지 않는다
 export function ArticlePage() {
@@ -103,26 +103,28 @@ function ArticleView({ articleId }: { articleId: number }) {
             </TabsTrigger>
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
-          {/* AI 가 만든 마인드맵 — AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
-          {view === "map" &&
-            drawable(mindmap.data) &&
-            mindmap.data.aiGenerated && (
-              <span className="ml-auto">
-                <AiBadge />
-              </span>
-            )}
+          {/* AI 가 만든 마인드맵 — 어느 보기든 그렸으면 AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
+          {drawable(mindmap.data) && mindmap.data.aiGenerated && (
+            <span className="ml-auto">
+              <AiBadge />
+            </span>
+          )}
         </div>
         {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
         <TabsContent value="flow" className={PANEL}>
           {view === "flow" && (
-            <Centered>
-              <EmptyState message="흐름지도 보기는 준비 중이에요" />
-            </Centered>
+            <MindmapBody
+              view="flow"
+              article={article.data}
+              articleFailed={article.isError}
+              query={mindmap}
+            />
           )}
         </TabsContent>
         <TabsContent value="map" className={PANEL}>
           {view === "map" && (
             <MindmapBody
+              view="map"
               article={article.data}
               articleFailed={article.isError}
               query={mindmap}
@@ -141,6 +143,8 @@ const TAB =
 const PANEL = "flex min-h-0 flex-1 flex-col aria-hidden:hidden";
 
 type MindmapBodyProps = {
+  /** 어느 보기로 그리나 */
+  view: View;
   /** A8 — 마인드맵 결과가 없을 때 「분석 중」인지 가른다 */
   article: ArticleDetail | undefined;
   /** A8 이 실패했나 — 그러면 A8 을 기다리지 않는다 */
@@ -148,10 +152,16 @@ type MindmapBodyProps = {
   query: ReturnType<typeof useQuery<Mindmap>>;
 };
 
-// 마인드맵 보기 자리의 상태 (EXPERIENCE.md State Patterns). 아직 문구를 정하지 않은 상태(EXP 「아직 정하지 않은 것」)는
-// 「마인드맵이 아직 없어요」로 둔다 [가정]
-function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
+// 보기 자리의 상태 — 두 보기가 같은 A9 응답이라 상태도 같다 (EXPERIENCE.md State Patterns).
+// 아직 문구를 정하지 않은 상태(EXP 「아직 정하지 않은 것」)는 「마인드맵이 아직 없어요」로 둔다 [가정]
+function MindmapBody({
+  view,
+  article,
+  articleFailed,
+  query,
+}: MindmapBodyProps) {
   const mindmap = query.data;
+  const skeleton = view === "flow" ? <FlowSkeleton /> : <MindmapSkeleton />;
   if (mindmap) {
     if (mindmap.schemaVersion !== KNOWN_SCHEMA)
       return (
@@ -165,12 +175,16 @@ function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
           <EmptyState message="이 기사에서 정리한 내용이 없어요" />
         </Centered>
       );
-    return <MindmapView title={mindmap.title} branches={mindmap.branches} />;
+    return view === "flow" ? (
+      <FlowView title={mindmap.title} branches={mindmap.branches} />
+    ) : (
+      <MindmapView title={mindmap.title} branches={mindmap.branches} />
+    );
   }
   // 결과가 없으면 A8 의 mindmapStatus 로 「분석 중」인지 가른다. A8 을 기다리는 동안은 불러오는 중이다
   if (isMindmapNotFound(query.error)) {
     // A8 이 실패했으면 분석 중인지 알 수 없다 — 결과가 없다는 것만 알린다
-    if (!article && !articleFailed) return <MindmapSkeleton />;
+    if (!article && !articleFailed) return skeleton;
     return (
       <Centered>
         <EmptyState
@@ -193,7 +207,7 @@ function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
         />
       </Centered>
     );
-  return <MindmapSkeleton />;
+  return skeleton;
 }
 
 function Centered({ children }: { children: ReactNode }) {
@@ -214,6 +228,26 @@ function MindmapSkeleton() {
             key={i}
             className={`rounded-full bg-bg-neutral-weak ${i === 1 ? "size-x16" : "size-x10"}`}
           />
+        ))}
+      </div>
+    </LoadingState>
+  );
+}
+
+// 흐름지도 자리 — 머리 줄과 가지 넷의 목록 모양
+function FlowSkeleton() {
+  return (
+    <LoadingState label="마인드맵 불러오는 중">
+      <div className="mx-auto flex w-full max-w-[860px] flex-col gap-x8 px-x4 pt-x7 md:px-x8">
+        <div className="h-x6 w-1/2 rounded-r2 bg-bg-neutral-weak" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex gap-x4">
+            <div className="size-[30px] shrink-0 rounded-full bg-bg-neutral-weak" />
+            <div className="flex flex-1 flex-col gap-x3">
+              <div className="h-x5 w-1/3 rounded-r2 bg-bg-neutral-weak" />
+              <div className="h-x16 rounded-r3_5 bg-bg-neutral-weak" />
+            </div>
+          </div>
         ))}
       </div>
     </LoadingState>

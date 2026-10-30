@@ -49,47 +49,55 @@ const heading = () =>
     name: "한빛반도체 텍사스 공장 착공식",
   });
 const tab = (name: string) => screen.getByRole("tab", { name });
+const flow = () => screen.findByRole("group", { name: "기사 흐름지도" });
+const map = () => screen.findByRole("group", { name: "기사 마인드맵" });
+const noDrawing = () => {
+  expect(screen.queryByRole("group", { name: "기사 흐름지도" })).toBeNull();
+  expect(screen.queryByRole("group", { name: "기사 마인드맵" })).toBeNull();
+};
 
-test("셸 안에 기사 헤더와 마인드맵 보기를 띄우고 탭 제목을 기사 제목으로 바꾼다", async () => {
+test("셸 안에 기사 헤더와 흐름지도 보기(기본)를 띄우고 탭 제목을 기사 제목으로 바꾼다", async () => {
   renderRoute(PATH);
 
   expect(await heading()).toBeDefined();
   expect(screen.getByRole("navigation", { name: "사이드바" })).toBeDefined();
-  expect(
-    await screen.findByRole("group", { name: "기사 마인드맵" }),
-  ).toBeDefined();
-  expect(tab("마인드맵").getAttribute("aria-selected")).toBe("true");
+  expect(await flow()).toBeDefined();
+  expect(tab("흐름지도").getAttribute("aria-selected")).toBe("true");
   expect(screen.getByText("AI 생성")).toBeDefined();
   await waitFor(() =>
     expect(document.title).toBe("한빛반도체 텍사스 공장 착공식 | NEW:LEARN"),
   );
 });
 
-test("흐름지도 탭을 고르면 주소에 ?view=flow 를 남기고 기록은 쌓지 않는다", async () => {
+test("마인드맵 탭을 고르면 주소에 ?view=map 을 남기고 기록은 쌓지 않는다", async () => {
   const { router } = renderRoute(PATH);
-  await screen.findByRole("group", { name: "기사 마인드맵" });
-
-  fireEvent.click(tab("흐름지도"));
-
-  await waitFor(() => expect(router.state.location.search).toBe("?view=flow"));
-  expect(router.state.historyAction).toBe("REPLACE");
-  expect(
-    await screen.findByText("흐름지도 보기는 준비 중이에요"),
-  ).toBeDefined();
-  expect(screen.queryByRole("group", { name: "기사 마인드맵" })).toBeNull();
+  await flow();
 
   fireEvent.click(tab("마인드맵"));
+
   await waitFor(() => expect(router.state.location.search).toBe("?view=map"));
-  expect(
-    await screen.findByRole("group", { name: "기사 마인드맵" }),
-  ).toBeDefined();
+  expect(router.state.historyAction).toBe("REPLACE");
+  expect(await map()).toBeDefined();
+  expect(screen.queryByRole("group", { name: "기사 흐름지도" })).toBeNull();
+
+  fireEvent.click(tab("흐름지도"));
+  await waitFor(() => expect(router.state.location.search).toBe("?view=flow"));
+  expect(await flow()).toBeDefined();
 });
 
-test("주소의 ?view=flow 로 열면 흐름지도 탭이 골라져 있다", async () => {
-  renderRoute(`${PATH}?view=flow`);
+test("주소의 ?view=map 으로 열면 마인드맵 탭이 골라져 있다", async () => {
+  renderRoute(`${PATH}?view=map`);
 
-  await heading();
-  expect(tab("흐름지도").getAttribute("aria-selected")).toBe("true");
+  expect(await map()).toBeDefined();
+  expect(tab("마인드맵").getAttribute("aria-selected")).toBe("true");
+});
+
+test("마인드맵 탭에서도 같은 상태 문구를 둔다", async () => {
+  noMindmap("QUEUED");
+  renderRoute(`${PATH}?view=map`);
+
+  expect(await screen.findByText("기사를 분석하고 있어요")).toBeDefined();
+  noDrawing();
 });
 
 test.each([
@@ -104,7 +112,7 @@ test.each([
     renderRoute(PATH);
 
     expect(await screen.findByText(message)).toBeDefined();
-    expect(screen.queryByRole("group", { name: "기사 마인드맵" })).toBeNull();
+    noDrawing();
   },
 );
 
@@ -115,7 +123,7 @@ test("모르는 판의 마인드맵은 그리지 않고 안내한다", async () 
   expect(
     await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요"),
   ).toBeDefined();
-  expect(screen.queryByRole("group", { name: "기사 마인드맵" })).toBeNull();
+  noDrawing();
 });
 
 test("가지가 하나도 없으면 안내한다", async () => {
@@ -143,9 +151,7 @@ test("마인드맵을 불러오지 못하면 그 자리에 안내와 다시 시�
   expect(await screen.findByText("마인드맵을 불러오지 못했어요")).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
 
-  expect(
-    await screen.findByRole("group", { name: "기사 마인드맵" }),
-  ).toBeDefined();
+  expect(await flow()).toBeDefined();
 });
 
 test("없는 기사면 화면 전체를 찾을 수 없음으로 바꾼다", async () => {
@@ -230,13 +236,13 @@ test("모르는 판이라 그리지 않으면 「AI 생성」을 붙이지 않�
   expect(screen.queryByText("AI 생성")).toBeNull();
 });
 
-test("흐름지도 탭에는 「AI 생성」을 붙이지 않는다 — 아직 그리는 것이 없다", async () => {
+test("두 보기 모두 그렸으면 「AI 생성」을 붙인다", async () => {
   renderRoute(PATH);
-  await screen.findByRole("group", { name: "기사 마인드맵" });
+  await flow();
   expect(screen.getByText("AI 생성")).toBeDefined();
 
-  fireEvent.click(tab("흐름지도"));
+  fireEvent.click(tab("마인드맵"));
 
-  await screen.findByText("흐름지도 보기는 준비 중이에요");
-  expect(screen.queryByText("AI 생성")).toBeNull();
+  await map();
+  expect(screen.getByText("AI 생성")).toBeDefined();
 });
