@@ -5,7 +5,9 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { http, HttpResponse } from "msw/http";
 import { expect, test, vi } from "vitest";
+import { server } from "@/mocks/node";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { shellRoute } from "@/routes";
 import { renderRoute, renderWithProviders } from "@/test/render";
@@ -20,13 +22,74 @@ test("/home 을 열면 셸 안에 홈을 띄운다", async () => {
       .getByRole("link", { name: "NEW:LEARN 홈으로" })
       .getAttribute("href"),
   ).toBe("/home");
+  // 본문은 회원인지 확인한 뒤에 뜬다 (RequireMember)
   expect(
-    within(screen.getByRole("main")).getByRole("heading", {
+    await within(screen.getByRole("main")).findByRole("heading", {
       level: 1,
       name: "오늘의 이슈를 탐색해 보세요",
     }),
   ).toBeDefined();
   expect(router.state.location.pathname).toBe("/home");
+});
+
+test("손님이 랜딩 밖 화면을 열면 로그인 화면으로 보내고 그 주소를 next 로 남긴다", async () => {
+  server.use(
+    http.get("/api/v1/members/me", () =>
+      HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "UNAUTHORIZED",
+          status: 401,
+          detail: "UNAUTHORIZED",
+          instance: "/api/v1/members/me",
+          code: "UNAUTHORIZED",
+        },
+        { status: 401 },
+      ),
+    ),
+  );
+  const { router } = renderRoute("/issues/12?event=3");
+
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "로그인" }),
+  ).toBeDefined();
+  expect(router.state.location.pathname).toBe("/login");
+  expect(new URLSearchParams(router.state.location.search).get("next")).toBe(
+    "/issues/12?event=3",
+  );
+  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+});
+
+test("A17 이 손님 말고 다른 오류로 실패하면 막지 않고 화면을 띄운다", async () => {
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/members/me", () => {
+      calls += 1;
+      return HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "INTERNAL_ERROR",
+          status: 500,
+          detail: "INTERNAL_ERROR",
+          instance: "/api/v1/members/me",
+          code: "INTERNAL_ERROR",
+        },
+        { status: 500 },
+      );
+    }),
+  );
+  const { router } = renderRoute("/home");
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "오늘의 이슈를 탐색해 보세요",
+    }),
+  ).toBeDefined();
+  expect(router.state.location.pathname).toBe("/home");
+  // 가드가 처음 한 번, 홈이 붙을 때 한 번 더 부른다. 그 뒤로 되풀이하지 않는다
+  await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+  expect(calls).toBeLessThanOrEqual(2);
 });
 
 test("없는 주소도 셸 안에 찾을 수 없음 화면을 띄운다", async () => {
@@ -57,7 +120,9 @@ test("화면이 렌더 중 터지면 셸은 두고 본문 자리에 오류 안�
   ]);
 
   const main = await screen.findByRole("main");
-  expect(within(main).getByText("화면을 보여 드리지 못했어요")).toBeDefined();
+  expect(
+    await within(main).findByText("화면을 보여 드리지 못했어요"),
+  ).toBeDefined();
   // 요청 실패가 아니라 네트워크 안내를 내지 않는다
   expect(
     within(main).getByText(

@@ -3,9 +3,7 @@ import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { meQuery } from "@/api/members";
 import { Logo } from "@/components/Logo";
-
-// 손님은 로그인을 거쳐 홈으로 간다. 로그인 화면은 S15P31A102-66 에서 생긴다
-const LOGIN_THEN_HOME = "/login?next=/home";
+import { loginPath } from "@/lib/login-path";
 
 // 랜딩 — 셸 없이 전체 화면으로 뜬다 (EXPERIENCE.md Information Architecture).
 // 프로토타입 v21 의 상단과 첫 화면만 둔다. 소개 메뉴(주요 기능 · 근거와 신뢰 · 자주 묻는 질문)는 아직 없다
@@ -13,7 +11,7 @@ export function LandingPage() {
   // A17 — 회원이면 홈으로 바로 간다. 손님이거나 아직 모르면 로그인 화면으로 보내고,
   // 응답 전에 누른 회원은 로그인 화면이 홈으로 돌려보낸다 (EXPERIENCE.md 이동 규칙)
   const me = useQuery(meQuery);
-  const start = me.data ? "/home" : LOGIN_THEN_HOME;
+  const start = me.data ? "/home" : loginPath("/home");
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg-layer-default">
