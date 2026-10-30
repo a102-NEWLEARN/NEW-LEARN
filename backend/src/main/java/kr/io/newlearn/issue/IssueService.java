@@ -11,6 +11,7 @@ import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.common.web.PageResponse;
+import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.event.Event;
 import kr.io.newlearn.event.EventRepository;
 import kr.io.newlearn.interest.InterestIssueId;
@@ -104,7 +105,8 @@ public class IssueService {
 
     public PageResponse<IssueCardResponse> list(
             String category, String sort, PageQuery query, @Nullable Long memberId) {
-        if (category != null && !categories.existsById(category)) {
+        // U+0000 이 든 코드는 있을 수 없는 코드다 — DB 에 묻지 않고 없는 코드와 같은 404 (PostgreSQL 이 받지 못해 500 이었다)
+        if (category != null && (QueryText.containsNul(category) || !categories.existsById(category))) {
             throw new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND, "카테고리를 찾을 수 없다: " + category);
         }
         var page = queries.findCards(category, sort, query.toPageable(Sort.unsorted()));

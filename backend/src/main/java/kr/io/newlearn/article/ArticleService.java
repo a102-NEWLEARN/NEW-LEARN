@@ -12,6 +12,7 @@ import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.common.web.PageResponse;
+import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.event.ArticleEventRepository;
 import kr.io.newlearn.issue.dto.EventRef;
 import kr.io.newlearn.issue.dto.IssueRef;
@@ -50,7 +51,8 @@ public class ArticleService {
     // memberId 는 세션 회원, 손님이면 null — bookmarked 칸을 회원 기준으로 채운다. 손님용 짧은 판을 두지 않는 것은
     // 회원 요청에서 그것을 잘못 부르면 bookmarked 가 조용히 false 가 되기 때문이다
     public PageResponse<ArticleSummaryResponse> list(String category, PageQuery query, @Nullable Long memberId) {
-        if (category != null && !categories.existsById(category)) {
+        // U+0000 이 든 코드는 있을 수 없는 코드다 — DB 에 묻지 않고 없는 코드와 같은 404 (PostgreSQL 이 받지 못해 500 이었다)
+        if (category != null && (QueryText.containsNul(category) || !categories.existsById(category))) {
             throw new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND, "카테고리를 찾을 수 없다: " + category);
         }
         var pageable = query.toPageable(Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
