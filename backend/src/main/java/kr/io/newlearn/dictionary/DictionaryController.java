@@ -33,7 +33,8 @@ public class DictionaryController {
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
-            description = "VALIDATION_FAILED — q 가 없거나 공백뿐이거나 50자를 넘음. errors[] 에 q 와 이유",
+            description = "VALIDATION_FAILED — q 가 없거나 공백뿐이거나 50자를 넘거나 U+0000 이 들어 있음(errors[] 에 q 와 이유), "
+                    + "또는 쿼리를 UTF-8 로 읽을 수 없음(errors 없음)",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,

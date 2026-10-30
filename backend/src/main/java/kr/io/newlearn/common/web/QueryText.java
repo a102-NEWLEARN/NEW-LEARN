@@ -17,11 +17,15 @@ public final class QueryText {
     private QueryText() {}
 
     // 앞뒤 공백을 지우고 NFC 로 맞춘다 — 자모로 나뉘어(NFD) 온 한글도 같은 검색어가 된다. 길이는 글자(코드포인트) 수다
-    // 비었거나 50자를 넘으면 400 VALIDATION_FAILED 와 errors[q]
-    public static String normalize(@Nullable String q, String blankReason, String tooLongReason) {
+    // 비었거나 U+0000(NUL)이 들었거나 50자를 넘으면 400 VALIDATION_FAILED 와 errors[q]
+    // NUL 은 PostgreSQL 이 글자로 받지 못해 A13 은 500 이 났고, A19 는 사전에 그대로 넘겼다(2026-10-30)
+    public static String normalize(@Nullable String q, String blankReason, String nulReason, String tooLongReason) {
         String query = q == null ? "" : Normalizer.normalize(q.strip(), Normalizer.Form.NFC);
         if (query.isEmpty()) {
             throw invalid(blankReason);
+        }
+        if (query.indexOf('\u0000') >= 0) {
+            throw invalid(nulReason);
         }
         if (query.codePointCount(0, query.length()) > MAX_LENGTH) {
             throw invalid(tooLongReason);
