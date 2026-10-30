@@ -6,7 +6,13 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useCallback, useState } from "react";
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useCallback,
+  useState,
+} from "react";
 import { useParams, useSearchParams } from "react-router";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ApiError } from "@/api/error";
@@ -14,7 +20,11 @@ import { type Mindmap, mindmapQuery } from "@/api/mindmap";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
 import { FlowView } from "@/components/article/FlowView";
-import { MindmapView } from "@/components/article/MindmapView";
+import {
+  INITIAL_MINDMAP_SETTINGS,
+  type MindmapSettings,
+  MindmapView,
+} from "@/components/article/MindmapView";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -49,7 +59,7 @@ const isMindmapNotFound = (error: unknown) =>
 export function ArticlePage() {
   const articleId = toId(useParams().articleId);
   if (articleId === null) return <NotFoundPage title={NOT_FOUND_TITLE} />;
-  // 기사를 바꾸면 화면 상태(포커스한 가지 · 숨긴 가지)를 새로 시작한다
+  // 기사를 바꾸면 화면 상태(포커스한 가지 · 숨긴 가지 · 라벨 표시)를 새로 시작한다
   return <ArticleView key={articleId} articleId={articleId} />;
 }
 
@@ -61,6 +71,9 @@ function ArticleView({ articleId }: { articleId: number }) {
   usePageTitle(notFound ? NOT_FOUND_TITLE : (article.data?.title ?? "기사"));
   // 제목에 포커스가 있던 채 404 를 받으면 찾을 수 없음 제목으로 포커스를 넘긴다
   const [titleFocused, setTitleFocused] = useState(false);
+  // 마인드맵 보기의 숨긴 가지 · 라벨 표시 — 보기 탭을 오가도 남게 여기서 든다.
+  // 확대 · 가지 포커스 · 강조는 보기마다 그 안에 있어서 탭을 바꾸면 풀린다
+  const [mapSettings, setMapSettings] = useState(INITIAL_MINDMAP_SETTINGS);
 
   // 보기 바꾸기는 기록을 쌓지 않는다 — 뒤로 가기는 앞 화면으로 간다 (EXPERIENCE.md 이동 규칙)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -118,6 +131,8 @@ function ArticleView({ articleId }: { articleId: number }) {
               article={article.data}
               articleFailed={article.isError}
               query={mindmap}
+              mapSettings={mapSettings}
+              onMapSettingsChange={setMapSettings}
             />
           )}
         </TabsContent>
@@ -128,6 +143,8 @@ function ArticleView({ articleId }: { articleId: number }) {
               article={article.data}
               articleFailed={article.isError}
               query={mindmap}
+              mapSettings={mapSettings}
+              onMapSettingsChange={setMapSettings}
             />
           )}
         </TabsContent>
@@ -150,6 +167,8 @@ type MindmapBodyProps = {
   /** A8 이 실패했나 — 그러면 A8 을 기다리지 않는다 */
   articleFailed: boolean;
   query: ReturnType<typeof useQuery<Mindmap>>;
+  mapSettings: MindmapSettings;
+  onMapSettingsChange: Dispatch<SetStateAction<MindmapSettings>>;
 };
 
 // 보기 자리의 상태 — 두 보기가 같은 A9 응답이라 상태도 같다 (EXPERIENCE.md State Patterns).
@@ -159,6 +178,8 @@ function MindmapBody({
   article,
   articleFailed,
   query,
+  mapSettings,
+  onMapSettingsChange,
 }: MindmapBodyProps) {
   const mindmap = query.data;
   const skeleton = view === "flow" ? <FlowSkeleton /> : <MindmapSkeleton />;
@@ -178,7 +199,12 @@ function MindmapBody({
     return view === "flow" ? (
       <FlowView title={mindmap.title} branches={mindmap.branches} />
     ) : (
-      <MindmapView title={mindmap.title} branches={mindmap.branches} />
+      <MindmapView
+        title={mindmap.title}
+        branches={mindmap.branches}
+        settings={mapSettings}
+        onSettingsChange={onMapSettingsChange}
+      />
     );
   }
   // 결과가 없으면 A8 의 mindmapStatus 로 「분석 중」인지 가른다. A8 을 기다리는 동안은 불러오는 중이다

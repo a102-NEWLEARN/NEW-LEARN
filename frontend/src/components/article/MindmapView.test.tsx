@@ -1,7 +1,11 @@
 import { fireEvent, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { expect, test } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
-import { MindmapView } from "@/components/article/MindmapView";
+import {
+  INITIAL_MINDMAP_SETTINGS,
+  MindmapView,
+} from "@/components/article/MindmapView";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -16,8 +20,21 @@ const BRANCHES = [
   branch("OUTLOOK", "양산 목표는 그대로다"),
 ];
 
+// 설정은 기사 화면이 든다 — 여기서는 감싸개가 대신 든다
+function WithSettings({ branches }: { branches: MindmapBranch[] }) {
+  const [settings, setSettings] = useState(INITIAL_MINDMAP_SETTINGS);
+  return (
+    <MindmapView
+      title="공장 착공"
+      branches={branches}
+      settings={settings}
+      onSettingsChange={setSettings}
+    />
+  );
+}
+
 function renderView(branches = BRANCHES) {
-  renderWithProviders(<MindmapView title="공장 착공" branches={branches} />);
+  renderWithProviders(<WithSettings branches={branches} />);
 }
 
 const legend = () => screen.getByRole("group", { name: "가지 보기" });

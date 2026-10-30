@@ -246,3 +246,30 @@ test("두 보기 모두 그렸으면 「AI 생성」을 붙인다", async () => 
   await map();
   expect(screen.getByText("AI 생성")).toBeDefined();
 });
+
+test("보기 탭을 오가도 마인드맵의 숨긴 가지 · 라벨 표시는 남는다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  const chip = (name: string) =>
+    within(screen.getByRole("group", { name: "가지 보기" })).getByRole(
+      "button",
+      { name },
+    );
+  const labels = () => {
+    fireEvent.click(screen.getByRole("button", { name: "탐색 설정" }));
+    return within(screen.getByRole("dialog", { name: "탐색 설정" })).getByRole(
+      "switch",
+      { name: "라벨 표시" },
+    ) as HTMLInputElement;
+  };
+  fireEvent.click(chip("원인·배경"));
+  fireEvent.click(labels());
+
+  fireEvent.click(tab("흐름지도"));
+  await flow();
+  fireEvent.click(tab("마인드맵"));
+  await map();
+
+  expect(chip("원인·배경").getAttribute("aria-pressed")).toBe("false");
+  expect(labels().checked).toBe(false);
+});
