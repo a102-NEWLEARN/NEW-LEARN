@@ -47,14 +47,48 @@
   --nl-color-fg-brand-accent: var(--nl-brand-main);
   --nl-color-bg-brand-accent: var(--nl-brand-main);
   --nl-color-bg-accent-lime: var(--nl-brand-accent-lime);
+
+  /* 기사 마인드맵 가지 4색 — 채움 · 테두리 · 선 · 글자. 마인드맵 그래프에서만 쓴다 */
+  --nl-color-mindmap-core-fill: #eeeafe;
+  --nl-color-mindmap-core-stroke: #8b6cf0;
+  --nl-color-mindmap-core-line: #cdbff8;
+  --nl-color-mindmap-core-text: #5b3fc4;
+  --nl-color-mindmap-cause-fill: #eef8d8;
+  --nl-color-mindmap-cause-stroke: #8dbf3f;
+  --nl-color-mindmap-cause-line: #cfe6a2;
+  --nl-color-mindmap-cause-text: #4f7a12;
+  --nl-color-mindmap-reaction-fill: #dcf5ea;
+  --nl-color-mindmap-reaction-stroke: #3fb585;
+  --nl-color-mindmap-reaction-line: #a6dfc5;
+  --nl-color-mindmap-reaction-text: #1e7a55;
+  --nl-color-mindmap-outlook-fill: #fdf1d0;
+  --nl-color-mindmap-outlook-stroke: #d19a2e;
+  --nl-color-mindmap-outlook-line: #ecd08a;
+  --nl-color-mindmap-outlook-text: #8a5e06;
 }
 
 /* 새 역할을 SEED 역할처럼 Tailwind 클래스로 쓰게 한다
-   (text-fg-brand-accent · bg-bg-brand-accent · bg-bg-accent-lime) */
+   (text-fg-brand-accent · bg-bg-brand-accent · bg-bg-accent-lime · fill-mindmap-core-fill …) */
 @theme {
   --color-fg-brand-accent: var(--nl-color-fg-brand-accent);
   --color-bg-brand-accent: var(--nl-color-bg-brand-accent);
   --color-bg-accent-lime: var(--nl-color-bg-accent-lime);
+  --color-mindmap-core-fill: var(--nl-color-mindmap-core-fill);
+  --color-mindmap-core-stroke: var(--nl-color-mindmap-core-stroke);
+  --color-mindmap-core-line: var(--nl-color-mindmap-core-line);
+  --color-mindmap-core-text: var(--nl-color-mindmap-core-text);
+  --color-mindmap-cause-fill: var(--nl-color-mindmap-cause-fill);
+  --color-mindmap-cause-stroke: var(--nl-color-mindmap-cause-stroke);
+  --color-mindmap-cause-line: var(--nl-color-mindmap-cause-line);
+  --color-mindmap-cause-text: var(--nl-color-mindmap-cause-text);
+  --color-mindmap-reaction-fill: var(--nl-color-mindmap-reaction-fill);
+  --color-mindmap-reaction-stroke: var(--nl-color-mindmap-reaction-stroke);
+  --color-mindmap-reaction-line: var(--nl-color-mindmap-reaction-line);
+  --color-mindmap-reaction-text: var(--nl-color-mindmap-reaction-text);
+  --color-mindmap-outlook-fill: var(--nl-color-mindmap-outlook-fill);
+  --color-mindmap-outlook-stroke: var(--nl-color-mindmap-outlook-stroke);
+  --color-mindmap-outlook-line: var(--nl-color-mindmap-outlook-line);
+  --color-mindmap-outlook-text: var(--nl-color-mindmap-outlook-text);
 }
 
 /* 당근 팔레트를 직접 쓰는 SEED 레시피 — SEED 가 쓴 carrot-200 은
