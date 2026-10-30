@@ -8,6 +8,7 @@ import kr.io.newlearn.category.dto.CategoryRef;
 import kr.io.newlearn.common.error.ApiException;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.FieldErrorItem;
+import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.member.dto.ChangeCategoriesRequest;
 import kr.io.newlearn.member.dto.MemberResponse;
 import kr.io.newlearn.member.dto.SignUpRequest;
@@ -84,7 +85,8 @@ public class MemberService {
         List<String> codes = requested.stream().distinct().toList();
         // 분야 수보다 많으면 없는 코드가 섞인 것이다. DB 에 묻기 전에 끊는다 — 수만 개를 그대로 넘기면
         // findAllById 가 PostgreSQL 매개변수 한도(65,535)를 넘어 500 이 된다 (Jira 65 리뷰)
-        if (codes.size() > categories.count()) {
+        // U+0000 이 든 코드도 없는 코드다 — PostgreSQL 이 받지 못해 findAllById 가 500 이었다 (Jira 43 후속)
+        if (codes.size() > categories.count() || codes.stream().anyMatch(QueryText::containsNul)) {
             throw invalid("categoryCodes", "없는 관심 분야가 있어요");
         }
         List<Category> chosen = categories.findAllById(codes);

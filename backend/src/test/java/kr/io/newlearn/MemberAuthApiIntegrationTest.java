@@ -197,6 +197,35 @@ class MemberAuthApiIntegrationTest {
                 .isZero();
     }
 
+    // 글자 U+0000 은 PostgreSQL 이 받지 못한다 — DB 에 닿기 전에 끊는다 (Jira 43 후속)
+    // 이름은 저장되는 값이라 이유를 알려 준다. 막지 않으면 저장 오류가 아이디 중복 409 로 잘못 읽혔다
+    @Test
+    void signUpRejectsNulInName() throws Exception {
+        signUp(signUpBody("reader_07", "password1", "독\\u0000자", "economy"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("name"))
+                .andExpect(jsonPath("$.errors[0].reason").value("이름에 쓸 수 없는 글자가 들어 있어요"));
+        assertThat(jdbc.sql("select count(*) from member where login_id = 'reader_07'")
+                        .query(Integer.class)
+                        .single())
+                .isZero();
+    }
+
+    // 관심 분야 코드에 U+0000 이 들면 없는 코드와 같은 답이다. 전에는 findAllById 가 500 이었다 (Jira 43 후속)
+    @Test
+    void signUpRejectsNulInCategoryCodes() throws Exception {
+        signUp(signUpBody("reader_09", "password1", "독자", "economy\\u0000"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("categoryCodes"))
+                .andExpect(jsonPath("$.errors[0].reason").value("없는 관심 분야가 있어요"));
+        assertThat(jdbc.sql("select count(*) from member where login_id = 'reader_09'")
+                        .query(Integer.class)
+                        .single())
+                .isZero();
+    }
+
     @Test
     void signUpRejectsTakenLoginId() throws Exception {
         signUp(signUpBody("reader_03", "password1", "독자", "economy")).andExpect(status().isCreated());
@@ -291,6 +320,25 @@ class MemberAuthApiIntegrationTest {
             login("nobody_06", "wrong-pass").andExpect(status().isUnauthorized());
         }
         login("nobody_06", "wrong-pass").andExpect(status().isTooManyRequests());
+    }
+
+    // U+0000 이 든 아이디는 가입 규칙상 있을 수 없다 — DB 에 묻지 않고 없는 아이디와 같은 답, 실패 횟수도 센다 (Jira 43 후속)
+    @Test
+    void nulInLoginIdIsAnUnknownIdAndCounted() throws Exception {
+        String unknownId = login("nobody_08", "password1")
+                .andExpect(status().isUnauthorized())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        for (int i = 0; i < 5; i++) {
+            String withNul = login("nobody\\u0000_08", "password1")
+                    .andExpect(status().isUnauthorized())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString(StandardCharsets.UTF_8);
+            assertThat(withNul).isEqualTo(unknownId);
+        }
+        login("nobody\\u0000_08", "password1").andExpect(status().isTooManyRequests());
     }
 
     // 한꺼번에 보내도 비밀번호를 맞춰 보는 것은 5번까지 — 나머지는 비교 전에 429 (리뷰 2026-10-26)
