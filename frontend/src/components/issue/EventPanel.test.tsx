@@ -43,11 +43,14 @@ const relatedList = () => screen.findByRole("list", { name: "관련 기사" });
 test("머리에 속한 이슈 · 사건 제목 · 사건 발생 날짜 · 첫 기사 날짜를 보인다", async () => {
   renderPanel(119);
 
+  // 이 파일의 첫 요청이다. 전체 테스트를 함께 돌릴 때 PC 가 느리면 가짜 API 첫 응답이 1초를 넘는다 —
+  // 2026-10-30 Node 24 전체 실행에서만 거듭 실패했다 (SSOT.md 8절)
   expect(
-    await screen.findByRole("heading", {
-      level: 2,
-      name: "한빛반도체 텍사스 공장 착공식",
-    }),
+    await screen.findByRole(
+      "heading",
+      { level: 2, name: "한빛반도체 텍사스 공장 착공식" },
+      { timeout: 3000 },
+    ),
   ).toBeDefined();
   expect(screen.getByText("한빛반도체 미국 공장 건설")).toBeDefined();
   expect(screen.getByText("사건 발생").parentElement!.textContent).toBe(
