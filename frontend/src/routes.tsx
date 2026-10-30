@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router";
 import { RequireMember } from "@/components/RequireMember";
 import { AppShell } from "@/components/shell/AppShell";
+import { ArticlePage } from "@/pages/ArticlePage";
 import { HomePage } from "@/pages/HomePage";
 import { IssuePage } from "@/pages/IssuePage";
 import { LandingPage } from "@/pages/LandingPage";
@@ -33,6 +34,7 @@ export const routes: RouteObject[] = [
   shellRoute([
     { path: "/home", element: <HomePage /> },
     { path: "/issues/:issueId", element: <IssuePage /> },
+    { path: "/articles/:articleId", element: <ArticlePage /> },
     // 그 밖의 주소
     { path: "*", element: <NotFoundPage /> },
   ]),
