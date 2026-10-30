@@ -3,6 +3,7 @@ import {
   formatArticleDate,
   formatEventDate,
   formatFullDate,
+  formatFullDateTime,
   formatLongDate,
   formatPeriod,
   formatTimelineDates,
@@ -120,4 +121,13 @@ test("기사 날짜의 오늘 · 어제도 한국 날짜로 가린다", () => {
 
 test("사건 발생 날짜는 「2026.10.06」 꼴로 적는다", () => {
   expect(formatFullDate("2026-10-05T15:30:00Z")).toBe("2026.10.06");
+});
+
+test("기사 일시는 한국 시각으로 「2026.10.06 14:30」 꼴로 적는다", () => {
+  expect(formatFullDateTime("2026-10-06T05:30:00Z")).toBe("2026.10.06 14:30");
+  expect(formatFullDateTime("2026-10-05T15:05:00Z")).toBe("2026.10.06 00:05");
+});
+
+test("기사 일시가 한국 시각 00:00 이면 날짜만 적는다 — 시각 없이 날짜만 온 기사", () => {
+  expect(formatFullDateTime("2026-10-05T15:00:00Z")).toBe("2026.10.06");
 });
