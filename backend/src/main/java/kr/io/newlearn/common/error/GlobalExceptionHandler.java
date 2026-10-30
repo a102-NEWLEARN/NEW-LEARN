@@ -3,6 +3,7 @@ package kr.io.newlearn.common.error;
 import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.tomcat.util.http.InvalidParameterException;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     static final String INTERNAL_DETAIL = "서버에서 처리하지 못한 오류가 났다. 원인은 서버 로그에 있다";
+    static final String PARAMETER_UNREADABLE = "쿼리 인자를 읽지 못했다 — UTF-8 이 아닌 퍼센트 인코딩 · 깨진 인자 · 너무 많거나 큰 인자";
 
     static final String WRONG_FORMAT = "형식이 맞지 않아요";
     static final String NUMBER_EXPECTED = "숫자로 보내 주세요";
@@ -52,6 +54,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetails.addErrors(body, ex.errors());
         return handleExceptionInternal(
                 ex, body, new HttpHeaders(), ex.errorCode().status(), request);
+    }
+
+    // 쿼리 인자를 못 읽음 — cp949 로 인코딩한 %B3%AA, 깨진 %ZZ 따위. Tomcat 이 인자를 읽다 던지고 상태(보통 400)를 같이 준다
+    // 어느 인자인지는 메시지 글자로만 알려 줘 errors 없이 보낸다(깨진 JSON 과 같다). 처리하지 않으면 아래 500 으로 갔다
+    @ExceptionHandler(InvalidParameterException.class)
+    @Nullable
+    ResponseEntity<Object> handleInvalidParameter(InvalidParameterException ex, WebRequest request) {
+        HttpStatusCode status = HttpStatusCode.valueOf(ex.getErrorCode());
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(status, PARAMETER_UNREADABLE);
+        return handleExceptionInternal(ex, body, new HttpHeaders(), status, request);
     }
 
     // 위와 스프링이 아는 오류 말고 전부. 로그인 · 권한 오류는 Security 가 401 · 403 으로 바꾸게 다시 던진다

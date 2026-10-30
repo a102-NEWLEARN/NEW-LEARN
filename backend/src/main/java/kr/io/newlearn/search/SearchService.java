@@ -14,6 +14,7 @@ public class SearchService {
 
     // 규칙은 용어사전과 같고(QueryText) 문구는 검색창(「이슈, 사건, 기사 검색」)에 맞춘다(2026-10-30 사용자)
     static final String BLANK = "검색어를 입력해 주세요";
+    static final String NUL = "검색어에 쓸 수 없는 글자가 들어 있어요";
     static final String TOO_LONG = "검색어는 50자까지예요";
 
     private final SearchQueryRepository queries;
@@ -23,7 +24,7 @@ public class SearchService {
     }
 
     public SearchResponse search(@Nullable String q) {
-        String query = QueryText.normalize(q, BLANK, TOO_LONG);
+        String query = QueryText.normalize(q, BLANK, NUL, TOO_LONG);
         return new SearchResponse(queries.issues(query), queries.events(query), queries.articles(query));
     }
 }
