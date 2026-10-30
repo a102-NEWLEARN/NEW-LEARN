@@ -8,6 +8,7 @@
 #   bash infra/server/seal-secrets.sh ghcr          워커가 GHCR 비공개 이미지를 받을 읽기 토큰 → app · ai 두 곳
 #   bash infra/server/seal-secrets.sh argocd-webhook  GitLab 웹훅 토큰 — 무작위로 만들어 봉인한다(묻지 않음) → argocd
 #   bash infra/server/seal-secrets.sh mattermost    Argo CD 배포 알림을 받을 Mattermost 들어오는 웹훅 주소 → argocd
+#   bash infra/server/seal-secrets.sh alertmanager  Prometheus 경보를 받을 Mattermost 들어오는 웹훅 주소(배포알림 채널과 같은 주소) → monitoring
 #   bash infra/server/seal-secrets.sh pg-backup-s3  DB 주간 백업을 S3 에 올리는 키(올리기만 되는 IAM 사용자) · 버킷 이름 → data
 #   bash infra/server/seal-secrets.sh gms           AI 워커가 SSAFY GMS 를 부를 키 — 봉인 전에 그 키로 GMS 를 불러 본다 → ai
 #   bash infra/server/seal-secrets.sh internal-api  직원용 문(/internal/v1) 출입증 — 워커 · 배치 키를 무작위로 만든다(묻지 않음) → app 에 둘 · ai 에 워커 키
@@ -20,7 +21,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,14p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,15p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -34,6 +35,21 @@ seal() {
   kubectl create secret generic "$1" -n "$2" --from-file="$3"=/dev/stdin --dry-run=client -o yaml \
     | kubeseal --controller-namespace "$CONTROLLER_NS" --format yaml >"$4"
   echo "봉인: $4"
+}
+
+# Mattermost 들어오는 웹훅 주소를 물어 url 에 담고, 봉인하기 전에 그 주소로 채널에 연결 시험 글을 하나 쓴다 — 시험글
+# 주소만 있으면 누구나 그 채널에 글을 쓸 수 있다. 주소는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임)
+read_mattermost_url() {
+  need_tty
+  read -rsp "웹훅 주소 (https://…/hooks/…, 화면에 안 보인다): " url
+  echo
+  url="$(printf '%s' "$url" | LC_ALL=C tr -cd 'A-Za-z0-9:/._-')"
+  [[ "$url" =~ ^https://[A-Za-z0-9.-]+/hooks/[A-Za-z0-9]+$ ]] || { echo "❌ https://<서버>/hooks/<키> 모양이 아니다" >&2; exit 2; }
+  code="$(printf 'url = "%s"\n' "$url" \
+    | curl -s -o /dev/null -w '%{http_code}' -K - -H 'Content-Type: application/json' \
+        --data "{\"text\": \"$1 (연결 시험)\"}")"
+  [ "$code" = 200 ] || { unset url; echo "❌ 이 주소로 글을 못 썼다 (HTTP $code) — 주소 · 채널 확인" >&2; exit 1; }
+  echo "채널에 연결 시험 글을 썼다 (HTTP 200)"
 }
 
 case "${1:-}" in
@@ -130,22 +146,22 @@ case "${1:-}" in
     echo "GitLab 웹훅을 만들 때: kubectl -n argocd get secret argocd-webhook -o jsonpath='{.data.gitlab}' | base64 -d; echo"
     ;;
   mattermost)
-    need_tty
-    # Argo CD 배포 알림이 갈 Mattermost 채널의 들어오는 웹훅 주소 — 주소만 있으면 누구나 그 채널에 글을 쓸 수 있다
+    # Argo CD 배포 알림이 갈 Mattermost 채널의 들어오는 웹훅 주소
     # 알림 컨트롤러가 이 이름 · 키를 읽는다 (argocd-values.prod.yaml 의 notifications.notifiers 「$mattermost-url」)
     echo "Mattermost › 통합 › 들어오는 웹훅 — 배포 알림 전용 채널에 만든 주소"
-    read -rsp "웹훅 주소 (https://…/hooks/…, 화면에 안 보인다): " url
-    echo
-    url="$(printf '%s' "$url" | LC_ALL=C tr -cd 'A-Za-z0-9:/._-')"
-    [[ "$url" =~ ^https://[A-Za-z0-9.-]+/hooks/[A-Za-z0-9]+$ ]] || { echo "❌ https://<서버>/hooks/<키> 모양이 아니다" >&2; exit 2; }
-    # 봉인하기 전에 이 주소로 채널에 연결 시험 글을 하나 쓴다 — 주소는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임)
-    code="$(printf 'url = "%s"\n' "$url" \
-      | curl -s -o /dev/null -w '%{http_code}' -K - -H 'Content-Type: application/json' \
-          --data '{"text": "Argo CD 배포 알림을 이 채널로 보냅니다 (연결 시험)"}')"
-    [ "$code" = 200 ] || { unset url; echo "❌ 이 주소로 글을 못 썼다 (HTTP $code) — 주소 · 채널 확인" >&2; exit 1; }
-    echo "채널에 연결 시험 글을 썼다 (HTTP 200)"
+    read_mattermost_url "Argo CD 배포 알림을 이 채널로 보냅니다"
     printf '%s' "$url" | seal argocd-notifications-secret argocd mattermost-url "$OUT/sealed-argocd-notifications.yaml"
     unset url
+    ;;
+  alertmanager)
+    # Prometheus 경보가 갈 채널의 들어오는 웹훅 주소 — 배포알림 채널과 같은 주소를 넣는다(2026-10-30 사용자, Jira 138)
+    # 봉인은 네임스페이스에 묶여 argocd 의 것을 monitoring 에서 못 쓴다 — 같은 주소를 한 번 더 봉인한다. 주소가 새면 이것과 mattermost 둘 다 다시
+    # Alertmanager 가 파일로 읽는다 (monitoring-values.yaml 의 alertmanager.alertmanagerSpec.secrets · slack_configs.api_url_file)
+    echo "Mattermost › 통합 › 들어오는 웹훅 — 「A102 배포알림」 채널의 주소(배포 알림과 같은 것)"
+    read_mattermost_url "Prometheus 경보를 이 채널로 보냅니다"
+    printf '%s' "$url" | seal alertmanager-mattermost monitoring url "$OUT/sealed-alertmanager-mattermost.yaml"
+    unset url
+    echo "관리자 PC 로 가져와 infra/k8s/alerts/sealed-alertmanager-mattermost.yaml 로"
     ;;
   pg-backup-s3)
     need_tty
