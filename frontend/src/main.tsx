@@ -13,16 +13,19 @@ async function enableMocking() {
   if (import.meta.env.MODE !== "mock") return;
   const { network } = await import("virtual:msw");
   const { handlers } = await import("@/mocks/handlers");
-  // 로그인 상태를 기억하는 응답을 앞에 둔다 — 손님으로 시작한다 (src/mocks/session.ts)
-  const { sessionHandlers } = await import("@/mocks/session");
-  network.configure({ handlers: [...sessionHandlers, ...handlers] });
+  // 로그인 상태를 기억하는 응답을 앞에 둔다. 페이지를 열 때마다 손님으로 랜딩부터 시작한다 (src/mocks/session.ts)
+  const { createSessionHandlers, startFromLanding } =
+    await import("@/mocks/session");
+  startFromLanding();
+  network.configure({ handlers: [...createSessionHandlers(), ...handlers] });
   await network.enable();
 }
 
 const queryClient = createQueryClient();
-const router = createBrowserRouter(routes);
 
 void enableMocking().then(() => {
+  // 가짜 API 가 주소를 바꾼 뒤에 만든다 — 라우터는 만들 때의 주소로 시작한다
+  const router = createBrowserRouter(routes);
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <AppProviders queryClient={queryClient}>

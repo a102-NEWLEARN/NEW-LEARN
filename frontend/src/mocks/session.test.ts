@@ -1,15 +1,14 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import { login, logout } from "@/api/auth";
 import { fetchMe, signUp } from "@/api/members";
 import { server } from "@/mocks/node";
-import { sessionHandlers } from "@/mocks/session";
+import { createSessionHandlers, startFromLanding } from "@/mocks/session";
 
-// 테스트는 늘 회원인 handlers.ts 를 쓴다. 여기서만 개발 화면(npm run dev:mock)처럼 로그인 상태를 기억하게 한다
+// 테스트는 늘 회원인 handlers.ts 를 쓴다. 여기서만 개발 화면(npm run dev:mock)처럼 로그인 상태를 기억하게 한다.
+// 테스트마다 페이지를 새로 연 것처럼 새로 만든다
 beforeEach(() => {
-  sessionStorage.clear();
-  server.use(...sessionHandlers);
+  server.use(...createSessionHandlers());
 });
-afterEach(() => sessionStorage.clear());
 
 test("처음에는 손님이다", async () => {
   expect(await fetchMe()).toBeNull();
@@ -37,14 +36,26 @@ test("가입하면 바로 회원이다", async () => {
   expect(await fetchMe()).not.toBeNull();
 });
 
-test("새로 고쳐도 로그인 상태가 남는다", async () => {
+test("새로 고치거나 다시 열면 손님으로 돌아간다", async () => {
   await login(account);
-
-  // 새로 고침 — 모듈을 처음부터 다시 읽는다
-  vi.resetModules();
-  const fresh = await import("@/mocks/session");
-  server.resetHandlers();
-  server.use(...fresh.sessionHandlers);
-
   expect(await fetchMe()).not.toBeNull();
+
+  // 새로 고침 — main.tsx 가 페이지를 열 때마다 새로 만든다
+  server.resetHandlers();
+  server.use(...createSessionHandlers());
+
+  expect(await fetchMe()).toBeNull();
 });
+
+afterEach(() => window.history.replaceState(null, "", "/"));
+
+test.each(["/home", "/issues/12?event=3", "/login?next=/home"])(
+  "페이지를 열면 %s 가 아니라 랜딩부터 시작한다",
+  (path) => {
+    window.history.replaceState(null, "", path);
+
+    startFromLanding();
+
+    expect(window.location.pathname + window.location.search).toBe("/");
+  },
+);
