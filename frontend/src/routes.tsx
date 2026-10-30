@@ -1,7 +1,8 @@
-import { Navigate, type RouteObject } from "react-router";
+import type { RouteObject } from "react-router";
 import { AppShell } from "@/components/shell/AppShell";
 import { HomePage } from "@/pages/HomePage";
 import { IssuePage } from "@/pages/IssuePage";
+import { LandingPage } from "@/pages/LandingPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorPage } from "@/pages/RouteErrorPage";
 
@@ -18,8 +19,8 @@ export function shellRoute(pages: RouteObject[]): RouteObject {
 // 주소 → 화면. main.tsx 와 테스트 도우미(src/test/render.tsx 의 renderRoute)가 같은 목록을 쓴다.
 // 화면 목록과 주소는 EXPERIENCE.md Information Architecture 에 있다
 export const routes: RouteObject[] = [
-  // 랜딩(`/`)은 S15P31A102-44 에서 넣는다. 그전에는 홈으로 보낸다
-  { path: "/", element: <Navigate to="/home" replace /> },
+  // 랜딩은 셸 없이 전체 화면으로 뜬다
+  { path: "/", element: <LandingPage />, errorElement: <RouteErrorPage /> },
   shellRoute([
     { path: "/home", element: <HomePage /> },
     { path: "/issues/:issueId", element: <IssuePage /> },
