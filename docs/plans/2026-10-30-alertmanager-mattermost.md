@@ -71,14 +71,14 @@ Alertmanager 설정은 아래와 같습니다.
    ssh -t newlearn "bash infra/server/seal-secrets.sh alertmanager"
    ```
 
-4. [ ] **Claude** — 봉인 파일을 가져와 커밋합니다(`ssh … cat ~/sealed/…`). MR → infra → dev, 파이프라인 success 뒤 머지합니다. Argo CD 가 Secret 과 규칙을 만들면 확인합니다: Secret 이 있는지, Prometheus `rules` 에 `newlearn` 묶음이 있는지(아직 Alertmanager 가 없어 보내지는 않음)
-5. [ ] **사용자** — 값 파일을 서버로 보낸 뒤(Claude 가 보냄) 관리 서버에서 늘 하던 업그레이드를 돌립니다(Grafana Pod 가 한 번 다시 뜹니다)
+4. [x] **Claude** — 봉인 파일을 가져와 커밋합니다(`ssh … cat ~/sealed/…`). MR → infra → dev, 파이프라인 success 뒤 머지합니다. Argo CD 가 Secret 과 규칙을 만들면 확인합니다: Secret 이 있는지, Prometheus `rules` 에 `newlearn` 묶음이 있는지(아직 Alertmanager 가 없어 보내지는 않음)
+5. [x] **사용자** — 값 파일을 서버로 보낸 뒤(Claude 가 보냄) 관리 서버에서 늘 하던 업그레이드를 돌립니다(Grafana Pod 가 한 번 다시 뜹니다)
 
    ```bash
    helm upgrade --install kps oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack --version 92.10.1 -n monitoring -f infra/k8s/bootstrap/monitoring-values.yaml --wait --timeout 10m
    ```
 
-6. [ ] **Claude** — 확인(아래 「어떻게 검증하나」) → 기록 · Jira
+6. [x] **Claude** — 확인(아래 「어떻게 검증하나」) → 기록 · Jira — 결과는 `SSOT.md` 10절 2026-10-30. !446 → infra · !447 → dev cd56e4bc, helm 9판, 시험 경보 채널 도착(사용자 확인)
 
 ## 안 바꿀 것
 
