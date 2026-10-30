@@ -150,3 +150,45 @@ test("포커스한 가지를 숨기면 포커스가 풀린다", () => {
       .getAttribute("data-dimmed"),
   ).toBeNull();
 });
+
+test("「모두 보기」를 누르면 버튼이 사라지므로 포커스를 범례 첫 칩으로 옮긴다", () => {
+  renderView();
+  fireEvent.click(chip("원인·배경"));
+  const showAll = screen.getByRole("button", { name: "모두 보기" });
+  showAll.focus();
+
+  fireEvent.click(showAll);
+
+  expect(document.activeElement).toBe(chip("핵심 내용"));
+});
+
+test("다른 창(서랍 등) 안에서 누른 Esc 는 탐색 설정이 가로채지 않는다", () => {
+  renderView();
+  fireEvent.click(settingsButton());
+  const drawer = document.createElement("div");
+  drawer.setAttribute("role", "dialog");
+  const inside = document.createElement("button");
+  drawer.append(inside);
+  document.body.append(drawer);
+
+  const notPrevented = fireEvent.keyDown(inside, { key: "Escape" });
+
+  expect(notPrevented).toBe(true);
+  expect(screen.getByRole("dialog", { name: "탐색 설정" })).toBeDefined();
+  drawer.remove();
+});
+
+test("탭 순서 — 설정 톱니와 확대 버튼이 그래프 노드보다 앞이다", () => {
+  renderView();
+  const firstNode = within(graph()).getAllByRole("button")[0];
+  const before = (element: Element) =>
+    Boolean(
+      element.compareDocumentPosition(firstNode) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+  expect(before(settingsButton())).toBe(true);
+  expect(before(screen.getByRole("button", { name: "화면에 맞추기" }))).toBe(
+    true,
+  );
+});

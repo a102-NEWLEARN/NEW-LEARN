@@ -18,6 +18,12 @@ type MindmapViewProps = {
 export function MindmapView({ title, branches }: MindmapViewProps) {
   const [hidden, setHidden] = useState<ReadonlySet<BranchType>>(new Set());
   const [showLabels, setShowLabels] = useState(true);
+  const legendRef = useRef<HTMLDivElement>(null);
+  // 「모두 보기」는 누르면 사라진다 — 포커스가 갈 곳을 잃지 않게 범례 첫 칩으로 옮긴다
+  const showAll = () => {
+    setHidden(new Set());
+    legendRef.current?.querySelector("button")?.focus();
+  };
   const toggle = (type: BranchType) =>
     setHidden((current) => {
       const next = new Set(current);
@@ -32,6 +38,7 @@ export function MindmapView({ title, branches }: MindmapViewProps) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle px-x4 py-x2_5 md:px-x8">
         <div
+          ref={legendRef}
           role="group"
           aria-label="가지 보기"
           className="flex flex-wrap items-center gap-x2"
@@ -80,7 +87,7 @@ export function MindmapView({ title, branches }: MindmapViewProps) {
         {hidden.size > 0 && (
           <button
             type="button"
-            onClick={() => setHidden(new Set())}
+            onClick={showAll}
             className="t4-medium h-x8 rounded-r2 px-x2 text-fg-brand hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
           >
             모두 보기
@@ -88,13 +95,14 @@ export function MindmapView({ title, branches }: MindmapViewProps) {
         )}
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* 탭 순서가 화면에서 읽는 순서와 같게 — 범례 다음에 설정, 그다음 그래프 */}
+        <GraphSettings showLabels={showLabels} onShowLabels={setShowLabels} />
         <MindmapGraph
           title={title}
           branches={branches}
           hidden={hidden}
           showLabels={showLabels}
         />
-        <GraphSettings showLabels={showLabels} onShowLabels={setShowLabels} />
       </div>
     </div>
   );
@@ -120,9 +128,14 @@ function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
   useEffect(() => {
     if (!open) return;
     panelRef.current?.querySelector<HTMLElement>("input")?.focus();
-    // 캡처 단계 — 그래프의 Esc(포커스 · 강조 풀기)보다 먼저 이 창을 닫고 preventDefault 로 알린다
+    // 캡처 단계 — 그래프의 Esc(포커스 · 강조 풀기)보다 먼저 이 창을 닫고 preventDefault 로 알린다.
+    // 서랍처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (Timeline TIP 과 같다)
     const onKeyDown = (key: KeyboardEvent) => {
       if (key.key !== "Escape" || key.isComposing) return;
+      const layer = (key.target as Element | null)?.closest?.(
+        '[role="dialog"]',
+      );
+      if (layer && layer !== panelRef.current) return;
       key.preventDefault();
       setOpen(false);
       buttonRef.current?.focus();
@@ -145,7 +158,7 @@ function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
   }, [open]);
 
   return (
-    <div className="absolute top-[16px] right-[16px] flex flex-col items-end gap-x2">
+    <div className="absolute top-[16px] right-[16px] z-10 flex flex-col items-end gap-x2">
       <button
         ref={buttonRef}
         type="button"

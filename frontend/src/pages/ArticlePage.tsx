@@ -34,6 +34,12 @@ const toView = (raw: string | null): View =>
 
 const isArticleNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "ARTICLE_NOT_FOUND";
+// 그릴 수 있는 마인드맵인가 — 아는 판이고 가지가 하나 이상
+const drawable = (mindmap: Mindmap | undefined): mindmap is Mindmap =>
+  mindmap !== undefined &&
+  mindmap.schemaVersion === KNOWN_SCHEMA &&
+  mindmap.branches.length > 0;
+
 const isMindmapNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "MINDMAP_NOT_FOUND";
 
@@ -98,11 +104,13 @@ function ArticleView({ articleId }: { articleId: number }) {
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
           {/* AI 가 만든 마인드맵 — AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
-          {mindmap.data?.aiGenerated && (
-            <span className="ml-auto">
-              <AiBadge />
-            </span>
-          )}
+          {view === "map" &&
+            drawable(mindmap.data) &&
+            mindmap.data.aiGenerated && (
+              <span className="ml-auto">
+                <AiBadge />
+              </span>
+            )}
         </div>
         {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
         <TabsContent value="flow" className={PANEL}>
@@ -114,7 +122,11 @@ function ArticleView({ articleId }: { articleId: number }) {
         </TabsContent>
         <TabsContent value="map" className={PANEL}>
           {view === "map" && (
-            <MindmapBody article={article.data} query={mindmap} />
+            <MindmapBody
+              article={article.data}
+              articleFailed={article.isError}
+              query={mindmap}
+            />
           )}
         </TabsContent>
       </TabsRoot>
@@ -131,12 +143,14 @@ const PANEL = "flex min-h-0 flex-1 flex-col aria-hidden:hidden";
 type MindmapBodyProps = {
   /** A8 — 마인드맵 결과가 없을 때 「분석 중」인지 가른다 */
   article: ArticleDetail | undefined;
+  /** A8 이 실패했나 — 그러면 A8 을 기다리지 않는다 */
+  articleFailed: boolean;
   query: ReturnType<typeof useQuery<Mindmap>>;
 };
 
 // 마인드맵 보기 자리의 상태 (EXPERIENCE.md State Patterns). 아직 문구를 정하지 않은 상태(EXP 「아직 정하지 않은 것」)는
 // 「마인드맵이 아직 없어요」로 둔다 [가정]
-function MindmapBody({ article, query }: MindmapBodyProps) {
+function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
   const mindmap = query.data;
   if (mindmap) {
     if (mindmap.schemaVersion !== KNOWN_SCHEMA)
@@ -155,12 +169,13 @@ function MindmapBody({ article, query }: MindmapBodyProps) {
   }
   // 결과가 없으면 A8 의 mindmapStatus 로 「분석 중」인지 가른다. A8 을 기다리는 동안은 불러오는 중이다
   if (isMindmapNotFound(query.error)) {
-    if (!article) return <MindmapSkeleton />;
+    // A8 이 실패했으면 분석 중인지 알 수 없다 — 결과가 없다는 것만 알린다
+    if (!article && !articleFailed) return <MindmapSkeleton />;
     return (
       <Centered>
         <EmptyState
           message={
-            article.mindmapStatus === "QUEUED"
+            article?.mindmapStatus === "QUEUED"
               ? "기사를 분석하고 있어요"
               : "이 기사의 마인드맵이 아직 없어요"
           }

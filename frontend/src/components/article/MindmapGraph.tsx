@@ -27,6 +27,7 @@ import {
   BRANCH_QUESTION_FONT,
   BRANCH_RADIUS,
   boundsOf,
+  branchLabelWidth,
   type Box,
   LEAF_FONT,
   LEAF_LINE,
@@ -163,6 +164,8 @@ export function MindmapGraph({
     const svg = svgRef.current!;
     const behavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent(SCALE_EXTENT)
+      // 누르는 동안 손이 조금 떨려도(3px 까지) 끌기가 아니라 누르기로 친다
+      .clickDistance(3)
       .extent(() => [
         [0, 0],
         [sizeRef.current.width, sizeRef.current.height],
@@ -316,6 +319,8 @@ export function MindmapGraph({
     return (
       <g
         key={type}
+        role="group"
+        aria-label={info.name}
         data-branch={type}
         data-dimmed={dimmed || undefined}
         opacity={dimmed ? DIMMED_OPACITY : 1}
@@ -354,6 +359,14 @@ export function MindmapGraph({
         >
           {/* 누르는 영역을 노드보다 넓게 */}
           <circle r={BRANCH_RADIUS + 10} className="fill-transparent" />
+          {/* 가지 이름도 누르는 면이다 — 글자 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
+          <rect
+            x={side === 1 ? labelX - branchLabelWidth(type) : labelX}
+            y={-18}
+            width={branchLabelWidth(type)}
+            height={36}
+            className="fill-transparent"
+          />
           {focused && <circle r={BRANCH_RADIUS + 6} className={tone.fill} />}
           <circle
             r={BRANCH_RADIUS}
@@ -372,7 +385,7 @@ export function MindmapGraph({
             textAnchor={labelAnchor}
             strokeWidth={4}
             style={HALO}
-            className="pointer-events-none stroke-bg-layer-default"
+            className="stroke-bg-layer-default"
           >
             <tspan
               x={labelX}
@@ -395,6 +408,8 @@ export function MindmapGraph({
         {leaves.map((leaf) => {
           const selected = selectedLeaf === leaf.key;
           const textX = side * (LEAF_RADIUS + LEAF_TEXT_GAP);
+          const textWidth =
+            Math.max(...leaf.lines.map((line) => line.length)) * LEAF_FONT;
           const cut = leaf.lines.at(-1)?.endsWith("…");
           // 라벨 표시를 꺼도 강조 · 키보드 포커스 · 마우스를 올린 잎은 글을 보인다 (프로토타입 v21 그래프 설정)
           const labeled =
@@ -424,6 +439,16 @@ export function MindmapGraph({
             >
               {labeled && cut && <title>{leaf.text}</title>}
               <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
+              {/* 잎 글도 누르는 면이다 — 줄 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
+              {labeled && (
+                <rect
+                  x={side === 1 ? textX : textX - textWidth}
+                  y={(-leaf.lines.length * LEAF_LINE) / 2}
+                  width={textWidth}
+                  height={leaf.lines.length * LEAF_LINE}
+                  className="fill-transparent"
+                />
+              )}
               <circle
                 data-leaf-mark
                 r={LEAF_RADIUS}
@@ -445,7 +470,7 @@ export function MindmapGraph({
                   fontSize={LEAF_FONT}
                   strokeWidth={4}
                   style={HALO}
-                  className={`pointer-events-none fill-fg-neutral stroke-bg-layer-default ${selected ? "font-bold" : "font-medium"}`}
+                  className={`fill-fg-neutral stroke-bg-layer-default ${selected ? "font-bold" : "font-medium"}`}
                 >
                   {leaf.lines.map((line, i) => (
                     <tspan
@@ -470,43 +495,7 @@ export function MindmapGraph({
       ref={wrapRef}
       className="relative min-h-0 flex-1 overflow-hidden bg-bg-layer-default [background-image:radial-gradient(var(--seed-color-stroke-neutral-weak)_1px,transparent_1px)] [background-size:24px_24px]"
     >
-      <svg
-        ref={svgRef}
-        role="group"
-        aria-label="기사 마인드맵"
-        width="100%"
-        height="100%"
-        className="block cursor-grab touch-none select-none"
-        onClick={releaseAll}
-      >
-        <g transform={transform.toString()}>
-          {layout.branches.map(renderBranch)}
-          {/* 가운데 — 기사 제목. 가지 선이 끝나는 자리를 덮게 맨 나중에 그린다 */}
-          <g>
-            <circle
-              r={ROOT_RING}
-              strokeWidth={1.5}
-              className="fill-bg-layer-default stroke-stroke-neutral-weak"
-            />
-            <circle r={ROOT_RADIUS} className="fill-bg-brand-accent" />
-            {layout.root.lines.at(-1)?.endsWith("…") && <title>{title}</title>}
-            <text
-              textAnchor="middle"
-              fontSize={ROOT_FONT}
-              strokeWidth={5}
-              style={HALO}
-              className="pointer-events-none fill-fg-neutral stroke-bg-layer-default font-bold"
-            >
-              {layout.root.lines.map((line, i) => (
-                <tspan key={i} x={0} y={ROOT_RING + 22 + i * ROOT_LINE}>
-                  {line}
-                </tspan>
-              ))}
-            </text>
-          </g>
-        </g>
-      </svg>
-      {/* 위치 클래스(left-x4 등)는 SEED 테마에 없어 px 로 준다 */}
+      {/* 확대 버튼 — 탭 순서가 그래프 노드보다 앞이게 svg 앞에 둔다. 위치 클래스(left-x4 등)는 SEED 테마에 없어 px 로 준다 */}
       <div className="absolute bottom-[16px] left-[16px] flex items-center gap-x2">
         <div
           role="group"
@@ -542,6 +531,43 @@ export function MindmapGraph({
           화면에 맞추기
         </ActionButton>
       </div>
+      <svg
+        ref={svgRef}
+        role="group"
+        aria-label="기사 마인드맵"
+        width="100%"
+        height="100%"
+        className="block cursor-grab touch-none select-none"
+        onClick={releaseAll}
+      >
+        <g transform={transform.toString()}>
+          {layout.branches.map(renderBranch)}
+          {/* 가운데 — 기사 제목. 가지 선이 끝나는 자리를 덮게 맨 나중에 그린다.
+              바로 위 h1 과 같은 글이라 화면 낭독에서 뺀다 */}
+          <g aria-hidden="true">
+            <circle
+              r={ROOT_RING}
+              strokeWidth={1.5}
+              className="fill-bg-layer-default stroke-stroke-neutral-weak"
+            />
+            <circle r={ROOT_RADIUS} className="fill-bg-brand-accent" />
+            {layout.root.lines.at(-1)?.endsWith("…") && <title>{title}</title>}
+            <text
+              textAnchor="middle"
+              fontSize={ROOT_FONT}
+              strokeWidth={5}
+              style={HALO}
+              className="pointer-events-none fill-fg-neutral stroke-bg-layer-default font-bold"
+            >
+              {layout.root.lines.map((line, i) => (
+                <tspan key={i} x={0} y={ROOT_RING + 22 + i * ROOT_LINE}>
+                  {line}
+                </tspan>
+              ))}
+            </text>
+          </g>
+        </g>
+      </svg>
     </div>
   );
 }

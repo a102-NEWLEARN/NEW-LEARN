@@ -169,3 +169,55 @@ test("없는 가지는 그리지 않는다", () => {
     screen.getByRole("button", { name: "전망 · 앞으로는? · 잎 1개" }),
   ).toBeDefined();
 });
+
+test.each([
+  [
+    "다른 창(서랍 등) 안에서 누른 Esc",
+    () => {
+      const drawer = document.createElement("div");
+      drawer.setAttribute("role", "dialog");
+      const inside = document.createElement("button");
+      drawer.append(inside);
+      document.body.append(drawer);
+      fireEvent.keyDown(inside, { key: "Escape" });
+      drawer.remove();
+    },
+  ],
+  [
+    "먼저 받은 쪽(설정 창 등)이 막은 Esc",
+    () => {
+      const first = (key: KeyboardEvent) => key.preventDefault();
+      window.addEventListener("keydown", first, true);
+      fireEvent.keyDown(window, { key: "Escape" });
+      window.removeEventListener("keydown", first, true);
+    },
+  ],
+])("%s 로는 포커스를 풀지 않는다", (_, press) => {
+  renderGraph();
+  fireEvent.click(coreBranch());
+
+  press();
+
+  expect(coreBranch().getAttribute("aria-pressed")).toBe("true");
+});
+
+test("가지마다 그 가지 이름의 묶음으로 가지 원과 잎을 묶는다", () => {
+  renderGraph();
+
+  const cause = screen.getByRole("group", { name: "원인·배경" });
+  expect(
+    within(cause).getByRole("button", {
+      name: "미국 보조금 조건을 맞추려고 착공을 앞당겼다",
+    }),
+  ).toBeDefined();
+  expect(within(cause).getByRole("button", { name: /^원인·배경 ·/ })).toBe(
+    causeBranch(),
+  );
+});
+
+test("가운데 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 과 같은 글이다", () => {
+  renderGraph();
+
+  const title = screen.getByText("한빛반도체 텍사스 공장");
+  expect(title.closest('[aria-hidden="true"]')).not.toBeNull();
+});

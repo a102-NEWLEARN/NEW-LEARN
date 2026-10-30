@@ -202,3 +202,41 @@ test("헤더의 이슈 보기를 누르면 그 사건 패널이 열린 이슈 �
   );
   expect(router.state.location.search).toBe("?event=119");
 });
+
+test("기사를 불러오지 못했는데 마인드맵 결과도 없으면 「아직 없어요」를 둔다 — 끝없이 불러오는 중이 아니다", async () => {
+  server.use(
+    http.get("/api/v1/articles/11901", ({ request }) =>
+      problem(500, "INTERNAL_ERROR", new URL(request.url).pathname),
+    ),
+    http.get("/api/v1/articles/11901/mindmap", ({ request }) =>
+      problem(404, "MINDMAP_NOT_FOUND", new URL(request.url).pathname),
+    ),
+  );
+  renderRoute(PATH);
+
+  expect(
+    await screen.findByText("이 기사의 마인드맵이 아직 없어요"),
+  ).toBeDefined();
+  expect(
+    screen.queryByRole("status", { name: "마인드맵 불러오는 중" }),
+  ).toBeNull();
+});
+
+test("모르는 판이라 그리지 않으면 「AI 생성」을 붙이지 않는다", async () => {
+  mindmapWith({ schemaVersion: "mindmap-v9" });
+  renderRoute(PATH);
+
+  await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요");
+  expect(screen.queryByText("AI 생성")).toBeNull();
+});
+
+test("흐름지도 탭에는 「AI 생성」을 붙이지 않는다 — 아직 그리는 것이 없다", async () => {
+  renderRoute(PATH);
+  await screen.findByRole("group", { name: "기사 마인드맵" });
+  expect(screen.getByText("AI 생성")).toBeDefined();
+
+  fireEvent.click(tab("흐름지도"));
+
+  await screen.findByText("흐름지도 보기는 준비 중이에요");
+  expect(screen.queryByText("AI 생성")).toBeNull();
+});
