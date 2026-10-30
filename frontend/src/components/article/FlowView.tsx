@@ -1,6 +1,6 @@
-import { type MouseEvent, useEffect, useState } from "react";
+import { type MouseEvent, useEffect, useId, useState } from "react";
 import type { MindmapBranch } from "@/api/mindmap";
-import { BRANCHES } from "@/components/article/branches";
+import { BRANCHES, type BranchInfo } from "@/components/article/branches";
 
 type FlowViewProps = {
   /** 머리 줄 글자 — A9 title */
@@ -18,6 +18,7 @@ const leafKey = (type: string, index: number) => `${type}:${index}`;
 // 잎을 누르면 강조만 한다 — 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
 export function FlowView({ title, branches }: FlowViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
+  const idPrefix = useId();
 
   // Esc — 강조를 푼다. 먼저 받은 쪽이 preventDefault 했거나 다른 창(dialog) 안에서 누른 Esc 는
   // 그쪽 몫이다 (MindmapGraph 와 같다)
@@ -60,6 +61,7 @@ export function FlowView({ title, branches }: FlowViewProps) {
           {branches.map(({ type, items }, index) => {
             const { name, question, tone } = BRANCHES[type];
             const last = index === branches.length - 1;
+            const headId = `${idPrefix}-${type}`;
             return (
               // 세로 — 번호 원 | 질문 · 이름, 그 아래 잎 카드. 가로 — 번호 줄 · 질문 · 잎 카드를 위에서 아래로
               <li
@@ -83,12 +85,20 @@ export function FlowView({ title, branches }: FlowViewProps) {
                   {!last && <ArrowToNext />}
                 </div>
                 <div className="flex min-w-0 flex-col gap-x0_5">
-                  <h2 className="t6-bold text-fg-neutral">{question}</h2>
-                  <p className={`t3-bold ${tone.label}`}>
+                  <h2 id={`${headId}-q`} className="t6-bold text-fg-neutral">
+                    {question}
+                  </h2>
+                  <p id={`${headId}-n`} className={`t3-bold ${tone.label}`}>
                     {`${name} · ${items.length}개`}
                   </p>
                 </div>
-                <div className="col-start-2 grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-x2_5 @min-[1024px]:grid-cols-1">
+                {/* 잎 카드 묶음 — Tab 으로 카드만 옮겨 다녀도 어느 가지인지 읽히게 (마인드맵 보기의 가지 묶음과 같다).
+                    칸은 260px 이상이되 자리가 그보다 좁으면 자리만큼 (320px 화면에서 가로로 넘치지 않게) */}
+                <div
+                  role="group"
+                  aria-labelledby={`${headId}-q ${headId}-n`}
+                  className="col-start-2 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x2_5 @min-[1024px]:grid-cols-1"
+                >
                   {items.map(({ text }, itemIndex) => {
                     const key = leafKey(type, itemIndex);
                     const on = selected === key;
@@ -132,7 +142,7 @@ function ArrowToNext() {
 
 type LeafCardProps = {
   text: string;
-  tone: (typeof BRANCHES)[keyof typeof BRANCHES]["tone"];
+  tone: BranchInfo["tone"];
   /** 전망 가지의 잎 — 점선 원과 「전망·해석」 */
   outlook: boolean;
   on: boolean;
@@ -140,7 +150,8 @@ type LeafCardProps = {
   onPress: () => void;
 };
 
-// 잎 카드 — 문장 전체를 둔다. 상세 창이 없어서 자르면 끝까지 읽을 길이 없다
+// 잎 카드 — 문장 전체를 둔다. 상세 창이 없어서 자르면 끝까지 읽을 길이 없다.
+// 색 전환은 동작 줄이기에서도 남긴다 (EXPERIENCE.md Interaction Primitives). 포커스 윤곽선은 카드라 바깥으로 띄운다
 function LeafCard({ text, tone, outlook, on, dimmed, onPress }: LeafCardProps) {
   return (
     <button
@@ -148,7 +159,7 @@ function LeafCard({ text, tone, outlook, on, dimmed, onPress }: LeafCardProps) {
       aria-pressed={on}
       data-dimmed={dimmed || undefined}
       onClick={onPress}
-      className={`flex w-full flex-col items-start gap-x2 rounded-r3_5 border px-x4 py-x3_5 text-left transition-[border-color,background-color,opacity] duration-200 focus-visible:outline-2 focus-visible:outline-stroke-focus-ring motion-reduce:transition-none ${
+      className={`flex w-full flex-col items-start gap-x2 rounded-r3_5 border px-x4 py-x3_5 text-left transition-[border-color,background-color,opacity] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${
         on
           ? tone.cardOn
           : `border-stroke-neutral-weak bg-bg-layer-default ${tone.cardHover}`
@@ -162,7 +173,10 @@ function LeafCard({ text, tone, outlook, on, dimmed, onPress }: LeafCardProps) {
             outlook ? "border-dashed" : ""
           } ${on ? tone.dot : "bg-bg-layer-default"}`}
         />
-        <span className="t5-medium text-fg-neutral">{text}</span>
+        {/* 빈칸 없는 긴 영문 · 주소도 카드 안에서 줄을 바꾼다 */}
+        <span className="t5-medium [overflow-wrap:anywhere] text-fg-neutral">
+          {text}
+        </span>
       </span>{" "}
       {outlook && (
         <span className="t2-bold ml-[22px] rounded-r1_5 border border-dashed border-stroke-neutral-weak px-x1_5 text-fg-neutral-muted">

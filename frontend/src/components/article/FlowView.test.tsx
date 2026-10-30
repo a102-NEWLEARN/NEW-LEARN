@@ -76,6 +76,21 @@ test("잎은 그 가지 칸 안에 문장 전체를 이름으로 한 버튼으�
   ]);
 });
 
+test("잎 카드는 가지 질문 · 이름으로 묶는다 — Tab 으로 카드만 옮겨 다녀도 어느 가지인지 읽힌다", () => {
+  renderFlow();
+
+  const core = screen.getByRole("group", {
+    name: "무슨 일이? 핵심 내용 · 2개",
+  });
+  expect(within(core).getAllByRole("button")).toEqual([
+    card("한빛반도체가 텍사스 공장 착공식을 열었다"),
+    card("첫 해 생산 목표를 밝혔다"),
+  ]);
+  expect(
+    screen.getByRole("group", { name: "앞으로는? 전망 · 1개" }),
+  ).toBeDefined();
+});
+
 test("전망 가지의 잎만 점선 원과 「전망·해석」 표시를 단다", () => {
   renderFlow();
 
@@ -145,6 +160,10 @@ test.each([
       fireEvent.keyDown(inside, { key: "Escape" });
       drawer.remove();
     },
+  ],
+  [
+    "한글을 조합하는 중에 누른 Esc",
+    () => fireEvent.keyDown(window, { key: "Escape", isComposing: true }),
   ],
   [
     "먼저 받은 쪽이 막은 Esc",

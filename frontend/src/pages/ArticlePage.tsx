@@ -1,4 +1,5 @@
 import {
+  Skeleton,
   TabsContent,
   TabsIndicator,
   TabsList,
@@ -6,13 +7,7 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-  useCallback,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ApiError } from "@/api/error";
@@ -22,7 +17,6 @@ import { ArticleHeader } from "@/components/article/ArticleHeader";
 import { FlowView } from "@/components/article/FlowView";
 import {
   INITIAL_MINDMAP_SETTINGS,
-  type MindmapSettings,
   MindmapView,
 } from "@/components/article/MindmapView";
 import { EmptyState } from "@/components/state/EmptyState";
@@ -127,25 +121,34 @@ function ArticleView({ articleId }: { articleId: number }) {
         <TabsContent value="flow" className={PANEL}>
           {view === "flow" && (
             <MindmapBody
-              view="flow"
               article={article.data}
               articleFailed={article.isError}
               query={mindmap}
-              mapSettings={mapSettings}
-              onMapSettingsChange={setMapSettings}
-            />
+              skeleton={<FlowSkeleton />}
+            >
+              {({ title, branches }) => (
+                <FlowView title={title} branches={branches} />
+              )}
+            </MindmapBody>
           )}
         </TabsContent>
         <TabsContent value="map" className={PANEL}>
           {view === "map" && (
             <MindmapBody
-              view="map"
               article={article.data}
               articleFailed={article.isError}
               query={mindmap}
-              mapSettings={mapSettings}
-              onMapSettingsChange={setMapSettings}
-            />
+              skeleton={<MindmapSkeleton />}
+            >
+              {({ title, branches }) => (
+                <MindmapView
+                  title={title}
+                  branches={branches}
+                  settings={mapSettings}
+                  onSettingsChange={setMapSettings}
+                />
+              )}
+            </MindmapBody>
           )}
         </TabsContent>
       </TabsRoot>
@@ -160,29 +163,27 @@ const TAB =
 const PANEL = "flex min-h-0 flex-1 flex-col aria-hidden:hidden";
 
 type MindmapBodyProps = {
-  /** 어느 보기로 그리나 */
-  view: View;
   /** A8 — 마인드맵 결과가 없을 때 「분석 중」인지 가른다 */
   article: ArticleDetail | undefined;
   /** A8 이 실패했나 — 그러면 A8 을 기다리지 않는다 */
   articleFailed: boolean;
   query: ReturnType<typeof useQuery<Mindmap>>;
-  mapSettings: MindmapSettings;
-  onMapSettingsChange: Dispatch<SetStateAction<MindmapSettings>>;
+  /** 불러오는 중 — 그 보기 모양의 스켈레톤 */
+  skeleton: ReactNode;
+  /** 그릴 수 있는 응답을 그 보기로 그린다 */
+  children: (mindmap: Mindmap) => ReactNode;
 };
 
 // 보기 자리의 상태 — 두 보기가 같은 A9 응답이라 상태도 같다 (EXPERIENCE.md State Patterns).
 // 아직 문구를 정하지 않은 상태(EXP 「아직 정하지 않은 것」)는 「마인드맵이 아직 없어요」로 둔다 [가정]
 function MindmapBody({
-  view,
   article,
   articleFailed,
   query,
-  mapSettings,
-  onMapSettingsChange,
+  skeleton,
+  children,
 }: MindmapBodyProps) {
   const mindmap = query.data;
-  const skeleton = view === "flow" ? <FlowSkeleton /> : <MindmapSkeleton />;
   if (mindmap) {
     if (mindmap.schemaVersion !== KNOWN_SCHEMA)
       return (
@@ -196,16 +197,7 @@ function MindmapBody({
           <EmptyState message="이 기사에서 정리한 내용이 없어요" />
         </Centered>
       );
-    return view === "flow" ? (
-      <FlowView title={mindmap.title} branches={mindmap.branches} />
-    ) : (
-      <MindmapView
-        title={mindmap.title}
-        branches={mindmap.branches}
-        settings={mapSettings}
-        onSettingsChange={onMapSettingsChange}
-      />
-    );
+    return children(mindmap);
   }
   // 결과가 없으면 A8 의 mindmapStatus 로 「분석 중」인지 가른다. A8 을 기다리는 동안은 불러오는 중이다
   if (isMindmapNotFound(query.error)) {
@@ -244,15 +236,17 @@ function Centered({ children }: { children: ReactNode }) {
   );
 }
 
-// 마인드맵 자리 — 범례 줄과 가운데 원 · 가지 넷 모양
+// 마인드맵 자리 — 가운데 원과 양옆 가지 모양
 function MindmapSkeleton() {
   return (
     <LoadingState label="마인드맵 불러오는 중">
       <div className="flex h-[360px] items-center justify-center gap-x10">
         {[0, 1, 2].map((i) => (
-          <div
+          <Skeleton
             key={i}
-            className={`rounded-full bg-bg-neutral-weak ${i === 1 ? "size-x16" : "size-x10"}`}
+            radius="full"
+            width={i === 1 ? "x16" : "x10"}
+            height={i === 1 ? "x16" : "x10"}
           />
         ))}
       </div>
@@ -260,21 +254,33 @@ function MindmapSkeleton() {
   );
 }
 
-// 흐름지도 자리 — 머리 줄과 가지 넷의 목록 모양
+// 흐름지도 자리 — 머리 줄과 가지 넷. FlowView 처럼 자리가 1024px 이상이면 4열이라 그릴 때 모양이 튀지 않는다
 function FlowSkeleton() {
   return (
     <LoadingState label="마인드맵 불러오는 중">
-      <div className="mx-auto flex w-full max-w-[860px] flex-col gap-x8 px-x4 pt-x7 md:px-x8">
-        <div className="h-x6 w-1/2 rounded-r2 bg-bg-neutral-weak" />
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="flex gap-x4">
-            <div className="size-[30px] shrink-0 rounded-full bg-bg-neutral-weak" />
-            <div className="flex flex-1 flex-col gap-x3">
-              <div className="h-x5 w-1/3 rounded-r2 bg-bg-neutral-weak" />
-              <div className="h-x16 rounded-r3_5 bg-bg-neutral-weak" />
-            </div>
+      <div className="@container">
+        <div className="mx-auto w-full max-w-[860px] px-x4 pt-x7 md:px-x8 @min-[1024px]:max-w-[1280px]">
+          <Skeleton
+            radius="8"
+            width="full"
+            height="lineHeight.t7"
+            className="max-w-[320px]"
+          />
+          <div className="mt-x7 grid gap-y-x8 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col gap-x3">
+                <Skeleton radius="full" width="x8" height="x8" />
+                <Skeleton
+                  radius="8"
+                  width="full"
+                  height="lineHeight.t6"
+                  className="max-w-[160px]"
+                />
+                <Skeleton radius="16" width="full" height="x16" />
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </LoadingState>
   );
