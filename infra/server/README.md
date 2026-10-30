@@ -246,7 +246,7 @@ push 를 바로 반영하는 웹훅과 배포 알림. 설계는 `SSOT.md` 6절 �
 3. **GitLab** (Maintainer): Settings › Webhooks — URL `https://newlearn.io.kr/argocd/api/webhook`, Secret token 은 `kubectl -n argocd get secret argocd-webhook -o jsonpath='{.data.gitlab}' | base64 -d` 로 본 값, Push events 하나(Wildcard `dev`), SSL 켬 → Test › Push events 가 200
 
 - 확인: `kubectl -n argocd logs deploy/argocd-server | grep "Received push event"`. 토큰이 틀리면 `X-Gitlab-Token validation failed`. 알림 트리거 조건을 바꾸면 구독한 앱마다 지금 상태로 한 번씩 다시 울린다(「이미 보냄」 기록의 키가 바뀜)
-- 바꿀 때: 웹훅 토큰은 `~/sealed/sealed-argocd-webhook.yaml` 을 지우고 1 ~ 3(GitLab 값도). Mattermost 주소가 샜으면 Mattermost 에서 지우고 새로 만든 뒤 `sealed-argocd-notifications.yaml` 을 지우고 1 · 2. 알림 시험 방법은 `SSOT.md` 10절 2026-10-23
+- 바꿀 때: 웹훅 토큰은 `~/sealed/sealed-argocd-webhook.yaml` 을 지우고 1 ~ 3(GitLab 값도). Mattermost 주소가 샜으면 Mattermost 에서 지우고 새로 만든 뒤 `sealed-argocd-notifications.yaml` 을 지우고 1 · 2. 🔴 같은 주소가 경보용 `alertmanager-mattermost` 에도 있다 — `infra/server/alerts.md` 「켜는 순서」 1 도 다시(안 하면 경보가 지운 주소로 가 소리 없이 사라진다). 알림 시험 방법은 `SSOT.md` 10절 2026-10-23
 
 ## 서비스 배포 — Argo CD 가 깐다
 
