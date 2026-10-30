@@ -122,6 +122,19 @@ class SearchApiIntegrationTest {
                 .andExpect(jsonPath("$.errors[0].reason").value("검색어는 50자까지예요"));
     }
 
+    // AC-4 — U+0000(NUL)이 든 검색어는 400. PostgreSQL 이 이 글자를 받지 못해 전에는 500 이었다
+    @Test
+    void nulCharacterIs400() throws Exception {
+        for (String withNul : new String[] {"\u0000", "예\u0000산"}) {
+            search(withNul)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.errors.length()").value(1))
+                    .andExpect(jsonPath("$.errors[0].field").value("q"))
+                    .andExpect(jsonPath("$.errors[0].reason").value("검색어에 쓸 수 없는 글자가 들어 있어요"));
+        }
+    }
+
     // AC-4 — 자모로 나뉘어(NFD) 온 한글도 NFC 제목을 찾는다
     @Test
     void decomposedHangulFindsComposedTitle() throws Exception {
@@ -140,34 +153,31 @@ class SearchApiIntegrationTest {
     }
 
     // AC-6 — 유형마다 최신순 20개. 시각이 같으면 id 가 큰 것 먼저
-    // id 순서와 시각 순서가 어긋나게 둔다 — id 가 가장 작은 1 이 가장 늦다. 정렬을 id 로 바꾸면 [0] 에서 갈린다(reviewer 지적)
+    // 정렬 기준을 잘못 바꾸면 갈리게 둔다
+    // - id 가 가장 작은 1 이 가장 늦다 — 정렬을 id 로 바꾸면 [0] 에서 갈린다(reviewer 지적)
+    // - 이슈의 updated_at 은 id 순서대로 늘어 created_at 순서와 다르다 — 이슈 정렬을 updated_at 으로 바꾸면 갈린다
+    // - 12 ~ 21 열 개가 같은 시각이고 넣는 순서를 섞었다 — 같은 시각의 id desc 를 빼면 id 순서가 아닌 순서가 드러난다
     @Test
     void eachKindIsLatestFirstAndCappedAtTwenty() throws Exception {
-        for (int n = 1; n <= 21; n++) {
-            // 1 은 9월 25일(가장 늦음), 2 ~ 19 는 그 날짜, 20 과 21 은 같은 9월 20일 — id 가 큰 21 이 먼저
-            String at = n == 1 ? "2026-09-25T00:00:00Z" : "2026-09-%02dT00:00:00Z".formatted(Math.min(n, 20));
-            issue(4400 + n, "한도 이슈 " + n, null, at);
+        for (int n : new int[] {14, 2, 19, 7, 12, 21, 1, 16, 9, 13, 4, 20, 11, 17, 5, 15, 3, 18, 8, 10, 6}) {
+            // 1 은 9월 25일(가장 늦음), 2 ~ 11 은 9월 2 ~ 11일, 12 ~ 21 은 모두 9월 20일
+            String at = n == 1
+                    ? "2026-09-25T00:00:00Z"
+                    : n <= 11 ? "2026-09-%02dT00:00:00Z".formatted(n) : "2026-09-20T00:00:00Z";
+            issue(4400 + n, "한도 이슈 " + n, null, at, "2026-10-%02dT00:00:00Z".formatted(n));
             event(4400 + n, 4301L, "한도 사건 " + n, at);
             article(4400 + n, "한도 기사 " + n, true, at);
         }
-        // 기대 순서: 4401, 4421, 4420, 4419 … 4403 (20개, 가장 이른 4402 가 빠진다)
+        // 가장 늦은 4401, 같은 9월 20일인 4421 ~ 4412, 9월 11일부터 거꾸로 4411 ~ 4403. 가장 이른 4402 가 빠져 20개다
+        Integer[] latestFirst = {
+            4401, 4421, 4420, 4419, 4418, 4417, 4416, 4415, 4414, 4413, 4412, 4411, 4410, 4409, 4408, 4407, 4406, 4405,
+            4404, 4403
+        };
         search("한도")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.issues", hasSize(20)))
-                .andExpect(jsonPath("$.issues[0].id").value(4401))
-                .andExpect(jsonPath("$.issues[1].id").value(4421))
-                .andExpect(jsonPath("$.issues[2].id").value(4420))
-                .andExpect(jsonPath("$.issues[19].id").value(4403))
-                .andExpect(jsonPath("$.events", hasSize(20)))
-                .andExpect(jsonPath("$.events[0].id").value(4401))
-                .andExpect(jsonPath("$.events[1].id").value(4421))
-                .andExpect(jsonPath("$.events[2].id").value(4420))
-                .andExpect(jsonPath("$.events[19].id").value(4403))
-                .andExpect(jsonPath("$.articles", hasSize(20)))
-                .andExpect(jsonPath("$.articles[0].id").value(4401))
-                .andExpect(jsonPath("$.articles[1].id").value(4421))
-                .andExpect(jsonPath("$.articles[2].id").value(4420))
-                .andExpect(jsonPath("$.articles[19].id").value(4403));
+                .andExpect(jsonPath("$.issues[*].id", contains(latestFirst)))
+                .andExpect(jsonPath("$.events[*].id", contains(latestFirst)))
+                .andExpect(jsonPath("$.articles[*].id", contains(latestFirst)));
     }
 
     // AC-7 — 한 번 부르면 SQL 은 유형마다 하나, 셋이다
@@ -195,14 +205,19 @@ class SearchApiIntegrationTest {
     }
 
     private void issue(long id, String title, String summary, String createdAt) {
+        issue(id, title, summary, createdAt, createdAt);
+    }
+
+    private void issue(long id, String title, String summary, String createdAt, String updatedAt) {
         jdbc.sql("""
                 insert into issue(id,title,summary,created_at,updated_at)
-                values (:id,:title,:summary,cast(:at as timestamptz),cast(:at as timestamptz))
+                values (:id,:title,:summary,cast(:created as timestamptz),cast(:updated as timestamptz))
                 """)
                 .param("id", id)
                 .param("title", title)
                 .param("summary", summary)
-                .param("at", createdAt)
+                .param("created", createdAt)
+                .param("updated", updatedAt)
                 .update();
     }
 
