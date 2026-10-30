@@ -5,6 +5,7 @@ import java.util.UUID;
 import kr.io.newlearn.auth.dto.LoginRequest;
 import kr.io.newlearn.common.error.ApiException;
 import kr.io.newlearn.common.error.ErrorCode;
+import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.member.Member;
 import kr.io.newlearn.member.MemberRepository;
 import kr.io.newlearn.member.MemberService;
@@ -44,7 +45,9 @@ public class AuthService {
         if (attempt == 0) {
             throw new ApiException(ErrorCode.TOO_MANY_REQUESTS, "로그인을 5번 틀려 1분 동안 잠겼다");
         }
-        Optional<Member> member = members.findByLoginId(loginId);
+        // U+0000 이 든 아이디는 가입 규칙([a-z0-9_])상 있을 수 없다 — DB 에 묻지 않고 없는 아이디로 센다
+        // (PostgreSQL 이 이 글자를 받지 못해 500 이었다, Jira 43 후속)
+        Optional<Member> member = QueryText.containsNul(loginId) ? Optional.empty() : members.findByLoginId(loginId);
         if (!passwordMatches(request.password(), member)) {
             guard.recordFailure(loginId, attempt);
             throw new ApiException(ErrorCode.LOGIN_FAILED, LOGIN_FAILED_DETAIL);

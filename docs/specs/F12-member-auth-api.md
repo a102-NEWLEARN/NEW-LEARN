@@ -4,14 +4,14 @@
 
 - AC-1: A14 는 회원을 만들고 201 · `Location: /api/v1/members/me` · 회원 정보(같은 분야는 하나로, 카테고리 탭 순서)와 로그인된 세션을 준다. 비밀번호는 `{bcrypt}` 해시만 저장한다
   — `MemberAuthApiIntegrationTest.signUpCreatesMemberAndOpensSession`
-- AC-2: A14 입력 규칙을 어기면 400 `VALIDATION_FAILED` 이고 `errors[]` 에 칸과 한국어 문장이 있다. 아이디는 `^[a-z0-9_]{4,20}$`, 비밀번호 8 ~ 64자 · 공백만은 안 됨 · UTF-8 72바이트까지, 이름 필수 · 20자까지, 관심 분야 1개 이상. 없는 분야 코드도 400 이고 회원을 만들지 않는다
-  — `signUpRejectsBrokenInputWithKoreanReasons` · `signUpRejectsLongNameBlankPasswordAndPasswordOver72Bytes` · `loginIdAllowsOnlyLowercaseDigitsAndUnderscoreFrom4To20` · `signUpRejectsUnknownCategoryAsValidationError`
+- AC-2: A14 입력 규칙을 어기면 400 `VALIDATION_FAILED` 이고 `errors[]` 에 칸과 한국어 문장이 있다. 아이디는 `^[a-z0-9_]{4,20}$`, 비밀번호 8 ~ 64자 · 공백만은 안 됨 · UTF-8 72바이트까지, 이름 필수 · 20자까지 · U+0000 은 안 됨, 관심 분야 1개 이상. 없는 분야 코드(U+0000 이 든 코드 포함)도 400 이고 회원을 만들지 않는다(U+0000 은 2026-10-30 — DB 가 이 글자를 받지 못해 500 · 409 였다)
+  — `signUpRejectsBrokenInputWithKoreanReasons` · `signUpRejectsLongNameBlankPasswordAndPasswordOver72Bytes` · `loginIdAllowsOnlyLowercaseDigitsAndUnderscoreFrom4To20` · `signUpRejectsUnknownCategoryAsValidationError` · `signUpRejectsNulInName` · `signUpRejectsNulInCategoryCodes`
 - AC-3: 이미 쓰는 아이디로 가입하면 409 `LOGIN_ID_TAKEN`
   — `signUpRejectsTakenLoginId`
 - AC-4: A15 는 맞으면 200 과 회원 정보를 주고 세션 ID 를 새로 낸다(이미 세션이 있어도). 새 CSRF 번호표가 함께 온다
   — `loginReturnsMemberAndIssuesNewSessionId`
-- AC-5: 틀린 비밀번호와 없는 아이디는 같은 401 `LOGIN_FAILED` 본문이다. 빈 칸은 400
-  — `wrongPasswordAndUnknownIdLookTheSame` · `loginRejectsMissingFields`
+- AC-5: 틀린 비밀번호와 없는 아이디는 같은 401 `LOGIN_FAILED` 본문이다. 빈 칸은 400. U+0000 이 든 아이디도 없는 아이디와 같은 401 이고 똑같이 센다(2026-10-30 — DB 가 이 글자를 받지 못해 500 이었다)
+  — `wrongPasswordAndUnknownIdLookTheSame` · `loginRejectsMissingFields` · `nulInLoginIdIsAnUnknownIdAndCounted`
 - AC-6: 같은 아이디로 5번 연속 틀리면 1분 동안 429 `TOO_MANY_REQUESTS`(비밀번호가 맞아도). 없는 아이디도 똑같이 센다. 성공하면 센 횟수를 지운다. 한꺼번에 보내도 비밀번호를 맞춰 보는 것은 5번까지다
   — `fiveFailuresLockTheLoginIdForOneMinute` · `unknownIdIsCountedTooSoNothingLeaks` · `successResetsTheFailureCount` · `concurrentAttemptsStillCompareAtMostFiveTimes`
 - AC-7: A16 은 세션을 끝내고 204 를 준다. 끝난 세션이나 세션 없이 부르면 401 `UNAUTHORIZED`

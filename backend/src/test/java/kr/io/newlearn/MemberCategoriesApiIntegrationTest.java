@@ -135,6 +135,21 @@ class MemberCategoriesApiIntegrationTest {
         }
     }
 
+    // U+0000 이 든 코드는 없는 코드와 같은 답이다. PostgreSQL 이 이 글자를 받지 못해 전에는 500 이었다 (Jira 43 후속)
+    @Test
+    void nulInCodeIsAnUnknownCodeWithoutChangingStoredCategories() throws Exception {
+        Cookie session = join("profile65_nul", "economy", "world");
+
+        change(session, "{\"categoryCodes\":[\"economy\\u0000\"]}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("categoryCodes"))
+                .andExpect(jsonPath("$.errors[0].reason").value("없는 관심 분야가 있어요"));
+        me(session)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[*].code", contains("economy", "world")));
+    }
+
     // 서로 다른 코드를 아주 많이 보내도 500 이 아니라 400 이다. 끊지 않으면 findAllById 가 PostgreSQL 매개변수 한도
     // (65,535)를 넘어 INTERNAL_ERROR 가 났다 — 분야 수보다 많으면 DB 를 부르기 전에 끊는다 (Jira 65 리뷰, 가입 A14 도 같은 도우미)
     @Test

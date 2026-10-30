@@ -28,6 +28,7 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 시각: 응답 DTO 로 옮길 때 `ApiTime.toKst(entity.getPublishedAt())` 를 쓴다. `+09:00` · 초 단위 `OffsetDateTime` 이 된다. 요청 시각은 `OffsetDateTime` 으로 받는다 — 오프셋이 없으면 따로 검사하지 않아도 400 이다. `spring.jackson.time-zone` 은 두지 않는다(두면 모든 시각이 그 시간대로 바뀐다)
 - 목록: `@Valid PageQuery query` 로 받고 `query.toPageable(Sort.by(…))` 로 리포지토리를 부른 뒤 `PageResponse.from(page.map(XxxResponse::from))` 로 돌려준다. Spring 의 `Pageable` 인자를 바로 받지 않는다 — 범위 밖 값을 400 대신 조용히 고친다
 - 입력 검사: 검증 어노테이션마다 `message` 에 화면에 그대로 보일 한국어 문장을 쓴다(예: `@Size(max = 20, message = "이름은 20자까지예요")`). 이 문장이 `errors[].reason` 이 된다. 빼면 기본 문구(영어일 수 있다)가 나간다
+- 공개 입력의 글자가 SQL 에 닿으면 U+0000(NUL)을 먼저 본다 — PostgreSQL 이 이 글자를 받지 못해 500 이 난다. 검색어는 `QueryText.normalize`, 그 밖의 칸은 `QueryText.containsNul` 로 보고 그 칸의 계약 답(없는 코드 404 · 400 `errors[칸]` · 없는 아이디 401)을 준다(2026-10-30)
 - 컨트롤러 클래스에 `@Validated` 를 붙이지 않는다. 붙이면 다른 예외가 나서 400 이 아니라 500 이 된다
 - 쿼리 파라미터에 `+` 가 들어가면(시각의 `+09:00`) `%2B` 로 보낸다. 서버는 쿼리의 `+` 를 공백으로 읽는다
 

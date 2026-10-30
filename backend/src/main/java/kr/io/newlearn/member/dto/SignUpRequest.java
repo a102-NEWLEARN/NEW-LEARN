@@ -20,7 +20,10 @@ public record SignUpRequest(
         String password,
 
         // 20자 상한: 이름은 세션(MemberPrincipal)에도 실려 하루 동안 Redis 에 남는다
-        @NotBlank(message = "이름을 입력해 주세요") @Size(max = 20, message = "이름은 20자까지예요")
+        // U+0000 은 PostgreSQL 이 받지 못한다 — 막지 않으면 저장 오류가 아이디 중복(409)으로 잘못 읽혔다 (Jira 43 후속)
+        @NotBlank(message = "이름을 입력해 주세요")
+        @Size(max = 20, message = "이름은 20자까지예요")
+        @Pattern(regexp = "[^\\x00]*", message = "이름에 쓸 수 없는 글자가 들어 있어요")
         String name,
 
         @NotEmpty(message = "관심 분야를 1개 이상 골라 주세요") List<@NotBlank(message = "관심 분야 코드가 비었어요") String> categoryCodes) {
