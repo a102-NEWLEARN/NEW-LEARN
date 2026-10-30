@@ -1,35 +1,62 @@
 import { IconGearLine } from "@karrotmarket/react-monochrome-icon";
-import { useEffect, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Switch } from "seed-design/ui/switch";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { BRANCHES } from "@/components/article/branches";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
+
+/** 마인드맵 보기 설정 — 기사 화면이 들고 있어서 보기 탭을 오가도 남는다 (2026-10-30 사용자 결정) */
+export type MindmapSettings = {
+  /** 범례 칩으로 숨긴 가지 */
+  hidden: ReadonlySet<BranchType>;
+  /** 탐색 설정 「라벨 표시」 */
+  showLabels: boolean;
+};
+
+export const INITIAL_MINDMAP_SETTINGS: MindmapSettings = {
+  hidden: new Set(),
+  showLabels: true,
+};
 
 type MindmapViewProps = {
   /** 가운데 글자 — A9 title */
   title: string;
   /** A9 가지 — 내용이 있는 것만 온다 */
   branches: MindmapBranch[];
+  settings: MindmapSettings;
+  onSettingsChange: Dispatch<SetStateAction<MindmapSettings>>;
 };
 
 // 기사 마인드맵의 마인드맵 보기 — 범례(가지 토글 · 전망 · 해석) · 그래프 · 탐색 설정 (Jira S15P31A102-58).
 // 가지 토글은 범례 칩이 맡는다 — 누르면 그 가지를 숨기고 다시 누르면 되살린다. 숨긴 것이 있으면 「모두 보기」.
 // 탐색 설정은 「라벨 표시」 하나다 (2026-10-30 사용자 결정, 프로토타입 v21 그래프 설정 가운데 하나)
-export function MindmapView({ title, branches }: MindmapViewProps) {
-  const [hidden, setHidden] = useState<ReadonlySet<BranchType>>(new Set());
-  const [showLabels, setShowLabels] = useState(true);
+export function MindmapView({
+  title,
+  branches,
+  settings,
+  onSettingsChange,
+}: MindmapViewProps) {
+  const { hidden, showLabels } = settings;
   const legendRef = useRef<HTMLDivElement>(null);
   // 「모두 보기」는 누르면 사라진다 — 포커스가 갈 곳을 잃지 않게 범례 첫 칩으로 옮긴다
   const showAll = () => {
-    setHidden(new Set());
+    onSettingsChange((current) => ({ ...current, hidden: new Set() }));
     legendRef.current?.querySelector("button")?.focus();
   };
   const toggle = (type: BranchType) =>
-    setHidden((current) => {
-      const next = new Set(current);
+    onSettingsChange((current) => {
+      const next = new Set(current.hidden);
       if (!next.delete(type)) next.add(type);
-      return next;
+      return { ...current, hidden: next };
     });
+  const setShowLabels = (show: boolean) =>
+    onSettingsChange((current) => ({ ...current, showLabels: show }));
   const outlookShown = branches.some(
     (branch) => branch.type === "OUTLOOK" && !hidden.has("OUTLOOK"),
   );

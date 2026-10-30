@@ -1,4 +1,5 @@
 import {
+  Skeleton,
   TabsContent,
   TabsIndicator,
   TabsList,
@@ -13,7 +14,11 @@ import { ApiError } from "@/api/error";
 import { type Mindmap, mindmapQuery } from "@/api/mindmap";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
-import { MindmapView } from "@/components/article/MindmapView";
+import { FlowView } from "@/components/article/FlowView";
+import {
+  INITIAL_MINDMAP_SETTINGS,
+  MindmapView,
+} from "@/components/article/MindmapView";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -26,9 +31,8 @@ const NOT_FOUND_TITLE = "기사를 찾을 수 없어요";
 const KNOWN_SCHEMA = "mindmap-v1";
 
 type View = "flow" | "map";
-// 1차(S15P31A102-58)는 마인드맵 보기만 있어서 view 가 없으면 마인드맵이다.
-// 흐름지도 보기를 넣는 2차에서 흐름지도를 기본으로 바꾼다 (EXPERIENCE.md 보기 탭)
-const DEFAULT_VIEW: View = "map";
+// view 가 없으면 흐름지도다 (EXPERIENCE.md 보기 탭)
+const DEFAULT_VIEW: View = "flow";
 const toView = (raw: string | null): View =>
   raw === "flow" || raw === "map" ? raw : DEFAULT_VIEW;
 
@@ -43,13 +47,13 @@ const drawable = (mindmap: Mindmap | undefined): mindmap is Mindmap =>
 const isMindmapNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "MINDMAP_NOT_FOUND";
 
-// 기사 마인드맵 화면 `/articles/:articleId` — 기사 헤더(A8)와 보기 탭, F04 기사 마인드맵 생성의 마인드맵 보기(A9)
+// 기사 마인드맵 화면 `/articles/:articleId` — 기사 헤더(A8)와 보기 탭, F04 기사 마인드맵 생성의 흐름지도 · 마인드맵 보기(A9)
 // (EXPERIENCE.md Information Architecture, 프로토타입 v21 MindmapScreen). 고른 보기는 `?view=` 에 둔다.
 // 셸이 <main> 을 줄 것이라 여기서는 쓰지 않는다
 export function ArticlePage() {
   const articleId = toId(useParams().articleId);
   if (articleId === null) return <NotFoundPage title={NOT_FOUND_TITLE} />;
-  // 기사를 바꾸면 화면 상태(포커스한 가지 · 숨긴 가지)를 새로 시작한다
+  // 기사를 바꾸면 화면 상태(포커스한 가지 · 숨긴 가지 · 라벨 표시)를 새로 시작한다
   return <ArticleView key={articleId} articleId={articleId} />;
 }
 
@@ -61,6 +65,9 @@ function ArticleView({ articleId }: { articleId: number }) {
   usePageTitle(notFound ? NOT_FOUND_TITLE : (article.data?.title ?? "기사"));
   // 제목에 포커스가 있던 채 404 를 받으면 찾을 수 없음 제목으로 포커스를 넘긴다
   const [titleFocused, setTitleFocused] = useState(false);
+  // 마인드맵 보기의 숨긴 가지 · 라벨 표시 — 보기 탭을 오가도 남게 여기서 든다.
+  // 확대 · 가지 포커스 · 강조는 보기마다 그 안에 있어서 탭을 바꾸면 풀린다
+  const [mapSettings, setMapSettings] = useState(INITIAL_MINDMAP_SETTINGS);
 
   // 보기 바꾸기는 기록을 쌓지 않는다 — 뒤로 가기는 앞 화면으로 간다 (EXPERIENCE.md 이동 규칙)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -103,21 +110,26 @@ function ArticleView({ articleId }: { articleId: number }) {
             </TabsTrigger>
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
-          {/* AI 가 만든 마인드맵 — AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
-          {view === "map" &&
-            drawable(mindmap.data) &&
-            mindmap.data.aiGenerated && (
-              <span className="ml-auto">
-                <AiBadge />
-              </span>
-            )}
+          {/* AI 가 만든 마인드맵 — 어느 보기든 그렸으면 AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
+          {drawable(mindmap.data) && mindmap.data.aiGenerated && (
+            <span className="ml-auto">
+              <AiBadge />
+            </span>
+          )}
         </div>
         {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
         <TabsContent value="flow" className={PANEL}>
           {view === "flow" && (
-            <Centered>
-              <EmptyState message="흐름지도 보기는 준비 중이에요" />
-            </Centered>
+            <MindmapBody
+              article={article.data}
+              articleFailed={article.isError}
+              query={mindmap}
+              skeleton={<FlowSkeleton />}
+            >
+              {({ title, branches }) => (
+                <FlowView title={title} branches={branches} />
+              )}
+            </MindmapBody>
           )}
         </TabsContent>
         <TabsContent value="map" className={PANEL}>
@@ -126,7 +138,17 @@ function ArticleView({ articleId }: { articleId: number }) {
               article={article.data}
               articleFailed={article.isError}
               query={mindmap}
-            />
+              skeleton={<MindmapSkeleton />}
+            >
+              {({ title, branches }) => (
+                <MindmapView
+                  title={title}
+                  branches={branches}
+                  settings={mapSettings}
+                  onSettingsChange={setMapSettings}
+                />
+              )}
+            </MindmapBody>
           )}
         </TabsContent>
       </TabsRoot>
@@ -146,11 +168,21 @@ type MindmapBodyProps = {
   /** A8 이 실패했나 — 그러면 A8 을 기다리지 않는다 */
   articleFailed: boolean;
   query: ReturnType<typeof useQuery<Mindmap>>;
+  /** 불러오는 중 — 그 보기 모양의 스켈레톤 */
+  skeleton: ReactNode;
+  /** 그릴 수 있는 응답을 그 보기로 그린다 */
+  children: (mindmap: Mindmap) => ReactNode;
 };
 
-// 마인드맵 보기 자리의 상태 (EXPERIENCE.md State Patterns). 아직 문구를 정하지 않은 상태(EXP 「아직 정하지 않은 것」)는
-// 「마인드맵이 아직 없어요」로 둔다 [가정]
-function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
+// 보기 자리의 상태 — 두 보기가 같은 A9 응답이라 상태도 같다 (EXPERIENCE.md State Patterns).
+// 아직 문구를 정하지 않은 상태(EXP 「아직 정하지 않은 것」)는 「마인드맵이 아직 없어요」로 둔다 [가정]
+function MindmapBody({
+  article,
+  articleFailed,
+  query,
+  skeleton,
+  children,
+}: MindmapBodyProps) {
   const mindmap = query.data;
   if (mindmap) {
     if (mindmap.schemaVersion !== KNOWN_SCHEMA)
@@ -165,12 +197,12 @@ function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
           <EmptyState message="이 기사에서 정리한 내용이 없어요" />
         </Centered>
       );
-    return <MindmapView title={mindmap.title} branches={mindmap.branches} />;
+    return children(mindmap);
   }
   // 결과가 없으면 A8 의 mindmapStatus 로 「분석 중」인지 가른다. A8 을 기다리는 동안은 불러오는 중이다
   if (isMindmapNotFound(query.error)) {
     // A8 이 실패했으면 분석 중인지 알 수 없다 — 결과가 없다는 것만 알린다
-    if (!article && !articleFailed) return <MindmapSkeleton />;
+    if (!article && !articleFailed) return skeleton;
     return (
       <Centered>
         <EmptyState
@@ -193,7 +225,7 @@ function MindmapBody({ article, articleFailed, query }: MindmapBodyProps) {
         />
       </Centered>
     );
-  return <MindmapSkeleton />;
+  return skeleton;
 }
 
 function Centered({ children }: { children: ReactNode }) {
@@ -204,17 +236,51 @@ function Centered({ children }: { children: ReactNode }) {
   );
 }
 
-// 마인드맵 자리 — 범례 줄과 가운데 원 · 가지 넷 모양
+// 마인드맵 자리 — 가운데 원과 양옆 가지 모양
 function MindmapSkeleton() {
   return (
     <LoadingState label="마인드맵 불러오는 중">
       <div className="flex h-[360px] items-center justify-center gap-x10">
         {[0, 1, 2].map((i) => (
-          <div
+          <Skeleton
             key={i}
-            className={`rounded-full bg-bg-neutral-weak ${i === 1 ? "size-x16" : "size-x10"}`}
+            radius="full"
+            width={i === 1 ? "x16" : "x10"}
+            height={i === 1 ? "x16" : "x10"}
           />
         ))}
+      </div>
+    </LoadingState>
+  );
+}
+
+// 흐름지도 자리 — 머리 줄과 가지 넷. FlowView 처럼 자리가 1024px 이상이면 4열이라 그릴 때 모양이 튀지 않는다
+function FlowSkeleton() {
+  return (
+    <LoadingState label="마인드맵 불러오는 중">
+      <div className="@container">
+        <div className="mx-auto w-full max-w-[860px] px-x4 pt-x7 md:px-x8 @min-[1024px]:max-w-[1280px]">
+          <Skeleton
+            radius="8"
+            width="full"
+            height="lineHeight.t7"
+            className="max-w-[320px]"
+          />
+          <div className="mt-x7 grid gap-y-x8 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col gap-x3">
+                <Skeleton radius="full" width="x8" height="x8" />
+                <Skeleton
+                  radius="8"
+                  width="full"
+                  height="lineHeight.t6"
+                  className="max-w-[160px]"
+                />
+                <Skeleton radius="16" width="full" height="x16" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </LoadingState>
   );

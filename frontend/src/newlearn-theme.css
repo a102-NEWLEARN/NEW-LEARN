@@ -48,7 +48,7 @@
   --nl-color-bg-brand-accent: var(--nl-brand-main);
   --nl-color-bg-accent-lime: var(--nl-brand-accent-lime);
 
-  /* 기사 마인드맵 가지 4색 — 채움 · 테두리 · 선 · 글자. 마인드맵 그래프에서만 쓴다 */
+  /* 기사 마인드맵 가지 4색 — 채움 · 테두리 · 선 · 글자. 기사 마인드맵의 두 보기(흐름지도 · 마인드맵)에서만 쓴다 */
   --nl-color-mindmap-core-fill: #eeeafe;
   --nl-color-mindmap-core-stroke: #8b6cf0;
   --nl-color-mindmap-core-line: #cdbff8;
