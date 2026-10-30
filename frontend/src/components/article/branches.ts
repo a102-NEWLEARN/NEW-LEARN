@@ -23,6 +23,8 @@ export type BranchInfo = {
     text: string;
     /** 범례 칩 — 켜진 칩의 바탕 · 테두리 · 글자 */
     chip: string;
+    /** 범례 칩 안 색 점 */
+    dot: string;
   };
 };
 
@@ -48,6 +50,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       line: "stroke-mindmap-core-line",
       text: "fill-mindmap-core-text",
       chip: "bg-mindmap-core-fill border-mindmap-core-stroke text-mindmap-core-text",
+      dot: "bg-mindmap-core-stroke",
     },
   },
   CAUSE: {
@@ -62,6 +65,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       line: "stroke-mindmap-cause-line",
       text: "fill-mindmap-cause-text",
       chip: "bg-mindmap-cause-fill border-mindmap-cause-stroke text-mindmap-cause-text",
+      dot: "bg-mindmap-cause-stroke",
     },
   },
   REACTION: {
@@ -76,6 +80,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       line: "stroke-mindmap-reaction-line",
       text: "fill-mindmap-reaction-text",
       chip: "bg-mindmap-reaction-fill border-mindmap-reaction-stroke text-mindmap-reaction-text",
+      dot: "bg-mindmap-reaction-stroke",
     },
   },
   OUTLOOK: {
@@ -90,6 +95,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       line: "stroke-mindmap-outlook-line",
       text: "fill-mindmap-outlook-text",
       chip: "bg-mindmap-outlook-fill border-mindmap-outlook-stroke text-mindmap-outlook-text",
+      dot: "bg-mindmap-outlook-stroke",
     },
   },
 };

@@ -91,28 +91,55 @@ type MindmapGraphProps = {
   title: string;
   /** A9 가지 — 내용이 있는 것만 온다 */
   branches: MindmapBranch[];
+  /** 범례에서 끈 가지 — 그 가지 · 잎 · 선을 그리지 않는다. 나머지 가지는 제자리다 */
+  hidden?: ReadonlySet<BranchType>;
+  /** 잎 글을 늘 보이나. 끄면 강조 · 키보드 포커스 · 마우스를 올린 잎만 글을 보인다 */
+  showLabels?: boolean;
 };
+
+const NONE_HIDDEN: ReadonlySet<BranchType> = new Set();
+// 잎 키(「CORE-0」)의 가지
+const branchOfLeaf = (key: string) => key.split("-")[0] as BranchType;
 
 // F04 기사 마인드맵 생성의 마인드맵 보기 — 가운데 기사 제목, 네 방향 가지, 가지 바깥쪽 잎 (프로토타입 v21 MindmapGraph).
 // 자리는 mindmapLayout 이 정하고 여기서는 그린다. 확대 · 이동은 d3-zoom 이 맡는다.
 // 가지를 누르면 그 가지만 화면에 맞추고 나머지는 흐리게, 잎을 누르면 그 잎을 강조한다 (EXPERIENCE.md 보기 탭).
 // 노드 상세 카드는 띄우지 않는다 (S15P31A102-59)
-export function MindmapGraph({ title, branches }: MindmapGraphProps) {
+export function MindmapGraph({
+  title,
+  branches,
+  hidden = NONE_HIDDEN,
+  showLabels = true,
+}: MindmapGraphProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const measured = useElementSize(wrapRef);
   const width = measured.width || FALLBACK_SIZE.width;
   const height = measured.height || FALLBACK_SIZE.height;
   const layout = useMemo(
-    () => layoutMindmap(title, branches),
-    [title, branches],
+    () =>
+      layoutMindmap(
+        title,
+        branches.filter((branch) => !hidden.has(branch.type)),
+      ),
+    [title, branches, hidden],
   );
 
-  // 포커스한 가지 · 강조한 잎 · 키보드로 포커스한 노드(테두리를 띄운다)
+  // 포커스한 가지 · 강조한 잎 · 키보드로 포커스한 노드(테두리를 띄운다) · 마우스를 올린 잎
   const [focusType, setFocusType] = useState<BranchType | null>(null);
   const [selectedLeaf, setSelectedLeaf] = useState<string | null>(null);
   const [ringKey, setRingKey] = useState<string | null>(null);
+  const [hoverLeaf, setHoverLeaf] = useState<string | null>(null);
   const keyboardInput = useKeyboardInput();
+
+  // 범례에서 가지를 끄면 그 가지에 걸린 포커스 · 강조를 푼다 — 다시 켜도 되살리지 않는다
+  const [seenHidden, setSeenHidden] = useState(hidden);
+  if (hidden !== seenHidden) {
+    setSeenHidden(hidden);
+    if (focusType && hidden.has(focusType)) setFocusType(null);
+    if (selectedLeaf && hidden.has(branchOfLeaf(selectedLeaf)))
+      setSelectedLeaf(null);
+  }
 
   // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 포커스. 그린 뒤 옮겨 둔다
   const sizeRef = useRef<Size>({ width, height });
@@ -199,27 +226,32 @@ export function MindmapGraph({ title, branches }: MindmapGraphProps) {
   // 처음 그릴 때와 그래프 자리 크기가 바뀔 때 — 지금 보는 것(전체 · 포커스한 가지)에 다시 맞춘다
   useLayoutEffect(() => {
     fitTo(focusRef.current, 0);
-    // 크기가 바뀐 때만 — 포커스는 누를 때 맞춘다
+    // 크기가 바뀐 때만 — 포커스가 바뀔 때는 아래 효과가 맞춘다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height]);
 
-  const focusBranch = (type: BranchType) => {
-    const next = focusType === type ? null : type;
-    setFocusType(next);
-    fitTo(next);
-  };
+  // 포커스가 바뀌면(누르기 · 빈 곳 · Esc · 가지 끄기) 그 가지나 전체에 맞춘다. 처음 그릴 때는 위 효과가 맞춘다
+  const focusSeen = useRef(focusType);
+  useLayoutEffect(() => {
+    if (focusSeen.current === focusType) return;
+    focusSeen.current = focusType;
+    fitTo(focusType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusType]);
+
+  const focusBranch = (type: BranchType) =>
+    setFocusType((current) => (current === type ? null : type));
   const toggleLeaf = (key: string) =>
     setSelectedLeaf((current) => (current === key ? null : key));
-  // 포커스를 풀고 전체로 — 빈 곳 · Esc
+  // 포커스 · 강조를 풀고 전체로 — 빈 곳 · Esc
   const releaseAll = () => {
-    if (focusType) fitTo(null);
     setFocusType(null);
     setSelectedLeaf(null);
   };
-  // 화면에 맞추기 — 포커스 중이면 포커스도 푼다. 강조한 잎은 그대로 둔다
+  // 화면에 맞추기 — 포커스 중이면 포커스를 풀어 전체로 간다. 강조한 잎은 그대로 둔다
   const fitAll = () => {
-    setFocusType(null);
-    fitTo(null);
+    if (focusType) setFocusType(null);
+    else fitTo(null);
   };
 
   // Esc — 포커스 · 강조를 푼다. 설정 팝오버처럼 먼저 받은 쪽이 preventDefault 했거나,
@@ -364,6 +396,12 @@ export function MindmapGraph({ title, branches }: MindmapGraphProps) {
           const selected = selectedLeaf === leaf.key;
           const textX = side * (LEAF_RADIUS + LEAF_TEXT_GAP);
           const cut = leaf.lines.at(-1)?.endsWith("…");
+          // 라벨 표시를 꺼도 강조 · 키보드 포커스 · 마우스를 올린 잎은 글을 보인다 (프로토타입 v21 그래프 설정)
+          const labeled =
+            showLabels ||
+            selected ||
+            ringKey === leaf.key ||
+            hoverLeaf === leaf.key;
           return (
             <g
               key={leaf.key}
@@ -381,8 +419,10 @@ export function MindmapGraph({ title, branches }: MindmapGraphProps) {
               }
               onFocus={() => onNodeFocus(leaf.key, leaf.x, leaf.y)}
               onBlur={() => setRingKey(null)}
+              onMouseEnter={() => setHoverLeaf(leaf.key)}
+              onMouseLeave={() => setHoverLeaf(null)}
             >
-              {cut && <title>{leaf.text}</title>}
+              {labeled && cut && <title>{leaf.text}</title>}
               <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
               <circle
                 data-leaf-mark
@@ -399,23 +439,25 @@ export function MindmapGraph({ title, branches }: MindmapGraphProps) {
                   className="stroke-stroke-focus-ring"
                 />
               )}
-              <text
-                textAnchor={side === 1 ? "start" : "end"}
-                fontSize={LEAF_FONT}
-                strokeWidth={4}
-                style={HALO}
-                className={`pointer-events-none fill-fg-neutral stroke-bg-layer-default ${selected ? "font-bold" : "font-medium"}`}
-              >
-                {leaf.lines.map((line, i) => (
-                  <tspan
-                    key={i}
-                    x={textX}
-                    y={(i - (leaf.lines.length - 1) / 2) * LEAF_LINE + 4}
-                  >
-                    {line}
-                  </tspan>
-                ))}
-              </text>
+              {labeled && (
+                <text
+                  textAnchor={side === 1 ? "start" : "end"}
+                  fontSize={LEAF_FONT}
+                  strokeWidth={4}
+                  style={HALO}
+                  className={`pointer-events-none fill-fg-neutral stroke-bg-layer-default ${selected ? "font-bold" : "font-medium"}`}
+                >
+                  {leaf.lines.map((line, i) => (
+                    <tspan
+                      key={i}
+                      x={textX}
+                      y={(i - (leaf.lines.length - 1) / 2) * LEAF_LINE + 4}
+                    >
+                      {line}
+                    </tspan>
+                  ))}
+                </text>
+              )}
             </g>
           );
         })}
