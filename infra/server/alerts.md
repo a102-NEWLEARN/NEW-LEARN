@@ -39,3 +39,4 @@ Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 - 받는 길 · 글 모양(`monitoring-values.yaml`)을 바꾸면 「켜는 순서」 3 을 다시. 먼저 관리자 PC 에서 그린 설정을 같은 판 `amtool check-config` · `amtool config routes test` 로 본다
 - 🔴 웹훅 주소를 배포 알림(`argocd-notifications-secret`)과 같이 쓴다. 주소가 새면 Mattermost 에서 지우고 새로 만든 뒤 README 「GitLab 웹훅 · Mattermost 배포 알림」의 봉인과 「켜는 순서」 1 을 둘 다 다시 한다
 - Alertmanager 가 죽으면 경보가 하나도 안 온다 — 늘 울리는 Watchdog 을 바깥에서 받는 「죽음 감지」는 아직 없다
+- 🔴 끌 때 순서: 먼저 `monitoring-values.yaml` 의 `alertmanager.enabled: false` 로 helm upgrade → 그다음 규칙 · 봉인 Secret(Argo CD 앱 `alerts`) 제거. 거꾸로 하면 Secret 이 지워진 뒤 Alertmanager Pod 가 다시 뜰 때 ContainerCreating 에 멈춘다(Secret 을 필수 볼륨으로 붙임)
