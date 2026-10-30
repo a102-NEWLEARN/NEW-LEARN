@@ -1,6 +1,6 @@
 # 입구 상한 서비스 · Envoy 의 상한 판정 지표를 Prometheus(monitoring, 관리 서버)가 모은다 (Jira S15P31A102-136)
 # 상한 서비스를 못 부르면 요청은 통과하고(failClosed 기본 false) health 도 200 이다 — 지표 없이는 상한이 풀린 것을 모른다
-# 확인 질의는 SSOT 6절 「외부 입구」. 경보는 받을 곳(Alertmanager)이 없어 아직 없다(SSOT 8절)
+# 확인 질의는 SSOT 6절 「외부 입구」. 경보는 infra/k8s/alerts/rules.yaml(상한 풀림 · 지표 끊김 — 이 수집이 끊겨도 잡는다)
 # Prometheus 는 모든 네임스페이스의 PodMonitor 를 이름표 조건 없이 읽는다(podMonitorNamespaceSelector 차트 기본값 {},
 #   bootstrap/monitoring-values.yaml 의 podMonitorSelectorNilUsesHelmValues false). CRD 는 그 모니터링 차트가 깐다 — cert-manager 앱의 ServiceMonitor 와 같은 의존이다
 # Pod 이름표 · 포트 이름(metrics, 19001)은 Envoy Gateway 가 붙인다(v1.9.2) — 판을 올리면 다시 본다
