@@ -105,7 +105,8 @@ type GraphSettingsProps = {
   onShowLabels: (show: boolean) => void;
 };
 
-// 탐색 설정 — 그래프 오른쪽 아래 톱니 버튼과 팝오버 (프로토타입 v21 「그래프 설정」).
+// 탐색 설정 — 그래프 오른쪽 위 톱니 버튼과 그 아래로 열리는 팝오버 (프로토타입 v21 「그래프 설정」은 오른쪽 아래.
+// 오른쪽 아래는 개발 도구 버튼 · 스낵바와 겹쳐 위로 옮겼다).
 // 열면 포커스를 창 안으로, Esc · 바깥 누르기로 닫고 포커스를 버튼으로 돌린다 (EXPERIENCE.md Accessibility Floor)
 function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
   const [open, setOpen] = useState(false);
@@ -144,7 +145,18 @@ function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
   }, [open]);
 
   return (
-    <div className="absolute right-x4 bottom-x4 flex flex-col items-end gap-x2">
+    <div className="absolute top-[16px] right-[16px] flex flex-col items-end gap-x2">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label="탐색 설정"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => (open ? close() : setOpen(true))}
+        className="flex size-x10 items-center justify-center rounded-r2 border border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+      >
+        <IconGearLine aria-hidden size={18} />
+      </button>
       {open && (
         <div
           ref={panelRef}
@@ -163,17 +175,6 @@ function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
           </p>
         </div>
       )}
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-label="탐색 설정"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => (open ? close() : setOpen(true))}
-        className="flex size-x10 items-center justify-center rounded-r2 border border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
-      >
-        <IconGearLine aria-hidden size={18} />
-      </button>
     </div>
   );
 }

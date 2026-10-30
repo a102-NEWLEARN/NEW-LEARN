@@ -506,7 +506,8 @@ export function MindmapGraph({
           </g>
         </g>
       </svg>
-      <div className="absolute bottom-x4 left-x4 flex items-center gap-x2">
+      {/* 위치 클래스(left-x4 등)는 SEED 테마에 없어 px 로 준다 */}
+      <div className="absolute bottom-[16px] left-[16px] flex items-center gap-x2">
         <div
           role="group"
           aria-label="확대 · 축소"
