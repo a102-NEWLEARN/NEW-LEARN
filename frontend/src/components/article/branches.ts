@@ -23,8 +23,18 @@ export type BranchInfo = {
     text: string;
     /** 범례 칩 — 켜진 칩의 바탕 · 테두리 · 글자 */
     chip: string;
-    /** 범례 칩 안 색 점 */
+    /** 범례 칩 안 색 점 · 흐름지도에서 강조한 잎의 원 채움 */
     dot: string;
+    /** 흐름지도 번호 원 바탕 — 흰 숫자가 읽히게 진한 글자색을 쓴다(테두리색은 셋이 흰 글자와 대비 2.2 ~ 2.6) */
+    step: string;
+    /** 흐름지도 가지 이름 글자 */
+    label: string;
+    /** 흐름지도 잎 원 테두리 */
+    mark: string;
+    /** 흐름지도 잎 카드에 마우스를 올렸을 때 테두리 */
+    cardHover: string;
+    /** 흐름지도에서 강조한 잎 카드 — 테두리색 두 겹 + 채움색 바탕 */
+    cardOn: string;
   };
 };
 
@@ -51,6 +61,12 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       text: "fill-mindmap-core-text",
       chip: "bg-mindmap-core-fill border-mindmap-core-stroke text-mindmap-core-text",
       dot: "bg-mindmap-core-stroke",
+      step: "bg-mindmap-core-text",
+      label: "text-mindmap-core-text",
+      mark: "border-mindmap-core-stroke",
+      cardHover: "hover:border-mindmap-core-line",
+      cardOn:
+        "border-mindmap-core-stroke bg-mindmap-core-fill ring-1 ring-mindmap-core-stroke",
     },
   },
   CAUSE: {
@@ -66,6 +82,12 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       text: "fill-mindmap-cause-text",
       chip: "bg-mindmap-cause-fill border-mindmap-cause-stroke text-mindmap-cause-text",
       dot: "bg-mindmap-cause-stroke",
+      step: "bg-mindmap-cause-text",
+      label: "text-mindmap-cause-text",
+      mark: "border-mindmap-cause-stroke",
+      cardHover: "hover:border-mindmap-cause-line",
+      cardOn:
+        "border-mindmap-cause-stroke bg-mindmap-cause-fill ring-1 ring-mindmap-cause-stroke",
     },
   },
   REACTION: {
@@ -81,6 +103,12 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       text: "fill-mindmap-reaction-text",
       chip: "bg-mindmap-reaction-fill border-mindmap-reaction-stroke text-mindmap-reaction-text",
       dot: "bg-mindmap-reaction-stroke",
+      step: "bg-mindmap-reaction-text",
+      label: "text-mindmap-reaction-text",
+      mark: "border-mindmap-reaction-stroke",
+      cardHover: "hover:border-mindmap-reaction-line",
+      cardOn:
+        "border-mindmap-reaction-stroke bg-mindmap-reaction-fill ring-1 ring-mindmap-reaction-stroke",
     },
   },
   OUTLOOK: {
@@ -96,6 +124,12 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
       text: "fill-mindmap-outlook-text",
       chip: "bg-mindmap-outlook-fill border-mindmap-outlook-stroke text-mindmap-outlook-text",
       dot: "bg-mindmap-outlook-stroke",
+      step: "bg-mindmap-outlook-text",
+      label: "text-mindmap-outlook-text",
+      mark: "border-mindmap-outlook-stroke",
+      cardHover: "hover:border-mindmap-outlook-line",
+      cardOn:
+        "border-mindmap-outlook-stroke bg-mindmap-outlook-fill ring-1 ring-mindmap-outlook-stroke",
     },
   },
 };
