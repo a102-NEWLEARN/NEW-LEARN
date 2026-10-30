@@ -8,7 +8,8 @@
 # 손님 IP 는 Envoy 가 직접 본다 — hostPort 로 받아 앞에 다른 프록시가 없다(2026-10-29 접근 로그에서 서로 다른 공인 주소 43개 확인, SSOT 6절)
 # sourceCIDR Distinct 0.0.0.0/0 — IP 하나마다 바구니 하나. 같은 공인 IP 를 여럿이 쓰면(발표장 와이파이) 바구니도 하나다
 #   그래서 가입 100 · 로그인 300 으로 넉넉히 둔다 — QA · 발표(11-18) 때 교육생 · 심사위원이 같은 와이파이를 쓴다(2026-10-30 사용자, Jira 137)
-#   처음 숫자는 가입 10 · 로그인 20 이었다(Jira 135). 아이디를 바꿔 가며 찍는 것은 이 상한이, 한 아이디 무차별 대입은 백엔드의 아이디별 5회 잠금이 막는다
+#   처음 숫자는 가입 10 · 로그인 20 이었다(Jira 135). 막는다기보다 늦춘다 — 로그인 300 이면 IP 하나가 하루 432,000번, 아이디별 5회 잠금과 합쳐도
+#   1분에 아이디 약 60개 × 비밀번호 5개를 시도할 수 있고, 가입 100 이면 하루 144,000 계정이다(가입은 세션도 연다 — SSOT 8절). 한 아이디 무차별 대입은 아이디별 잠금이 막는다
 #   IPv4 만 센다 — IPv6 를 열면(도메인 AAAA 등) ::/0 규칙을 셋에 같이 넣는다. 안 넣으면 IPv6 손님은 상한 밖이다
 # 넘으면 Envoy 가 429 를 만든다. responseOverride 의 source: Local 로 Envoy 가 만든 응답만 우리 오류 모양으로 바꾼다 —
 #   백엔드의 로그인 잠금 429 TOO_MANY_REQUESTS(같은 아이디 5번 틀림)는 그대로 지나간다. 둘은 화면 안내가 달라 코드를 나눈다(docs/api.md 2절)
@@ -84,7 +85,7 @@ spec:
               value: "60"
         body:
           type: Inline
-          inline: '{"title":"Too Many Requests","status":429,"detail":"주소별 요청 수 상한(1분 20건)을 넘었다","code":"RATE_LIMITED"}'
+          inline: '{"title":"Too Many Requests","status":429,"detail":"주소별 요청 수 상한(1분 300건)을 넘었다","code":"RATE_LIMITED"}'
 ---
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
@@ -120,4 +121,4 @@ spec:
               value: "60"
         body:
           type: Inline
-          inline: '{"title":"Too Many Requests","status":429,"detail":"주소별 요청 수 상한(1분 10건)을 넘었다","code":"RATE_LIMITED"}'
+          inline: '{"title":"Too Many Requests","status":429,"detail":"주소별 요청 수 상한(1분 100건)을 넘었다","code":"RATE_LIMITED"}'
