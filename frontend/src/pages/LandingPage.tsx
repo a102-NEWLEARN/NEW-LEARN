@@ -18,7 +18,15 @@ export function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-bg-layer-default">
       <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak px-x4 md:px-x8">
-        <Logo height={26} />
+        {/* 셸 로고처럼 누르면 맨 위로 올린다. 같은 주소라 방문 기록은 쌓이지 않는다 */}
+        <Link
+          to="/"
+          aria-label="NEW:LEARN 처음 화면으로"
+          onClick={() => window.scrollTo({ top: 0 })}
+          className="rounded-r2 p-x1 focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+        >
+          <Logo height={26} />
+        </Link>
         <div className="ml-auto flex items-center gap-x1">
           <ActionButton asChild variant="ghost" size="small">
             <Link to={start}>로그인</Link>

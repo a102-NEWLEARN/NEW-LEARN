@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { server } from "@/mocks/node";
 import { renderRoute } from "@/test/render";
 
@@ -66,4 +66,18 @@ test("회원이 서비스 시작하기를 누르면 홈이 열린다", async () 
   fireEvent.click(startLinks()[1]);
 
   await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+});
+
+test("로고를 누르면 랜딩에 남아 맨 위로 올라간다", async () => {
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  const { router } = renderRoute("/");
+  const logo = await screen.findByRole("link", {
+    name: "NEW:LEARN 처음 화면으로",
+  });
+  expect(logo.getAttribute("href")).toBe("/");
+
+  fireEvent.click(logo);
+
+  expect(router.state.location.pathname).toBe("/");
+  expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
 });
