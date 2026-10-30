@@ -301,8 +301,8 @@ const issues: IssueSummary[] = [
   ),
 ];
 
-// A17 — docs/api-screen.md A17 예시. 가짜 API 에서는 늘 로그인한 회원이다.
-// 손님 화면은 테스트에서 401 로 바꿔 본다
+// A17 — docs/api-screen.md A17 예시. 여기서는 늘 로그인한 회원이다. 손님 화면은 테스트에서 401 로 바꿔 본다.
+// 개발 화면(npm run dev:mock)은 손님으로 시작한다 — src/mocks/session.ts 가 앞에서 로그인 상태를 본다
 const me: Member = {
   id: 7,
   loginId: "newlearn01",
@@ -320,7 +320,7 @@ const memberCategories = (codes: string[]) =>
     .map(({ code, name }) => ({ code, name }));
 
 // 오류 응답 — Problem Details + code (docs/api.md 2절)
-function problem(
+export function problem(
   status: number,
   code: string,
   detail: string,

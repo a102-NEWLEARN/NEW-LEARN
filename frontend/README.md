@@ -32,6 +32,7 @@ NEW:LEARN 화면(React)이다. 개발 서버는 `npm run dev` 면 진짜 API(백
 | 가짜 API 를 켠 개발 서버   | `npm run dev:mock`. `npm run dev` 는 가짜 API 없이 진짜 API(백엔드)로 보낸다                                                                                                                                               |
 | 진짜 API 로 띄운 개발 서버 | `npm run dev`. 로컬 백엔드는 루트 `.env` 의 `BACKEND_PORT` 로 찾는다. 배포 서버로 보내려면 `API_PROXY_TARGET=https://newlearn.io.kr npm run dev` — 팀이 같이 쓰는 서버라 가입 · 북마크처럼 데이터를 만드는 요청은 조심한다 |
 | 응답                       | `src/mocks/handlers.ts`. 모양은 `docs/api-screen.md` 예시를 따르고 값은 지어낸다                                                                                                                                           |
+| 로그인 상태                | `npm run dev:mock` 화면은 손님으로 시작한다. 아무 아이디 · 비밀번호로 로그인하면 회원이 되고, 탭을 닫으면 다시 손님이다 (`src/mocks/session.ts`). 테스트는 이것을 쓰지 않아 늘 회원이다                                    |
 | 테스트                     | 같은 핸들러를 쓴다 (`src/mocks/node.ts`). 핸들러가 없는 요청은 테스트를 실패시킨다. 한 테스트에서만 응답을 바꾸려면 `server.use(…)`                                                                                        |
 | 빌드                       | 가짜 API 는 빌드 결과에 들어가지 않는다                                                                                                                                                                                    |
 

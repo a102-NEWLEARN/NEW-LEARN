@@ -13,7 +13,9 @@ async function enableMocking() {
   if (import.meta.env.MODE !== "mock") return;
   const { network } = await import("virtual:msw");
   const { handlers } = await import("@/mocks/handlers");
-  network.configure({ handlers });
+  // 로그인 상태를 기억하는 응답을 앞에 둔다 — 손님으로 시작한다 (src/mocks/session.ts)
+  const { sessionHandlers } = await import("@/mocks/session");
+  network.configure({ handlers: [...sessionHandlers, ...handlers] });
   await network.enable();
 }
 
