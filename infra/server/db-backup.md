@@ -11,7 +11,7 @@ sudo install -d -m 0700 -o 999 -g 999 /var/lib/newlearn/pg-backup   # postgres �
 kubectl apply -f infra/k8s/bootstrap/pg-backup-pv.yaml
 ```
 
-**확인 · 손으로 돌리기** (EC2) — 실패 알림은 없다. 가끔 이것으로 본다
+**확인 · 손으로 돌리기** (EC2) — 마지막 성공이 오래되면(매일 26시간 · 주간 8일) Mattermost 로 경보가 온다(`NewlearnBackupMissing`, `infra/server/alerts.md`). 경보가 오면 이것으로 본다
 
 ```bash
 kubectl -n data get cronjob postgres-backup           # 마지막 실행 · 다음 실행
