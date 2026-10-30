@@ -8,7 +8,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 // A13 제목 검색 — 유형마다 SQL 하나. 인덱스 없이 표를 훑는다(지금 규모, 느려지면 인덱스는 따로 — 스펙 「가정」)
-// LIKE 대신 위치 찾기(strpos)라 검색어의 %, _, \ 도 그냥 글자다. LIKE 에 그대로 넣으면 % 는 모든 제목, \ 로 끝나면 오류다
+// LIKE 대신 위치 찾기(strpos)라 검색어의 %, _, \ 도 그냥 글자다. LIKE '%'||q||'%' 에 그대로 넣으면 % 는 모든 제목,
+// _ 는 아무 한 글자와 맞고, 끝의 \ 는 닫는 % 를 글자로 만들어 결과가 조용히 틀어진다(오류는 나지 않는다)
 @Repository
 class SearchQueryRepository {
     // 유형마다 이만큼만 준다. 몇 개를 보일지는 화면이 정한다(넘는 것은 개수로만)
