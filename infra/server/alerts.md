@@ -1,0 +1,41 @@
+# 경보 — Alertmanager → Mattermost
+
+Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermost 「A102 배포알림」 채널로 보낸다. 차트 기본 경보는 평가만 하고 채널로는 안 보낸다 — 받는 길은 `infra/k8s/bootstrap/monitoring-values.yaml` 의 `alertmanager.config`. 왜 · 무엇을 고르나는 계획 `docs/plans/2026-10-30-alertmanager-mattermost.md`(Jira S15P31A102-138). 모니터링 설치는 `infra/server/README.md` 「모니터링」.
+
+## 켜는 순서
+
+1. **웹훅 주소 봉인** (관리자 PC 에서 — 주소를 물어 터미널이 붙어 있어야 한다). 배포 알림과 같은 「A102 배포알림」 채널의 들어오는 웹훅 주소를 넣는다. 채널에 연결 시험 글이 하나 올라간다
+
+   ```bash
+   ssh -t newlearn "bash infra/server/seal-secrets.sh alertmanager"
+   ```
+
+   주소를 Mattermost 에서 못 찾으면(들어오는 웹훅 목록에는 내가 만든 것만 보인다) 배포 알림 Secret 에 이미 있는 주소를 화면에 띄우지 않고 그대로 봉인한다 — 2026-10-30 이 방법으로 했다(채널 연결 시험 글은 안 씀)
+
+   ```bash
+   ssh newlearn "kubectl -n argocd get secret argocd-notifications-secret -o jsonpath='{.data.mattermost-url}' | base64 -d | kubectl create secret generic alertmanager-mattermost -n monitoring --from-file=url=/dev/stdin --dry-run=client -o yaml | kubeseal --controller-namespace sealed-secrets --format yaml > ~/sealed/sealed-alertmanager-mattermost.yaml && echo SEAL-DONE"
+   ```
+
+   ```bash
+   ssh newlearn 'cat ~/sealed/sealed-alertmanager-mattermost.yaml' > infra/k8s/alerts/sealed-alertmanager-mattermost.yaml
+   ```
+
+2. **커밋 · MR** — Argo CD 앱 `alerts` 가 Secret `alertmanager-mattermost` 와 규칙을 만든다. Secret 이 먼저 있어야 Alertmanager Pod 가 뜬다(파일로 붙인다)
+
+3. **Alertmanager 켜기** (EC2) — README 「모니터링」 「설치」의 `helm upgrade` 를 같은 판으로 한 번 더. Grafana Pod 가 한 번 다시 뜬다
+
+## 확인 (EC2)
+
+| 무엇을 | 명령 | 기대 |
+|---|---|---|
+| Pod | `kubectl -n monitoring get pod -l app.kubernetes.io/name=alertmanager` | Running, 재시작 0 |
+| 이어짐 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-prometheus:9090/proxy/api/v1/alertmanagers"` | `activeAlertmanagers` 하나 |
+| 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 여섯이 `health: ok` |
+| 받는 곳 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts/groups"` | 기본 경보(Watchdog 등)는 `receiver.name` 이 `null` |
+
+## 바꿀 때
+
+- 경보 식을 바꿀 때는 먼저 Prometheus 에 그대로 물어 지금 값을 본다. 규칙만 바꾸면 MR 하나(Argo CD 가 반영)
+- 받는 길 · 글 모양(`monitoring-values.yaml`)을 바꾸면 「켜는 순서」 3 을 다시. 먼저 관리자 PC 에서 그린 설정을 같은 판 `amtool check-config` · `amtool config routes test` 로 본다
+- 🔴 웹훅 주소를 배포 알림(`argocd-notifications-secret`)과 같이 쓴다. 주소가 새면 Mattermost 에서 지우고 새로 만든 뒤 README 「GitLab 웹훅 · Mattermost 배포 알림」의 봉인과 「켜는 순서」 1 을 둘 다 다시 한다
+- Alertmanager 가 죽으면 경보가 하나도 안 온다 — 늘 울리는 Watchdog 을 바깥에서 받는 「죽음 감지」는 아직 없다

@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: alertmanager-mattermost
+  namespace: monitoring
+spec:
+  encryptedData:
+    url: AgBTP9eTuN3UGoq8jhKBQJxTWN/F2ZfOYh7P7+P+B93VuOLfJJ8yTphsaCr8Lr7HKUWa5FmQ7areEoA4MP9pt2eA0eFt1vX+i8ATAjgBhdhHVgAvruJveeS5uDBQ0jU5oW4LxqHRFMsu61dRbJfc2YjdYRcyvXiDy8UI87w3DEBkEKC39m5JijYlSSufUVancz7o5PvWvDW01TY7KnLz6uAKgyy3vlnNoPJ+ujBmTSdSwWvb1m1175ud7HRJu4NRjyxc/mIntAGB1mqmlZlj6wVFD2jEHPLUw1mAEyIEIu6NmWfSbvVtfoZTlNXfKcpAobqoh0u0C8PMLToKj9WLCB4vTegyuhCvifSaAjwd5B0z62ZlUqVvGkFdF7MiISgKBNHgcSw5eBzmwOkCVTBH+ZduVGXIUkNZdA3RfhNN7sbNmsC73ca6my69bwk+8c2NFNQY54L46/gQnl1Y5tyzpX6LoMH4VH97N/PHAc9+DukYNFNTgDomaI0BUhOYfZ7S7wdZjuUGXYmrjJec/j89AkpURc9pz5gQvt43Oe2dqnTJNT6UeDMPy689dDHkQE28ph+Kio9tkPvM4kT5MjDYIccjt8SgaXC4IoeRm8m+1BTNqA10APOcmC9nTaQp0FRXQx8+IGGkbDuH/G7J6e0otkdIoYI4APhxMdKLC3q5h6BTlaczDb5UIBmKHgefkNkRSgASrmvNfU3mE6NeFm98LKVF6TRAe1HU2HYLVf1vXYSVwHCaBDKE4Ofrf06dIdq6X3lFZE7AhxwB/KcF
+  template:
+    metadata:
+      name: alertmanager-mattermost
+      namespace: monitoring
