@@ -15,6 +15,8 @@ export type BranchInfo = {
     fill: string;
     /** 가지 · 잎 원 테두리 */
     stroke: string;
+    /** 강조한 잎 채움 — 테두리색으로 꽉 채운다 */
+    solid: string;
     /** 이어 주는 선 */
     line: string;
     /** 가지 이름 글자 */
@@ -42,6 +44,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
     tone: {
       fill: "fill-mindmap-core-fill",
       stroke: "stroke-mindmap-core-stroke",
+      solid: "fill-mindmap-core-stroke",
       line: "stroke-mindmap-core-line",
       text: "fill-mindmap-core-text",
       chip: "bg-mindmap-core-fill border-mindmap-core-stroke text-mindmap-core-text",
@@ -55,6 +58,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
     tone: {
       fill: "fill-mindmap-cause-fill",
       stroke: "stroke-mindmap-cause-stroke",
+      solid: "fill-mindmap-cause-stroke",
       line: "stroke-mindmap-cause-line",
       text: "fill-mindmap-cause-text",
       chip: "bg-mindmap-cause-fill border-mindmap-cause-stroke text-mindmap-cause-text",
@@ -68,6 +72,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
     tone: {
       fill: "fill-mindmap-reaction-fill",
       stroke: "stroke-mindmap-reaction-stroke",
+      solid: "fill-mindmap-reaction-stroke",
       line: "stroke-mindmap-reaction-line",
       text: "fill-mindmap-reaction-text",
       chip: "bg-mindmap-reaction-fill border-mindmap-reaction-stroke text-mindmap-reaction-text",
@@ -81,6 +86,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
     tone: {
       fill: "fill-mindmap-outlook-fill",
       stroke: "stroke-mindmap-outlook-stroke",
+      solid: "fill-mindmap-outlook-stroke",
       line: "stroke-mindmap-outlook-line",
       text: "fill-mindmap-outlook-text",
       chip: "bg-mindmap-outlook-fill border-mindmap-outlook-stroke text-mindmap-outlook-text",
