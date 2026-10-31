@@ -1,0 +1,155 @@
+# 경보 규칙 단위 시험 — promtool test rules (Jira S15P31A102-139). 돌리는 법은 옆의 alert_rules.sh
+# rules.yaml 은 alert_rules.sh 가 infra/k8s/alerts/rules.yaml 의 spec 아래를 꺼내 이 파일 옆에 둔 것이다
+# 시각은 시험 시작(0초)부터 잰다. time() 도 0 에서 시작한다
+# 시험마다 「아직 안 울림」과 「울림」을 같이 본다. promtool 은 울리는 중(firing)인 경보만 비교한다 — 기다리는 중(pending)은 빈 목록과 같다
+# 값 적는 법: 1x3 은 1 이 네 번(interval 30s 면 0 · 30초 · 1분 · 1분 30초), _x3 은 빈칸 세 번, stale 은 끊김 표시 하나
+# 주석(summary · description)도 글자 그대로 비교한다 — rules.yaml 의 주석을 바꾸면 여기도 바꾼다
+rule_files:
+  - rules.yaml
+
+# 클러스터와 같다(2026-10-30 Prometheus 의 evaluationInterval · scrapeInterval 30s)
+evaluation_interval: 30s
+
+tests:
+  # 상한 풀림 수가 처음 생길 때 — Envoy 는 처음 풀릴 때 그 수의 줄을 새로 만든다. increase() 였으면 첫 묶음을 놓친다
+  - name: 상한 풀림 수 첫 등장
+    interval: 30s
+    input_series:
+      # 0 ~ 9분 30초 줄 없음, 10분에 1 로 생김
+      - series: envoy_cluster_ratelimit_failure_mode_allowed{envoy_cluster_name="ratelimit_cluster"}
+        values: "_x20 1x60"
+    alert_rule_test:
+      # 10분부터 참이지만 for 2m 이 아직 안 참
+      - eval_time: 11m30s
+        alertname: NewlearnRateLimitFailOpen
+      - eval_time: 12m
+        alertname: NewlearnRateLimitFailOpen
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+            exp_annotations:
+              summary: 입구 요청 수 상한이 풀렸다 — 상한 서비스를 못 불러 요청을 그냥 통과시켰다
+              description: "kubectl -n envoy-gateway-system get pod 와 data/redis 를 본다. 질의는 SSOT 6절 「외부 입구」"
+      # 10분 뒤에는 offset 쪽도 1 이라 차이가 0 — 풀림
+      - eval_time: 21m
+        alertname: NewlearnRateLimitFailOpen
+
+  # Envoy 수집이 한 번 실패하면 끊김 표시(stale)가 남고, 10분 뒤 offset 쪽이 한 평가(30초) 동안 비어 or vector(0) 이 0 을 넣는다
+  # 예전에 풀려 쌓인 수가 있으면 그 30초 동안 식이 참이다 — for 2m 덕에 울리지 않아야 한다 (리뷰 2026-10-30)
+  - name: 수집 한 번 놓침은 안 울림
+    interval: 30s
+    input_series:
+      # 쌓인 5 가 이어지다 20분 30초에 수집 한 번 실패, 21분부터 다시 5
+      - series: envoy_cluster_ratelimit_failure_mode_allowed{envoy_cluster_name="ratelimit_cluster"}
+        values: "5x40 stale 5x40"
+    alert_rule_test:
+      # 처음 10분은 offset 쪽 기록이 없어 시험에서만 울린다(실제로는 앞선 기록이 있다) — 그 뒤만 본다
+      - eval_time: 12m
+        alertname: NewlearnRateLimitFailOpen
+      # 30분 30초에 offset 쪽(20분 30초)이 비어 식이 참 — 기다리는 중
+      - eval_time: 30m30s
+        alertname: NewlearnRateLimitFailOpen
+      - eval_time: 33m
+        alertname: NewlearnRateLimitFailOpen
+
+  # 수집 대상 둘(Envoy · 상한 서비스)을 대상마다 absent 로 본다 — 풀림 수를 내는 Envoy 대상만 빠져도 울려야 한다 (리뷰 2026-10-30)
+  - name: 수집 대상 하나만 사라짐
+    interval: 30s
+    input_series:
+      # Envoy 대상이 5분 30초에 목록에서 빠짐(끊김 표시 뒤 줄이 없음)
+      - series: up{namespace="envoy-gateway-system", job="envoy-gateway-system/envoy-proxy-ratelimit", pod="envoy-public"}
+        values: "1x10 stale"
+      - series: up{namespace="envoy-gateway-system", job="envoy-gateway-system/envoy-ratelimit", pod="envoy-ratelimit"}
+        values: "1x40"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: NewlearnRateLimitMetricsMissing
+      # 5분 30초부터 없음, for 5m 이 아직 안 참
+      - eval_time: 10m
+        alertname: NewlearnRateLimitMetricsMissing
+      - eval_time: 11m
+        alertname: NewlearnRateLimitMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              namespace: envoy-gateway-system
+              job: envoy-gateway-system/envoy-proxy-ratelimit
+            exp_annotations: &missing
+              summary: 입구 상한 지표를 못 모은다 — 상한 풀림 경보를 믿을 수 없다
+              description: "PodMonitor 는 infra/k8s/gateway/ratelimit-podmonitor.yaml. Prometheus 화면 Status › Targets 에서 envoy-gateway-system 을 본다"
+
+  # 반대쪽 — 상한 서비스 대상만 빠져도 그 job 으로 울린다
+  - name: 상한 서비스 대상만 사라짐
+    interval: 30s
+    input_series:
+      - series: up{namespace="envoy-gateway-system", job="envoy-gateway-system/envoy-proxy-ratelimit", pod="envoy-public"}
+        values: "1x40"
+      - series: up{namespace="envoy-gateway-system", job="envoy-gateway-system/envoy-ratelimit", pod="envoy-ratelimit"}
+        values: "1x10 stale"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: NewlearnRateLimitMetricsMissing
+      - eval_time: 11m
+        alertname: NewlearnRateLimitMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              namespace: envoy-gateway-system
+              job: envoy-gateway-system/envoy-ratelimit
+            exp_annotations: *missing
+
+  # 매일 백업(04:00)이 26시간 넘게 성공하지 못함. 값은 마지막 성공 시각(초)이다
+  - name: 매일 백업 26시간 넘김
+    interval: 1m
+    input_series:
+      # 0초에 성공한 뒤 다음 날 백업이 실패해 그대로
+      - series: kube_cronjob_status_last_successful_time{namespace="data", cronjob="postgres-backup"}
+        values: "0x1700"
+      # 주간 S3 는 늘 방금 성공(값 = 지금 시각)
+      - series: kube_cronjob_status_last_successful_time{namespace="data", cronjob="postgres-backup-s3"}
+        values: "0+60x1700"
+    alert_rule_test:
+      - eval_time: 25h59m
+        alertname: NewlearnBackupMissing
+      # 26시간 30초부터 참, for 10m 이 아직 안 참
+      - eval_time: 26h10m
+        alertname: NewlearnBackupMissing
+      - eval_time: 26h11m
+        alertname: NewlearnBackupMissing
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: critical
+              namespace: data
+              cronjob: postgres-backup
+            exp_annotations:
+              summary: "DB 백업 postgres-backup 의 마지막 성공이 1d 2h 11m 0s 전이다 (값이 1s 면 지표가 없음)"
+              description: &backup "kubectl -n data get jobs · logs job/<이름>. 손으로 돌리는 법은 infra/server/db-backup.md"
+
+  # 주간 S3 백업(일요일 05:00)이 8일 넘게 성공하지 못함
+  - name: 주간 S3 백업 8일 넘김
+    interval: 1m
+    input_series:
+      - series: kube_cronjob_status_last_successful_time{namespace="data", cronjob="postgres-backup"}
+        values: "0+60x11600"
+      - series: kube_cronjob_status_last_successful_time{namespace="data", cronjob="postgres-backup-s3"}
+        values: "0x11600"
+    alert_rule_test:
+      - eval_time: 7d23h59m
+        alertname: NewlearnBackupMissing
+      - eval_time: 8d10m
+        alertname: NewlearnBackupMissing
+      - eval_time: 8d11m
+        alertname: NewlearnBackupMissing
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: critical
+              namespace: data
+              cronjob: postgres-backup-s3
+            exp_annotations:
+              summary: "DB 백업 postgres-backup-s3 의 마지막 성공이 8d 0h 11m 0s 전이다 (값이 1s 면 지표가 없음)"
+              description: *backup
