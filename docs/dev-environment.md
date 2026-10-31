@@ -49,7 +49,7 @@ DB · Redis 만 compose 로 띄우고 내 영역은 IDE 나 터미널에서 띄�
 | 화면 | Node 24.15 이상 (도구들의 최소 버전) | Node 24.18 · 컨테이너는 26 |
 | API | JDK 21 이상. 컴파일에 쓰는 25 는 Gradle 이 받는다 | JDK 21.0.11 |
 | 워커 | uv. Python 3.14 는 uv 가 받는다 | uv 0.12.5 · 컨테이너는 0.13.1 |
-| 인프라 | Terraform 1.16.6 이상 1.17 미만 (`infra/terraform/versions.tf`) | Terraform 1.16.6 |
+| 인프라 | Terraform 1.16.6 이상 1.17 미만 (`infra/terraform/versions.tf`). promtool 3.15.0 — 경보 규칙 시험(`infra/ci/alert_rules.sh`), Prometheus 릴리스 파일에 들어 있다 | Terraform 1.16.6 · promtool 3.15.0 |
 
 API 테스트는 Testcontainers 로 DB · Redis 컨테이너를 따로 띄우므로 Docker Desktop 이 켜져 있어야 한다.
 
