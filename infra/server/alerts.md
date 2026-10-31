@@ -29,14 +29,18 @@ Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 | 무엇을 | 명령 | 기대 |
 |---|---|---|
 | Pod | `kubectl -n monitoring get pod -l app.kubernetes.io/name=alertmanager` | Running, 재시작 0 |
-| 이어짐 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-prometheus:9090/proxy/api/v1/alertmanagers"` | `activeAlertmanagers` 하나 |
+| 이어짐 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-prometheus:9090/proxy/api/v1/alertmanagers"` | `activeAlertmanagers` 하나 — 서비스 목록으로 채우는 값이라 실제로 닿는지는 아래 「보냄」으로 본다 |
 | 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 여섯이 `health: ok` |
 | 받는 곳 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts/groups"` | 기본 경보(Watchdog 등)는 `receiver.name` 이 `null` |
+| 들어오는 길 정책 | `kubectl -n monitoring get cnp alertmanager-ingress` | `VALID` True |
+| 보냄 | 「이어짐」과 같은 길의 `/api/v1/query?query=sum(increase(prometheus_notifications_errors_total%5B10m%5D))` · 같은 식의 `…_sent_total` | 오류 0 · 보냄 0 보다 큼(늘 울리는 Watchdog 도 보낸다) — 정책의 Prometheus 이름표가 틀리면 경보가 소리 없이 끊긴다(`infra/k8s/alerts/alertmanager-netpol.yaml`) |
 
 ## 바꿀 때
 
 - 경보 식을 바꿀 때는 먼저 Prometheus 에 그대로 물어 지금 값을 본다. 규칙만 바꾸면 MR 하나(Argo CD 가 반영)
-- 받는 길 · 글 모양(`monitoring-values.yaml`)을 바꾸면 「켜는 순서」 3 을 다시. 먼저 관리자 PC 에서 그린 설정을 같은 판 `amtool check-config` · `amtool config routes test` 로 본다
+- 식이나 주석(summary · description)을 바꾸면 단위 시험 `infra/ci/alert_rules_test.yaml` 도 같이 고친다. `infra/` 에서 `bash ci/alert_rules.sh test`(promtool 이 PATH 에 있어야 한다 — 판은 스크립트의 `PROM_VERSION`), CI `w12:infra` 도 같은 시험을 돈다
+- 받는 길 · 글 모양(`monitoring-values.yaml`)을 바꾸면 「켜는 순서」 3 을 다시. 먼저 관리자 PC 에서 그린 설정을 같은 판 `amtool check-config` · `amtool config routes test` 로 본다. 글 틀은 `amtool template render --template.glob=<빈 .tmpl 파일> --template.text=<틀> --template.data=<경보 JSON>` 에 울림 · 풀림이 섞인 묶음을 넣어 그려 본다 — `--template.glob` 은 빈 파일이라도 꼭 준다(없으면 amtool 이 멈춤). JSON 모양은 Alertmanager `template.Data`
+- Alertmanager API 를 새 Pod 에서 불러야 하면 `alertmanager-netpol.yaml` 에 그 길을 더한다 — 지금은 Prometheus · Grafana 만 받는다
 - 🔴 웹훅 주소를 배포 알림(`argocd-notifications-secret`)과 같이 쓴다. 주소가 새면 Mattermost 에서 지우고 새로 만든 뒤 README 「GitLab 웹훅 · Mattermost 배포 알림」의 봉인과 「켜는 순서」 1 을 둘 다 다시 한다
 - Alertmanager 가 죽으면 경보가 하나도 안 온다 — 늘 울리는 Watchdog 을 바깥에서 받는 「죽음 감지」는 아직 없다
 - 🔴 끌 때 순서: 먼저 `monitoring-values.yaml` 의 `alertmanager.enabled: false` 로 helm upgrade → 그다음 규칙 · 봉인 Secret(Argo CD 앱 `alerts`) 제거. 거꾸로 하면 Secret 이 지워진 뒤 Alertmanager Pod 가 다시 뜰 때 ContainerCreating 에 멈춘다(Secret 을 필수 볼륨으로 붙임)
