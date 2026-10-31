@@ -59,23 +59,23 @@ Jira S15P31A102-138 에서 켠 Mattermost 경보를 리뷰했을 때 남은 선�
 1. [x] **Claude** — 관리자 PC 에 promtool 3.15.0, 시험 파일 · 스크립트 · stack.md. 로컬 `check` · `test` 통과, 그리고 규칙을 일부러 망가뜨려(`for: 2m` 지움 등, 커밋 안 함) 해당 시험이 실패하는지. CI 받기 부분은 같은 terraform 이미지로 로컬 Docker 에서 돌려 봅니다 — 망가뜨림 다섯(상한 풀림 `for` 지움 · absent 하나로 합침 · `increase()` · 26→27시간 · 백업 `for` 지움) 모두 해당 시험이 실패. Docker(alpine 3.24.2): 빈 캐시 받기 + 검사 + 시험 48초, sha256 을 틀리게 하면 종료 1 · 캐시에 안 남음. 로컬 `pre-commit --ci infra` 통과 122초. reviewer 반영: 캐시의 promtool 도 매번 임시 폴더로 복사해 sha256 확인(바꿔치기한 캐시 → 다시 받아 되돌림 37초, 캐시 사용 10초), 로컬 판이 다르면 실패, 임시 이름은 `mktemp`, 상한 서비스 대상만 사라짐 시험 더함(그 absent 를 지우면 실패), alerts.md 의 `amtool template render` 에 `--template.glob`, 판 숫자는 스크립트 · dev-environment.md 에만
 2. [x] **Claude** — 글 나누기. `helm template`(차트 92.10.1)로 그린 설정을 같은 판 `amtool check-config`, 그리고 `amtool template render` 에 섞인 묶음 데이터(울림 둘 · 풀림 하나)를 넣어 그린 글을 봅니다 — check-config SUCCESS. 섞인 묶음: 울림 둘 위 · 풀린 하나는 「✅ 풀림」 아래(옛 틀은 풀린 것이 울림 둘 사이에 섞임). 다 울림 · 다 풀림 묶음은 전과 같음
 3. [x] **Claude** — 정책 파일. 시험 스크립트(지난 Jira 136 `np-test.sh` 모양)를 서버 `/tmp/am-np-test.sh` 로 올립니다 — 이름표마다 Pod 하나씩만 고름, 서버 dry-run 통과. 흉내 Pod 는 named 포트가 없어 `prometheus-operated` Service 에 안 끼고, Grafana 자료원은 operator 이름표까지 보는 Service 를 씀
-4. [ ] **사용자** — 반영 **전** 시험. 관리 서버 터미널에서 한 줄(끝에 「== 끝」이 찍힘)
+4. [x] **사용자** — 반영 **전** 시험. 관리 서버 터미널에서 한 줄(끝에 「== 끝」이 찍힘)
 
    ```bash
    bash /tmp/am-np-test.sh
    ```
 
-   시험 Pod 넷: `default`(워커 · 관리 서버) → 9093 · 8080 열림이어야 함. `monitoring` 의 이름표만 Prometheus · Grafana 인 Pod → 지금은 다 열림
-5. [ ] **Claude** — MR → infra → dev. 파이프라인 success 뒤에만, 머지 직전 원격 dev SHA · 열린 MR 을 다시 봅니다. dev 반영 뒤 Argo CD 앱 `alerts` Synced · 정책 VALID 확인. 반영 동안 EC2 에서 1초마다 health
-6. [ ] **사용자** — 반영 **뒤** 같은 한 줄. 기대: `default` → 둘 다 timed out, Prometheus 흉내 → 9093 · 8080 열림, Grafana 흉내 → 9093 열림 · 8080 timed out
-7. [ ] **Claude** — 값 파일을 서버로 보냅니다(`infra/server/README.md` 「서버로 보내기」의 `tar … | ssh`). 막히면 사용자에게 한 줄
-8. [ ] **사용자** — 관리 서버에서 늘 하던 업그레이드 한 줄
+   시험 Pod 넷: `default`(워커 · 관리 서버) → 9093 · 8080 열림이어야 함. `monitoring` 의 이름표만 Prometheus · Grafana 인 Pod → 지금은 다 열림 — 2026-10-31 16:02:37 ~ 16:03:10 넷 모두 open
+5. [x] **Claude** — MR → infra → dev. 파이프라인 success 뒤에만, 머지 직전 원격 dev SHA · 열린 MR 을 다시 봅니다. dev 반영 뒤 Argo CD 앱 `alerts` Synced · 정책 VALID 확인. 반영 동안 EC2 에서 1초마다 health — !460 → infra cb7e381, !461 → dev e243cd3(16:22:31), 정책 16:22:33 VALID. 보냄 오류 0 · 수집 up 1, health 600번 모두 200
+6. [x] **사용자** — 반영 **뒤** 같은 한 줄. 기대: `default` → 둘 다 timed out, Prometheus 흉내 → 9093 · 8080 열림, Grafana 흉내 → 9093 열림 · 8080 timed out — 17:01:18 ~ 17:02:03 기대값 그대로
+7. [x] **Claude** — 값 파일을 서버로 보냅니다(`infra/server/README.md` 「서버로 보내기」의 `tar … | ssh`). 막히면 사용자에게 한 줄 — `tar … | ssh` 로 보냄(막히지 않음)
+8. [x] **사용자** — 관리 서버에서 늘 하던 업그레이드 한 줄
 
    ```bash
    helm upgrade --install kps oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack --version 92.10.1 -n monitoring -f infra/k8s/bootstrap/monitoring-values.yaml --wait --timeout 10m
    ```
 
-9. [ ] **Claude** — 확인(아래) → 기록 MR(SSOT 10절 실측 · 체크박스) → infra → dev → 분야 브랜치 맞추기 → Jira 완료
+9. [x] **Claude** — 확인(아래) → 기록 MR(SSOT 10절 실측 · 체크박스) → infra → dev → 분야 브랜치 맞추기 → Jira 완료 — helm 10판 17:02:09, Alertmanager 다시 읽기 17:03:11 성공 · 재시작 0. 결과는 `SSOT.md` 10절 2026-10-31 세 줄
 
 ## 안 바꿀 것
 
