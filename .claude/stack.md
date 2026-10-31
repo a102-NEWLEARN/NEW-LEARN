@@ -99,13 +99,13 @@ ai_BUILD=""   # 빌드 산출물이 없다 — 운영 이미지는 CI 에서 굽
 ai_EVAL="<채워넣기>"   # /evals 평가 명령 — 평가셋을 정하는 Jira S15P31A102-33 에서 채운다
 
 infra_PATH="infra"   # 인프라 코드 (Terraform · 쿠버네티스 매니페스트 · kind 리허설). 검사는 AWS 자격 증명 없이 돈다
-infra_ALSO_PATHS=""   # 검사가 terraform -chdir 와 infra/kind/ 만 본다
+infra_ALSO_PATHS=""   # 검사가 infra/ 안(terraform · kind · server · ci · k8s/alerts)만 본다
 infra_INSTALL="terraform -chdir=terraform init -backend=false -input=false"   # provider 를 받는다. 상태 파일은 만들지 않는다
 infra_RUN="ssh newlearn 'kubectl -n argocd get applications' && curl -fsS https://newlearn.io.kr/actuator/health"   # 실제 클러스터의 앱 상태와 사이트 헬스. newlearn 은 EC2(컨트롤 플레인) SSH 별칭 — 없으면 ubuntu@<EC2 탄력적 IP> (infra/server/README.md). kind 리허설(kind/up.sh)은 2026-10-22 은퇴. Terraform plan 은 사람이 돌린다 (infra/README.md)
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
-infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done'   # 셸 스크립트(kind 리허설 · 서버 설정)는 문법만 본다. 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
-infra_TEST='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test && for py in python3 python; do "$py" -c "" 2>/dev/null && break; py=""; done && "${py:?python 이 없다}" -B -m unittest discover -s ci'   # 가짜 provider 로 보안 그룹 규칙을, unittest 로 태그 MR 스크립트(ci/)를 검사한다. python3 가 안 되면 python — Windows 의 python3 는 Store 안내용 가짜일 수 있다. -B 는 __pycache__ 를 안 남긴다. 작은따옴표 이유는 infra_LINT 와 같다
+infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh ci/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done && bash ci/alert_rules.sh check'   # 셸 스크립트(kind 리허설 · 서버 설정 · CI)는 문법만 본다. 경보 규칙(k8s/alerts/rules.yaml)은 promtool 로 검사한다 — 호스트에 promtool 이 있어야 하고 CI 는 스크립트가 받는다(ci/alert_rules.sh). 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
+infra_TEST='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test && for py in python3 python; do "$py" -c "" 2>/dev/null && break; py=""; done && "${py:?python 이 없다}" -B -m unittest discover -s ci && bash ci/alert_rules.sh test'   # 가짜 provider 로 보안 그룹 규칙을, unittest 로 태그 MR 스크립트(ci/)를, promtool 로 경보 규칙(ci/alert_rules_test.yaml)을 검사한다. python3 가 안 되면 python — Windows 의 python3 는 Store 안내용 가짜일 수 있다. -B 는 __pycache__ 를 안 남긴다. 작은따옴표 이유는 infra_LINT 와 같다
 infra_BUILD=""   # 산출물이 없다 — 실제 생성(apply)은 사람이 plan 을 읽고 한다 (.claude/docs/deploy.md 3절)
 
 # 진실 문서는 쪼갤 곳이 없어 크기 상한에서 뺀다 (HARNESS.md 5절). 저장소 루트 기준 경로를 글자 그대로 맞춘다 (* 는 안 펼친다).
