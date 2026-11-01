@@ -30,8 +30,8 @@
 - [x] `helm upgrade --install kps … --version 92.10.1 -n monitoring --wait` (CRD 포함)
 - [x] 러너 `helm upgrade` 로 지표 켜기
 - [x] 확인(아래) — 계획과 달랐던 것 셋: ① Prometheus Operator 는 StorageClass 가 실제로 있어야 해서 `prometheus-pv.yaml` 에 no-provisioner StorageClass 를 더함 ② 하위 경로 때문에 Grafana 자기 지표 수집이 실패 → `serviceMonitor.path: /grafana/metrics` ③ Grafana 메모리가 30분 최대 368.5MiB 라 상한 384Mi → 640Mi(요청 256Mi). 스로틀 지표는 `…_throttled_seconds_total` 을 차트가 버려서 `…_throttled_periods_total` 로 봄 → 10분 뒤 자원 사용을 Prometheus 로 재서 기록
-- [ ] 문서 · 커밋(게이트) → MR(→ infra) → 머지 직전 원격 확인 → Merge → Jira 95 완료 · dev · 분야 브랜치 반영은 따로 묻기
-- [ ] zoo_docs: learn(Prometheus · Grafana 구조 · 무엇을 보나), 캡처(Grafana 로그인 · 노드 · 스로틀 패널 — 계정 정보 가림), 화면 가이드 새 장, status · decisions
+- [x] 문서 · 커밋(게이트) → MR(→ infra) → 머지 직전 원격 확인 → Merge → Jira 95 완료 · dev · 분야 브랜치 반영은 따로 묻기
+- [x] zoo_docs: learn(Prometheus · Grafana 구조 · 무엇을 보나), 캡처(Grafana 로그인 · 노드 · 스로틀 패널 — 계정 정보 가림), 화면 가이드 새 장, status · decisions
 
 ## 안 바꿀 것
 

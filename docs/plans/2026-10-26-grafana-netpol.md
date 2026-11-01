@@ -57,10 +57,10 @@ spec:
 
 ## 작업 순서
 
-- [ ] Jira 119 진행 중. 원래 작업 폴더를 `infra` 로 돌리고(지금 머지된 34 브랜치에 있음) 브랜치 `feat/infra/S15P31A102-119-grafana-netpol` ← `origin/infra`
-- [ ] 반영 전 기준 재기 — 아래 「검증」의 nc 대조를 정책 없이 한 번(열림이어야 함)
-- [ ] 정책 파일 · 주석 · SSOT · 계획 사본, `kubectl apply --dry-run=server -f` 로 스키마 확인, 게이트(`pre-commit --ci infra`)
-- [ ] reviewer 조수 → MR → `infra` → `dev`(머지 직전 원격 dev · 열린 MR 확인, 소스 삭제 끔) → Argo CD `admin-ui` 동기화
+- [x] Jira 119 진행 중. 원래 작업 폴더를 `infra` 로 돌리고(지금 머지된 34 브랜치에 있음) 브랜치 `feat/infra/S15P31A102-119-grafana-netpol` ← `origin/infra`
+- [x] 반영 전 기준 재기 — 아래 「검증」의 nc 대조를 정책 없이 한 번(열림이어야 함)
+- [x] 정책 파일 · 주석 · SSOT · 계획 사본, `kubectl apply --dry-run=server -f` 로 스키마 확인, 게이트(`pre-commit --ci infra`)
+- [x] reviewer 조수 → MR → `infra` → `dev`(머지 직전 원격 dev · 열린 MR 확인, 소스 삭제 끔) → Argo CD `admin-ui` 동기화
 - [ ] 반영 뒤 확인 → Jira 119 완료 · 브랜치 맞추기 · zoo_docs. 잰 값(SSOT 10절 한 줄)은 Jira 123(SSOT 정정) 문서 MR 에 함께
 
 ## 안 바꿀 것

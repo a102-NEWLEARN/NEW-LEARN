@@ -70,17 +70,21 @@ spec:
           annotations:
             summary: '{{ $labels.namespace }}/{{ $labels.deployment }}{{ $labels.statefulset }} 이 하나도 준비되지 않았다'
             description: "kubectl -n {{ $labels.namespace }} get pod · describe pod 로 이유를 본다. Argo CD 화면에서 앱 상태도"
-        # 켜던 날 관리 서버(컨트롤 플레인) 루트는 73%(29G). Prometheus 8GB · 백업 7일치 · 이미지가 같은 디스크를 쓴다
+        # 켜던 날 관리 서버(컨트롤 플레인) 루트는 73%(29G). Prometheus · 백업 7일치 · 이미지 · CI 캐시가 같은 디스크를 쓴다
+        # 80% 에서 미리 알린다 — 85% 에서 kubelet 이 DiskPressure 가 된다(evictionHard imagefs.available<15%, 디스크가 하나라 루트 기준.
+        #   두 노드 configz 로 확인, 2026-11-02). 그러면 안 쓰는 이미지(CI 이미지 포함)부터 지우고, 그래도 넘치면 Pod 를 내쫓는다.
+        #   그동안 노드에 disk-pressure NoSchedule 테인트가 붙어 관리 서버에 묶인 CI 잡 · 백업 CronJob 이 뜨지 못한다
+        #   Prometheus 보존을 7일로 줄였지만(monitoring-values.yaml) 나머지(이미지 · CI 캐시 등으로 짐작)는 계속 는다 — 울리면 alerts.md 대로 (Jira S15P31A102-141)
         - alert: NewlearnDiskAlmostFull
           expr: |
-            1 - node_filesystem_avail_bytes{mountpoint="/", fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/", fstype!~"tmpfs|overlay"} > 0.85
+            1 - node_filesystem_avail_bytes{mountpoint="/", fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/", fstype!~"tmpfs|overlay"} > 0.80
           for: 10m
           labels:
             notify: mattermost
             severity: warning
           annotations:
             summary: '노드 {{ $labels.instance }} 루트 디스크 {{ $value | humanizePercentage }} 사용'
-            description: "df -h / · sudo du -xh --max-depth=1 / | sort -h 로 큰 곳을 본다. 이미지 정리는 sudo crictl rmi --prune"
+            description: "df -h / · sudo du -xh --max-depth=2 /var/lib | sort -h | tail 로 큰 곳을 본다. 이미지 정리는 infra/server/alerts.md 「디스크 경보가 오면」대로(--prune 은 CI 이미지까지 지운다)"
         # 실패한 잡 수가 아니라 「마지막 성공이 오래됨」으로 본다 — 실패 기록은 3개까지 남아 다음 성공 뒤에도 울리기 때문이다
         # 매일(04:00) 26시간 · 주간 S3(일요일 05:00) 8일. 지표가 아예 없으면(CronJob 이름이 바뀜) absent 로 잡는다 — 그때 값은 1
         - alert: NewlearnBackupMissing
