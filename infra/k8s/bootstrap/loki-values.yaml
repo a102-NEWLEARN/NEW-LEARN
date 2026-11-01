@@ -24,7 +24,7 @@ loki:
         index:
           prefix: loki_index_
           period: 24h
-  # 14일 지난 로그는 compactor 가 지운다 (사용자 결정 2026-10-28 — Prometheus 15일과 비슷하게)
+  # 14일 지난 로그는 compactor 가 지운다 (사용자 결정 2026-10-28 — 그때 Prometheus 15일과 비슷하게. Prometheus 는 2026-11-02 7일로 줄였다 — 로그는 작아 그대로)
   limits_config:
     retention_period: 336h
     reject_old_samples: true
