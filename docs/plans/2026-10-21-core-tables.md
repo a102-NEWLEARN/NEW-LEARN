@@ -67,8 +67,8 @@ enum: `common.MappingSource`(SSAFY · NEWSDATA, 대응 표 둘이 같이 씀) ·
 - [x] Lombok — `build.gradle` 두 줄, 컴파일이 되는지 확인(커밋 2 에 같이)
 - [x] 커밋 2 ~ 6 「엔티티 ①~⑤」 — 묶음마다 `CoreMappingTest` 에 그 묶음 케이스를 먼저 더해 빨강을 보고 → 엔티티 · enum · 키 클래스 · 리포지토리 → 묶음 테스트와 전체 테스트(validate 를 보는 `contextLoads` 포함) 초록 → 커밋. validate 는 매핑된 엔티티만 보므로 묶음마다 끊어도 깨지지 않는다
 - [x] ~~커밋 7 「문서」~~ → 문서는 dev 에서 딴 docs MR 로 따로 낸다(2026-10-22 사용자 결정). `backend` 분야 브랜치의 `data-model.md` 가 아직 v0 라서, 작업 브랜치에서 고치면 dev 의 v1 과 부딪친다
-- [ ] `/verify` — 아래 「어떻게 검증하나」
-- [ ] 코드 MR → `backend` (템플릿대로). 머지는 사용자 지시 뒤, 머지 직전 원격 `backend` · 열린 MR 다시 확인. Jira 100 코드 약속 세 줄. `backend` → `dev` MR 은 이 계획 밖(사용자가 정한다)
+- [x] `/verify` — 아래 「어떻게 검증하나」
+- [x] 코드 MR → `backend` (템플릿대로). 머지는 사용자 지시 뒤, 머지 직전 원격 `backend` · 열린 MR 다시 확인. Jira 100 코드 약속 세 줄. `backend` → `dev` MR 은 이 계획 밖(사용자가 정한다)
 
 ## 진행 중 바뀐 것 · 알게 된 것 (2026-10-22)
 
