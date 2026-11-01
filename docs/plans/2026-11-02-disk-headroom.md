@@ -46,10 +46,10 @@
   - 확인: promtool check · test
   - 되돌림 확인: 옛 0.85 로 돌리면 새 시험이 실패하는지
 - [x] 커밋 2 — 문서: SSOT 6 · 8절, alerts.md, 계획 체크칸, 이 계획 파일
-- [ ] MR → infra → infra → dev
+- [x] MR → infra → infra → dev
   - 머지 전마다 파이프라인 · 원격 확인
   - Argo CD 앱 `alerts` 가 규칙을 반영
-- [ ] 사용자: helm upgrade(보존 7일) · 옛 이미지 지우기 — 명령은 파일 카드로
+- [x] 사용자: helm upgrade(보존 7일) · 옛 이미지 지우기 — 명령은 파일 카드로
 - [ ] 반영 확인 → SSOT 10절 한 줄 MR → 분야 브랜치 넷 맞추기 → Jira 완료 · Jira 115 설명 체크칸
 
 ## 사용자가 돌릴 명령
