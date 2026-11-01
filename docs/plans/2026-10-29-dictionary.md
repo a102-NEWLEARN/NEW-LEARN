@@ -61,7 +61,7 @@ F13 용어사전의 A19 `GET /api/v1/dictionary?q=` 를 계약(`docs/api-screen.
 - [x] 실패하는 시험 — 시험이 컴파일되도록 뼈대(인터페이스 · DTO · 빈 메서드)만 두고, 단언에서 실패하는 기록을 남긴다(컴파일 오류와 구분)
 - [x] 구현 — 시험 통과
 - [x] 문서(스펙 · 계약 · SSOT) — 코드와 같은지 다시 읽기
-- [ ] `/verify` · reviewer 조수 리뷰 → 커밋 · push → MR(→ backend) → 파이프라인 통과에서 멈추고 보고
+- [x] `/verify` · reviewer 조수 리뷰 → 커밋 · push → MR(→ backend) → 파이프라인 통과에서 멈추고 보고
 
 ## 안 바꿀 것
 

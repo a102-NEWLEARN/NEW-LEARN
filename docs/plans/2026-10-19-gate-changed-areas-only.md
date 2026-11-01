@@ -93,4 +93,4 @@
 - [x] `pre-commit` 을 고치고 `test-pre-commit.sh` · `run.sh` 통과
 - [x] `stack.md` §3 · §4 · `docs/dev-environment.md` 를 고친다
 - [x] 실제 커밋 재현을 돌리고 `reviewer` 로 본다
-- [ ] 사용자에게 묻고: Jira 티켓 → 커밋 → push → `dev` 로 MR (`.gitlab/merge_request_templates/Default.md`). 작업 브랜치를 딴 뒤 dev 에 들어온 `stack.md` 변경은 §7 이라 §3 · §4 와 겹치지 않는다
+- [x] 사용자에게 묻고: Jira 티켓 → 커밋 → push → `dev` 로 MR (`.gitlab/merge_request_templates/Default.md`). 작업 브랜치를 딴 뒤 dev 에 들어온 `stack.md` 변경은 §7 이라 §3 · §4 와 겹치지 않는다

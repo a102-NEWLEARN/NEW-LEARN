@@ -62,7 +62,7 @@ flowchart LR
 - [x] kps: 서버에서 지금 값 · 새 값으로 `helm template` 두 벌 diff → kube-state-metrics Deployment 인자만 다른지 → `helm upgrade` (같은 92.10.1)
 - [x] 대시보드 작성 → 패널 쿼리를 서버 Prometheus API 로 먼저 돌려 봄 → SSH 터널 + 브라우저 창에서 화면 확인 · 캡처
 - [x] GitLab 잡 API 대조 → 10절
-- [ ] 문서 → `/verify` → 커밋(게이트) → MR(→ infra) → 머지 직전 원격 확인 → 머지 → Jira 완료. infra → dev 반영은 따로 묻는다
+- [x] 문서 → `/verify` → 커밋(게이트) → MR(→ infra) → 머지 직전 원격 확인 → 머지 → Jira 완료. infra → dev 반영은 따로 묻는다
 - [ ] zoo_docs: learn(exporter 가 무엇을 지표로 바꾸나 · 게이지 한계), decisions, 캡처 · 화면 가이드
 
 계획과 달라진 것 (2026-10-21)

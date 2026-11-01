@@ -59,8 +59,8 @@
 - [x] **설치** — 첫 설치에서 TOML 표 순서 실수로 등록 실패(`node_tolerations` 뒤의 키가 그 표로 들어감) → 표를 맨 끝으로 옮겨 다시 설치 — 폴더 보내기(README 「서버로 보내기」 tar 줄) → `helm upgrade --install gitlab-runner gitlab/gitlab-runner --version 0.88.4 -n gitlab-runner -f …` (서버의 helm 4.3.1, 차트 저장소 추가 포함) — 확인: 러너 Pod Running(관리 서버), 로그에 오류 없음, GitLab API 에서 러너 `online`
 - [x] **시험 잡** — 첫 push 에 `-o ci.skip=false` 를 붙여 파이프라인이 skipped 로 남음(옵션이 있으면 값과 상관없이 건너뜀) → API 로 다시 돌려 성공. 임시 브랜치 삭제는 권한 확인에서 막혀 사용자에게 물음 — 임시 브랜치 `chore/infra/S15P31A102-89-runner-smoke` 에 `alpine` 으로 `echo · uname -m · nproc` 만 하는 `.gitlab-ci.yml` 을 올려 파이프라인 1번 → 성공 · 잡 Pod 가 관리 서버에서 생겼다 사라짐 확인 → **임시 브랜치는 원격 · 로컬 모두 지운다**(이 브랜치는 머지하지 않는다)
 - [x] **클러스터 건강 다시** — 노드 Ready, kube-system Pod 9개 Running, `free -m`
-- [ ] **문서 · MR** — SSOT · README 고치고 커밋(게이트 통과) → MR(→ infra), 템플릿 본문 → 머지 직전 원격 확인 후 Merge 버튼 → Jira 1번 완료. infra → dev 반영은 끝나고 따로 묻는다
-- [ ] **zoo_docs** — learn 28(러너 · executor 종류 · 왜 Pod 로), decisions 19, 캡처(러너 만들기 화면 · online 화면 — 토큰 칸 없는 것만), 화면 가이드 갱신, status.md, 커밋 · push
+- [x] **문서 · MR** — SSOT · README 고치고 커밋(게이트 통과) → MR(→ infra), 템플릿 본문 → 머지 직전 원격 확인 후 Merge 버튼 → Jira 1번 완료. infra → dev 반영은 끝나고 따로 묻는다
+- [x] **zoo_docs** — learn 28(러너 · executor 종류 · 왜 Pod 로), decisions 19, 캡처(러너 만들기 화면 · online 화면 — 토큰 칸 없는 것만), 화면 가이드 갱신, status.md, 커밋 · push
 
 ## 안 바꿀 것
 

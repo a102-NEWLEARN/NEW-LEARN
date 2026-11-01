@@ -29,10 +29,10 @@
 ## 작업 순서 (MR 둘 — 분야 브랜치 규칙)
 
 - [x] backend 커밋 — 작업 브랜치 `feat/backend/S15P31A102-29-health-probes`(backend 에서). 시험 넷을 먼저 써서 빨강을 본 뒤 `application.yaml` 로 초록. 이 계획 파일을 `docs/plans/2026-10-28-backend-health-probes.md` 로 옮겨 같이 커밋
-- [ ] backend MR → backend → dev → 태그 MR → 사이트 반영. 확인: 새 Pod Ready · 재시작 0, Flyway 줄
-- [ ] infra 커밋 — 작업 브랜치 `chore/infra/S15P31A102-29-backend-probes`(infra 에서). `backend.yaml` · SSOT 6절 · `infra/server/README.md`. 서버 dry-run(`kubectl apply --dry-run=server`)과 `kubectl diff` 로 바뀌는 줄이 프로브뿐인지 확인
-- [ ] infra MR → infra → dev → Argo CD 반영. 반영 동안 EC2 에서 1초마다 health
-- [ ] SSOT 10절 잰 것 · Jira 29 댓글(완료 기준 대조 · 운영 프로필 결정) · 완료
+- [x] backend MR → backend → dev → 태그 MR → 사이트 반영. 확인: 새 Pod Ready · 재시작 0, Flyway 줄
+- [x] infra 커밋 — 작업 브랜치 `chore/infra/S15P31A102-29-backend-probes`(infra 에서). `backend.yaml` · SSOT 6절 · `infra/server/README.md`. 서버 dry-run(`kubectl apply --dry-run=server`)과 `kubectl diff` 로 바뀌는 줄이 프로브뿐인지 확인
+- [x] infra MR → infra → dev → Argo CD 반영. 반영 동안 EC2 에서 1초마다 health
+- [x] SSOT 10절 잰 것 · Jira 29 댓글(완료 기준 대조 · 운영 프로필 결정) · 완료
 
 ## 안 바꿀 것
 
