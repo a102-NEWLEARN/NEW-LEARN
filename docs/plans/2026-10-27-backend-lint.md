@@ -38,9 +38,9 @@
 
 - [x] Jira 작업 만들기(`[BE] 백엔드 린트 — javac 경고 · Error Prone · NullAway 를 컴파일에 붙이기`, 상위 27, 라벨 `be` · `newlearn-mvp` · `pair`, 스토리 포인트 3, 담당 사용자, 설명 첫 줄 공동 담당) → 진행 중. 브랜치 `feat/backend/S15P31A102-124-lint` ← `origin/backend`
 - [x] 커밋 1 「도구 붙이기 + 기존 경고 고치기」 — 먼저 `build.gradle` 만 바꿔 컴파일이 **실패하는 것**(경고 수가 위와 같음)을 본다 → 고친다 → `compileJava compileTestJava` 경고 0 · `spotlessCheck` · `test` 통과
-- [ ] 커밋 2 「게이트 · 문서」 — stack.md · backend-convention · SSOT · 계획 사본. 커밋 게이트가 「린트」 단계를 도는지 출력으로 본다
-- [ ] reviewer 조수 → push 로 MR(대상 `backend`) → 파이프라인 → 머지(머지 직전 원격 `backend` · 열린 MR 다시 보기) → `backend` → `dev`(소스 삭제 끔, 다른 세션 MR 이 먼저 들어갔으면 반영 뒤) → infra · frontend · ai 를 dev 에 하나씩 맞춤(파일 차이 0 이면 안 만듦)
-- [ ] 머지 뒤 BE 팀원 티켓 63 · 64 · 65 설명에 한 줄 — 「backend 는 NullAway · Error Prone 경고가 컴파일 실패다, 쓰는 법은 `docs/backend-convention.md` 9절」(새 메시지 대신 티켓) → Jira 124 완료
+- [x] 커밋 2 「게이트 · 문서」 — stack.md · backend-convention · SSOT · 계획 사본. 커밋 게이트가 「린트」 단계를 도는지 출력으로 본다
+- [x] reviewer 조수 → push 로 MR(대상 `backend`) → 파이프라인 → 머지(머지 직전 원격 `backend` · 열린 MR 다시 보기) → `backend` → `dev`(소스 삭제 끔, 다른 세션 MR 이 먼저 들어갔으면 반영 뒤) → infra · frontend · ai 를 dev 에 하나씩 맞춤(파일 차이 0 이면 안 만듦)
+- [x] 머지 뒤 BE 팀원 티켓 63 · 64 · 65 설명에 한 줄 — 「backend 는 NullAway · Error Prone 경고가 컴파일 실패다, 쓰는 법은 `docs/backend-convention.md` 9절」(새 메시지 대신 티켓) → Jira 124 완료
 
 ## 안 바꿀 것
 

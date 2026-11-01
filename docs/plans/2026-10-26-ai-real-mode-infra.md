@@ -130,7 +130,7 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 ### B — 사용자가 봉인 (MR 1 이 EC2 저장소에 들어온 뒤)
 - [x] 🧑 사용자 — EC2 에서 `bash infra/server/seal-secrets.sh gms`(`ssh -t`). 키 확인을 지나야 봉인한다 — 2026-10-27 팀 공용키로 400(통과) · 봉인
 - [x] 봉인 파일을 관리자 PC 로 가져와 `infra/k8s/services/ai/sealed-gms-api.yaml` 로 둔다 — `kubeseal --validate` 로 컨트롤러가 풀 수 있음 확인
-- [ ] 봉인 파일을 `kustomization.yaml` 에 넣어 Secret `gms-api` 만 먼저 만든다 — 키 확인을 고친 MR 에 같이(사용자, 2026-10-27). 반영 뒤 `kubectl -n ai get secret gms-api` 가 있는지 본다
+- [x] 봉인 파일을 `kustomization.yaml` 에 넣어 Secret `gms-api` 만 먼저 만든다 — 키 확인을 고친 MR 에 같이(사용자, 2026-10-27). 반영 뒤 `kubectl -n ai get secret gms-api` 가 있는지 본다
 
 ### C — MR 2: 실제 모드 (AI 코드가 dev 에 들어오고 AI 팀이 켜자고 한 뒤)
 - [ ] `ai.yaml` 에 `GMS_API_KEY`(secretKeyRef `gms-api`) · `LLM_MODE=gms`(봉인 파일은 B 에서 이미 넣음). MR 1 에서 모델 경로 env 를 못 넣었으면 AI 코드가 읽는 이름으로 여기서 더한다

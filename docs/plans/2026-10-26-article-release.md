@@ -37,8 +37,8 @@
 - [x] Jira 34 진행 중, 브랜치 `feat/backend/S15P31A102-34-article-release` ← `origin/backend`
 - [x] ① 공개 시점 — EXTRACT 성공이면 `released_at`(처음만) + 시험(성공 → 공개 · A8 200, 실패 → 안 보임, 다시 분석 성공 → 그대로)
 - [x] ② B1 — 컨트롤러 · 서비스 · 잠금 + 시험(202 · 본문 · 커밋 뒤 메시지 · `released_at` 은 아직 빔, 두 번째 409, 이미 공개 409, 없는 기사 404, 동시 둘 → 하나만 202, 워커 키 403)
-- [ ] ③ 문서 · 스펙 · 계획 사본 → reviewer → MR → backend
-- [ ] backend → dev → 태그 MR → 사이트 확인 → 브랜치 맞추기(FE 반영 MR 본문에 알림) → Jira 34 완료 · zoo_docs
+- [x] ③ 문서 · 스펙 · 계획 사본 → reviewer → MR → backend
+- [x] backend → dev → 태그 MR → 사이트 확인 → 브랜치 맞추기(FE 반영 MR 본문에 알림) → Jira 34 완료 · zoo_docs
 
 ## 안 바꿀 것
 

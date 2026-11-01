@@ -95,12 +95,12 @@ F06 동일 사건 기사 클러스터링의 백엔드 몫입니다. 지금은 W1
 
 ## 작업 순서 (커밋 넷, 파일 하나씩 시험 먼저 → 설명)
 
-- [ ] Jira 35 진행 중, 브랜치 `feat/backend/S15P31A102-35-event-match` ← `origin/backend`
+- [x] Jira 35 진행 중, 브랜치 `feat/backend/S15P31A102-35-event-match` ← `origin/backend`
 - [x] 커밋 1 「임베딩 저장」 — V6 · `EmbeddingStore` · `EmbedResultHandler` + 시험
 - [x] 커밋 2 「판정 걸기」 — `CandidateEventFinder` · `MatchDispatcher` · 메시지 공장 · 서비스 · 스케줄러 + 시험
 - [x] 커밋 3 「판정 결과 저장」 — `MatchEventResultHandler` · 사건 만들기 · ISSUE 작업 + 시험
 - [x] 커밋 4 「문서 · 잰 값」 — 스펙 · api-internal · data-model · SSOT 10절 · 계획 사본
-- [ ] `/verify`(되돌림 확인) → reviewer 조수 → MR → backend → dev → 태그 MR → 사이트 → 브랜치 맞추기 → Jira 35 완료 · zoo_docs
+- [x] `/verify`(되돌림 확인) → reviewer 조수 → MR → backend → dev → 태그 MR → 사이트 → 브랜치 맞추기 → Jira 35 완료 · zoo_docs
 
 ## 계획과 달라진 것 (구현 중 2026-10-27)
 

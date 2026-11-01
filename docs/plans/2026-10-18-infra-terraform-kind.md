@@ -41,7 +41,7 @@ Lightsail 을 받는 날 바로 붙일 수 있게 하고, 실제 서버에서만
 - [x] 외부 입구 실험: 워커 노드의 80 에 Envoy 를 직접 연다(hostPort) — 됐다. 다만 워커 1대라 Envoy 교체가 멈춰서 교체 전략을 「옛 Pod 먼저 내리기」로 바꿨다(끊김 약 1.6초). 443 은 인증서를 정한 뒤 (SSOT 6절)
 - [x] 배포 · 되돌리기: v2 커밋 → Argo CD 반영 중 요청 140번 안팎에 실패 0 → `git revert` 로 v1 복귀까지 잼 (2회). preStop 을 뺀 대조 실험도 함 (SSOT 10절)
 - [x] ~~Argo CD 가 저장소를 읽을 배포 토큰~~ — **바꿈 (2026-10-18):** 팀 GitLab 대신 로컬 Git 미러(`infra/kind/.git-mirror`, 컨테이너 `newlearn-git`)를 읽게 했다. 토큰을 만들고 폐기할 사람 몫과 팀 원격의 버릴 브랜치가 없어진다. GitLab 인증은 실제 서버에 Argo CD 를 깔 때 확인한다 (SSOT 8절)
-- [ ] SSOT 6 · 8 · 10절, stack.md §3 · §6 · §8 갱신(했다) → 커밋 · push · `infra` 대상 MR · 머지 · Jira 완료 · `kind delete cluster`
+- [x] SSOT 6 · 8 · 10절, stack.md §3 · §6 · §8 갱신(했다) → 커밋 · push · `infra` 대상 MR · 머지 · Jira 완료 · `kind delete cluster`
 
 ## 바꿀 파일
 
