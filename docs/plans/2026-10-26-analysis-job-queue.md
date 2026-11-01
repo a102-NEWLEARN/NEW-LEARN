@@ -58,10 +58,10 @@ MR C — Infra (출입증 넣을 자리)
 - [x] B3 W1 · 봉투 검사 · 상태 바꾸기 · 처리기 넘기기
 - [x] B4 다시 걸기 정책 · 스케줄러
 - [x] B5 `NOT_ANALYZABLE` — B1 ~ B5 확인: 새 시험 42개, 되돌림 확인 8곳 모두 단언에서 실패, 로컬로 띄워 W1 204 · 409 · 404 와 스케줄러가 1분 안에 시도 2 로 다시 걸어 큐에 넣는 것까지 봄
-- [ ] B6 문서 · 스펙 · 계획 사본 → reviewer → MR B → backend
-- [ ] C seal-secrets · 매니페스트 → MR C → infra
-- [ ] backend · infra → dev, 브랜치 맞추기, 태그 MR, 사이트 확인
-- [ ] 🧑 사용자 — EC2 에서 `seal-secrets.sh internal-api`(GMS 봉인과 같이 해도 된다) → 봉인 파일을 가져와 MR
+- [x] B6 문서 · 스펙 · 계획 사본 → reviewer → MR B → backend
+- [x] C seal-secrets · 매니페스트 → MR C → infra
+- [x] backend · infra → dev, 브랜치 맞추기, 태그 MR, 사이트 확인
+- [x] 🧑 사용자 — EC2 에서 `seal-secrets.sh internal-api`(GMS 봉인과 같이 해도 된다) → 봉인 파일을 가져와 MR
 - [ ] Jira 30 완료, 34 · 35 · 40 · 56 설명에 쓰는 법 한 줄, zoo_docs learn(파일 하나씩 코드 캡처)
 
 ## 안 바꿀 것

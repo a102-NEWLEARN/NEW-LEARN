@@ -31,19 +31,19 @@ NewsData 요약 문서는 B 에 넣는다. 계약과 코드가 한 MR 에서 같
 ## 작업 순서
 
 ### A — AI 답 반영 명세 (문서만, 커밋 하나)
-- [ ] `docs/api-internal.md`
+- [x] `docs/api-internal.md`
   - 머리에 v1.1 줄(2026-10-26, Jira 111)
   - 3절: EXTRACT 결과의 `primaryCoreIndex` 가 null 이면 MATCH_EVENT · ISSUE 를 넣지 않는다. 그런 기사는 마인드맵만 가진다
   - 4절 match_event 메시지에 두 칸을 더한다. `extracted.primaryEvent` 는 대표 잎 문장이다. `candidates[].evidence` 는 후보 사건의 첫 기사에서 대표 잎의 근거 문장을 최대 3개 담는다
   - 5절 W1 EXTRACT 결과에 `primaryCoreIndex` 를 더한다. 타입은 number · null 이고 핵심 내용 가지 잎의 순번(0부터)이다. 저장하는 곳은 `article_mindmap.primary_core_index` 다. 범위 밖이거나 핵심 내용 가지가 없는데 숫자가 오면 400 `RESULT_SCHEMA_INVALID` 로 받는다. `occurredAt` 은 그 잎의 시각이다
   - 5절 MATCH_EVENT · ISSUE 결과에 `reason` · `model` · `promptVersion` 을 더하고 `analysis_job.result` 에 저장한다
   - 6절 상태: `mindmapStatus` 에 `NOT_ANALYZABLE` 을 더한다(EXTRACT 가 `INPUT_NOT_ANALYZABLE` 로 실패). `eventMatchStatus` 에 `NO_EVENT` 를 더한다(EXTRACT 는 성공했지만 대표 사건이 없어 판정 작업이 없음)
-- [ ] `docs/api.md`
+- [x] `docs/api.md`
   - 머리에 v1.1 줄
   - 2절 작업 실패 코드에 둘을 더한다. `INPUT_NOT_ANALYZABLE` 은 다시 돌리지 않는다. `LLM_UNAVAILABLE` 은 GMS 502 · 연결 끊김이다. 워커 안에서 3번 다시 하고, 그래도 안 되면 API 가 나중에 다시 넣는다
   - 4절 AI 질문 1~8 은 한 줄로 바꾼다: 「2026-10-23 AI 답으로 풀림 — 반영은 api-internal v1.1」
-- [ ] `docs/api-screen.md` — `mindmapStatus` · `eventMatchStatus` 값 목록에 위 두 값을 더한다. 「W1 구현 때부터 나온다」고 적는다
-- [ ] `docs/data-model.md`
+- [x] `docs/api-screen.md` — `mindmapStatus` · `eventMatchStatus` 값 목록에 위 두 값을 더한다. 「W1 구현 때부터 나온다」고 적는다
+- [x] `docs/data-model.md`
   - 머리에 v1.1 줄
   - `analysis_job.result` jsonb(판정 이유 · 모델 · 프롬프트 판)와 `article_mindmap.primary_core_index` int 줄을 더한다. 둘 다 「V3 에서 더함」으로 적는다
   - `article_embedding.embedding` 줄은 「BGE-m3-ko(1024) 유력, Jira 35 전에 확정. 확정 전까지 차원을 정하지 않는다」로 고친다
@@ -51,11 +51,11 @@ NewsData 요약 문서는 B 에 넣는다. 계약과 코드가 한 MR 에서 같
   - NewsData 본문(241줄): 50건 중 49건에 왔고 줄바꿈이 없어 `paragraphIndex` 는 늘 0 이다. 시각은 UTC 다
   - 5절 7번에 본 원본 분류 값 목록을, 15번에 `source_id` 를 반영한다
   - AI 가 동의한 5절 4번(근거만 지우고 잎은 남김) · 12번(날짜까지면 그날 0시)은 해당 절로 옮기고 표에서 지운다(5절 규칙). 3번 가정에 대표 사건을 반영한다 — 구현하며 더한 것
-- [ ] `SSOT.md` 59 · 295 · 337줄 — 임베딩 「정했다」를 「유력, Jira 35 전 확정」으로 바꾼다
-- [ ] `docs/plans/2026-10-26-ai-answer-swagger.md` — 이 계획의 사본
+- [x] `SSOT.md` 59 · 295 · 337줄 — 임베딩 「정했다」를 「유력, Jira 35 전 확정」으로 바꾼다
+- [x] `docs/plans/2026-10-26-ai-answer-swagger.md` — 이 계획의 사본
 
 ### B — 코드 (커밋 둘, 각각 실패하는 시험 먼저)
-- [ ] **B1 NewsData 요약 대체 없앰**
+- [x] **B1 NewsData 요약 대체 없앰**
   - 시험을 먼저 고친다
     - `ArticleSummaryAssemblerTest`: 원본 요약만 있으면 summary 는 null 이다(지금은 원본을 씀)
     - `ArticleApiIntegrationTest` · `ArticleControllerTest`: `summarySource` 칸이 응답에 없다(`doesNotExist`). NEWSDATA 사례는 「원본만 있는 기사 → summary null」로 바꾼다
@@ -71,7 +71,7 @@ NewsData 요약 문서는 B 에 넣는다. 계약과 코드가 한 MR 에서 같
     - `docs/glossary.md` 53줄
     - `docs/api.md` FE 질문 5번
     - `docs/data-model.md`: ER 74줄, `source_summary` 줄(「안 씀 — V3 에서 지움」), 5절 16번을 지운다(정해짐)
-- [ ] **B2 Swagger 정리**
+- [x] **B2 Swagger 정리**
   - 시험을 먼저 쓴다. 새 `common/web/OpenApiDocsTest` 는 `BackendApplicationTests` 와 같은 설정(Testcontainers · MockMvc)을 쓰고 `/v3/api-docs` 에서 다섯 가지를 본다
     - 태그 셋 `카테고리` · `이슈` · `기사` 가 이 순서로 설명과 함께 있다
     - 여섯 작업(A1 · A2 · A3 · A4 · A7 · A8)의 summary 가 모두 `[확정] A<번호>` 로 시작한다
@@ -82,8 +82,8 @@ NewsData 요약 문서는 B 에 넣는다. 계약과 코드가 한 MR 에서 같
     - `common/web/OpenApiConfig.java`: 뜻풀이를 쓴다. 「[확정] = docs/api.md 명세대로 만들고 시험을 마쳐 화면이 그대로 써도 됨, 표시 없음 = 만드는 중이라 바뀔 수 있음」. 태그 순서도 여기서 정한다
     - `ArticleController` · `CategoryController` · `IssueController`: `@Tag` · `@Operation` · `@Parameter` · `@ApiResponse` 를 단다
     - `PageQuery` 는 `@ParameterObject` 로 펼치고 칸마다 설명을 단다
-- [ ] B → backend 머지 → backend → dev MR → 태그 MR(deploy/app) 머지 → Argo CD 반영 → 사이트 확인(검증 절)
-- [ ] dev → 분야 브랜치 넷 반영, Jira Done, zoo_docs(learn · decisions · 화면 가이드 Swagger 캡처) · 메모리
+- [x] B → backend 머지 → backend → dev MR → 태그 MR(deploy/app) 머지 → Argo CD 반영 → 사이트 확인(검증 절)
+- [x] dev → 분야 브랜치 넷 반영, Jira Done, zoo_docs(learn · decisions · 화면 가이드 Swagger 캡처) · 메모리
 
 ## 바꿀 파일
 - A: `docs/api-internal.md` · `docs/api.md` · `docs/api-screen.md` · `docs/data-model.md` · `SSOT.md` · 새 `docs/plans/2026-10-26-ai-answer-swagger.md`

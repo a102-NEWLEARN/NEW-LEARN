@@ -79,7 +79,7 @@
 - [x] 커밋 1 「저장」 — V5 · 엔티티 · `MindmapContent` · `ExtractResult` · `EvidenceChecker` · 처리기 + 단위 시험 · W1 통합 시험. 시험을 먼저 써서 빨강을 보고 → 구현 → 초록
 - [x] 커밋 2 「조회」 — A9 · `NO_EVENT` · Swagger + 그 시험. 같은 순서
 - [x] 커밋 3 「문서」 — 스펙 · api-internal · data-model · 끝난 메모 · 계획 사본
-- [ ] `/verify`(되돌림 확인 포함) → reviewer 조수 → MR → `backend` → `dev`(머지 직전마다 원격 dev · 열린 MR) → 태그 MR → 사이트 → 브랜치 맞추기 → Jira 56 완료
+- [x] `/verify`(되돌림 확인 포함) → reviewer 조수 → MR → `backend` → `dev`(머지 직전마다 원격 dev · 열린 MR) → 태그 MR → 사이트 → 브랜치 맞추기 → Jira 56 완료
 
 ## 성공 기준 (`docs/specs/F03-F04-mindmap.md` 에 그대로)
 

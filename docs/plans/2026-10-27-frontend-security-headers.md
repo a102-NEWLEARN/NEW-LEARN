@@ -24,11 +24,11 @@
 
 ## 작업 순서
 
-- [ ] Jira 120 진행 중, 브랜치 `feat/infra/S15P31A102-120-security-headers` ← `origin/infra`
+- [x] Jira 120 진행 중, 브랜치 `feat/infra/S15P31A102-120-security-headers` ← `origin/infra`
 - [ ] 반영 전 기준: `/` · `/assets/*.js` · `/api/v1/categories` 응답 머리를 적어 둠(이미 `/` 는 0개 확인)
-- [ ] 필터 · 주석 · SSOT · 계획 사본, `kubectl apply --dry-run=server` 로 스키마 확인, 게이트
-- [ ] reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR — Jira 123 세션과 겹치면 먼저 들어간 쪽 반영) → Argo CD `app` 동기화
-- [ ] 반영 뒤 확인 → Jira 120 은 1단계 결과 댓글(2단계 전이라 진행 중 유지) · 브랜치 맞추기 · zoo_docs
+- [x] 필터 · 주석 · SSOT · 계획 사본, `kubectl apply --dry-run=server` 로 스키마 확인, 게이트
+- [x] reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR — Jira 123 세션과 겹치면 먼저 들어간 쪽 반영) → Argo CD `app` 동기화
+- [x] 반영 뒤 확인 → Jira 120 은 1단계 결과 댓글(2단계 전이라 진행 중 유지) · 브랜치 맞추기 · zoo_docs
 
 ## 안 바꿀 것
 

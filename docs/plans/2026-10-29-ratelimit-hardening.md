@@ -79,7 +79,7 @@
 - [x] ① 지표 — 파일 · 서버 쪽 시험 적용(`--dry-run=server`) · 게이트 · reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR 다시 봄, infra → dev 는 사용자 승인) → 확인 → 증거를 infra → dev MR 댓글로 — !401 → infra 8df85ce6, !406 → dev 0fce0529(15:31, GitLab 장애로 「conflict」 표시가 남아 MR 을 닫았다 열어 다시 계산). 결과는 `SSOT.md` 10절
 - [x] ② 정책 — 반영 전 접속 시험(사용자) → 파일 · 시험 적용 · 게이트 · reviewer → MR → infra → dev → 반영 뒤 접속 시험 · 상한 다시 재기 → MR 댓글 — !407 → infra 78a16792, !408 → dev 8bb6468a(16:15:07). 결과는 `SSOT.md` 10절. 첫 MR 파이프라인은 GitLab 장애로 잡이 코드를 못 받아(500) 실패 → MR 에 새 파이프라인
 - [x] ③ · ④ Helm 값 — 파일 · `helm template` 대조 · 게이트 · reviewer → MR → infra → dev → 컨트롤러 · 상한 서비스 새 Pod 확인 · 상한 다시 재기 · 캐시 지표 → MR 댓글 — !409 → infra e0ffd5a1, !410 → dev bcdeb05f(16:47:31). 결과는 `SSOT.md` 10절. reviewer 지적으로 바로잡은 사실 둘: v1.9.2 컨트롤러는 설정 파일을 감시해 다시 읽기도 한다(그래도 kubelet 반영을 기다리지 않으려고 해시 주석을 둔다), 상한 키 만료는 1분이 아니라 칸 끝 + 0 ~ 299초. 계획 때 짐작한 `…over_limit_with_local_cache` 이름의 시계열은 나오지 않아, 캐시 수는 다른 길로 읽었다(읽는 법은 `SSOT.md` 10절)
-- [ ] 실측 문서 MR → dev, Jira 새 티켓 완료, 분야 브랜치 넷 dev 에 맞춤
+- [x] 실측 문서 MR → dev, Jira 새 티켓 완료, 분야 브랜치 넷 dev 에 맞춤
 
 ## 안 바꿀 것
 

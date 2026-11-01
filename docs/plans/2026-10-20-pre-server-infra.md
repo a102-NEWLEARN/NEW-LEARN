@@ -36,7 +36,7 @@
   - 나: apply 키로 버킷 생성(CLI), `terraform init -backend-config=backend.hcl`, plan 출력 보여 주기
 - [x] **C. 서버 스크립트 · kubeadm · Cilium 값** (Jira 새 티켓, A 와 파일이 안 겹쳐 따로 진행 가능) — 확인: `bash -n`, kindest/node v1.36.4 이미지 안에서 `kubeadm config validate --config init.yaml`, `helm template` 으로 MTU · devices 반영, ubuntu:24.04 컨테이너에서 `common.sh` 의 패키지 설치 부분
 - [x] **D. EC2 생성 · 컨트롤 플레인** (Jira 새 티켓) — 사용자가 plan(생성 7개)을 읽고 승인 → apply → `common.sh` → `wg-up.sh` → `init-control-plane.sh` → Cilium. 결과를 SSOT 6절 「현재 상태」 · 10절 「잰 것」에. 그 뒤 읽기 전용 키 비활성화(사용자)
-- [ ] 마지막에 infra → dev MR 로 올리고 dev → 분야 브랜치 넷을 맞춘다(Delete source branch 끄기)
+- [x] 마지막에 infra → dev MR 로 올리고 dev → 분야 브랜치 넷을 맞춘다(Delete source branch 끄기)
 
 ## 안 바꿀 것
 

@@ -31,11 +31,11 @@
 
 ## 작업 순서
 
-- [ ] Jira 121 진행 중, 브랜치 `feat/infra/S15P31A102-121-app-ai-data-netpol` ← `origin/infra`
-- [ ] **반영 전 기준(사람이 서버 터미널에서)**: `default` 시험 Pod 에서 다섯 곳(backend · frontend · ai · postgres · redis) `nc -w 3` → 모두 열림이어야 함
-- [ ] 정책 셋 · 이름표 · kustomization · 문서 · 계획 사본, 셋 다 `kubectl apply --dry-run=server`, 게이트
-- [ ] reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR) → Argo CD data · app · ai 동기화
-- [ ] 반영 뒤 확인(아래) → Jira 121 완료 · 브랜치 맞추기 · zoo_docs
+- [x] Jira 121 진행 중, 브랜치 `feat/infra/S15P31A102-121-app-ai-data-netpol` ← `origin/infra`
+- [x] **반영 전 기준(사람이 서버 터미널에서)**: `default` 시험 Pod 에서 다섯 곳(backend · frontend · ai · postgres · redis) `nc -w 3` → 모두 열림이어야 함
+- [x] 정책 셋 · 이름표 · kustomization · 문서 · 계획 사본, 셋 다 `kubectl apply --dry-run=server`, 게이트
+- [x] reviewer 조수 → MR → infra → dev(머지 직전 원격 dev · 열린 MR) → Argo CD data · app · ai 동기화
+- [x] 반영 뒤 확인(아래) → Jira 121 완료 · 브랜치 맞추기 · zoo_docs
 
 ## 안 바꿀 것
 
