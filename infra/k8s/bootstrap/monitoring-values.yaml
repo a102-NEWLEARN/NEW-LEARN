@@ -108,7 +108,9 @@ prometheus:
     # 30초면 CI 잡(분 단위)을 보기에 충분하고, 15초보다 CPU 를 덜 쓴다
     scrapeInterval: 30s
     evaluationInterval: 30s
-    retention: 15d
+    # 7일 — 관리 서버 디스크(29G)를 Prometheus 기록이 하루 약 0.27GB 씩 채워 15일이면 디스크가 80% 근처에서 멈췄다.
+    #   운영은 발표(11-18), 길어야 12월까지라 7일이면 된다(2026-11-02 사용자, Jira S15P31A102-141). 그 전 잰 숫자는 SSOT 10절에 글로 있다
+    retention: 7d
     retentionSize: 8GB
     resources:
       requests:
