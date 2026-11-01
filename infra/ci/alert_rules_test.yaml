@@ -127,7 +127,7 @@ tests:
               fstype: ext4
             exp_annotations:
               summary: "노드 node:9100 루트 디스크 81% 사용"
-              description: "df -h / · sudo du -xh --max-depth=1 / | sort -h 로 큰 곳을 본다. 이미지 정리는 infra/server/alerts.md 「디스크 경보」대로(--prune 은 CI 이미지까지 지운다)"
+              description: "df -h / · sudo du -xh --max-depth=2 /var/lib | sort -h | tail 로 큰 곳을 본다. 이미지 정리는 infra/server/alerts.md 「디스크 경보가 오면」대로(--prune 은 CI 이미지까지 지운다)"
 
   # 매일 백업(04:00)이 26시간 넘게 성공하지 못함. 값은 마지막 성공 시각(초)이다
   - name: 매일 백업 26시간 넘김

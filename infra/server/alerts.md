@@ -37,10 +37,10 @@ Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 
 ## 디스크 경보가 오면 (`NewlearnDiskAlmostFull`, 80%)
 
-80% 는 미리 알리는 선이다. kubelet 은 85% 에서 안 쓰는 이미지를 지우고, 같은 선에서 Pod 를 내쫓기 시작한다(이미지 정리 85/80 · 축출 `imagefs.available<15%`, 디스크가 하나라 같은 선 — 두 노드 `configz` 로 2026-11-02 확인). 관리 서버(EC2) 기준이다.
+80% 는 미리 알리는 선이다. 85% 에서 kubelet 이 DiskPressure 가 된다(축출 `imagefs.available<15%` — 디스크가 하나라 루트 기준, 이미지 정리 85/80, 두 노드 `configz` 로 2026-11-02 확인). 그러면 안 쓰는 이미지(CI 이미지 포함)부터 지우고, 그래도 넘치면 Pod 를 내쫓는다. 그동안 노드에 `node.kubernetes.io/disk-pressure:NoSchedule` 테인트가 붙어, 관리 서버에 묶인 CI 잡(control-plane 테인트만 허용 — `gitlab-runner-values.yaml`)과 백업 CronJob 이 뜨지 못한다. 관리 서버(EC2) 기준이다. Prometheus 보존을 7일로 줄인 뒤에도 이미지 · CI 캐시는 계속 는다.
 
 1. 큰 곳 — `df -h /` · `sudo du -xh --max-depth=2 /var/lib | sort -h | tail`. 평소에는 containerd(이미지) · `/var/lib/newlearn/prometheus`(보존 7일 · 8GB, `monitoring-values.yaml`) · `/var/lib/newlearn/ci-cache` 순이다
-2. 이미지 — 어떤 컨테이너도 안 쓰고 CI · 매니페스트가 부르지 않는 것만 이름으로 지운다(`sudo crictl rmi <이름>`). 다이제스트로 고정한 CI 잡 이미지(`.gitlab-ci.yml` 의 node · uv · gradle · buildpack-deps · terraform · python · kaniko · services 의 redis · pgvector)는 잡이 끝나면 「안 씀」으로 보이지만 다음 잡이 다시 받는다. pause · 러너 helper · webhook-certgen 도 남긴다. `crictl rmi --prune` 은 이것들까지 지워 쓰지 않는다
+2. 이미지 — 어떤 컨테이너도 안 쓰고 CI · 매니페스트가 부르지 않는 것만 이름으로 지운다(`sudo crictl rmi <이름>`). 다이제스트로 고정한 CI 잡 이미지(`.gitlab-ci.yml` 의 node · uv · gradle · buildpack-deps · terraform · python · kaniko · services 의 redis · pgvector)는 잡이 끝나면 「안 씀」으로 보이지만 다음 잡이 다시 받는다. 백업 CronJob 의 `amazon/aws-cli`(주 1회라 엿새는 「안 씀」으로 보인다) · `pgvector/pgvector`(`infra/k8s/services/data/postgres-backup.yaml`), pause · 러너 helper · webhook-certgen 도 남긴다. `crictl rmi --prune` 은 이것들까지 지워 쓰지 않는다
 3. Prometheus — `prometheus_tsdb_storage_blocks_bytes` 가 보존 안에서 멈춰 있나 본다. 수집 대상이 늘면 하루 증가분이 커진다
 
 ## 바꿀 때
