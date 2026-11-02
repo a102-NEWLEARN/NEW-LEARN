@@ -16,10 +16,11 @@ variable "instance_type" {
   default     = "t3.large"
 }
 
+# 2026-11-02 30 → 50 (Jira S15P31A102-146). 늘리기만 된다 — 하는 법은 infra/README.md 「루트 디스크 늘리기」
 variable "root_volume_gb" {
   description = "루트 디스크 크기 (GiB)"
   type        = number
-  default     = 30
+  default     = 50
 }
 
 variable "ssh_public_key" {
