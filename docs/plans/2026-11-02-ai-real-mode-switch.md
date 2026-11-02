@@ -27,9 +27,10 @@ B1 은 ai Pod 안에서 부른다 — ai → backend 는 W1 때문에 이미 열
 
 ## 작업 순서
 
-- [ ] MR(작업 브랜치 → infra) — 위 파일, 커밋 둘(문서 · 주석 / `ai.yaml`). 확인: 파이프라인 success, 서버에 폴더를 보내(`scp -r infra/k8s/services/ai newlearn:/tmp/ai-115`) `kubectl diff -k /tmp/ai-115` 에서 바뀌는 것이 ai Deployment 의 env 둘뿐
-- [ ] infra → dev MR(소스 브랜치 지우기 끔) — 머지 직전 원격 dev SHA · 열린 MR 을 같은 스크립트에서 API 로 읽고, 파이프라인 success 뒤 머지. 머지는 인프라 담당 지시로 Claude 가 MR 화면에서 한다(2026-11-02) — 자동 권한 검사가 막으면 우회하지 않고 인프라 담당이 누른다. 확인: 아래 검증 2
-- [ ] B1 기사 1 → 확인(검증 3) → 기사 2 · 3 → 확인(검증 4 · 5) → AI 팀장에게 기사 ID · EXTRACT jobId · 완료 로그 · DB 결과를 넘김. **이 계획의 승인이 B1 셋(GMS 크레딧 사용 · 기사 1 · 2 공개)까지 덮는다**
+- [x] MR(작업 브랜치 → infra) — 위 파일, 커밋 둘(문서 · 주석 / `ai.yaml`). 확인: 파이프라인 success, 서버에 폴더를 보내(`scp -r infra/k8s/services/ai newlearn:/tmp/ai-115`) `kubectl diff -k /tmp/ai-115` 에서 바뀌는 것이 ai Deployment 의 env 둘뿐 — !519, 파이프라인 #260496, `kubectl diff -n ai -k` 는 env 둘(나머지는 손으로 diff 할 때만 보이는 Argo CD 추적 표시), 2026-11-02 16:54 infra 머지
+- [x] infra → dev MR(소스 브랜치 지우기 끔) — 머지 직전 원격 dev SHA · 열린 MR 을 같은 스크립트에서 API 로 읽고, 파이프라인 success 뒤 머지. 머지는 인프라 담당 지시로 Claude 가 MR 화면에서 한다(2026-11-02) — 자동 권한 검사가 막으면 우회하지 않고 인프라 담당이 누른다. 확인: 아래 검증 2 — !520, 파이프라인 #260520, 16:57:27 dev 머지(89f286a5). 머지 3초 뒤 새 Pod, 8초 뒤 Ready · 재시작 0, `/health` gms · RUNNING, 소비자 1, 교체 동안 사이트 health 274번 실패 0
+- [x] B1 기사 1 → 확인(검증 3) → 기사 2 · 3 → 확인(검증 4 · 5) → AI 팀장에게 기사 ID · EXTRACT jobId · 완료 로그 · DB 결과를 넘김. **이 계획의 승인이 B1 셋(GMS 크레딧 사용 · 기사 1 · 2 공개)까지 덮는다** — 기사 1(job 1) · 2(job 3) `SUCCEEDED` · `gpt-6-luna` · `extract-v4.12-mindmap` · 공개, 대표 번호 0 · null(기대와 같음), 기사 3(job 5) `INPUT_NOT_ANALYZABLE` · `calls=0` · 미공개 · A8 · A9 404, extract 미ACK 0, EMBED 셋 `QUEUED`(lag 3). 결과는 Jira 115 댓글. AI 팀장이 A8 · A9 로 세 경로를 확인함(기사 2 마인드맵의 원문에 없는 표현은 AI 팀이 다음 프롬프트 판 사례로)
+- [x] 켠 뒤 관찰(검증 8) — 07:50 ~ 08:30 UTC 40분 창(켠 순간 · 기사 처리 포함): ai 메모리 최대 61MiB · CPU 최대 0.04코어, 워커 노드 steal 최대 0.12코어 · 평균 0.08코어, ai 재시작 0. Prometheus 15초 · 1분 표본이라 짧은 순간 최대는 놓쳤을 수 있다
 - [ ] 기록 — Jira 115 댓글 · 완료 기준 4 고침(인프라 담당 승인 뒤), `SSOT.md` 6절(ai 키 · 모드) · 10절(잰 값)은 Jira 151 문서 MR 이 머지된 뒤 따로
 
 ## 안 바꿀 것

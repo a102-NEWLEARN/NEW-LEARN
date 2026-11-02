@@ -135,7 +135,7 @@ B 를 고른 까닭: 이미 상한에 닿은 굽기를 건드리지 않는다. �
 ### C — MR 2: 실제 모드 (AI 코드가 dev 에 들어오고 AI 팀이 켜자고 한 뒤)
 세부 계획은 `docs/plans/2026-11-02-ai-real-mode-switch.md`(2026-11-02 승인) — 이번엔 EXTRACT 까지.
 - [x] `ai.yaml` 에 `GMS_API_KEY`(secretKeyRef `gms-api`) · `LLM_MODE=gms`(봉인 파일은 B 에서 이미 넣음). 모델 경로 env 는 EXTRACT 가 임베딩 모델을 안 읽어 EMBED 워커 때로 미룬다
-- [ ] MR → infra → dev. 반영 뒤 검증 절 C
+- [x] MR → infra → dev. 반영 뒤 검증 절 C — !519 · !520(2026-11-02 16:57 dev), 결과는 세부 계획의 「작업 순서」
 - [ ] `SSOT.md` 6절(ai 자리 · 키) · 10절(잰 값) — 메인 세션의 BE 문서 작업과 겹치지 않을 때 같은 MR 이나 다음 MR 로
 
 ## 바꿀 파일
