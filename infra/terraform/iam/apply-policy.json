@@ -93,14 +93,19 @@
         "s3:GetReplicationConfiguration",
         "s3:PutBucketTagging",
         "s3:PutBucketPublicAccessBlock",
-        "s3:PutLifecycleConfiguration"
+        "s3:PutLifecycleConfiguration",
+        "s3:PutBucketVersioning",
+        "s3:ListBucketVersions"
       ],
       "Resource": "arn:aws:s3:::newlearn-pg-backup-*"
     },
     {
       "Sid": "PgBackupObjectsRead",
       "Effect": "Allow",
-      "Action": "s3:GetObject",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion"
+      ],
       "Resource": "arn:aws:s3:::newlearn-pg-backup-*/*"
     },
     {
