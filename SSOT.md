@@ -127,7 +127,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 - 쿠버네티스(kubeadm으로 직접 구축) 노드 2대
   - 관리 서버(컨트롤 플레인): AWS EC2 t3.large. 팀 AWS 계정. Terraform으로 생성·삭제
-    - Ubuntu 24.04 LTS · gp3 50 GiB(암호화, 2026-11-02 30 에서 늘림 — Jira S15P31A102-146) · IMDSv2 · 탄력적 IP(컨트롤 플레인 주소가 클러스터 인증서에 들어가서) · CPU 크레딧 standard 고정(T3 기본 unlimited는 초과 요금) · 서울 리전. 코드는 `infra/terraform/`
+    - Ubuntu 24.04 LTS · gp3 50 GiB(암호화, 2026-11-02 30 에서 늘림 — Jira S15P31A102-146) · IMDSv2 · 탄력적 IP(컨트롤 플레인 주소가 클러스터 인증서에 들어가서) · CPU 크레딧 unlimited(2026-11-02 standard 에서 바꿈 — 9절, Jira S15P31A102-149) · 서울 리전. 코드는 `infra/terraform/`
     - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. Lightsail 공인 IP에서 오는 WireGuard 51820/udp 하나만 더 연다. 쿠버네티스 포트(6443·10250·Cilium)는 WireGuard 터널 안으로만 다녀서 밖에 열지 않는다(아래 「노드 사이 — 호스트 WireGuard」). kubectl은 SSH 터널로 6443에 붙는다
     - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다. 2026-10-22 받은 날 확인: 돌아오는 WireGuard UDP가 지나가고, SSAFY 쪽 방화벽에서 80 · 443이 열려 있다(아래 「현재 상태」). 서버 안 방화벽(ufw)은 지급 때 22만 열려 있다
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
@@ -141,7 +141,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
     - 동시 2, 잡 요청 500m · 1Gi, 상한 CPU 2 · 메모리 3Gi(덮어쓰기 상한도 같다 — 넘게 요청하면 잡이 실패한다). 서비스는 CPU 요청만큼 늘 받는다. 갈래 이름표 `w4`는 러너가 고정으로 붙인다
     - 네임스페이스 `gitlab-runner-build` 전체에 CiliumNetworkPolicy — 나가는 길은 바깥 인터넷 · kube-dns · API 서버(매니저용)뿐이라 같은 노드의 postgres · redis · Argo CD · 앱에 못 붙는다(10절). 잡은 네임스페이스와 이름표를 바꿀 수 없어 MR이 CI 파일을 고쳐도 정책을 벗어나지 못한다. 특권 없음 · 서비스 계정 토큰 없음은 검사 러너와 같다
     - 값은 `infra/k8s/bootstrap/gitlab-runner-build-values.yaml` · `build-netpol.yaml`, 까는 법은 `infra/server/README.md` 「굽기 러너」. 토큰은 서버의 Secret(`gitlab-runner-build-token`)에만
-  - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. standard라 다 쓰면 노드 전체가 기준선(vCPU당 30%)으로 묶인다. 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
+  - CPU를 오래 쓰면 EC2 CPU 크레딧(t3.large 시간당 36 적립, 최대 864)이 준다. 2026-11-02 부터 unlimited 라 다 써도 묶이지 않고, 기준선을 넘게 쓴 만큼 vCPU 시간당 USD 0.05 가 붙는다(그 전 standard 때는 노드 전체가 기준선 vCPU당 30%로 묶였다). 잔액은 EC2 콘솔 Monitoring 탭에서 본다(apply 키에는 CloudWatch 권한이 없다)
 - CI 파이프라인: `.gitlab-ci.yml`(2026-10-20, Jira S15P31A102-92). MR과 dev push에서 돈다. 계획은 `docs/plans/2026-10-20-ci-pipeline.md`
   - 잡을 「무엇에 막히나」로 나눈 갈래로 둔다 — w0 규칙(시크릿 스캔 · MR 규칙 · 하네스 자체 검사) → w12 영역 검사(frontend · ai · infra) · w3 backend(DB · Redis가 필요한 테스트). 영역 잡은 `pre-commit --ci <영역>`으로 `.claude/stack.md` 3절 명령을 그대로 돈다. MR은 바뀐 영역만, dev는 전부 돈다. 하네스 자체 검사는 `.claude/`가 바뀔 때와 dev에서만. 검사마다 언제 도는지는 아래 「CI 검사 정책」
   - dev → 분야 브랜치 맞추기 MR은 규칙 잡(`w0:rules`)만 돈다(`.skip-dev-sync-mr`, 2026-10-28, Jira S15P31A102-131). MR 파이프라인은 출발 브랜치 끝 커밋에서 돌아서, 맞추기 MR은 dev push가 이미 검사한 커밋을 그대로 다시 검사했다 — 10-20 ~ 10-28 파이프라인 123개 모두 같은 커밋, 잡 시간의 26%(10절). 실습 코치님 조언(「같은 변경으로 파이프라인이 중복 실행되는지」)을 따라 기록을 대조해 찾았다
@@ -363,6 +363,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 날짜 | 무엇을 | 왜 |
 |---|---|---|
+| 2026-11-02 | 관리 서버 EC2 CPU 크레딧 standard → unlimited (Jira S15P31A102-149) | Prometheus 7일(11-02): CPU 평균 27.9%로 기준선(30%) 바로 아래인데 steal 평균 7.5% · 최고 29.4% — 크레딧이 바닥나 CI · 컨트롤 플레인이 자주 묶였다. 10-18 에는 승인 금액 안에 두려고 standard 로 했지만, 11월 사용료가 크레딧 안이고 SSAFY 승인(EC2 t3.large 1대)은 아직 쓰지 않았다. unlimited 는 같은 t3.large 라 승인 범위 안이고 넘게 쓴 만큼만 낸다(사용자 결정) |
 | 2026-11-02 | backend 「요청을 받아도 되나」(readiness): DB · Redis → DB만, Redis 명령 대기 60초 → 3초 · 다시 붙기 빠르게 (Jira S15P31A102-145) | Redis 재시작 실측(관리 서버에서 `redis-0` 삭제): Redis는 2.63초 만에 다시 떴고 데이터도 그대로였지만, backend가 다시 붙는 데 약 10초 걸려 그동안 readiness가 시간 초과로 「준비 안 됨」이 됐다. Redis가 10초 넘게 멈추면 Redis가 필요 없는 조회 API까지 503이 된다. 자동 failover(Sentinel)는 노드가 둘이라 맞지 않아 하지 않는다(사용자 2026-11-02) |
 | 2026-11-02 | Prometheus 보존 15일 → 7일, 디스크 경보 85% → 80% | 관리 서버 디스크(29G)가 하루 약 1.2%p 늘었고 대부분이 Prometheus 기록이었다(3일 값 1.18%p 중 약 0.93%p). 85% 는 kubelet 이 DiskPressure 가 되는 선이라 경보가 그 전에 와야 한다. 운영은 발표(11-18), 길어야 12월이라 7일이면 된다 — 사용자 결정(Jira S15P31A102-141, 6절 「모니터링」 · `infra/server/alerts.md`) |
 | 2026-10-30 | 입구 상한 숫자: 가입 10 · 로그인 20 → 가입 100 · 로그인 300 (1분, IP 하나) | 사이트 QA · 발표 때 교육생 · 심사위원이 같은 와이파이(공인 IP 하나)라 같은 1분에 11번째 가입부터 429. 사용자 결정으로 끄지 않고 숫자만 올림(Jira S15P31A102-137). 대가는 6절 「외부 입구」 — 운영이 끝날 때까지 이 숫자로 둔다(2026-11-02) |
