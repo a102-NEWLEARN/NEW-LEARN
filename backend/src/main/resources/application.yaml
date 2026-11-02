@@ -24,6 +24,12 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Redis 가 멈추면 명령이 이만큼 기다리다 실패한다(Lettuce 기본 60초) — 로그인 · 세션을 쓰는 요청이 오래 매달리지 않게.
+      # backend 는 막아 두고 읽는 명령이 없다(큐는 XADD 만, 읽기는 AI 워커) (Jira 145)
+      timeout: 3s
+      # 다시 붙을 때 한 번 시도의 상한(기본 10초) — 2026-11-02 Redis 재시작 실측에서 다시 붙는 데 약 10초 걸렸다.
+      # 다시 붙는 간격은 RedisClientConfig (Jira 145)
+      connect-timeout: 2s
   devtools:
     livereload:
       enabled: false
@@ -47,14 +53,16 @@ server:
         secure: ${SESSION_COOKIE_SECURE:false}
 
 # 쿠버네티스 프로브가 묻는 전용 주소 (Jira 29) — /actuator/health/liveness · /readiness 는 스프링이 기본으로 연다
-# readiness(「요청을 받아도 되나」)는 DB · Redis 까지 본다. 둘 중 하나가 안 되면 Envoy 가 이 Pod 로 요청을 보내지 않는다 (SSOT.md 6절)
+# readiness(「요청을 받아도 되나」)는 DB 만 본다. DB 가 안 되면 Envoy 가 이 Pod 로 요청을 보내지 않는다 (SSOT.md 6절)
+# Redis 는 빼 둔다 — Redis 가 멈춰도 Redis 가 필요 없는 조회 API 는 계속 받는다. 로그인 · 세션 · 작업 큐 넣기 · 사전처럼
+# Redis 를 쓰는 요청은 지금처럼 오류로 돌아온다. 전체 /actuator/health 는 Redis 를 계속 보여 준다 (2026-11-02 Jira 145)
 # liveness(「살아 있나」)는 앱 상태만 본다 — DB 가 잠깐 끊겼다고 재시작하지 않게
 management:
   endpoint:
     health:
       group:
         readiness:
-          include: readinessState,db,redis
+          include: readinessState,db
 
 # 직원용 문(/internal/**) 출입증 두 장 (Jira 30) — 워커 키는 W1, 배치 키는 B1 만 연다. 비어 있으면 모두 막는다
 # 사이트는 봉인 Secret internal-api 를 env 로 넣는다(Jira 30 의 Infra 작업, 넣기 전에는 비어 모두 막힘). 로컬은 루트 .env
