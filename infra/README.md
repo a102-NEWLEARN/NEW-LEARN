@@ -130,7 +130,7 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 관리 서버를 멈추지 않고 늘린다. EBS 는 줄일 수 없다. 다시 바꾸려면 앞 변경이 `completed` 가 될 때까지 기다리고, 연속 24시간에 최대 4번까지 바꿀 수 있다(AWS 문서 「Modify an Amazon EBS volume using Elastic Volumes」, 2026-11-02 확인).
 
 0. (권장) 스냅샷 — EC2 콘솔(루트 계정) → 볼륨 → 스냅샷 생성(apply 키에는 스냅샷 권한이 없다). 상태가 `완료됨` 이 된 뒤 다음으로(첫 스냅샷은 수십 분 걸릴 수 있다 — 잰 값은 `SSOT.md` 10절)
-1. `variables.tf` 의 `root_volume_gb` 를 올리고 MR 로 머지한다
+1. `variables.tf` 의 `root_volume_gb` 기본값과 `validation` 하한을 같이 올리고 MR 로 머지한다
 2. plan 이 `aws_instance.control_plane` 하나를 제자리에서 바꾸는지(`1 to change`, `root_block_device` 의 `volume_size` 만) 본다. `must be replaced` 가 나오면 멈춘다 — 서버를 새로 만든다는 뜻이다
 3. apply. apply 키에 `ec2:ModifyVolume` 이 있어야 한다(`iam/apply-policy.json`, IAM 콘솔의 정책도 같게)
 4. 서버에서 `lsblk` 로 디스크(`nvme0n1`)가 새 크기인지 보고, 1번 파티션과 파일 시스템(ext4)을 넓힌다
@@ -145,6 +145,28 @@ sudo resize2fs /dev/nvme0n1p1
 
 5. `df -h /` 로 크기를 확인한다
 6. 며칠 문제가 없으면 0번 스냅샷을 콘솔에서 지운다 — 지우면 되돌릴 수 없다
+
+## CPU 크레딧 standard 로 되돌리기 (Jira S15P31A102-149)
+
+지금 설정과 왜 그렇게 두었는지는 `SSOT.md` 6 · 9절에 있다. 서버를 멈추지 않고 바꾼다 — 크레딧 설정은 실행 중이거나 멈춘 인스턴스에서 언제든 바꿀 수 있다(AWS 문서 「Unlimited mode concepts for burstable instances」, 2026-11-02 확인).
+
+0. 콘솔에서 두 값을 본다. 둘 다 EC2 가 5분마다 CloudWatch 로 보내는 인스턴스별 지표이고, apply 키에는 CloudWatch 권한이 없어 사람이 본다
+   - 크레딧 잔액(`CPUCreditBalance`) — EC2 콘솔 모니터링 탭의 「CPU 크레딧 밸런스」. 최대는 `SSOT.md` 6절
+   - 초과 크레딧 잔액(`CPUSurplusCreditBalance`) — 쌓인 크레딧을 다 쓴 뒤 당겨 쓰고 아직 갚지 않은 크레딧. CloudWatch 콘솔의 EC2 인스턴스별 지표에서 본다
+   - **초과 크레딧 잔액이 0 이고 크레딧 잔액이 넉넉할 때 바꾼다**
+1. 초과 크레딧 잔액이 0 보다 크면 바꾸는 순간 두 가지가 같이 온다 — 그 초과분이 바로 청구된다. 이때 크레딧 잔액은 0 이고 그대로 넘어간다. 그래서 standard 가 된 서버는 기준선(`SSOT.md` 6절)까지 서서히 내려오고 다시 쌓일 때까지 기준선을 넘지 못한다. 초과 크레딧 잔액이 0 이어도 크레딧 잔액이 0 이면 뒤의 것(기준선)은 온다. 기준선 아래로 쓰는 동안에는 크레딧을 쌓기 전에 초과 크레딧부터 갚는다. 한가한 때를 기다리면 초과 크레딧 잔액이 0 이 된다
+   - 출처(AWS EC2 사용 설명서, 2026-11-02 확인): 「Unlimited mode concepts for burstable instances」의 「What happens to credits when switching between Unlimited and Standard」 · 「Surplus credits can incur charges」, 「Key concepts for burstable performance instances」, 「Monitor CPU credits for burstable instances」의 「Calculate CPU credit usage for Unlimited instances」
+2. 아래를 한 MR 에 함께 바꿔 머지한다. 하나라도 빠지면 문서가 서버와 어긋난다
+   - `compute.tf` 의 `cpu_credits` 와 그 위 주석, `tests/security_group.tftest.hcl` 의 같은 단언과 오류 문구
+   - `SSOT.md` 6절 서버 줄 · CPU 크레딧 줄, 9절에 뒤집은 줄 하나. 8절에 이 결정 줄이 남아 있으면 지운다
+   - `infra/k8s/bootstrap/ci-exporter/ci-dashboard.json` 「노드 CPU 사용 (코어)」 설명 — 머지 뒤 서버에서 다시 적용한다(`infra/server/README.md` 「CI 잡 지표」)
+3. 머지한 코드로 plan 해서 `aws_instance.control_plane` 하나를 제자리에서 바꾸는지(`1 to change`, `credit_specification` 의 `cpu_credits` 만) 본다. 149 때도 같았다(MR !509). `must be replaced` 가 나오면 멈춘다
+4. apply 직전에 0번을 다시 본다(같은 서버에서 CI 가 돌아 그사이 초과 크레딧이 생길 수 있다). apply 키에 `ec2:ModifyInstanceCreditSpecification` 이 있어야 한다(`iam/apply-policy.json`)
+5. 확인 — `standard` 가 나와야 한다
+
+```bash
+aws ec2 describe-instance-credit-specifications --instance-ids "$(terraform -chdir=infra/terraform output -raw control_plane_instance_id)" --query "InstanceCreditSpecifications[0].CpuCredits" --output text --region ap-northeast-2 --profile newlearn-apply
+```
 
 ## DB 백업 버킷 · 올리는 키 (Jira S15P31A102-109)
 
