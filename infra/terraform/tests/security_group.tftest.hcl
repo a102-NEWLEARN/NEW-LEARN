@@ -92,8 +92,8 @@ run "디스크_암호화_IMDSv2_크레딧_고정" {
   }
 
   assert {
-    condition     = aws_instance.control_plane.credit_specification[0].cpu_credits == "standard"
-    error_message = "T3 CPU 크레딧은 standard 여야 한다 — unlimited 는 초과 요금이 붙는다"
+    condition     = aws_instance.control_plane.credit_specification[0].cpu_credits == "unlimited"
+    error_message = "T3 CPU 크레딧은 unlimited — standard 는 크레딧이 바닥나면 기준선(vCPU 당 30%)으로 묶여 CI · 컨트롤 플레인이 느려진다 (Jira S15P31A102-149)"
   }
 }
 
