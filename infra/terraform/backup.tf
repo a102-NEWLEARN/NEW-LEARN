@@ -33,8 +33,8 @@ resource "aws_s3_bucket_versioning" "pg_backup" {
   }
 }
 
-# 주간 백업은 35일(약 5주) 남긴다 — 발표(11-18) 뒤까지 덮는다. 올리는 키는 지울 수 없어 지우기는 이 규칙만 한다
-# 버전 관리 버킷에서 35일 만료는 삭제 표시를 얹을 뿐이라, 이전 판도 35일 뒤 지우고 남은 삭제 표시를 치운다
+# 주간 백업의 지금 판은 35일(약 5주) 둔다 — 발표(11-18) 뒤까지 덮는다. 버전 관리 버킷에서 이 만료는 삭제 표시를 얹을 뿐이라,
+# 이전 판도 35일 뒤 지우고 남은 삭제 표시를 치운다. 올리는 키는 지울 수 없어 지우기는 이 규칙만 한다
 resource "aws_s3_bucket_lifecycle_configuration" "pg_backup" {
   bucket = aws_s3_bucket.pg_backup.id
 

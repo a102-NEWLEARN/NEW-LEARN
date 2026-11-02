@@ -41,7 +41,7 @@
 
 ## 작업 순서
 
-- [ ] MR A: 관리 서버 steal 측정(창 · 식 기록) → 10절 맨 위 줄 · 대시보드 설명 → reviewer → MR → infra 머지
+- [x] MR A: 관리 서버 steal 측정(창 · 식 기록) → 10절 맨 위 줄 · 대시보드 설명 → reviewer → MR → infra 머지
 - [ ] MR B: A 머지된 infra 에서 브랜치 → 고치기 → grep · `terraform plan` → reviewer → MR → infra 머지
 - [ ] infra → dev 한 번 → 분야 브랜치 셋 맞추기 → `/feature-done` → Jira 149 · 150 완료
 - [ ] 사용자: dev 머지 커밋의 `infra/k8s/bootstrap/ci-exporter` 를 서버로 보내 `kubectl diff -k` 로 대시보드 ConfigMap 만 바뀌는지 본 뒤 `kubectl apply -k` → Grafana 에서 설명 확인 — 파일 카드로

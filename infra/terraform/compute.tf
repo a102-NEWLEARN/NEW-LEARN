@@ -30,7 +30,8 @@ resource "aws_instance" "control_plane" {
     encrypted   = true
   }
 
-  # unlimited — standard 는 크레딧이 바닥나면 기준선(vCPU 당 30%)으로 묶여 CI · 컨트롤 플레인이 느려졌다(7일 steal 평균 7.5% · 최고 29.4%)
+  # unlimited — standard 는 크레딧이 바닥나면 기준선(vCPU 당 30%)으로 묶인다. 7일 steal 평균 7.5% · 최고 29.4% 를 그 묶임으로 보고 켰으나
+  # 반영 뒤 steal 평균이 줄지 않아 원인은 확인 못 함(SSOT 9 · 10절)
   # 기준선을 넘게 쓴 만큼만 vCPU 시간당 USD 0.05. 같은 t3.large 라 SSAFY 승인(EC2 1대) 범위 안 (Jira S15P31A102-149, 10-18 에는 standard 였음)
   credit_specification {
     cpu_credits = "unlimited"
