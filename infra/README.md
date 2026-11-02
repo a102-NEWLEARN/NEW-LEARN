@@ -152,7 +152,7 @@ sudo resize2fs /dev/nvme0n1p1
 
 0. 콘솔에서 두 값을 본다. 둘 다 EC2 가 5분마다 CloudWatch 로 보내는 인스턴스별 지표다. apply 키에는 CloudWatch 권한이 없어 사람이 본다
    - 크레딧 잔액(`CPUCreditBalance`) — EC2 콘솔 모니터링 탭의 「CPU 크레딧 밸런스」. 최대는 `SSOT.md` 6절
-   - 초과 크레딧 잔액(`CPUSurplusCreditBalance`) — 쌓인 크레딧을 다 쓴 뒤 당겨 쓰고 아직 갚지 않은 크레딧. EC2 콘솔 모니터링 탭에 그래프가 있는지는 확인하지 못했다(AWS 문서는 CloudWatch 콘솔의 EC2 인스턴스별 지표를 안내한다. CloudWatch 를 쓸지는 `SSOT.md` 6절)
+   - 초과 크레딧 잔액(`CPUSurplusCreditBalance`) — 쌓인 크레딧을 다 쓴 뒤 당겨 쓰고 아직 갚지 않은 크레딧. 2026-11-02 EC2 콘솔 모니터링 탭(그래프 8개)에는 없었다. 다만 크레딧 잔액이 0 보다 크면 초과 크레딧 잔액은 0 이다(AWS 계산식) — EC2 탭의 크레딧 잔액만 봐도 된다
    - 초과 크레딧 잔액이 0 보다 크면 바꾸는 순간 그 초과분이 바로 청구된다. 이때 크레딧 잔액은 0 이고 그대로 넘어간다
    - 크레딧 잔액 0 으로 standard 가 되면 기준선(크레딧 없이 계속 쓸 수 있는 CPU 몫, 값은 `SSOT.md` 6절)보다 많이 쓰던 서버는 기준선까지 서서히 내려온다. 다시 쌓일 때까지 기준선을 넘지 못한다
    - 기준선 아래로 쓰는 동안에는 크레딧을 쌓기 전에 초과 크레딧부터 갚는다. 한가한 때를 기다리면 초과 크레딧 잔액이 0 이 된다
@@ -160,7 +160,7 @@ sudo resize2fs /dev/nvme0n1p1
    - 출처(AWS EC2 사용 설명서, 2026-11-02 확인): 「Unlimited mode concepts for burstable instances」의 「What happens to credits when switching between Unlimited and Standard」 · 「Surplus credits can incur charges」, 「Key concepts for burstable performance instances」, 「Monitor CPU credits for burstable instances」의 「Calculate CPU credit usage for Unlimited instances」
 1. 아래를 한 MR 에 함께 바꿔 머지한다. 하나라도 빠지면 문서가 서버와 어긋난다
    - `compute.tf` 의 `cpu_credits` 와 그 위 주석, `tests/security_group.tftest.hcl` 의 같은 단언과 오류 문구
-   - `SSOT.md` 6절 서버 줄 · CPU 크레딧 줄, 9절에 뒤집은 줄 하나. 8절에 이 결정 줄이 남아 있으면 지운다
+   - `SSOT.md` 6절 서버 줄 · CPU 크레딧 줄(「그대로 둔다」 줄 포함), 9절에 뒤집은 줄 하나
    - `infra/k8s/bootstrap/ci-exporter/ci-dashboard.json` 「노드 CPU 사용 (코어)」 설명(서버 적용은 4번 뒤)
    - 이 절 — 지우거나, 다시 켤 때를 위해 「unlimited 로 바꾸기」로 고쳐 쓴다
 2. 머지한 코드로 plan 해서 `aws_instance.control_plane` 하나를 제자리에서 바꾸는지(`1 to change`, `credit_specification` 의 `cpu_credits` 만) 본다. 149 때도 같았다(MR !509). `must be replaced` 가 나오면 멈춘다
