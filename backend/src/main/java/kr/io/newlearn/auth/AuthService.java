@@ -9,11 +9,14 @@ import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.member.Member;
 import kr.io.newlearn.member.MemberRepository;
 import kr.io.newlearn.member.MemberService;
+import kr.io.newlearn.member.PasswordRule;
 import kr.io.newlearn.member.dto.MemberResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 // A15 로그인 — 아이디 · 비밀번호를 맞춰 보고 회원 정보를 준다. 세션을 여는 일은 컨트롤러가 LoginSessions 로 한다 (Jira 62)
+// 클래스 트랜잭션을 두지 않는다 — bcrypt 비교 · Redis 잠금 동안 DB 연결을 잡지 않게. 조회는 저장소 · MemberService 가
+// 각자 짧은 트랜잭션으로 한다(docs/backend-convention.md 6절 예외, Jira 144)
 @Service
 public class AuthService {
 
@@ -58,7 +61,7 @@ public class AuthService {
 
     private boolean passwordMatches(String password, Optional<Member> member) {
         // bcrypt 가 읽지 못하는 길이는 비교하지 않고 틀린 것으로 본다(가입에서 막아 맞는 회원이 있을 수 없다)
-        if (MemberService.tooLongForHash(password)) {
+        if (PasswordRule.tooLongForHash(password)) {
             return false;
         }
         if (member.isEmpty()) {

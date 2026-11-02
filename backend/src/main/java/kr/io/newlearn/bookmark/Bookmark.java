@@ -1,6 +1,11 @@
 package kr.io.newlearn.bookmark;
 
-import jakarta.persistence.*;
+import jakarta.persistence.EmbeddedId;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapsId;
 import java.time.Instant;
 import kr.io.newlearn.article.Article;
 import kr.io.newlearn.member.Member;

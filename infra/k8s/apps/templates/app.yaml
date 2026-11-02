@@ -5,7 +5,7 @@ metadata:
   name: app
   namespace: argocd
   annotations:
-    # data(3) 뒤 — backend 가 뜰 때 DB · Redis 가 있어야 준비 확인이 지나간다
+    # data(3) 뒤 — backend 는 뜰 때 DB(준비 확인)와 Redis(스트림 그룹 만들기, StreamGroupsInitializer)가 있어야 뜬다
     argocd.argoproj.io/sync-wave: "4"
     # 새 이미지로 배포가 끝나면 Mattermost 배포 알림 채널로 (infra/k8s/bootstrap/argocd-values.prod.yaml 의 notifications)
     notifications.argoproj.io/subscribe.on-deployed.mattermost: ""

@@ -1,5 +1,8 @@
 package kr.io.newlearn.mindmap.dto;
 
+import static kr.io.newlearn.analysis.ResultFields.absent;
+import static kr.io.newlearn.analysis.ResultFields.invalid;
+
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
@@ -7,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
-import kr.io.newlearn.analysis.ResultSchemaInvalidException;
+import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.mindmap.MindmapContent;
 import kr.io.newlearn.mindmap.MindmapContent.Branch;
 import kr.io.newlearn.mindmap.MindmapContent.BranchType;
@@ -177,18 +180,10 @@ public record ExtractResult(
 
         // PostgreSQL 의 text · jsonb 는 U+0000 을 받지 않는다 — 그대로 두면 저장(커밋) 때 500 이다
         private static String storable(String value, String field) {
-            if (value.indexOf('\u0000') >= 0) {
+            if (QueryText.containsNul(value)) {
                 throw invalid(field + " 에 DB 에 넣을 수 없는 글자(U+0000)가 있다");
             }
             return value;
-        }
-
-        private static boolean absent(JsonNode node) {
-            return node.isMissingNode() || node.isNull();
-        }
-
-        private static ResultSchemaInvalidException invalid(String detail) {
-            return new ResultSchemaInvalidException(detail);
         }
     }
 }

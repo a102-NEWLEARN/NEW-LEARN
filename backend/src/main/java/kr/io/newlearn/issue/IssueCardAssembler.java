@@ -20,7 +20,9 @@ public class IssueCardAssembler {
     }
 
     public List<IssueCardResponse> assemble(List<IssueQueryRepository.CardRow> rows, Set<Long> interested) {
-        if (rows.isEmpty()) return List.of();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
         var ids = rows.stream().map(IssueQueryRepository.CardRow::id).toList();
         Map<Long, List<CategoryRef>> refs = queries.findCategories(ids).stream()
                 .collect(Collectors.groupingBy(

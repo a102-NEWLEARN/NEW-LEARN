@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
+import kr.io.newlearn.analysis.AnalysisJobRecovery;
 import kr.io.newlearn.analysis.AnalysisJobService;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
 import org.assertj.core.data.Offset;
@@ -75,6 +76,9 @@ class IssueStageIntegrationTest {
 
     @Autowired
     AnalysisJobService service;
+
+    @Autowired
+    AnalysisJobRecovery recovery;
 
     @BeforeEach
     void fixtures() {
@@ -196,7 +200,7 @@ class IssueStageIntegrationTest {
         issue(4001, "북항 상어 출몰", "이슈 요약");
         event(4001, 10, null);
         inIssue(4001, 4001);
-        service.retryDue(Instant.now().plusSeconds(61));
+        recovery.retryDue(Instant.now().plusSeconds(61));
         assertThat(jobState(job)).isEqualTo("QUEUED 후보 없음 안 넣음");
         service.dispatchIssue();
 
@@ -252,7 +256,7 @@ class IssueStageIntegrationTest {
         jdbc.sql("update analysis_job set published_at = null where id = :id")
                 .param("id", first)
                 .update();
-        service.publishUnpublished(Instant.now());
+        recovery.publishUnpublished(Instant.now());
         assertThat(jobState(first)).isEqualTo("QUEUED 후보 있음 안 넣음");
     }
 
@@ -266,7 +270,7 @@ class IssueStageIntegrationTest {
                 .param("id", job)
                 .update();
 
-        service.publishUnpublished(Instant.now());
+        recovery.publishUnpublished(Instant.now());
         assertThat(jobState(job)).isEqualTo("QUEUED 후보 없음 안 넣음");
 
         service.dispatchIssue();
@@ -274,7 +278,7 @@ class IssueStageIntegrationTest {
         jdbc.sql("update analysis_job set published_at = null, queued_at = now() - interval '2 minutes' where id = :id")
                 .param("id", job)
                 .update();
-        service.publishUnpublished(Instant.now());
+        recovery.publishUnpublished(Instant.now());
 
         assertThat(jobState(job)).isEqualTo("QUEUED 후보 있음 넣음");
         assertThat(candidatesText(job)).isEqualTo(picked);

@@ -3,7 +3,6 @@ package kr.io.newlearn.analysis;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 // 실패한 분석 작업을 다시 걸지, 언제 걸지 (docs/api.md 2절 「작업 실패 코드」, Jira 30)
@@ -48,9 +47,5 @@ public final class RetryPolicy {
         }
         Duration delay = rule.delays().get(attempt - 1);
         return new Decision(delay.isZero() ? Kind.NOW : Kind.LATER, delay);
-    }
-
-    public static Set<String> retryableCodes() {
-        return RULES.keySet();
     }
 }
