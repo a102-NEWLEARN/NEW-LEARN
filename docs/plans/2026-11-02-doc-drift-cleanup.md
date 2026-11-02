@@ -32,6 +32,7 @@
 - `infra/README.md` — 폴더 표(9) · 백업 절(148 숫자는 SSOT 가리키기, 150 권한 문장, 160 단정 완화 · 함정 둘은 남김) · destroy 줄(125, 손으로 찍은 스냅샷도 콘솔에서 지우기) · 「루트 디스크 늘리기」에 스냅샷 찍기(콘솔 · 루트 계정, apply 키에 권한 없음) · 확인 뒤 지우기(되돌릴 수 없음)
 - `infra/server/db-backup.md` 「매주 S3 사본」 — 숫자 · IP 단정만 SSOT 가리키기. 일정 · 「이틀 안 매일 백업 없으면 실패」 · 「받기는 apply 키」 · 「35일 지난 백업은 `aws s3 ls` 에 안 보이고 `list-object-versions` 에만」은 남김
 - `infra/k8s/services/data/postgres-backup.yaml` 머리 주석 — 보관 기간 · 70일은 빼고 backup.tf · SSOT 6절을 가리킴. 「키가 PutObject 만이라 `cp` 만 씀」 · 「관리 서버에서만 돌아야 함 — 키에 관리 서버 IP 조건」은 남김(동작 그대로)
+- `infra/terraform/compute.tf` 주석 — 「크레딧이 바닥나 묶여 느려졌다(7일 steal …)」 단정을 9절 149 줄과 같은 뜻으로 바로잡음(MR A 리뷰에서 나옴, 주석만)
 - `infra/terraform/backup.tf` 주석 — 코드가 왜 그런지(35일 까닭 · Suspended 만 · 만료는 삭제 표시만 · depends_on · 규칙 둘)는 남기고, 「35일 남긴다」와 다음 줄의 바로잡기만 한 문장으로(「약 70일」 낱말은 넣지 않음)
 - `infra/k8s/bootstrap/ci-cache-pv.yaml` — 주석 「관리 서버 디스크 30 GiB」 → `infra/terraform/variables.tf` 의 `root_volume_gb` 를 가리킴
 - `.claude/stack.md` §5 L2(222 · 223) — backend readiness `/actuator/health/readiness`(PostgreSQL, Jira 145) · liveness `/actuator/health/liveness`, 워커 readiness `/health`(Redis ping), 포트만 보는 liveness 는 frontend · ai
