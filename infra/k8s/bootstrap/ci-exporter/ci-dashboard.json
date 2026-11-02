@@ -905,7 +905,7 @@
     {
       "type": "timeseries",
       "title": "노드 CPU 사용 (코어)",
-      "description": "모드별 사용 코어. 빨간 점선이 전체 코어. steal 이 보이면 CPU 크레딧이 바닥나 기준선으로 묶인 것",
+      "description": "모드별 사용 코어(관리 서버 · 워커 두 노드의 합). 빨간 점선은 cpu 번호 수라 실제 코어 합(두 노드 6)이 아니다. 관리 서버는 2026-11-02 부터 CPU 크레딧 unlimited 라 크레딧으로 묶이지 않는다 — 그 뒤에도 steal 이 보이며 원인은 확인 못 함(SSOT 10절). 워커(Lightsail)는 버스트형이라 steal 이 크레딧 바닥일 수 있다",
       "gridPos": {
         "x": 0,
         "y": 36,
