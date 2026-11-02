@@ -63,7 +63,7 @@ kubectl -n data exec postgres-0 -- dropdb -U newlearn newlearn_restore_check
 
 ## 매주 S3 사본
 
-CronJob `postgres-backup-s3`(같은 파일)가 매주 일요일 05:00(한국) 그날 가장 새 매일 백업 하나를 `s3://<버킷>/postgres/` 에 올린다. 이틀 안의 매일 백업이 없으면 실패로 남는다. 버전 관리를 켜 두어 덮어쓰거나 지운 백업도 이전 판이 남는다 — 보관 기간과 올리기 키 조건은 `SSOT.md` 6절 「백업」(Jira S15P31A102-147). 35일이 지난 백업은 삭제 표시에 가려 `aws s3 ls` 에는 안 보이고 아래 `list-object-versions` 에만 보인다. 올리는 키는 올리기만 되고, 받기는 apply 키(`newlearn-apply` 프로필)로 한다. 버킷 · 키를 처음 만드는 순서는 `infra/README.md` 「DB 백업 버킷 · 올리는 키」.
+CronJob `postgres-backup-s3`(같은 파일)가 매주 일요일 05:00(한국) 그날 가장 새 매일 백업 하나를 `s3://<버킷>/postgres/` 에 올린다. 이틀 안의 매일 백업이 없으면 실패로 남는다. 버전 관리를 켜 두어 덮어쓰거나 지운 백업도 이전 판이 남는다 — 보관 기간과 올리기 키 조건은 `SSOT.md` 6절 「저장소·백업」(Jira S15P31A102-147). 35일이 지난 백업은 삭제 표시에 가려 `aws s3 ls` 에는 안 보이고 아래 `list-object-versions` 에만 보인다. 올리는 키는 올리기만 되고, 받기는 apply 키(`newlearn-apply` 프로필)로 한다. 버킷 · 키를 처음 만드는 순서는 `infra/README.md` 「DB 백업 버킷 · 올리는 키」.
 
 **확인 · 손으로 돌리기**
 

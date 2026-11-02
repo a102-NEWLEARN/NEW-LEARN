@@ -6,7 +6,7 @@
 | 폴더 | 무엇 |
 |---|---|
 | `terraform/` | 관리 서버(쿠버네티스 컨트롤 플레인) EC2 · 보안 그룹 · 탄력적 IP · 예산 알림 · DB 백업 버킷. Lightsail 은 SSAFY 소유라 대상이 아니다 |
-| `terraform/iam/` | apply 전용 IAM 사용자에 붙일 정책 — EC2 는 서울 리전만, 예산, 상태 버킷(`newlearn-tfstate-*`) · DB 백업 버킷(`newlearn-pg-backup-*`, 객체를 지우는 권한 없음 — 수명 규칙 · 버전 관리 설정으로는 지울 수 있음)만. DB 백업을 올리기만 하는 사용자 정책 |
+| `terraform/iam/` | apply 전용 IAM 사용자에 붙일 정책 — EC2 는 서울 리전만, 예산, 상태 버킷(`newlearn-tfstate-*`) · DB 백업 버킷(`newlearn-pg-backup-*`, 객체를 지우는 권한 없음 — 수명 규칙으로는 지울 수 있음)만. DB 백업을 올리기만 하는 사용자 정책 |
 | `kind/` | 내 PC 의 kind 리허설 클러스터 — 정의 · 올리기 · 지우기 · 무중단 교체 리허설 (아래 「kind 리허설」) |
 | `k8s/bootstrap/` | 클러스터를 만든 뒤 Helm 으로 한 번 까는 것 — Cilium · Argo CD 값, 루트 Application. 실제 서버도 같은 값을 쓰고 다른 것만 덮는다 |
 | `k8s/apps/` | Argo CD 가 Git 에서 읽는 앱 목록 (app-of-apps — 이 폴더를 Helm 차트로 그려 앱마다 Application 을 만든다) |
@@ -148,9 +148,9 @@ sudo resize2fs /dev/nvme0n1p1
 
 ## DB 백업 버킷 · 올리는 키 (Jira S15P31A102-109)
 
-매주 DB 백업 하나를 S3 에 올린다(`backup.tf`). 버전 관리를 켜 두어 같은 이름으로 덮어쓰거나 지워도 이전 판이 남는다(Jira S15P31A102-147) — 보관 기간은 `SSOT.md` 6절 「백업」. 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
+매주 DB 백업 하나를 S3 에 올린다(`backup.tf`). 버전 관리를 켜 두어 같은 이름으로 덮어쓰거나 지워도 이전 판이 남는다(Jira S15P31A102-147) — 보관 기간은 `SSOT.md` 6절 「저장소·백업」. 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
 
-1. **apply 정책 고치기** — IAM 콘솔 → 「정책」 → `newlearn-terraform-apply` → 「편집」 → JSON 탭에 `infra/terraform/iam/apply-policy.json` 을 그대로 붙이고 저장한다. 버킷 `newlearn-pg-backup-*` 를 만들고 설정 · 읽는 권한이 더해진다(객체를 지우는 권한은 없다. 수명 규칙 · 버전 관리 설정은 바꿀 수 있어 그것으로 지울 수 있다 — apply 키도 아껴 쓴다). 이전 판은 「정책 버전」에 남아 되돌릴 수 있다
+1. **apply 정책 고치기** — IAM 콘솔 → 「정책」 → `newlearn-terraform-apply` → 「편집」 → JSON 탭에 `infra/terraform/iam/apply-policy.json` 을 그대로 붙이고 저장한다. 버킷 `newlearn-pg-backup-*` 를 만들고 설정 · 읽는 권한이 더해진다(객체를 지우는 권한은 없다. 다만 수명 규칙은 바꿀 수 있어 그것으로 지울 수 있고, 버전 관리를 멈추면 그 뒤 덮어쓴 이전 판이 남지 않는다 — apply 키도 아껴 쓴다). 이전 판은 「정책 버전」에 남아 되돌릴 수 있다
 2. **버킷 만들기** — `terraform.tfvars` 에 `backup_bucket_name` 을 넣고 plan → 「4 to add, 0 to change, 0 to destroy」(버킷 · 공개 막기 · 버전 관리 · 수명 규칙)인지 사람이 보고 그 plan 으로 apply 한다
 3. **올리기만 되는 사용자** — 「정책 생성」 → JSON 에 `infra/terraform/iam/pg-backup-uploader-policy.json` 을 붙이고 `<관리 서버 탄력적 IP>` 자리에 `terraform -chdir=infra/terraform output control_plane_public_ip` 값을 넣는다(저장소에는 IP 를 적지 않는다. 올리는 잡은 관리 서버에서만 돈다) · 이름 `newlearn-pg-backup-uploader` → 「사용자 생성」 → 이름 `newlearn-pg-backup-uploader`, 콘솔 액세스 없음, 「직접 정책 연결」로 그 정책 → 「보안 자격 증명」 → 「액세스 키 만들기」 → 사용 사례 「AWS 외부에서 실행되는 애플리케이션」. 비밀 키는 이 화면에서 한 번만 보인다 — 띄워 둔 채 바로 4번에 입력하고 어디에도 저장하지 않는다
 4. **봉인** (EC2 터미널, 값을 묻는다) — 버킷 이름은 `terraform -chdir=infra/terraform output pg_backup_bucket`
