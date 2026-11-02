@@ -6,6 +6,7 @@ import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.article.dto.ArticleAnalysisStatus;
 import kr.io.newlearn.article.dto.ArticleDetailResponse;
 import kr.io.newlearn.article.dto.ArticleSummaryResponse;
+import kr.io.newlearn.category.CategoryFilter;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.common.web.PageResponse;
@@ -47,7 +48,7 @@ public class ArticleService {
     // 회원 요청에서 그것을 잘못 부르면 bookmarked 가 조용히 false 가 되기 때문이다
     public PageResponse<ArticleSummaryResponse> list(
             @Nullable String category, PageQuery query, @Nullable Long memberId) {
-        categories.checkFilter(category);
+        CategoryFilter.check(categories, category);
         var pageable = query.toPageable(Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
         var page = category == null
                 ? articles.findByReleasedAtIsNotNull(pageable)
@@ -56,7 +57,7 @@ public class ArticleService {
     }
 
     public ArticleDetailResponse get(long articleId, @Nullable Long memberId) {
-        var article = articles.getReleased(articleId);
+        var article = ReleasedArticles.get(articles, articleId);
         var summary = summaries.assemble(List.of(article), memberId).getFirst();
         var link = links.findByArticleId(articleId);
         var matchStatus = jobs.findStatesByArticleIdInAndStage(List.of(articleId), AnalysisStage.MATCH_EVENT).stream()

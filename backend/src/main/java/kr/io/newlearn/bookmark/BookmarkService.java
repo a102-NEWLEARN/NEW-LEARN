@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.stream.Collectors;
 import kr.io.newlearn.article.ArticleRepository;
 import kr.io.newlearn.article.ArticleSummaryAssembler;
+import kr.io.newlearn.article.ReleasedArticles;
 import kr.io.newlearn.bookmark.dto.BookmarkListResponse;
 import kr.io.newlearn.bookmark.dto.BookmarkStateResponse;
 import kr.io.newlearn.common.web.ApiTime;
@@ -26,7 +27,7 @@ public class BookmarkService {
 
     @Transactional
     public BookmarkStateResponse add(long memberId, long articleId) {
-        var article = articles.getReleased(articleId);
+        var article = ReleasedArticles.get(articles, articleId);
         // 넣기와 담은 시각 읽기를 한 문장으로 — 사이에 빼기가 끼어들 틈이 없다(BookmarkRepository.add)
         var bookmark = bookmarks.add(memberId, article.getId());
         return new BookmarkStateResponse(articleId, true, ApiTime.toKst(bookmark.getCreatedAt()));

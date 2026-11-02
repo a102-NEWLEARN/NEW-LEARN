@@ -487,6 +487,28 @@ class AnalysisJobQueueIntegrationTest {
         assertThat(row(job)).containsEntry("status", "SUCCEEDED");
     }
 
+    // 결과를 거절한 W1 도 같다 — 고르기가 실패해도 400 과 RESULT_SCHEMA_INVALID 기록(바로 다시 걸기)은 그대로다
+    @Test
+    void dispatchFailureAfterRejectedW1KeepsTheRejection() throws Exception {
+        handle(AnalysisStage.EXTRACT, (job, request) -> {
+            throw new ResultSchemaInvalidException("가지가 하나도 없다");
+        });
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        doThrow(new IllegalStateException("판정 고르기 실패")).when(matches).next();
+        doThrow(new IllegalStateException("ISSUE 고르기 실패")).when(issues).next();
+
+        w1(job, envelope(1, "SUCCEEDED", "{}", "null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        verify(matches).next();
+        verify(issues).next();
+        assertThat(row(job))
+                .containsEntry("status", "QUEUED")
+                .containsEntry("attempt", 2)
+                .containsEntry("error_code", "RESULT_SCHEMA_INVALID");
+    }
+
     // 후보가 빈 ISSUE 대기 작업은 아예 읽지 않는다 — 고르기만 넣는다(Jira 40, 그 전에는 ISSUE 에 메시지 공장이 없었다).
     // 판정(NEW)이 만든 대기 작업이 한 번에 읽는 수(100)보다 많이 쌓여도, 다른 단계의 못 넣은 작업이 그 뒤에 막히지 않는다 (Jira 35)
     @Test

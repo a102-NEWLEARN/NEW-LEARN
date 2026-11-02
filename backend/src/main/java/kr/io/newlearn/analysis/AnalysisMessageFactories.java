@@ -1,5 +1,6 @@
 package kr.io.newlearn.analysis;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,6 @@ public class AnalysisMessageFactories {
     }
 
     public Set<AnalysisStage> stages() {
-        return byStage.keySet();
+        return Collections.unmodifiableSet(byStage.keySet());
     }
 }

@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import kr.io.newlearn.category.CategoryFilter;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.category.dto.CategoryRef;
 import kr.io.newlearn.common.error.ErrorCode;
@@ -108,7 +109,7 @@ public class IssueService {
 
     public PageResponse<IssueCardResponse> list(
             @Nullable String category, String sort, PageQuery query, @Nullable Long memberId) {
-        categories.checkFilter(category);
+        CategoryFilter.check(categories, category);
         var page = queries.findCards(category, sort, query.toPageable(Sort.unsorted()));
         if (page.isEmpty()) {
             return PageResponse.of(page, List.of());

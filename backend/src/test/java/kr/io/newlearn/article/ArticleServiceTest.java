@@ -12,9 +12,8 @@ import kr.io.newlearn.mindmap.ArticleMindmapRepository;
 import org.junit.jupiter.api.Test;
 
 class ArticleServiceTest {
-    // 저장소의 default 메서드(getReleased · checkFilter)는 진짜로 돌린다 — 없는 행 · 코드는 목의 기본 답(빈 Optional · false)
-    ArticleRepository articles = mock(ArticleRepository.class, CALLS_REAL_METHODS);
-    CategoryRepository categories = mock(CategoryRepository.class, CALLS_REAL_METHODS);
+    ArticleRepository articles = mock(ArticleRepository.class);
+    CategoryRepository categories = mock(CategoryRepository.class);
     ArticleSummaryAssembler assembler = mock(ArticleSummaryAssembler.class);
     AnalysisJobRepository jobs = mock(AnalysisJobRepository.class);
     ArticleEventRepository links = mock(ArticleEventRepository.class);

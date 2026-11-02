@@ -89,6 +89,6 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - JDBC · JDK 처럼 표시가 없는 라이브러리 값은 NullAway 가 non-null 로 본다. 비어 올 수 있는 칸은 받는 자리에서 `@Nullable` 로 받는다(예: `IssueQueryRepository` 의 `nullableInstant` — 사건이 없는 이슈의 `min(e.occurred_at)`). 그 값에 `@Contract` 도우미를 바로 씌우면 null 이 가려진다
 - 요청 record(JSON 으로 받는 칸) · `@RequestParam(required = false)` · Spring Data 조회 뷰의 칸은 아직 표시하지 않았다. 비어 올 수 있으니 쓰기 전에 확인한다(예: `JobResultRequest.problem()`)
 - 테스트(`src/test`)는 NullAway 가 보지 않는다 — 일부러 null 을 넘기는 시험이 많다. javac 경고 · Error Prone 은 본다
-- 검사를 꼭 꺼야 하면 가장 좁은 자리(메서드 · 지역 변수)에 `@SuppressWarnings("<검사 이름>")` 을 달고 바로 위에 까닭 한 줄을 쓴다. 예: `AnalysisJobService` 의 `NullAway`(제네릭 콜백의 null), `InternalKeyFilter` 의 `ArrayRecordComponent`
+- 검사를 꼭 꺼야 하면 가장 좁은 자리(메서드 · 지역 변수)에 `@SuppressWarnings("<검사 이름>")` 을 달고 바로 위에 까닭 한 줄을 쓴다. 예: `AnalysisJobRecovery` 의 `NullAway`(제네릭 콜백의 null), `InternalKeyFilter` 의 `ArrayRecordComponent`
 - `Serializable` 을 구현하면 `@Serial private static final long serialVersionUID = 1L;` 을 둔다(예외 클래스 · 복합 키)
 
