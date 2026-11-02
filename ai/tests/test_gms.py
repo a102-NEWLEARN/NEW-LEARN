@@ -146,9 +146,11 @@ async def test_429_gives_up_when_retry_after_does_not_fit_deadline():
     assert clock.slept == []
 
 
-async def test_429_reads_http_date_retry_after():
+async def test_429_reads_http_date_retry_after(monkeypatch):
+    now = datetime(2026, 11, 2, 3, 0, tzinfo=UTC)
+    monkeypatch.setattr(gms_module, "_utcnow", lambda: now)
     clock = Clock()
-    when = format_datetime(datetime.now(UTC) + timedelta(seconds=60), usegmt=True)
+    when = format_datetime(now + timedelta(seconds=60), usegmt=True)
     gms, _ = client(
         [
             httpx.Response(429, headers={"Retry-After": when}),
@@ -159,7 +161,54 @@ async def test_429_reads_http_date_retry_after():
 
     await gms.complete("s", "u", deadline=900)
 
-    assert len(clock.slept) == 1 and 50 <= clock.slept[0] <= 60
+    assert clock.slept == [60.0]
+
+
+@pytest.mark.parametrize("value", ["NaN", "inf", "-5", "soon"])
+async def test_429_odd_retry_after_uses_safe_wait(value):
+    clock = Clock()
+    gms, _ = client(
+        [
+            httpx.Response(429, headers={"Retry-After": value}),
+            httpx.Response(200, json=OK_BODY),
+        ],
+        clock,
+    )
+
+    await gms.complete("s", "u", deadline=900)
+
+    assert len(clock.slept) == 1
+    assert clock.slept[0] in (1.0, gms_module.RATE_LIMIT_DEFAULT_WAIT)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"choices": ["text"]},
+        {"choices": [{"message": "text", "finish_reason": "stop"}]},
+        {"choices": [{"message": {"content": 5}, "finish_reason": "stop"}]},
+    ],
+)
+async def test_200_with_wrong_field_types_is_retried(body):
+    clock = Clock()
+    gms, calls = client(
+        [httpx.Response(200, json=body), httpx.Response(200, json=OK_BODY)], clock
+    )
+
+    out = await gms.complete("s", "u", deadline=900)
+
+    assert out.content == '{"branches": []}'
+    assert len(calls) == 2 and clock.slept == [5.0]
+
+
+async def test_200_with_odd_usage_keeps_answer_and_drops_usage():
+    body = {**OK_BODY, "usage": "lots"}
+    gms, _ = client([httpx.Response(200, json=body)])
+
+    out = await gms.complete("s", "u", deadline=900)
+
+    assert out.content == '{"branches": []}'
+    assert out.usage == {}
 
 
 async def test_429_follows_retry_after_then_rate_limited():

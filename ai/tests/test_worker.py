@@ -362,6 +362,17 @@ async def test_handle_reports_failure_and_acks():
     assert redis.acked == ["1-0"]
 
 
+async def test_handle_acks_after_w1_saved_even_if_logging_breaks():
+    # W1 이 저장한 뒤 진단 로그가 깨져도 ack 를 놓치면 재회수 때 GMS 를 또 부른다
+    odd = Completion(GOOD, "stop", "not-a-dict")
+    w, redis, _, seen = worker(FakeLlm(odd), [204])
+
+    await w.handle("1-0", fields(PAYLOAD))
+
+    assert len(seen) == 1
+    assert redis.acked == ["1-0"]
+
+
 class HangingLlm:
     def __init__(self) -> None:
         self.calls = 0

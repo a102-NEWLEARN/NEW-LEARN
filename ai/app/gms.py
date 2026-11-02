@@ -17,6 +17,7 @@ GMS 는 OpenAI 호환 chat/completions 를 그대로 받는다(AI 실험, 2026-1
 import asyncio
 import json
 import logging
+import math
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -149,20 +150,27 @@ class GmsClient:
                 await self.sleep(wait)
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
 def _retry_after(res: httpx.Response) -> float:
-    """Retry-After 는 초 또는 HTTP 날짜다. 줄이지 않는다 — 마감 안에 못 기다리면 부르는 쪽이 그만둔다."""
+    """Retry-After 는 초 또는 HTTP 날짜다. 줄이지 않는다 — 마감 안에 못 기다리면 부르는 쪽이 그만둔다.
+    NaN · 무한대 · 읽을 수 없는 값은 30초, 지난 날짜 · 음수는 1초."""
     raw = res.headers.get("Retry-After", "").strip()
     try:
-        return max(float(raw), 1.0)
+        sec = float(raw)
     except ValueError:
-        pass
-    try:
-        when = parsedate_to_datetime(raw)
-    except TypeError, ValueError:
+        try:
+            when = parsedate_to_datetime(raw)
+        except TypeError, ValueError:
+            return RATE_LIMIT_DEFAULT_WAIT
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        sec = (when - _utcnow()).total_seconds()
+    if not math.isfinite(sec):
         return RATE_LIMIT_DEFAULT_WAIT
-    if when.tzinfo is None:
-        when = when.replace(tzinfo=UTC)
-    return max((when - datetime.now(UTC)).total_seconds(), 1.0)
+    return max(sec, 1.0)
 
 
 _SAFE_CODE = re.compile(r"[^\w.-]")
@@ -195,20 +203,27 @@ def _client_error(res: httpx.Response) -> GmsError:
 
 
 def _parse_ok(res: httpx.Response) -> Completion | None:
-    """OpenAI 모양이 아니면 None — 부르는 쪽이 LLM_UNAVAILABLE 로 다시 부른다."""
+    """OpenAI 모양이 아니면 None — 부르는 쪽이 LLM_UNAVAILABLE 로 다시 부른다.
+    usage 는 로그용이라 모양이 틀리면 버린다."""
     try:
         data = res.json()
         choice = data["choices"][0]
-        message = choice.get("message") or {}
-    except ValueError, KeyError, IndexError, TypeError, AttributeError:
+    except ValueError, KeyError, IndexError, TypeError:
+        return None
+    if not isinstance(choice, dict):
+        return None
+    message = choice.get("message") or {}
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(message, dict) or not isinstance(content, str | None):
         return None
     finish = choice.get("finish_reason")
     if finish == "content_filter" or message.get("refusal"):
         raise GmsError("LLM_REFUSED", "모델이 답을 거절함")
+    usage = data.get("usage")
     return Completion(
-        content=message.get("content") or "",
-        finish_reason=finish,
-        usage=data.get("usage") or {},
+        content=content or "",
+        finish_reason=finish if isinstance(finish, str) else None,
+        usage=usage if isinstance(usage, dict) else {},
     )
 
 

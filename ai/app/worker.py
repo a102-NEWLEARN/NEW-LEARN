@@ -119,22 +119,7 @@ class Worker:
             )
             diag = {"calls": "?", "usage": []}
         outcome, w1 = await self.backend.send_result(job_id, envelope)
-        error = envelope["error"] or {}
-        tokens = [
-            (u.get("prompt_tokens"), u.get("completion_tokens")) for u in diag["usage"]
-        ]
-        log.info(
-            "EXTRACT job=%s attempt=%s %s%s calls=%s tokens=%s warnings=%s %.1f초 W1=%s",
-            job_id,
-            attempt,
-            envelope["status"],
-            f"({error['code']})" if error else "",
-            diag["calls"],
-            tokens,
-            len(diag.get("warnings", [])),
-            self.clock() - begin,
-            w1,
-        )
+        # ack 를 진단 로그보다 먼저 한다 — 로그가 깨져 ack 를 놓치면 재회수 때 GMS 를 또 부른다
         if outcome is W1Outcome.ACK:
             await self.redis.xack(STREAM, GROUP, msg_id)
         elif outcome is W1Outcome.AUTH_FAILED:
@@ -144,6 +129,26 @@ class Worker:
                 "W1 을 끝내 못 보냄 job=%s — ack 하지 않는다(다시 가져가기로 다시 온다)",
                 job_id,
             )
+        try:
+            error = envelope["error"] or {}
+            tokens = [
+                (u.get("prompt_tokens"), u.get("completion_tokens"))
+                for u in diag["usage"]
+            ]
+            log.info(
+                "EXTRACT job=%s attempt=%s %s%s calls=%s tokens=%s warnings=%s %.1f초 W1=%s",
+                job_id,
+                attempt,
+                envelope["status"],
+                f"({error['code']})" if error else "",
+                diag["calls"],
+                tokens,
+                len(diag.get("warnings", [])),
+                self.clock() - begin,
+                w1,
+            )
+        except Exception:
+            log.exception("EXTRACT 진단 로그 실패 job=%s", job_id)
 
     async def next_message(self) -> tuple[str, dict[Any, Any]] | None:
         # 죽은 워커가 남긴 메시지를 먼저 가져간다. 커서를 이어 받아 대기 목록 뒤쪽까지 훑는다
