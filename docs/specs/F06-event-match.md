@@ -4,8 +4,8 @@
 
 시험은 실제 PostgreSQL(pgvector) · Redis 로 돈다(`TestcontainersConfiguration`). 클래스 이름이 없는 시험은 `EventMatchIntegrationTest` 다 — 진짜 처리기로 W1 을 부르고, 워커가 받을 메시지는 Redis 에서 꺼내 본다. 1분 스케줄러는 시험에서 꺼 두어 판정 고르기는 W1 뒤와 `AnalysisJobService.dispatchMatch()` 로 부른다.
 
-- AC-1: W1 EMBED 성공이면 `article_embedding` 에 벡터를 저장한다(다시 오면 덮어씀, 행은 하나). `model` 이 비거나 `dimension` 이 1024 가 아니거나 `vector` 길이가 다르거나 유한한 숫자가 아닌 값 · float4 범위를 넘는 값이 있으면 400 `RESULT_SCHEMA_INVALID` 이고 저장하지 않는다. float4 아래로 내려가는 작은 값은 받는다
-  — `embedSuccessStoresTheVector` · `embedAgainOverwritesTheVector` · `embedWithWrongDimensionIsRejected` · `embedWithAValueBeyondFloat4IsRejected` · `embedKeepsTinyValues` · `EmbedResultTest`(14개)
+- AC-1: W1 EMBED 성공이면 `article_embedding` 에 벡터를 저장한다(다시 오면 덮어씀, 행은 하나). `model` 이 비거나 U+0000 이 있거나(2026-11-02 Jira 143) `dimension` 이 1024 가 아니거나 `vector` 길이가 다르거나 유한한 숫자가 아닌 값 · float4 범위를 넘는 값이 있으면 400 `RESULT_SCHEMA_INVALID` 이고 저장하지 않는다. float4 아래로 내려가는 작은 값은 받는다
+  — `embedSuccessStoresTheVector` · `embedAgainOverwritesTheVector` · `embedWithWrongDimensionIsRejected` · `embedWithAValueBeyondFloat4IsRejected` · `embedKeepsTinyValues` · `embedWithNulInModelIsRejected` · `EmbedResultTest`(15개)
 - AC-2: EXTRACT · EMBED 가 모두 성공하고, 대표 사건 번호가 있고, 아직 사건에 안 묶인 기사에만 판정(MATCH_EVENT)이 걸린다. 어느 쪽이 나중에 끝나도, 두 결과가 동시에 와도 판정 작업은 하나다
   — `matchIsQueuedAfterBothExtractAndEmbedSucceed` · `matchIsQueuedWhicheverFinishesLast` · `noMatchWithoutPrimaryCoreOrWhenAlreadyLinked` · `concurrentExtractAndEmbedQueueExactlyOneMatch`
 - AC-3: 판정은 한 번에 하나다. 진행 중(`QUEUED`, 또는 실패했는데 다시 걸 예정)인 판정이 있으면 다음 기사는 기다리고, 멈춘 실패는 넘어간다. 걸 때는 판정할 기사 중 발행 시각이 가장 이른 것을 고른다. 판정 결과를 저장하거나 멈추는 실패가 오면 그 W1 뒤에 바로 다음 기사가 걸린다. 400 으로 거절한 판정은 같은 작업 · 시도 2 · 처음 고른 후보로 다시 걸린다. 같은 판정이 40분 넘게 `QUEUED` 면 고르기가 WARN 을 남긴다(2026-10-28 30분 → 40분, Jira 130)
@@ -28,8 +28,8 @@
   — `AnalysisJobQueueIntegrationTest.waitingIssueJobsDoNotCrowdOutOthers`(Jira 40 에서 이름을 바꿈)
 - AC-12(Jira 130, 2026-10-28): `NEW` 면 `newEvent.role`(`MAIN` · `REACTION`)과 `reactsTo` 를 사건에 저장한다. `role` 이 없거나 모르는 값(소문자 포함)이면 400. `REACTION` 의 `reactsTo` 가 비었거나 U+0000 이면 null, `MAIN` 의 `reactsTo` 는 읽지 않는다. `EXISTING` 의 `newEvent` 는 `role` 까지 읽지 않는다
   — `newStoresTheRoleAndWhatItReactsTo` · `newWithoutAKnownRoleIsRejected` · `aReactsToThatCannotBeKeptIsStoredAsNull` · `existingIgnoresTheNewEventRole`
-- AC-13(Jira 134, 2026-10-29): `NEW` 이고 `REACTION` 이면 `newEvent.reactsToEventId` 를 사건(`event.reacts_to_event_id`)에 저장한다 — 이번 판정에 보낸 후보 사건 안일 때만. 후보 밖이거나 정수가 아니면(글자 · 소수) 400 대신 null 로 받고 경고 로그를 남긴다. 없거나 null 이면 조용히 null, `MAIN` 의 것은 읽지 않는다. 역할 칸에는 DB 기본값이 없어(V10) 역할 없이는 사건을 만들 수 없다
-  — `newReactionStoresTheTargetEventAmongTheCandidates` · `aTargetThatCannotBeKeptIsStoredAsNull`, `MatchEventResultTest.reactionTargetThatIsNotAnIntegerIsNull` · `mainIgnoresReactsTo`, V10 은 `EventReactsToSchemaTest`, A4 에 싣는 규칙은 F07 AC-4(`IssueTimelineApiIntegrationTest.reactsToEventIdIsSentOnlyForATargetInTheSameIssue`)
+- AC-13(Jira 134, 2026-10-29): `NEW` 이고 `REACTION` 이면 `newEvent.reactsToEventId` 를 사건(`event.reacts_to_event_id`)에 저장한다 — 이번 판정에 보낸 후보 사건 안일 때만. 후보 밖이거나 정수가 아니면(글자 · 소수) 400 대신 null 로 받고 경고 로그를 남긴다(판정 원문은 앞 80글자만, 2026-11-02 Jira 143). 없거나 null 이면 조용히 null, `MAIN` 의 것은 읽지 않는다. 역할 칸에는 DB 기본값이 없어(V10) 역할 없이는 사건을 만들 수 없다
+  — `newReactionStoresTheTargetEventAmongTheCandidates` · `aTargetThatCannotBeKeptIsStoredAsNull` · `aLongTargetIsLoggedByItsHeadOnly`, `MatchEventResultTest.reactionTargetThatIsNotAnIntegerIsNull` · `mainIgnoresReactsTo`, V10 은 `EventReactsToSchemaTest`, A4 에 싣는 규칙은 F07 AC-4(`IssueTimelineApiIntegrationTest.reactsToEventIdIsSentOnlyForATargetInTheSameIssue`)
 
 ## 알아 둘 것
 

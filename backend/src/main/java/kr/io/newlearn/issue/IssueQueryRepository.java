@@ -38,7 +38,7 @@ public class IssueQueryRepository {
         this.jdbc = jdbc;
     }
 
-    public Page<CardRow> findCards(String category, String sort, Pageable pageable) {
+    public Page<CardRow> findCards(@Nullable String category, String sort, Pageable pageable) {
         long total = jdbc.sql("select count(*) from issue i " + FILTER)
                 .param("category", category, Types.VARCHAR)
                 .query(Long.class)
@@ -66,7 +66,9 @@ public class IssueQueryRepository {
     }
 
     public List<CardRow> findCardsByIds(List<Long> issueIds) {
-        if (issueIds.isEmpty()) return List.of();
+        if (issueIds.isEmpty()) {
+            return List.of();
+        }
         return jdbc.sql(AGGREGATE + " where i.id in (:ids) group by i.id")
                 .param("ids", issueIds)
                 .query(IssueQueryRepository::mapCard)
@@ -74,7 +76,9 @@ public class IssueQueryRepository {
     }
 
     public List<EventCountRow> findEventCounts(List<Long> eventIds) {
-        if (eventIds.isEmpty()) return List.of();
+        if (eventIds.isEmpty()) {
+            return List.of();
+        }
         return jdbc.sql("""
                 select e.id, count(distinct a.id) as article_count,
                     count(distinct a.press_code) as publisher_count
@@ -103,7 +107,9 @@ public class IssueQueryRepository {
     }
 
     public List<CategoryRow> findCategories(List<Long> issueIds) {
-        if (issueIds.isEmpty()) return List.of();
+        if (issueIds.isEmpty()) {
+            return List.of();
+        }
         return jdbc.sql("""
                 select ic.issue_id, c.code, c.name from issue_category ic
                 join category c on c.code = ic.category_code
@@ -115,7 +121,9 @@ public class IssueQueryRepository {
     }
 
     public List<EventRow> findLastEvents(List<Long> issueIds) {
-        if (issueIds.isEmpty()) return List.of();
+        if (issueIds.isEmpty()) {
+            return List.of();
+        }
         return jdbc.sql("""
                 select distinct on (issue_id) issue_id, id, title, label, occurred_at from event
                 where issue_id in (:ids) order by issue_id, occurred_at desc, id desc

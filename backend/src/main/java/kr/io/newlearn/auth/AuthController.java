@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import kr.io.newlearn.auth.dto.LoginRequest;
-import kr.io.newlearn.common.security.MemberPrincipal;
 import kr.io.newlearn.common.web.ApiProblem;
 import kr.io.newlearn.common.web.OpenApiConfig;
 import kr.io.newlearn.member.dto.MemberResponse;
@@ -69,8 +68,7 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         MemberResponse member = service.login(request);
-        loginSessions.open(
-                new MemberPrincipal(member.id(), member.loginId(), member.name()), httpRequest, httpResponse);
+        loginSessions.open(member.toPrincipal(), httpRequest, httpResponse);
         return member;
     }
 

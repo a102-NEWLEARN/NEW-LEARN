@@ -102,6 +102,7 @@ public class IssueController {
     public PageResponse<IssueCardResponse> list(
             @Parameter(description = "카테고리 코드(A1 의 code). 보내지 않으면 전체", example = "economy")
                     @RequestParam(required = false)
+                    @Nullable
                     String category,
             @Parameter(
                             description = "정렬. lastEventAt(기본) 마지막 사건 최신순 · createdAt 이슈가 만들어진 최신순. 같으면 id 내림차순",
@@ -111,6 +112,7 @@ public class IssueController {
                                             defaultValue = "lastEventAt"))
                     @RequestParam(required = false)
                     @Pattern(regexp = "lastEventAt|createdAt", message = "sort는 lastEventAt 또는 createdAt으로 보내 주세요")
+                    @Nullable
                     String sort,
             @ParameterObject @Valid PageQuery query,
             @Parameter(hidden = true) @AuthenticationPrincipal @Nullable MemberPrincipal me) {

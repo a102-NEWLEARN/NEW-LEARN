@@ -5,11 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import kr.io.newlearn.analysis.AnalysisJob;
 import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.analysis.queue.AnalysisMessageFactory;
+import kr.io.newlearn.common.Rows;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.event.Event;
 import kr.io.newlearn.event.EventRepository;
@@ -83,8 +82,7 @@ class IssueMessageFactory implements AnalysisMessageFactory {
         List<Long> ids = picked.issues().stream()
                 .map(IssueCandidateFinder.CandidateIssue::issueId)
                 .toList();
-        Map<Long, Issue> byId =
-                issues.findAllById(ids).stream().collect(Collectors.toMap(Issue::getId, Function.identity()));
+        Map<Long, Issue> byId = Rows.byId(issues.findAllById(ids), Issue::getId);
         Map<Long, List<IssueCandidateFinder.RecentEvent>> recent = finder.recentEvents(ids);
         List<CandidateIssue> candidates = new ArrayList<>();
         for (IssueCandidateFinder.CandidateIssue candidate : picked.issues()) {
@@ -105,8 +103,7 @@ class IssueMessageFactory implements AnalysisMessageFactory {
         List<Long> ids = picked.events().stream()
                 .map(IssueCandidateFinder.CandidateEvent::eventId)
                 .toList();
-        Map<Long, Event> byId =
-                events.findAllById(ids).stream().collect(Collectors.toMap(Event::getId, Function.identity()));
+        Map<Long, Event> byId = Rows.byId(events.findAllById(ids), Event::getId);
         List<CandidateEvent> candidates = new ArrayList<>();
         for (IssueCandidateFinder.CandidateEvent candidate : picked.events()) {
             Event event = byId.get(candidate.eventId());
