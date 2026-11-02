@@ -145,9 +145,9 @@ sudo resize2fs /dev/nvme0n1p1
 
 ## DB 백업 버킷 · 올리는 키 (Jira S15P31A102-109)
 
-매주 DB 백업 하나를 S3 에 올린다(`backup.tf`, 35일 뒤 지움). 버전 관리를 켜 두어 같은 이름으로 덮어쓰거나 지워도 이전 판이 35일 남는다(Jira S15P31A102-147). 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
+매주 DB 백업 하나를 S3 에 올린다(`backup.tf`). 버전 관리를 켜 두어 같은 이름으로 덮어쓰거나 지워도 이전 판이 35일 남는다(Jira S15P31A102-147). 그래서 올린 백업은 35일째에 삭제 표시로 가려지고, 실제로 지워지는 것은 그 뒤 35일, 올린 뒤 약 70일이다. 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
 
-1. **apply 정책 고치기** — IAM 콘솔 → 「정책」 → `newlearn-terraform-apply` → 「편집」 → JSON 탭에 `infra/terraform/iam/apply-policy.json` 을 그대로 붙이고 저장한다. 버킷 `newlearn-pg-backup-*` 를 만들고 설정 · 읽는 권한이 더해진다(지우기 권한은 없다). 이전 판은 「정책 버전」에 남아 되돌릴 수 있다
+1. **apply 정책 고치기** — IAM 콘솔 → 「정책」 → `newlearn-terraform-apply` → 「편집」 → JSON 탭에 `infra/terraform/iam/apply-policy.json` 을 그대로 붙이고 저장한다. 버킷 `newlearn-pg-backup-*` 를 만들고 설정 · 읽는 권한이 더해진다(Delete 계열 권한은 없다. 다만 수명 규칙은 바꿀 수 있어 그것으로 지울 수는 있다 — apply 키도 아껴 쓴다). 이전 판은 「정책 버전」에 남아 되돌릴 수 있다
 2. **버킷 만들기** — `terraform.tfvars` 에 `backup_bucket_name` 을 넣고 plan → 「4 to add, 0 to change, 0 to destroy」(버킷 · 공개 막기 · 버전 관리 · 수명 규칙)인지 사람이 보고 그 plan 으로 apply 한다
 3. **올리기만 되는 사용자** — 「정책 생성」 → JSON 에 `infra/terraform/iam/pg-backup-uploader-policy.json` 을 붙이고 `<관리 서버 탄력적 IP>` 자리에 `terraform -chdir=infra/terraform output control_plane_public_ip` 값을 넣는다(저장소에는 IP 를 적지 않는다. 올리는 잡은 관리 서버에서만 돈다) · 이름 `newlearn-pg-backup-uploader` → 「사용자 생성」 → 이름 `newlearn-pg-backup-uploader`, 콘솔 액세스 없음, 「직접 정책 연결」로 그 정책 → 「보안 자격 증명」 → 「액세스 키 만들기」 → 사용 사례 「AWS 외부에서 실행되는 애플리케이션」. 비밀 키는 이 화면에서 한 번만 보인다 — 띄워 둔 채 바로 4번에 입력하고 어디에도 저장하지 않는다
 4. **봉인** (EC2 터미널, 값을 묻는다) — 버킷 이름은 `terraform -chdir=infra/terraform output pg_backup_bucket`
@@ -157,8 +157,8 @@ sudo resize2fs /dev/nvme0n1p1
    ```
 
    만든 `~/sealed/sealed-pg-backup-s3.yaml` 을 `infra/k8s/services/data/sealed-pg-backup-s3.yaml` 로 가져와 커밋 · MR 한다
-- 키가 샜으면 IAM 콘솔에서 그 키를 비활성화하고 3 · 4번을 다시 한다. 이 키로는 백업을 읽거나 지울 수 없고, 관리 서버 IP 밖에서는 올리지도 못한다. 같은 이름으로 덮어써도 이전 판이 남는다
-- 이미 만든 사용자에 버전 관리 · IP 조건을 더할 때(2026-11-02, Jira S15P31A102-147): 1번처럼 apply 정책을 새 JSON 으로 바꾸고, 「정책」 → `newlearn-pg-backup-uploader` → 「편집」에 3번처럼 IP 를 채운 JSON 을 붙인다. 그다음 plan(「1 to add, 1 to change, 0 to destroy」)을 보고 apply 하고, 바로 `infra/server/db-backup.md` 「확인 · 손으로 돌리기」로 올리기 잡을 한 번 돌려 막히지 않았는지 본다. 막히면 그 정책의 「정책 버전」에서 이전 판으로 되돌린다
+- 키가 샜으면 IAM 콘솔에서 그 키를 비활성화하고 3 · 4번을 다시 한다. 이 키로는 백업을 읽거나 지울 수 없고, 관리 서버 IP 밖에서는 올리지도 못한다. 같은 이름으로 덮어써도 이전 판이 남는다. 다만 IP 조건은 관리 서버에서 나가는 모든 Pod 를 같은 IP 로 본다 — 같은 서버에서 도는 CI 잡 안에서는 샌 키를 쓸 수 있다. 나중에 S3 게이트웨이 엔드포인트를 붙이면 출발지가 사설 IP 로 바뀌어 이 조건이 올리기를 막는다(그때는 `aws:SourceVpce` 로 바꾼다)
+- 이미 만든 사용자에 버전 관리 · IP 조건을 더할 때(2026-11-02, Jira S15P31A102-147): 1번처럼 apply 정책을 새 JSON 으로 바꾸고, 「정책」 → `newlearn-pg-backup-uploader` → 「편집」에 3번처럼 IP 를 채운 JSON 을 붙인다. 그다음 plan(「1 to add, 1 to change, 0 to destroy」)을 보고 apply 하고, 15분 뒤 `infra/server/db-backup.md` 「확인 · 손으로 돌리기」로 올리기 잡을 한 번 돌려 막히지 않았는지 본다(버전 관리를 처음 켠 뒤 15분은 쓰기를 미루라는 AWS 권고 — 「Enabling versioning on buckets」). 막히면 그 정책의 「정책 버전」에서 이전 판으로 되돌린다
 
 ## 이미지 저장소 (GHCR)
 

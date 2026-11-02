@@ -1,4 +1,4 @@
-# 백업 버킷 버전 관리 · 올리기 키 IP 조건 (Jira 새 티켓)
+# 백업 버킷 버전 관리 · 올리기 키 IP 조건 (Jira S15P31A102-147)
 
 ## 무엇을 / 왜
 
@@ -38,11 +38,11 @@ SAA-C03 자료 대조(2026-11-02)에서 찾은 실제 빈틈을 막는다. 주�
 2. `terraform plan` — 「1 to add, 1 to change, 0 to destroy」(버전 관리 추가 · 수명 규칙 제자리 변경)만 나오는지
 3. 사람: 콘솔에서 apply 정책 · 올리기 정책 반영 → 저장한 plan 으로 apply
 4. 읽기 확인: `aws s3api get-bucket-versioning`(Enabled), `get-bucket-lifecycle-configuration`(규칙 둘)
-5. **실제 올리기**: 사람이 `kubectl -n data create job --from=cronjob/postgres-backup-s3 …` → 잡 성공 · 로그의 주소 · 크기 · sha256, `aws s3api list-object-versions` 에 새 판(VersionId 있음)
+5. **실제 올리기**: apply 15분 뒤(버전 관리를 처음 켠 뒤 쓰기를 미루라는 AWS 권고) 사람이 `kubectl -n data create job --from=cronjob/postgres-backup-s3 …` → 잡 성공 · 로그의 주소 · 크기 · sha256, `aws s3api list-object-versions` 에 새 판(VersionId 있음)
 6. (가능하면) IAM 정책 시뮬레이터로 다른 IP 에서 `PutObject` 가 거절되는지 — 못 하면 「확인 못 함」으로 적음
 
 ## 되돌리는 법
 
 - IP 조건: 콘솔에서 올리기 정책의 이전 판(정책 버전)으로 되돌리면 바로 풀림
-- 코드: MR revert. 단 🔴 **버전 관리는 끌 수 없어** revert 하면 「일시 중지」가 아니라 Terraform 이 자원만 잊음 — 되돌릴 때는 `status = "Suspended"` 로 바꾸는 MR 을 따로 냄. 이전 판은 수명 규칙(또는 콘솔)이 지움
+- 코드: 🔴 **버전 관리는 끌 수 없다.** revert 하면 provider 가 버전 관리를 「일시 중지」로 바꾸는 것으로 보이지만(리뷰 조수가 provider 실행 파일 글자로 추론), 같은 revert 로 이전 판 35일 규칙까지 빠져 이미 쌓인 이전 판이 지워지지 않는다. 그래서 revert 대신 `status = "Suspended"` 로 바꾸고 이전 판 규칙은 남기는 MR 을 따로 낸다
 - apply 정책: IAM 「정책 버전」에서 이전 판으로
