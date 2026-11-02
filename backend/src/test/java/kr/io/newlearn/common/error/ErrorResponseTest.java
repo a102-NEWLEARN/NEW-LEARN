@@ -16,6 +16,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
 import kr.io.newlearn.common.security.SecurityConfig;
+import org.apache.tomcat.util.http.InvalidParameterException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -179,6 +180,17 @@ class ErrorResponseTest {
                 .andExpect(jsonPath("$.detail").value(not(containsString("secret"))));
     }
 
+    // 쿼리 인자 오류(Tomcat InvalidParameterException)의 상태가 HTTP 오류 코드가 아니면 400 — 그대로 쓰면 상태를 만들다
+    // 던져 500 이었다. 4xx · 5xx 면 Tomcat 이 준 그대로다 (10-30 리뷰 1, Jira 143)
+    @Test
+    void unreadableParameterWithoutHttpStatusBecomes400() throws Exception {
+        mockMvc.perform(get("/probe/parameters").param("status", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.detail").value(GlobalExceptionHandler.PARAMETER_UNREADABLE));
+        mockMvc.perform(get("/probe/parameters").param("status", "413")).andExpect(status().is(413));
+    }
+
     @RestController
     @RequestMapping("/probe")
     static class ProbeController {
@@ -201,6 +213,11 @@ class ErrorResponseTest {
         @GetMapping("/sorts")
         String sorts(@RequestParam Sort sort) {
             return sort.name();
+        }
+
+        @GetMapping("/parameters")
+        String parameters(@RequestParam int status) {
+            throw new InvalidParameterException("깨진 인자", status);
         }
 
         @GetMapping("/ok")

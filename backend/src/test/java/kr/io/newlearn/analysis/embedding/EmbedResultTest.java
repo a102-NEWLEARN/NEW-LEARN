@@ -51,6 +51,8 @@ class EmbedResultTest {
                 Arguments.of("모델 없음", """
                         {"dimension": 1024, "vector": %s}""".formatted(ok)),
                 Arguments.of("모델이 공백뿐", result("\"  \"", "1024", ok)),
+                // PostgreSQL text 가 받지 않아 그대로 두면 저장에서 500 이었다 — 다른 세 단계와 같이 400 (Jira 143)
+                Arguments.of("모델에 U+0000", result("\"BGE\\u0000m3\"", "1024", ok)),
                 Arguments.of("차원 없음", """
                         {"model": "BGE-m3-ko", "vector": %s}""".formatted(ok)),
                 Arguments.of("차원이 글자", result("\"BGE-m3-ko\"", "\"1024\"", ok)),

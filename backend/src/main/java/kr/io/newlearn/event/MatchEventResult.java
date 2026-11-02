@@ -19,6 +19,9 @@ public record MatchEventResult(
 
     private static final Logger log = LoggerFactory.getLogger(MatchEventResult.class);
 
+    // 경고 로그에 남기는 원문 글자 수 — 판정이 보낸 값은 길이에 상한이 없다 (Jira 143)
+    private static final int LOGGED_HEAD = 80;
+
     public enum Decision {
         EXISTING,
         NEW
@@ -95,8 +98,16 @@ public record MatchEventResult(
             return node.longValue();
         }
         if (!node.isMissingNode() && !node.isNull()) {
-            log.warn("반응 대상 사건 번호가 정수가 아니라 null 로 받는다: reactsToEventId={}", node);
+            log.warn("반응 대상 사건 번호가 정수가 아니라 null 로 받는다: reactsToEventId={}", head(node));
         }
         return null;
+    }
+
+    private static String head(JsonNode node) {
+        String text = node.toString();
+        if (text.codePointCount(0, text.length()) <= LOGGED_HEAD) {
+            return text;
+        }
+        return text.substring(0, text.offsetByCodePoints(0, LOGGED_HEAD)) + "…";
     }
 }

@@ -2,6 +2,7 @@ package kr.io.newlearn.analysis.dto;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import kr.io.newlearn.common.web.QueryText;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -39,6 +40,12 @@ public record JobResultRequest(
         if (status == Status.FAILED
                 && (error == null || error.code() == null || error.code().isBlank())) {
             return "FAILED 인데 error.code 가 없다";
+        }
+        // 실패 기록(error_code · error_message)에 그대로 남기면 PostgreSQL 이 받지 않아 500 이었다 (Jira 143)
+        if (status == Status.FAILED
+                && (QueryText.containsNul(error.code())
+                        || (error.message() != null && QueryText.containsNul(error.message())))) {
+            return "FAILED 인데 error 에 U+0000 이 있다";
         }
         return null;
     }
