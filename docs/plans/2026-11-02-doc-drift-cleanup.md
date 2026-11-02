@@ -47,7 +47,7 @@
 - [x] infra → dev 한 번 → 분야 브랜치 셋 맞추기 → `/feature-done` → Jira 149 · 150 완료
   - 결과: infra → dev !514(`1bebacd6`). 분야 브랜치는 셋이 아니라 네 개(infra · backend · ai · frontend, !515 ~ !518). Jira 149 · 150 완료
 - [x] 사용자: dev 머지 커밋의 `infra/k8s/bootstrap/ci-exporter` 를 서버로 보내 `kubectl diff -k` 로 대시보드 ConfigMap 만 바뀌는지 본 뒤 `kubectl apply -k` → Grafana 에서 설명 확인 — 파일 카드로
-  - 결과: `kubectl diff -k` 에 ConfigMap `grafana-dashboard-ci-bottleneck` 하나만 나옴(07:03 UTC). 뒤이어 Grafana 사이드카가 `ci-dashboard.json` 을 다시 씀(07:04:29 UTC) — 사람이 친 `apply -k` 명령은 기록에 없고 이 둘로 반영을 확인했다. Grafana 화면을 본 기록은 없음
+  - 결과: `kubectl diff -k` 에 ConfigMap `grafana-dashboard-ci-bottleneck` 하나만 나왔다(07:03 UTC). 뒤이어 Grafana 사이드카가 `ci-dashboard.json` 을 다시 썼다(07:04:29 UTC). 사람이 친 `apply -k` 명령은 기록에 없어 이 둘로 반영을 확인했다. Grafana 화면을 본 기록은 없다
 
 ## 안 바꿀 것
 
