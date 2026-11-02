@@ -2,6 +2,11 @@ package kr.io.newlearn;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,12 +24,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import kr.io.newlearn.analysis.AnalysisJob;
+import kr.io.newlearn.analysis.AnalysisJobRecovery;
 import kr.io.newlearn.analysis.AnalysisJobService;
 import kr.io.newlearn.analysis.AnalysisResultHandler;
 import kr.io.newlearn.analysis.AnalysisResultHandlers;
 import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
+import kr.io.newlearn.analysis.issue.IssueDispatcher;
+import kr.io.newlearn.analysis.match.MatchDispatcher;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
 import kr.io.newlearn.analysis.queue.JobPublisher;
 import kr.io.newlearn.analysis.queue.StreamGroupsInitializer;
@@ -49,6 +57,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -91,10 +100,21 @@ class AnalysisJobQueueIntegrationTest {
     AnalysisJobService service;
 
     @Autowired
-    ArticleRepository articles;
+    AnalysisJobRecovery recovery;
 
     @Autowired
+    ArticleRepository articles;
+
+    // 진짜로 넣되, 넣기 실패 경로를 볼 때만 던지게 한다
+    @MockitoSpyBean
     JobPublisher publisher;
+
+    // W1 뒤 고르기가 실패하는 경로를 볼 때만 던지게 한다
+    @MockitoSpyBean
+    MatchDispatcher matches;
+
+    @MockitoSpyBean
+    IssueDispatcher issues;
 
     @Autowired
     StreamGroupsInitializer groups;
@@ -350,17 +370,17 @@ class AnalysisJobQueueIntegrationTest {
     void failureIsRetriedAfterItsDelayOnce() {
         long job = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
 
-        assertThat(service.retryDue(T0.plusSeconds(59))).isZero();
+        assertThat(recovery.retryDue(T0.plusSeconds(59))).isZero();
         assertThat(row(job)).containsEntry("status", "FAILED");
 
-        assertThat(service.retryDue(T0.plusSeconds(61))).isEqualTo(1);
+        assertThat(recovery.retryDue(T0.plusSeconds(61))).isEqualTo(1);
         assertThat(row(job)).containsEntry("status", "QUEUED").containsEntry("attempt", 2);
         assertThat(row(job).get("published_at")).isNotNull();
         JsonNode message = lastMessage(AnalysisStreams.RELEASED);
         assertThat(message.get("attempt").asInt()).isEqualTo(2);
         assertThat(message.get("jobs").get("EXTRACT").asLong()).isEqualTo(job);
 
-        assertThat(service.retryDue(T0.plus(Duration.ofHours(1)))).isZero();
+        assertThat(recovery.retryDue(T0.plus(Duration.ofHours(1)))).isZero();
     }
 
     // 최대 시도 수 · 「한 번만 더」 코드 · 다시 걸지 않는 코드는 아무리 지나도 그대로
@@ -370,7 +390,7 @@ class AnalysisJobQueueIntegrationTest {
         long once = job(ARTICLE, "EMBED", "FAILED", 2, "LLM_OUTPUT_INVALID", T0, T0, T0, null);
         long refused = job(article(3002), "EXTRACT", "FAILED", 1, "LLM_REFUSED", T0, T0, T0, null);
 
-        assertThat(service.retryDue(T0.plus(Duration.ofDays(1)))).isZero();
+        assertThat(recovery.retryDue(T0.plus(Duration.ofDays(1)))).isZero();
         assertThat(row(limit)).containsEntry("status", "FAILED").containsEntry("attempt", 3);
         assertThat(row(once)).containsEntry("status", "FAILED").containsEntry("attempt", 2);
         assertThat(row(refused)).containsEntry("status", "FAILED").containsEntry("attempt", 1);
@@ -391,7 +411,7 @@ class AnalysisJobQueueIntegrationTest {
                 """).param("t0", java.sql.Timestamp.from(T0)).update();
         long due = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
 
-        assertThat(service.retryDue(T0.plus(Duration.ofHours(1)))).isEqualTo(1);
+        assertThat(recovery.retryDue(T0.plus(Duration.ofHours(1)))).isEqualTo(1);
         assertThat(row(due)).containsEntry("status", "QUEUED").containsEntry("attempt", 2);
     }
 
@@ -405,11 +425,11 @@ class AnalysisJobQueueIntegrationTest {
             List<Future<Integer>> runs = List.of(
                     pool.submit(() -> {
                         start.await();
-                        return service.retryDue(T0.plusSeconds(61));
+                        return recovery.retryDue(T0.plusSeconds(61));
                     }),
                     pool.submit(() -> {
                         start.await();
-                        return service.retryDue(T0.plusSeconds(61));
+                        return recovery.retryDue(T0.plusSeconds(61));
                     }));
             start.countDown();
             assertThat(runs.get(0).get() + runs.get(1).get()).isEqualTo(1);
@@ -424,15 +444,69 @@ class AnalysisJobQueueIntegrationTest {
     void unpublishedJobIsPublishedAfterAMinuteOnce() {
         long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(30))).isZero();
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(30))).isZero();
         assertThat(row(job).get("published_at")).isNull();
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
         assertThat(row(job).get("published_at")).isNotNull();
         JsonNode message = lastMessage(AnalysisStreams.RELEASED);
         assertThat(message.get("jobs").get("EXTRACT").asLong()).isEqualTo(job);
 
-        assertThat(service.publishUnpublished(T0.plus(Duration.ofHours(1)))).isZero();
+        assertThat(recovery.publishUnpublished(T0.plus(Duration.ofHours(1)))).isZero();
+    }
+
+    // 큐에 다시 넣다 실패하면(Redis 끊김) 표시를 지우고 그 차례를 멈춘다 — 다음 차례에 둘 다 다시 넣는다
+    @Test
+    void publishFailureUnmarksAndStopsTheRound() {
+        long first = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
+        article(3002);
+        long second = job(3002, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
+        doThrow(new IllegalStateException("Redis 끊김"))
+                .when(publisher)
+                .publish(eq(AnalysisStreams.RELEASED), anyString());
+
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(61))).isZero();
+
+        verify(publisher, times(1)).publish(eq(AnalysisStreams.RELEASED), anyString());
+        assertThat(row(first).get("published_at")).isNull();
+        assertThat(row(second).get("published_at")).isNull();
+    }
+
+    // W1 뒤 고르기가 실패해도 W1 응답은 그대로다 — 1분 스케줄러가 다시 고른다
+    @Test
+    void dispatchFailureAfterW1KeepsTheResponse() throws Exception {
+        handle(AnalysisStage.EXTRACT, (job, request) -> {});
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        doThrow(new IllegalStateException("판정 고르기 실패")).when(matches).next();
+        doThrow(new IllegalStateException("ISSUE 고르기 실패")).when(issues).next();
+
+        w1(job, envelope(1, "SUCCEEDED", "{}", "null")).andExpect(status().isNoContent());
+
+        verify(matches).next();
+        verify(issues).next();
+        assertThat(row(job)).containsEntry("status", "SUCCEEDED");
+    }
+
+    // 결과를 거절한 W1 도 같다 — 고르기가 실패해도 400 과 RESULT_SCHEMA_INVALID 기록(바로 다시 걸기)은 그대로다
+    @Test
+    void dispatchFailureAfterRejectedW1KeepsTheRejection() throws Exception {
+        handle(AnalysisStage.EXTRACT, (job, request) -> {
+            throw new ResultSchemaInvalidException("가지가 하나도 없다");
+        });
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        doThrow(new IllegalStateException("판정 고르기 실패")).when(matches).next();
+        doThrow(new IllegalStateException("ISSUE 고르기 실패")).when(issues).next();
+
+        w1(job, envelope(1, "SUCCEEDED", "{}", "null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        verify(matches).next();
+        verify(issues).next();
+        assertThat(row(job))
+                .containsEntry("status", "QUEUED")
+                .containsEntry("attempt", 2)
+                .containsEntry("error_code", "RESULT_SCHEMA_INVALID");
     }
 
     // 후보가 빈 ISSUE 대기 작업은 아예 읽지 않는다 — 고르기만 넣는다(Jira 40, 그 전에는 ISSUE 에 메시지 공장이 없었다).
@@ -445,7 +519,7 @@ class AnalysisJobQueueIntegrationTest {
         }
         long extract = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
         assertThat(row(extract).get("published_at")).isNotNull();
     }
 

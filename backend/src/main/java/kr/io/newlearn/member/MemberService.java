@@ -102,7 +102,7 @@ public class MemberService {
 
     private MemberResponse toResponse(Member member) {
         List<CategoryRef> refs = memberCategories.findCategoriesOfMember(member.getId()).stream()
-                .map(category -> new CategoryRef(category.getCode(), category.getName()))
+                .map(CategoryRef::from)
                 .toList();
         return new MemberResponse(member.getId(), member.getLoginId(), member.getName(), refs);
     }

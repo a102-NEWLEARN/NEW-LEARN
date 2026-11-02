@@ -1,8 +1,9 @@
 package kr.io.newlearn.analysis.embedding;
 
+import static kr.io.newlearn.analysis.ResultFields.invalid;
+
 import java.util.ArrayList;
 import java.util.List;
-import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import tools.jackson.databind.JsonNode;
 
 // W1 EMBED 결과(봉투의 result) — docs/api-internal.md 5절 (Jira 35)
@@ -40,9 +41,5 @@ public record EmbedResult(String model, List<Double> vector) {
             values.add(value.doubleValue());
         }
         return new EmbedResult(model.stringValue(), List.copyOf(values));
-    }
-
-    private static ResultSchemaInvalidException invalid(String detail) {
-        return new ResultSchemaInvalidException(detail);
     }
 }

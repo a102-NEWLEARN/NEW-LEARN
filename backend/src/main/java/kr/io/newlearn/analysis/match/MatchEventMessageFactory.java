@@ -5,12 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import kr.io.newlearn.analysis.AnalysisJob;
 import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.analysis.queue.AnalysisMessageFactory;
 import kr.io.newlearn.article.Article;
+import kr.io.newlearn.common.Rows;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.event.CandidateEventFinder;
 import kr.io.newlearn.event.Event;
@@ -76,11 +75,10 @@ class MatchEventMessageFactory implements AnalysisMessageFactory {
         List<CandidateEventFinder.Candidate> picked = CandidateEventFinder.read(jsonMapper, job.getCandidates());
         List<Long> eventIds =
                 picked.stream().map(CandidateEventFinder.Candidate::eventId).toList();
-        Map<Long, Event> byId =
-                events.findAllById(eventIds).stream().collect(Collectors.toMap(Event::getId, Function.identity()));
+        Map<Long, Event> byId = Rows.byId(events.findAllById(eventIds), Event::getId);
         Map<Long, Long> firstArticles = finder.firstArticleIds(eventIds);
-        Map<Long, ArticleMindmap> firstMindmaps = mindmaps.findAllById(firstArticles.values()).stream()
-                .collect(Collectors.toMap(ArticleMindmap::getArticleId, Function.identity()));
+        Map<Long, ArticleMindmap> firstMindmaps =
+                Rows.byId(mindmaps.findAllById(firstArticles.values()), ArticleMindmap::getArticleId);
         List<CandidateEvent> candidates = new ArrayList<>();
         for (CandidateEventFinder.Candidate candidate : picked) {
             Event event = byId.get(candidate.eventId());

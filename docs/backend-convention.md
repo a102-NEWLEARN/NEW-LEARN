@@ -26,7 +26,7 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 
 - 요청 · 응답은 Java `record` 다. 엔티티를 그대로 내보내지 않는다
 - 시각: 응답 DTO 로 옮길 때 `ApiTime.toKst(entity.getPublishedAt())` 를 쓴다. `+09:00` · 초 단위 `OffsetDateTime` 이 된다. 요청 시각은 `OffsetDateTime` 으로 받는다 — 오프셋이 없으면 따로 검사하지 않아도 400 이다. `spring.jackson.time-zone` 은 두지 않는다(두면 모든 시각이 그 시간대로 바뀐다)
-- 목록: `@Valid PageQuery query` 로 받고 `query.toPageable(Sort.by(…))` 로 리포지토리를 부른 뒤 `PageResponse.from(page.map(XxxResponse::from))` 로 돌려준다. Spring 의 `Pageable` 인자를 바로 받지 않는다 — 범위 밖 값을 400 대신 조용히 고친다
+- 목록: `@Valid PageQuery query` 로 받고 `query.toPageable(Sort.by(…))` 로 리포지토리를 부른 뒤 `PageResponse.from(page.map(XxxResponse::from))` 로 돌려준다. 행 묶음을 조립기로 한꺼번에 만들면 `PageResponse.of(page, 조립한 항목)`. Spring 의 `Pageable` 인자를 바로 받지 않는다 — 범위 밖 값을 400 대신 조용히 고친다
 - 입력 검사: 검증 어노테이션마다 `message` 에 화면에 그대로 보일 한국어 문장을 쓴다(예: `@Size(max = 20, message = "이름은 20자까지예요")`). 이 문장이 `errors[].reason` 이 된다. 빼면 기본 문구(영어일 수 있다)가 나간다
 - 공개 입력의 글자가 SQL 에 닿으면 U+0000(NUL)을 먼저 본다 — PostgreSQL 이 이 글자를 받지 못해 500 이 난다. 검색어는 `QueryText.normalize`, 그 밖의 칸은 `QueryText.containsNul` 로 보고 그 칸의 계약 답(없는 코드 404 · 400 `errors[칸]` · 없는 아이디 401)을 준다(2026-10-30)
 - 컨트롤러 클래스에 `@Validated` 를 붙이지 않는다. 붙이면 다른 예외가 나서 400 이 아니라 500 이 된다
@@ -89,6 +89,6 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - JDBC · JDK 처럼 표시가 없는 라이브러리 값은 NullAway 가 non-null 로 본다. 비어 올 수 있는 칸은 받는 자리에서 `@Nullable` 로 받는다(예: `IssueQueryRepository` 의 `nullableInstant` — 사건이 없는 이슈의 `min(e.occurred_at)`). 그 값에 `@Contract` 도우미를 바로 씌우면 null 이 가려진다
 - 요청 record(JSON 으로 받는 칸) · `@RequestParam(required = false)` · Spring Data 조회 뷰의 칸은 아직 표시하지 않았다. 비어 올 수 있으니 쓰기 전에 확인한다(예: `JobResultRequest.problem()`)
 - 테스트(`src/test`)는 NullAway 가 보지 않는다 — 일부러 null 을 넘기는 시험이 많다. javac 경고 · Error Prone 은 본다
-- 검사를 꼭 꺼야 하면 가장 좁은 자리(메서드 · 지역 변수)에 `@SuppressWarnings("<검사 이름>")` 을 달고 바로 위에 까닭 한 줄을 쓴다. 예: `AnalysisJobService` 의 `NullAway`(제네릭 콜백의 null), `InternalKeyFilter` 의 `ArrayRecordComponent`
+- 검사를 꼭 꺼야 하면 가장 좁은 자리(메서드 · 지역 변수)에 `@SuppressWarnings("<검사 이름>")` 을 달고 바로 위에 까닭 한 줄을 쓴다. 예: `AnalysisJobRecovery` 의 `NullAway`(제네릭 콜백의 null), `InternalKeyFilter` 의 `ArrayRecordComponent`
 - `Serializable` 을 구현하면 `@Serial private static final long serialVersionUID = 1L;` 을 둔다(예외 클래스 · 복합 키)
 

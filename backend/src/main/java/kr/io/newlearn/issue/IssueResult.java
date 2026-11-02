@@ -1,10 +1,13 @@
 package kr.io.newlearn.issue;
 
+import static kr.io.newlearn.analysis.ResultFields.id;
+import static kr.io.newlearn.analysis.ResultFields.invalid;
+import static kr.io.newlearn.analysis.ResultFields.text;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -62,14 +65,6 @@ public record IssueResult(
         };
     }
 
-    // "3" 같은 글자 · 3.5 같은 소수는 거절한다
-    private static long id(JsonNode id, String field) {
-        if (!id.isInt() && !id.isLong()) {
-            throw invalid(field + " 가 정수가 아니다: " + id);
-        }
-        return id.longValue();
-    }
-
     // 받은 순서 그대로. 같은 사건이 두 번이면 「사건 3개」를 셀 수 없어 거절한다
     private static List<Long> eventIds(JsonNode eventIds) {
         if (!eventIds.isArray()) {
@@ -88,20 +83,5 @@ public record IssueResult(
             throw invalid("새 이슈의 사건이 " + MIN_EVENTS + "개가 안 된다: " + ids.size());
         }
         return List.copyOf(ids);
-    }
-
-    // 비거나 공백뿐이면 거절 — 화면에 그릴 글이다. U+0000 은 PostgreSQL text · jsonb 가 받지 않아 저장에서 500 이 나므로 거절
-    private static String text(JsonNode node, String field) {
-        if (!node.isString() || node.stringValue().isBlank()) {
-            throw invalid(field + " 이 비었다");
-        }
-        if (node.stringValue().indexOf('\u0000') >= 0) {
-            throw invalid(field + " 에 U+0000 이 있다");
-        }
-        return node.stringValue();
-    }
-
-    private static ResultSchemaInvalidException invalid(String detail) {
-        return new ResultSchemaInvalidException(detail);
     }
 }
