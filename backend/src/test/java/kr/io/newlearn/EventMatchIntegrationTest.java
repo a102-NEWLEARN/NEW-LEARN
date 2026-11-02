@@ -629,6 +629,23 @@ class EventMatchIntegrationTest {
         }
     }
 
+    // 정수가 아닌 반응 대상 원문은 길이에 상한이 없다 — 경고 로그에는 앞 80글자만 남긴다 (10-30 리뷰 4, Jira 143)
+    @Test
+    void aLongTargetIsLoggedByItsHeadOnly(CapturedOutput output) throws Exception {
+        assertThat(candidateEvent()).isEqualTo(3551);
+        long match = queuedMatch(ARTICLE);
+        String target = "가".repeat(1000);
+
+        w1(match, envelope(1, "match-v1", createdWith("비판 성명", reactionTo("\"" + target + "\""))))
+                .andExpect(status().isNoContent());
+
+        assertThat(reactsToEventId(linkedEvent(ARTICLE))).containsOnlyNulls();
+        // 따옴표 하나 + 「가」 79글자 + 말줄임
+        assertThat(output.toString())
+                .contains("reactsToEventId=\"" + "가".repeat(79) + "…")
+                .doesNotContain("가".repeat(80));
+    }
+
     // AC-3 · AC-5 — 판정이 끝나면 바로 다음 기사가 걸리고, 앞 기사가 만든 사건이 후보에 든다.
     // 나중에 발행된 기사가 붙어도 FIRST_PUBLISHED 시점을 늦추지 않는다
     @Test
@@ -938,28 +955,6 @@ class EventMatchIntegrationTest {
     }
 
     // 한 행짜리 목록 — 칸이 아직 없으면 「결과 없음」 예외가 아니라 단언에서 갈리게 to_jsonb 로 읽는다
-    // 정수가 아닌 반응 대상 원문은 길이에 상한이 없다 — 경고 로그에는 앞부분만 남긴다 (10-30 리뷰 4, Jira 143)
-    @Test
-    void aLongTargetIsLoggedByItsHeadOnly(CapturedOutput output) throws Exception {
-        assertThat(candidateEvent()).isEqualTo(3551);
-        long match = queuedMatch(ARTICLE);
-        String target = "가".repeat(1000);
-
-        w1(
-                        match,
-                        envelope(
-                                1,
-                                "match-v1",
-                                createdWith(
-                                        "비판 성명",
-                                        "\"role\": \"REACTION\", \"reactsTo\": \"착공식\", \"reactsToEventId\": \""
-                                                + target + "\"")))
-                .andExpect(status().isNoContent());
-
-        assertThat(reactsToEventId(linkedEvent(ARTICLE))).containsOnlyNulls();
-        assertThat(output.toString()).contains("반응 대상 사건 번호가 정수가 아니라").doesNotContain("가".repeat(100));
-    }
-
     private List<Long> reactsToEventId(long eventId) {
         return jdbc.sql("select (to_jsonb(e)->>'reacts_to_event_id')::bigint from event e where id = :id")
                 .param("id", eventId)

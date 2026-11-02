@@ -38,7 +38,7 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 그 밖에 우리가 고르는 실패: `throw new ApiException(ErrorCode.LOGIN_ID_TAKEN, "…");`
 - `ErrorCode` 에는 `docs/api.md` 2절 표의 코드가 모두 있다. 새 코드가 필요하면 2절 표와 `ErrorCode` 를 같은 MR 에서 고친다
 - 두 번째 인자(`detail`)는 개발자용 설명이다. 화면 문구는 화면이 `code` 를 보고 고른다
-- 나머지는 공통 처리기가 한다(`common/error/GlobalExceptionHandler`): 스프링이 내는 오류에 상태 이름 코드 붙이기, 입력 오류의 `errors[]`, 예상 못 한 오류를 500 `INTERNAL_ERROR` 로 바꾸고 원인은 로그에만 남기기. Tomcat 이 쿼리 인자를 못 읽은 오류(`InvalidParameterException` — UTF-8 이 아닌 퍼센트 인코딩 등)는 Tomcat 이 준 상태(보통 400)와 `VALIDATION_FAILED` 로 바꾼다(2026-10-30)
+- 나머지는 공통 처리기가 한다(`common/error/GlobalExceptionHandler`): 스프링이 내는 오류에 상태 이름 코드 붙이기, 입력 오류의 `errors[]`, 예상 못 한 오류를 500 `INTERNAL_ERROR` 로 바꾸고 원인은 로그에만 남기기. Tomcat 이 쿼리 인자를 못 읽은 오류(`InvalidParameterException` — UTF-8 이 아닌 퍼센트 인코딩 등)는 Tomcat 이 준 상태(보통 400)와 `VALIDATION_FAILED` 로 바꾼다(2026-10-30). 상태가 4xx · 5xx 가 아니면 400(2026-11-02)
 - 아직 막지 않은 구멍
   - 필터 단계에서 터진 오류는 스프링 기본 `/error` 응답으로 가서 `code` 가 없다
   - 본문 시각을 숫자(epoch)로 보내면 받아들인다. 지금 시각을 받는 API 는 내부 W1 뿐이다

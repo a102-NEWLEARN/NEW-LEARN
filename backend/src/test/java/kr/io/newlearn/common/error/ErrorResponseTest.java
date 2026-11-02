@@ -188,6 +188,10 @@ class ErrorResponseTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.detail").value(GlobalExceptionHandler.PARAMETER_UNREADABLE));
+        for (String notAnError : new String[] {"200", "399", "600"}) {
+            mockMvc.perform(get("/probe/parameters").param("status", notAnError))
+                    .andExpect(status().isBadRequest());
+        }
         mockMvc.perform(get("/probe/parameters").param("status", "413")).andExpect(status().is(413));
     }
 

@@ -1,6 +1,7 @@
 package kr.io.newlearn;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -243,12 +244,26 @@ class AnalysisJobQueueIntegrationTest {
 
         w1(job, envelope(1, "FAILED", "null", error))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"))
+                .andExpect(jsonPath("$.detail").value(startsWith("FAILED 인데 error.")));
 
         assertThat(row(job))
                 .containsEntry("status", "QUEUED")
                 .containsEntry("attempt", 2)
                 .containsEntry("error_code", "RESULT_SCHEMA_INVALID");
+    }
+
+    // message 는 비어 와도 받는다 — 위 U+0000 검사가 null 을 건너뛴다
+    @Test
+    void failureWithoutMessageIsStored() throws Exception {
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+
+        w1(job, envelope(1, "FAILED", "null", "{\"code\": \"LLM_TIMEOUT\"}")).andExpect(status().isNoContent());
+
+        assertThat(row(job))
+                .containsEntry("status", "FAILED")
+                .containsEntry("error_code", "LLM_TIMEOUT")
+                .containsEntry("error_message", null);
     }
 
     // 실패를 받으면 코드 · 설명을 남긴다. 늦춰 걸 코드는 지금 걸지 않고 스케줄러가 건다
