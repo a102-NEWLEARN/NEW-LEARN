@@ -124,6 +124,25 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 - **최종 발표(11/18) 뒤 `terraform destroy` 로 지운다.** 서버를 멈추기만 하면 EBS · 탄력적 IP 요금이 계속 나간다. 상태 버킷은 destroy 가 끝난 뒤 버전까지 비우고 지운다
 - DB 백업 버킷은 `force_destroy` 를 꺼 두어 안에 백업이 있으면 destroy 가 멈춘다(실수 방지). 남길 백업을 받은 뒤 S3 콘솔(루트 계정)에서 비우고 destroy 한다 — apply 키에는 백업을 지우는 권한을 주지 않았다
 
+## 루트 디스크 늘리기 (Jira S15P31A102-146)
+
+관리 서버를 멈추지 않고 늘린다. EBS 는 줄일 수 없고, 한 번 바꾸면 6시간 뒤에야 다시 바꿀 수 있다.
+
+1. `variables.tf` 의 `root_volume_gb` 를 올리고 MR 로 머지한다
+2. plan 이 `aws_instance.control_plane` 하나를 제자리에서 바꾸는지(`1 to change`, `root_block_device` 의 `volume_size` 만) 본다. `must be replaced` 가 나오면 멈춘다 — 서버를 새로 만든다는 뜻이다
+3. apply. apply 키에 `ec2:ModifyVolume` 이 있어야 한다(`iam/apply-policy.json`, IAM 콘솔의 정책도 같게)
+4. 서버에서 `lsblk` 로 디스크(`nvme0n1`)가 새 크기인지 보고, 1번 파티션과 파일 시스템(ext4)을 넓힌다
+
+```bash
+sudo growpart /dev/nvme0n1 1
+```
+
+```bash
+sudo resize2fs /dev/nvme0n1p1
+```
+
+5. `df -h /` 로 크기를 확인한다
+
 ## DB 백업 버킷 · 올리는 키 (Jira S15P31A102-109)
 
 매주 DB 백업 하나를 S3 에 올린다(`backup.tf`, 35일 뒤 지움). 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.

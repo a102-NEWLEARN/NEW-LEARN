@@ -127,7 +127,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 - 쿠버네티스(kubeadm으로 직접 구축) 노드 2대
   - 관리 서버(컨트롤 플레인): AWS EC2 t3.large. 팀 AWS 계정. Terraform으로 생성·삭제
-    - Ubuntu 24.04 LTS · gp3 30 GiB(암호화) · IMDSv2 · 탄력적 IP(컨트롤 플레인 주소가 클러스터 인증서에 들어가서) · CPU 크레딧 standard 고정(T3 기본 unlimited는 초과 요금) · 서울 리전. 코드는 `infra/terraform/`
+    - Ubuntu 24.04 LTS · gp3 50 GiB(암호화, 2026-11-02 30 에서 늘림 — Jira S15P31A102-146) · IMDSv2 · 탄력적 IP(컨트롤 플레인 주소가 클러스터 인증서에 들어가서) · CPU 크레딧 standard 고정(T3 기본 unlimited는 초과 요금) · 서울 리전. 코드는 `infra/terraform/`
     - 보안 그룹: 22는 관리자 PC 공인 IP(/32)에만. Lightsail 공인 IP에서 오는 WireGuard 51820/udp 하나만 더 연다. 쿠버네티스 포트(6443·10250·Cilium)는 WireGuard 터널 안으로만 다녀서 밖에 열지 않는다(아래 「노드 사이 — 호스트 WireGuard」). kubectl은 SSH 터널로 6443에 붙는다
     - Lightsail 방화벽은 들어오는 것만 막고 나가는 것은 모두 허용한다(AWS 문서). WireGuard는 Lightsail이 먼저 연결하므로 Lightsail 쪽에 노드 포트를 열 일이 없다. 인터넷에서 80/443만 들어오면 된다. 2026-10-22 받은 날 확인: 돌아오는 WireGuard UDP가 지나가고, SSAFY 쪽 방화벽에서 80 · 443이 열려 있다(아래 「현재 상태」). 서버 안 방화벽(ufw)은 지급 때 22만 열려 있다
   - 서비스 서버(워커): SSAFY 지급 Lightsail xlarge (4 vCPU, 16 GB). 버스트형이라 계속 쓸 수 있는 CPU는 약 1.6 vCPU(팀 문서 기준)
