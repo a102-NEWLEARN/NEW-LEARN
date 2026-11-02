@@ -1,10 +1,13 @@
 """SSAFY GMS 호출과 실패 분류(api.md 2절 작업 실패 코드).
 
 GMS 는 OpenAI 호환 chat/completions 를 그대로 받는다(AI 실험, 2026-10-23). 재시도 횟수 · 간격을 이 파일이
-정해야 해서 SDK 의 내장 재시도를 거치지 않고 httpx 로 직접 부른다. 다시 부를 일:
-- 시간 초과(한 번 180초) → 한 번 더, 안 되면 LLM_TIMEOUT
-- 연결 실패 · 5xx → 5 · 10 · 20초 뒤 3번 더, 안 되면 LLM_UNAVAILABLE (실험에서 3번 안에 이어졌다)
-- 429 → Retry-After(없으면 30초)를 따라 2번 더, 안 되면 LLM_RATE_LIMITED
+정해야 해서 SDK 의 내장 재시도를 거치지 않고 httpx 로 직접 부른다. httpx timeout 은 조각 사이 간격이라
+요청 한 번 전체에 asyncio 상한(180초)을 따로 건다. 다시 부를 일:
+- 시간 초과 → 5초 뒤 한 번 더, 안 되면 LLM_TIMEOUT
+- 연결 실패 · 5xx · 200 인데 OpenAI 모양이 아닌 응답(프록시 오류 화면) → 5 · 10 · 20초 뒤 3번 더,
+  안 되면 LLM_UNAVAILABLE (실험에서 3번 안에 이어졌다)
+- 429 → Retry-After(초 · HTTP 날짜, 없으면 30초)만큼 기다려 2번 더, 안 되면 LLM_RATE_LIMITED.
+  기다릴 시간이 마감 안에 들지 않으면 줄여서 부르지 않고 바로 LLM_RATE_LIMITED(api.md 2절 「대기 시간을 알려 주면 따른다」)
 다시 불러도 같은 일:
 - 입력 길이 초과 400 → LLM_INPUT_TOO_LONG / 거절 · 내용 필터 → LLM_REFUSED
 - 그 밖의 400 · 4xx → INTERNAL (요청을 잘못 만든 것이라 설정 · 코드를 고쳐야 한다)
@@ -18,6 +21,8 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -27,9 +32,9 @@ log = logging.getLogger(__name__)
 CALL_TIMEOUT_S = 180.0
 UNAVAILABLE_WAITS = (5.0, 10.0, 20.0)
 TIMEOUT_RETRIES = 1
+TIMEOUT_WAIT = 5.0
 RATE_LIMIT_RETRIES = 2
 RATE_LIMIT_DEFAULT_WAIT = 30.0
-RATE_LIMIT_MAX_WAIT = 120.0
 # 남은 시간이 이보다 짧으면 새로 부르지 않는다 — 부르다 잘리면 GMS 비용만 든다
 MIN_CALL_S = 20.0
 
@@ -92,45 +97,51 @@ class GmsClient:
             remaining = deadline - self.clock()
             if remaining < MIN_CALL_S:
                 raise last
+            limit = min(CALL_TIMEOUT_S, remaining)
             wait = 0.0
+            unavailable = ""
             try:
-                res = await self.http.post(
-                    self.url,
-                    json=body,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    timeout=min(CALL_TIMEOUT_S, remaining),
-                )
-            except httpx.TimeoutException:
+                async with asyncio.timeout(limit):
+                    res = await self.http.post(
+                        self.url,
+                        json=body,
+                        headers={"Authorization": f"Bearer {self.api_key}"},
+                        timeout=limit,
+                    )
+            except httpx.TimeoutException, TimeoutError:
                 last = GmsError("LLM_TIMEOUT", "GMS 응답 시간 초과")
                 if tries["timeout"] >= TIMEOUT_RETRIES:
                     raise last from None
+                wait = TIMEOUT_WAIT
                 tries["timeout"] += 1
             except httpx.TransportError as e:
-                last = GmsError("LLM_UNAVAILABLE", f"GMS 연결 실패({type(e).__name__})")
-                if tries["unavailable"] >= len(UNAVAILABLE_WAITS):
-                    raise last from None
-                wait = UNAVAILABLE_WAITS[tries["unavailable"]]
-                tries["unavailable"] += 1
+                unavailable = f"GMS 연결 실패({type(e).__name__})"
             else:
                 status = res.status_code
                 if status == 200:
-                    return _parse_ok(res)
-                if status in (401, 403):
+                    done = _parse_ok(res)
+                    if done is not None:
+                        return done
+                    # 200 인데 OpenAI 모양이 아니면 중간 프록시의 오류 화면일 때가 많다
+                    unavailable = "GMS 200 응답을 읽지 못함"
+                elif status in (401, 403):
                     raise GmsAuthError(f"GMS {status}")
-                if status == 429:
+                elif status == 429:
                     last = GmsError("LLM_RATE_LIMITED", "GMS 호출 한도 초과(429)")
                     if tries["rate"] >= RATE_LIMIT_RETRIES:
                         raise last
                     wait = _retry_after(res)
                     tries["rate"] += 1
                 elif status >= 500:
-                    last = GmsError("LLM_UNAVAILABLE", f"GMS {status}")
-                    if tries["unavailable"] >= len(UNAVAILABLE_WAITS):
-                        raise last
-                    wait = UNAVAILABLE_WAITS[tries["unavailable"]]
-                    tries["unavailable"] += 1
+                    unavailable = f"GMS {status}"
                 else:
                     raise _client_error(res)
+            if unavailable:
+                last = GmsError("LLM_UNAVAILABLE", unavailable)
+                if tries["unavailable"] >= len(UNAVAILABLE_WAITS):
+                    raise last
+                wait = UNAVAILABLE_WAITS[tries["unavailable"]]
+                tries["unavailable"] += 1
             log.info("GMS 다시 부름: %s, %.0f초 뒤", last.message, wait)
             if self.clock() + wait + MIN_CALL_S > deadline:
                 raise last
@@ -139,42 +150,58 @@ class GmsClient:
 
 
 def _retry_after(res: httpx.Response) -> float:
+    """Retry-After 는 초 또는 HTTP 날짜다. 줄이지 않는다 — 마감 안에 못 기다리면 부르는 쪽이 그만둔다."""
+    raw = res.headers.get("Retry-After", "").strip()
     try:
-        sec = float(res.headers.get("Retry-After", ""))
+        return max(float(raw), 1.0)
     except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(raw)
+    except TypeError, ValueError:
         return RATE_LIMIT_DEFAULT_WAIT
-    return min(max(sec, 1.0), RATE_LIMIT_MAX_WAIT)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+    return max((when - datetime.now(UTC)).total_seconds(), 1.0)
 
 
-def _error_text(res: httpx.Response) -> str:
+_SAFE_CODE = re.compile(r"[^\w.-]")
+
+
+def _error_fields(res: httpx.Response) -> tuple[str, str]:
+    """(분류용 전체 글, 로그 · W1 에 남길 코드). 오류 본문에는 요청 내용이 섞일 수 있어 code · type 만 남긴다."""
     try:
         err = res.json().get("error") or {}
     except ValueError, AttributeError:
-        return res.text[:200]
+        return res.text, ""
     if not isinstance(err, dict):
-        return str(err)[:200]
-    return " ".join(str(err.get(k) or "") for k in ("code", "type", "message"))[:200]
+        return str(err), ""
+    full = " ".join(str(err.get(k) or "") for k in ("code", "type", "message"))
+    code = " ".join(
+        _SAFE_CODE.sub("", str(err.get(k) or ""))[:40] for k in ("code", "type")
+    ).strip()
+    return full, code
 
 
 def _client_error(res: httpx.Response) -> GmsError:
-    text = _error_text(res)
-    if res.status_code in (400, 413) and _TOO_LONG.search(text):
+    full, code = _error_fields(res)
+    if res.status_code in (400, 413) and _TOO_LONG.search(full):
         return GmsError("LLM_INPUT_TOO_LONG", f"GMS {res.status_code}: 입력 길이 초과")
-    if res.status_code == 400 and _FILTERED.search(text):
+    if res.status_code == 400 and _FILTERED.search(full):
         return GmsError("LLM_REFUSED", f"GMS {res.status_code}: 내용 필터")
     # 모델 이름 · 요청 모양이 틀린 것이다. 다시 불러도 같아서 INTERNAL 로 끝내고 경고를 남긴다
-    log.warning("GMS %s — 설정 · 요청을 확인할 것: %s", res.status_code, text)
-    return GmsError("INTERNAL", f"GMS {res.status_code}: {text[:100]}")
+    log.warning("GMS %s — 설정 · 요청을 확인할 것: %s", res.status_code, code)
+    return GmsError("INTERNAL", f"GMS {res.status_code}: {code}".strip())
 
 
-def _parse_ok(res: httpx.Response) -> Completion:
+def _parse_ok(res: httpx.Response) -> Completion | None:
+    """OpenAI 모양이 아니면 None — 부르는 쪽이 LLM_UNAVAILABLE 로 다시 부른다."""
     try:
         data = res.json()
         choice = data["choices"][0]
         message = choice.get("message") or {}
     except ValueError, KeyError, IndexError, TypeError, AttributeError:
-        # 200 인데 OpenAI 모양이 아니면 중간 프록시의 오류 화면일 때가 많다
-        raise GmsError("LLM_UNAVAILABLE", "GMS 200 응답을 읽지 못함") from None
+        return None
     finish = choice.get("finish_reason")
     if finish == "content_filter" or message.get("refusal"):
         raise GmsError("LLM_REFUSED", "모델이 답을 거절함")

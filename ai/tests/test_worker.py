@@ -1,9 +1,12 @@
+import asyncio
 import json
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app import backend as backend_module
+from app import worker as worker_module
 from app.backend import BackendClient, W1Outcome
 from app.config import load_settings
 from app.extract.prompt import PROMPT_VERSION
@@ -210,6 +213,52 @@ async def test_w1_auth_failure(status):
     assert len(seen) == 1
 
 
+@pytest.mark.parametrize("status", [200, 302, 408, 429])
+async def test_w1_status_outside_contract_is_not_acked(status):
+    # 계약의 ack 는 204 · 400 · 404 · 409 뿐이다. 저장했는지 모르는 응답에 ack 하면 작업을 잃는다
+    b, seen = backend([status] * 6)
+
+    outcome, got = await b.send_result(1, {})
+
+    assert (outcome, got) == (W1Outcome.UNREACHABLE, status)
+    assert len(seen) == 6
+
+
+async def test_w1_slow_response_is_cut_by_wall_clock(monkeypatch):
+    monkeypatch.setattr(backend_module, "W1_TIMEOUT_S", 0.05)
+    seen = []
+
+    async def slow(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        await asyncio.sleep(5)
+        return httpx.Response(204)
+
+    async def no_sleep(_):
+        return None
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(slow))
+    b = BackendClient(http, "http://backend:8080", "worker-key", no_sleep)
+
+    outcome, _ = await asyncio.wait_for(b.send_result(1, {}), timeout=2)
+
+    assert outcome is W1Outcome.UNREACHABLE
+    assert len(seen) == 6
+
+
+async def test_w1_400_logs_only_the_error_code(caplog):
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400, json={"code": "RESULT_SCHEMA_INVALID", "detail": "body-secret-xyz"}
+        )
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    b = BackendClient(http, "http://backend:8080", "worker-key")
+
+    assert (await b.send_result(1, {}))[0] is W1Outcome.ACK
+    assert "RESULT_SCHEMA_INVALID" in caplog.text
+    assert "body-secret-xyz" not in caplog.text
+
+
 # --- 큐 메시지 한 건 ---------------------------------------------------------------
 
 
@@ -311,6 +360,110 @@ async def test_handle_reports_failure_and_acks():
     body = json.loads(seen[0].content)
     assert body["status"] == "FAILED" and body["error"]["code"] == "LLM_UNAVAILABLE"
     assert redis.acked == ["1-0"]
+
+
+class HangingLlm:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(self, system, user, deadline):
+        self.calls += 1
+        await asyncio.sleep(60)
+
+
+async def test_handle_cuts_analysis_at_job_limit_and_still_reports(monkeypatch):
+    # GMS 단계가 마감을 넘기면 끊고, W1 몫을 남긴 채 LLM_TIMEOUT 실패를 보낸다
+    monkeypatch.setattr(worker_module, "JOB_LIMIT_S", worker_module.W1_RESERVE_S + 0.05)
+    w, redis, _, seen = worker(HangingLlm(), [204])
+
+    await asyncio.wait_for(w.handle("1-0", fields(PAYLOAD)), timeout=2)
+
+    body = json.loads(seen[0].content)
+    assert body["status"] == "FAILED" and body["error"]["code"] == "LLM_TIMEOUT"
+    assert body["model"] == "gpt-6-luna" and body["attempt"] == 1
+    assert redis.acked == ["1-0"]
+
+
+# --- 큐 루프 -----------------------------------------------------------------------
+
+
+class LoopRedis(FakeRedis):
+    """xautoclaim · xreadgroup 응답을 차례로 돌려주는 Redis 대역."""
+
+    def __init__(self, claims=(), reads=(), on_read=None) -> None:
+        super().__init__()
+        self.claims = list(claims)
+        self.reads = list(reads)
+        self.on_read = on_read
+        self.claim_starts: list[str] = []
+
+    async def xautoclaim(self, stream, group, consumer, min_idle, start_id, count):
+        assert (stream, group) == (STREAM, GROUP)
+        assert min_idle == 20 * 60 * 1000
+        self.claim_starts.append(start_id)
+        return self.claims.pop(0) if self.claims else [b"0-0", [], []]
+
+    async def xreadgroup(self, group, consumer, streams, count, block):
+        if self.on_read:
+            self.on_read()
+        if not self.reads:
+            return []
+        return [[STREAM.encode(), [self.reads.pop(0)]]]
+
+
+def loop_worker(llm, statuses, redis) -> tuple[Worker, list]:
+    b, seen = backend(statuses)
+    return Worker(redis, llm, "gpt-6-luna", b, "w1", WorkerStatus("RUNNING")), seen
+
+
+async def test_claim_follows_cursor_until_scan_ends():
+    msg = (b"6-0", fields(PAYLOAD))
+    redis = LoopRedis(claims=[[b"5-0", [], []], [b"0-0", [msg], []]])
+    w, _ = loop_worker(FakeLlm(), [], redis)
+
+    assert await w.next_message() == msg
+    assert redis.claim_starts == ["0-0", "5-0"]
+
+    # 한 바퀴를 다 돌았으면 다음에는 처음부터 다시 훑는다
+    await w.next_message()
+    assert redis.claim_starts[-1] == "0-0"
+
+
+async def test_claim_scan_resumes_from_cursor_across_reads(monkeypatch):
+    monkeypatch.setattr(worker_module, "CLAIM_SCAN_STEPS", 1)
+    redis = LoopRedis(claims=[[b"5-0", [], []]])
+    w, _ = loop_worker(FakeLlm(), [], redis)
+
+    assert await w.next_message() is None
+    await w.next_message()
+
+    assert redis.claim_starts == ["0-0", "5-0"]
+
+
+async def test_run_handles_a_message_then_stops():
+    stop = asyncio.Event()
+    redis = LoopRedis(reads=[(b"1-0", fields(PAYLOAD))])
+    llm = FakeLlm(GOOD)
+    w, seen = loop_worker(llm, [204], redis)
+    redis.on_read = lambda: None if redis.reads else stop.set()
+
+    await asyncio.wait_for(w.run(stop), timeout=2)
+
+    assert redis.acked == ["1-0"]
+    assert llm.calls == 1 and len(seen) == 1
+
+
+async def test_run_does_not_start_gms_when_stop_arrives_during_read():
+    stop = asyncio.Event()
+    redis = LoopRedis(reads=[(b"1-0", fields(PAYLOAD))], on_read=stop.set)
+    llm = FakeLlm(GOOD)
+    w, seen = loop_worker(llm, [204], redis)
+
+    await asyncio.wait_for(w.run(stop), timeout=2)
+
+    # 읽은 메시지는 ack 하지 않고 둔다 — 다시 가져가기로 다른 워커가 처리한다
+    assert llm.calls == 0 and seen == []
+    assert redis.acked == []
 
 
 # --- 워커를 띄울지 · 헬스 ------------------------------------------------------------

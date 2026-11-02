@@ -28,6 +28,27 @@ def now_kst() -> str:
     return datetime.now(KST).isoformat(timespec="seconds")
 
 
+def make_envelope(
+    payload: dict[str, Any],
+    model: str,
+    started: str,
+    result: dict[str, Any] | None,
+    code: str | None,
+    message: str,
+) -> dict[str, Any]:
+    # 실패여도 model · promptVersion 을 채운다 — API 는 실패 결과의 두 칸을 저장하지 않는다(5절)
+    return {
+        "attempt": payload["attempt"],
+        "status": "FAILED" if code else "SUCCEEDED",
+        "model": model,
+        "promptVersion": PROMPT_VERSION,
+        "startedAt": started,
+        "finishedAt": now_kst(),
+        "result": result,
+        "error": {"code": code, "message": message} if code else None,
+    }
+
+
 async def run_extract(
     payload: dict[str, Any], llm: ChatClient, model: str, deadline: float
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -36,17 +57,7 @@ async def run_extract(
     diag: dict[str, Any] = {"calls": 0, "usage": []}
 
     def envelope(result: dict[str, Any] | None, code: str | None, message: str) -> dict:
-        # 실패여도 model · promptVersion 을 채운다 — API 는 실패 결과의 두 칸을 저장하지 않는다(5절)
-        return {
-            "attempt": payload["attempt"],
-            "status": "FAILED" if code else "SUCCEEDED",
-            "model": model,
-            "promptVersion": PROMPT_VERSION,
-            "startedAt": started,
-            "finishedAt": now_kst(),
-            "result": result,
-            "error": {"code": code, "message": message} if code else None,
-        }
+        return make_envelope(payload, model, started, result, code, message)
 
     try:
         article = payload["article"]
