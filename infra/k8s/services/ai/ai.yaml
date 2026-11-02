@@ -1,5 +1,5 @@
 # ai 워커 (FastAPI) — Redis 작업 큐를 읽어 분석한다. 밖에는 열지 않는다
-# 지금은 LLM_MODE=mock(가짜 응답, GMS 키 없음). 실제 모드(gms)는 키를 봉인한 뒤 따로 바꾼다 (SSOT 6절)
+# 실제 모드(LLM_MODE=gms) — EXTRACT 큐를 읽어 SSAFY GMS 를 부르고 W1 으로 결과를 보낸다. 켜고 끄는 법은 infra/server/ai-worker.md (Jira S15P31A102-115, 계획 docs/plans/2026-11-02-ai-real-mode-switch.md)
 # 임베딩 모델은 init 컨테이너가 PVC(model-cache.yaml)에 한 번 받아 두고 앱은 그 폴더에서 읽는다 — 계획 docs/plans/2026-10-26-ai-real-mode-infra.md
 apiVersion: v1
 kind: Service
@@ -94,22 +94,28 @@ spec:
               value: redis.data.svc
             - name: REDIS_PORT
               value: "6379"
+            # mock 으로 되돌리면 워커가 큐를 읽지 않는다(WORKER_ALLOW_MOCK 없음 → /health 의 worker OFF)
             - name: LLM_MODE
-              value: mock
-            # GMS 주소 · 모델은 비밀이 아니다(SSOT 10절). 키(GMS_API_KEY)는 실제 모드로 바꿀 때 봉인 Secret 으로 더한다
+              value: gms
+            # GMS 주소 · 모델은 비밀이 아니다(SSOT 10절). 키는 봉인 Secret gms-api(팀 공용키) — 없으면 Pod 가 뜨지 않아 옛 Pod 가 남는다
             # seal-secrets.sh gms 가 키를 확인할 때 클러스터에 반영된 이 주소를 읽는다
             - name: GMS_BASE_URL
               value: https://gms.ssafy.io/gmsapi/api.openai.com/v1
             - name: GMS_MODEL
               value: gpt-6-luna
+            - name: GMS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gms-api
+                  key: GMS_API_KEY
             # 임베딩 모델은 init 컨테이너가 받아 둔 /models 에서만 읽는다 — 앱이 허깅페이스에서 받지 않게
             # 모델 경로(/models/BGE-m3-ko)를 넘길 env 는 AI 코드가 이름을 정하면 더한다
             - name: HF_HUB_OFFLINE
               value: "1"
             - name: HF_HOME
               value: /models/hf
-            # 분석 결과를 W1 로 돌려줄 backend 주소와 직원용 문 출입증(워커 키) — AI 코드가 아직 안 읽는다, 자리만 (Jira 30, docs/api-internal.md)
-            # 봉인(seal-secrets.sh internal-api) 전에는 키가 비어 W1 이 401 이다
+            # 분석 결과를 W1 로 돌려줄 backend 주소와 직원용 문 출입증(워커 키, backend 의 INTERNAL_WORKER_KEY 와 같은 값) (Jira 30, docs/api-internal.md)
+            # 키가 비면 워커가 BLOCKED(/health 503), W1 이 401 · 403 이면 큐 읽기를 멈춘다 — 키를 바꾸면 Pod 를 다시 띄운다
             - name: BACKEND_URL
               value: http://backend.app.svc:8080
             - name: INTERNAL_API_KEY
