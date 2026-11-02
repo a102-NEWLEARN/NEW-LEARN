@@ -54,11 +54,9 @@ public class ArticleSummaryAssembler {
                     return new ArticleSummaryResponse(
                             article.getId(),
                             article.getTitle(),
-                            new ArticleSummaryResponse.PublisherRef(
-                                    article.getPress().getCode(),
-                                    article.getPress().getName()),
+                            ArticleSummaryResponse.PublisherRef.from(article.getPress()),
                             ApiTime.toKst(article.getPublishedAt()),
-                            category == null ? null : new CategoryRef(category.getCode(), category.getName()),
+                            category == null ? null : CategoryRef.from(category),
                             summary,
                             article.getUrl(),
                             result != null

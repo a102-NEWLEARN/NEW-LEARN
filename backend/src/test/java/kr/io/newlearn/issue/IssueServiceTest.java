@@ -16,7 +16,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 class IssueServiceTest {
-    CategoryRepository categories = mock(CategoryRepository.class);
+    // checkFilter(default 메서드)는 진짜로 돌린다 — 없는 코드는 목의 기본 답(false)
+    CategoryRepository categories = mock(CategoryRepository.class, CALLS_REAL_METHODS);
     IssueQueryRepository queries = mock(IssueQueryRepository.class);
     IssueRepository issues = mock(IssueRepository.class);
     EventRepository events = mock(EventRepository.class);
