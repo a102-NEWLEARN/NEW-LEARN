@@ -58,6 +58,7 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 쿼리는 Spring Data 메서드 이름 → 안 되면 `@Query`(JPQL) → 집계가 복잡하면 네이티브 SQL 순서로 고른다. QueryDSL 은 쓰지 않는다(2026-10-22 의존성을 뺐다)
 - 목록에서 항목마다 따로 쿼리하지 않는다(N+1)
 - 조회 서비스는 클래스에 `@Transactional(readOnly = true)`, 쓰는 메서드만 `@Transactional`
+  - 예외: 로그인(`AuthService`)처럼 bcrypt 비교 · Redis 호출을 하는 서비스는 클래스 트랜잭션을 두지 않는다 — 그동안 DB 연결을 잡으면 동시 로그인이 연결 풀(기본 10개)을 다 써 다른 API · readiness 의 DB 검사가 기다린다(2026-11-02 Jira 144)
 
 ## 7. 테스트
 

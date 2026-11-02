@@ -284,6 +284,19 @@ class MemberAuthApiIntegrationTest {
         assertThat(wrongPassword.replace("login_03", "")).isEqualTo(unknownId.replace("nobody_03", ""));
     }
 
+    // bcrypt 는 72바이트까지만 읽는다 — 그 뒤에 글자를 더 붙인 비밀번호는 비교하지 않고 틀린 것으로 본다(Jira 144 리뷰)
+    // 이 검사가 없으면 앞 72바이트만 맞춰 보거나(같다고 나옴) 예외를 던진다(500) — 어느 쪽이든 이 시험이 잡는다
+    @Test
+    void passwordLongerThan72BytesDoesNotMatchItsFirst72Bytes() throws Exception {
+        // 한글 24자 = 72바이트 — 가입 규칙(64자 · 72바이트)의 끝
+        String exactly72Bytes = "가".repeat(24);
+        signUp(signUpBody("login_09", exactly72Bytes, "독자", "world")).andExpect(status().isCreated());
+        login("login_09", exactly72Bytes + "a")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
+        login("login_09", exactly72Bytes).andExpect(status().isOk());
+    }
+
     @Test
     void fiveFailuresLockTheLoginIdForOneMinute() throws Exception {
         signUp(signUpBody("login_04", "password1", "독자", "world")).andExpect(status().isCreated());

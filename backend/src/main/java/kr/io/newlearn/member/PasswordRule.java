@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets;
 // bcrypt 는 72바이트까지만 읽는다. 한글 비밀번호는 글자 수보다 바이트 수가 먼저 찬다
 public final class PasswordRule {
 
-    static final int MAX_BYTES = 72;
+    private static final int MAX_BYTES = 72;
 
     private PasswordRule() {}
 

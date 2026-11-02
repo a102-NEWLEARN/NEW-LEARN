@@ -13,12 +13,11 @@ import kr.io.newlearn.member.PasswordRule;
 import kr.io.newlearn.member.dto.MemberResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 // A15 로그인 — 아이디 · 비밀번호를 맞춰 보고 회원 정보를 준다. 세션을 여는 일은 컨트롤러가 LoginSessions 로 한다 (Jira 62)
-// 회원 행과 관심 분야를 읽기 트랜잭션 하나에서 읽는다(docs/backend-convention.md 6절)
+// 클래스 트랜잭션을 두지 않는다 — bcrypt 비교 · Redis 잠금 동안 DB 연결을 잡지 않게. 조회는 저장소 · MemberService 가
+// 각자 짧은 트랜잭션으로 한다(docs/backend-convention.md 6절 예외, Jira 144)
 @Service
-@Transactional(readOnly = true)
 public class AuthService {
 
     // 어느 쪽이 틀렸는지 알려 주지 않는다 — 없는 아이디와 틀린 비밀번호가 같은 응답이다 (docs/api-screen.md A15)

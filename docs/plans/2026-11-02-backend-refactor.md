@@ -56,7 +56,8 @@
 
 - Spring 기본 계정 · 비밀번호 줄 없애기 — 자동 구성 `UserDetailsServiceAutoConfiguration` 을 끈다. 시험: 앱이 뜰 때 로그에 `generated security password` 가 없다. 로그인 · 세션 시험은 그대로
 - 로그인 · 가입이 복사해 쓰는 `MemberPrincipal` 만들기 → 한 곳(`MemberPrincipal.of`). 비밀번호 바이트 규칙도 한 곳으로
-- `AuthService` 에 읽기 트랜잭션(규칙 6절). 「세션의 회원이 없다」 401 두 곳을 하나로
+- ~~`AuthService` 에 읽기 트랜잭션(규칙 6절)~~ → 리뷰 뒤 빼기로 바꿈(2026-11-02 사용자 결정 — 로그인 동안 DB 연결을 잡고 동시 로그인 시험이 경쟁을 못 만든다. 규칙 6절에 예외 한 줄). 「세션의 회원이 없다」 401 두 곳을 하나로
+- 인증 주체 만들기는 `MemberPrincipal.of` 대신 `MemberResponse.toPrincipal()` — common 이 member.dto 를 import 하지 않게
 - 🔴 머지 전에 사용자가 diff 를 본다(AGENTS.md 「인증 · 권한 코드 — 고쳤으면 사람이 최종 확인」)
 
 ## 작업 순서
@@ -99,4 +100,4 @@
 
 - MR 마다 revert. 사이트는 태그 MR 을 revert(10-22 에 시험한 길, 9초)
 - 스키마 · 데이터를 바꾸지 않아 되돌려도 데이터에 영향이 없다
-- Loki 에 남은 옛 비밀번호 줄은 지우지 않는다 — 로그인 길(httpBasic · formLogin)이 없어 쓸 수 없는 값이고, Loki 보존 14일 뒤 사라진다
+- 옛 비밀번호 줄은 지우지 않는다 — 로그인 길(httpBasic · formLogin)이 없어 쓸 수 없는 값이다. Loki 로는 Alloy 가 10-28 부터 그 줄을 버렸고(SSOT 6절 「로그」), 컨테이너 로그에 남은 줄은 Pod 가 바뀌면 사라진다
