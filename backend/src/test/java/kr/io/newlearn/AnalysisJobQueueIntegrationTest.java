@@ -2,6 +2,11 @@ package kr.io.newlearn;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -25,6 +30,8 @@ import kr.io.newlearn.analysis.AnalysisResultHandlers;
 import kr.io.newlearn.analysis.AnalysisStage;
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
+import kr.io.newlearn.analysis.issue.IssueDispatcher;
+import kr.io.newlearn.analysis.match.MatchDispatcher;
 import kr.io.newlearn.analysis.queue.AnalysisStreams;
 import kr.io.newlearn.analysis.queue.JobPublisher;
 import kr.io.newlearn.analysis.queue.StreamGroupsInitializer;
@@ -49,6 +56,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -93,8 +101,16 @@ class AnalysisJobQueueIntegrationTest {
     @Autowired
     ArticleRepository articles;
 
-    @Autowired
+    // 진짜로 넣되, 넣기 실패 경로를 볼 때만 던지게 한다
+    @MockitoSpyBean
     JobPublisher publisher;
+
+    // W1 뒤 고르기가 실패하는 경로를 볼 때만 던지게 한다
+    @MockitoSpyBean
+    MatchDispatcher matches;
+
+    @MockitoSpyBean
+    IssueDispatcher issues;
 
     @Autowired
     StreamGroupsInitializer groups;
@@ -433,6 +449,38 @@ class AnalysisJobQueueIntegrationTest {
         assertThat(message.get("jobs").get("EXTRACT").asLong()).isEqualTo(job);
 
         assertThat(service.publishUnpublished(T0.plus(Duration.ofHours(1)))).isZero();
+    }
+
+    // 큐에 다시 넣다 실패하면(Redis 끊김) 표시를 지우고 그 차례를 멈춘다 — 다음 차례에 둘 다 다시 넣는다
+    @Test
+    void publishFailureUnmarksAndStopsTheRound() {
+        long first = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
+        article(3002);
+        long second = job(3002, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
+        doThrow(new IllegalStateException("Redis 끊김"))
+                .when(publisher)
+                .publish(eq(AnalysisStreams.RELEASED), anyString());
+
+        assertThat(service.publishUnpublished(T0.plusSeconds(61))).isZero();
+
+        verify(publisher, times(1)).publish(eq(AnalysisStreams.RELEASED), anyString());
+        assertThat(row(first).get("published_at")).isNull();
+        assertThat(row(second).get("published_at")).isNull();
+    }
+
+    // W1 뒤 고르기가 실패해도 W1 응답은 그대로다 — 1분 스케줄러가 다시 고른다
+    @Test
+    void dispatchFailureAfterW1KeepsTheResponse() throws Exception {
+        handle(AnalysisStage.EXTRACT, (job, request) -> {});
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+        doThrow(new IllegalStateException("판정 고르기 실패")).when(matches).next();
+        doThrow(new IllegalStateException("ISSUE 고르기 실패")).when(issues).next();
+
+        w1(job, envelope(1, "SUCCEEDED", "{}", "null")).andExpect(status().isNoContent());
+
+        verify(matches).next();
+        verify(issues).next();
+        assertThat(row(job)).containsEntry("status", "SUCCEEDED");
     }
 
     // 후보가 빈 ISSUE 대기 작업은 아예 읽지 않는다 — 고르기만 넣는다(Jira 40, 그 전에는 ISSUE 에 메시지 공장이 없었다).
