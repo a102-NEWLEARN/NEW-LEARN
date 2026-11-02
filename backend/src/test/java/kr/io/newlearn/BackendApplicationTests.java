@@ -82,6 +82,8 @@ class BackendApplicationTests {
         assertThat(healthGroups.getNames()).contains("readiness", "liveness");
         HealthEndpointGroup readiness = Objects.requireNonNull(healthGroups.get("readiness"));
         HealthEndpointGroup liveness = Objects.requireNonNull(healthGroups.get("liveness"));
+        // 앱 상태(끝낼 때의 「받지 않음」)는 남아 있어야 한다
+        assertThat(readiness.isMember("readinessState")).isTrue();
         assertThat(readiness.isMember("db")).isTrue();
         assertThat(readiness.isMember("redis")).isFalse();
         assertThat(liveness.isMember("db")).isFalse();
@@ -94,6 +96,8 @@ class BackendApplicationTests {
     @Test
     void redisGivesUpAndReconnectsQuickly() {
         LettuceClientConfiguration client = redis.getClientConfiguration();
+        // 연결 공장이 다시 붙는 간격을 바꾼 바로 그 자원을 쓴다
+        assertThat(client.getClientResources()).containsSame(redisResources);
         assertThat(client.getCommandTimeout()).isEqualTo(Duration.ofSeconds(3));
         assertThat(client.getClientOptions().orElseThrow().getSocketOptions().getConnectTimeout())
                 .isEqualTo(Duration.ofSeconds(2));
