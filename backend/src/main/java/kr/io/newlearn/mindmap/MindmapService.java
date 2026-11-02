@@ -1,6 +1,7 @@
 package kr.io.newlearn.mindmap;
 
 import kr.io.newlearn.article.ArticleRepository;
+import kr.io.newlearn.article.ReleasedArticles;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
@@ -25,8 +26,7 @@ public class MindmapService {
 
     public MindmapResponse get(long articleId) {
         // 공개 전 기사는 결과가 있어도 없는 기사로 본다 — A8 과 같다 (docs/api.md 1절)
-        var article = articles.findByIdAndReleasedAtIsNotNull(articleId)
-                .orElseThrow(() -> new NotFoundException(ErrorCode.ARTICLE_NOT_FOUND, "기사를 찾을 수 없다: " + articleId));
+        var article = ReleasedArticles.get(articles, articleId);
         var mindmap = mindmaps.findById(articleId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.MINDMAP_NOT_FOUND, "마인드맵이 없다: " + articleId));
         return MindmapResponse.of(

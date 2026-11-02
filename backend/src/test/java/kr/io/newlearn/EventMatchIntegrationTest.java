@@ -165,6 +165,20 @@ class EventMatchIntegrationTest {
         assertThat(count("select attempt from analysis_job where id = " + job)).isEqualTo(2);
     }
 
+    // 모델 이름에 U+0000 이 있으면 400 — 전에는 저장에서 터져 500 INTERNAL 이었다 (Jira 143)
+    @Test
+    void embedWithNulInModelIsRejected() throws Exception {
+        long job = job(ARTICLE, "EMBED", "QUEUED", 1);
+
+        w1(job, envelope(1, null, embedResult("BGE\\u0000m3", 1024)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+        assertThat(count("select count(*) from article_embedding where article_id = " + ARTICLE))
+                .isZero();
+        assertThat(count("select attempt from analysis_job where id = " + job)).isEqualTo(2);
+    }
+
     // ── 커밋 2: 판정 걸기 ──
 
     // AC-2 — EXTRACT 만 끝나서는 걸지 않고, EMBED 까지 끝나면 건다(후보 · 메시지와 함께)
@@ -613,6 +627,23 @@ class EventMatchIntegrationTest {
         } else {
             assertThat(output.toString()).doesNotContain("반응 대상 사건 번호가");
         }
+    }
+
+    // 정수가 아닌 반응 대상 원문은 길이에 상한이 없다 — 경고 로그에는 앞 80글자만 남긴다 (10-30 리뷰 4, Jira 143)
+    @Test
+    void aLongTargetIsLoggedByItsHeadOnly(CapturedOutput output) throws Exception {
+        assertThat(candidateEvent()).isEqualTo(3551);
+        long match = queuedMatch(ARTICLE);
+        String target = "가".repeat(1000);
+
+        w1(match, envelope(1, "match-v1", createdWith("비판 성명", reactionTo("\"" + target + "\""))))
+                .andExpect(status().isNoContent());
+
+        assertThat(reactsToEventId(linkedEvent(ARTICLE))).containsOnlyNulls();
+        // 따옴표 하나 + 「가」 79글자 + 말줄임
+        assertThat(output.toString())
+                .contains("reactsToEventId=\"" + "가".repeat(79) + "…")
+                .doesNotContain("가".repeat(80));
     }
 
     // AC-3 · AC-5 — 판정이 끝나면 바로 다음 기사가 걸리고, 앞 기사가 만든 사건이 후보에 든다.

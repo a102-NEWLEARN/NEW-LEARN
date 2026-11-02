@@ -22,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 // A13 통합 검색 (docs/specs/F02-search-api.md, Jira 43). 로그인하지 않은 손님으로 부른다
 // 응답은 jsonPath 로만 본다 — 검색 코드를 빼면 컴파일 오류가 아니라 단언(404)에서 갈리게(되돌림 확인)
-@SpringBootTest
+// InterestIssueApiIntegrationTest 와 설정(속성 · 스파이 빈)을 맞춰 Spring 맥락을 같이 쓴다 — 스파이 빈 때문에 맥락이 하나 더 뜨지 않게
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @Transactional

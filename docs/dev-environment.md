@@ -72,7 +72,7 @@ docker compose restart frontend   # backend · ai 도 같다
 - **`port is already allocated`** — 그 포트를 다른 프로그램이 쓰고 있다. `.env` 의 해당 `*_PORT` 를 바꾸고 다시 띄운다.
 - **API 가 DB 비밀번호 오류로 안 뜬다** — `.env` 의 DB 값을 바꾼 뒤일 것이다. DB 볼륨은 처음 만들 때의 값을 쓴다. `docker compose down` 뒤 `docker volume rm newlearn_db-data` 로 DB 볼륨만 지우고 다시 띄운다 (로컬 DB 데이터가 지워진다).
 - **고쳐도 컨테이너에 반영이 안 된다** — Windows 에서 C: 드라이브에 클론했을 것이다. WSL 2 쪽에 다시 클론한다.
-- **API 가 401 을 낸다** — 인증 설계 전이라 헬스 말고는 Spring Security 기본값대로 막혀 있다. 띄울 때 로그에 찍히는 `generated security password` 도 그 기본값이 매번 새로 만드는 임시 값이다.
+- **API 가 401 을 낸다** — 로그인이 필요한 주소다(내 정보 · 북마크 · 관심 이슈 등, `docs/api.md`). A15 로그인으로 세션을 연 뒤 부른다. Spring Security 의 기본 계정은 만들지 않아 띄울 때 `generated security password` 줄도 없다(2026-11-02 Jira 144).
 - **처음부터 다시 받고 싶다** — `docker compose --profile full down -v` 는 DB 데이터와 의존성 캐시까지 지운다.
 
 ## LLM 모의 응답

@@ -6,7 +6,9 @@ import java.util.Objects;
 import kr.io.newlearn.analysis.AnalysisJob;
 import kr.io.newlearn.analysis.AnalysisResultHandler;
 import kr.io.newlearn.analysis.AnalysisStage;
+import kr.io.newlearn.analysis.Judgment;
 import kr.io.newlearn.analysis.ResultConflictException;
+import kr.io.newlearn.analysis.ResultFields;
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
 import kr.io.newlearn.event.EventRepository;
@@ -51,8 +53,8 @@ class IssueResultHandler implements AnalysisResultHandler {
 
     @Override
     public void save(AnalysisJob job, JobResultRequest request) {
-        storable(request.model(), "model");
-        storable(request.promptVersion(), "promptVersion");
+        ResultFields.storableEnvelope(request.model(), "model");
+        ResultFields.storableEnvelope(request.promptVersion(), "promptVersion");
         // 성공인데 result 가 없으면 receiveResult 가 problem() 으로 먼저 거절했다
         IssueResult result = IssueResult.read(request.result());
         long articleId = job.getArticle().getId();
@@ -139,15 +141,4 @@ class IssueResultHandler implements AnalysisResultHandler {
         categories.clear(issueId);
         categories.fillMostCommon(issueId);
     }
-
-    // 판정 기록(jsonb)은 U+0000 을 받지 않는다 — 저장에서 500 이 나지 않게 받을 때 거절한다. 비어 있으면 null 로 남긴다
-    private static void storable(@Nullable String value, String field) {
-        if (value != null && value.indexOf('\u0000') >= 0) {
-            throw new ResultSchemaInvalidException("봉투의 " + field + " 에 U+0000 이 있다");
-        }
-    }
-
-    // analysis_job.result 의 모양 — MatchEventResultHandler.Judgment 와 같다. 프롬프트 버전끼리 비교할 때 쓴다
-    record Judgment(
-            String reason, @Nullable String model, @Nullable String promptVersion) {}
 }

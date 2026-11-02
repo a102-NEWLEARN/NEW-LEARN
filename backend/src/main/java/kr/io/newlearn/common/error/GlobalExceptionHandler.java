@@ -61,7 +61,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidParameterException.class)
     @Nullable
     ResponseEntity<Object> handleInvalidParameter(InvalidParameterException ex, WebRequest request) {
-        HttpStatusCode status = HttpStatusCode.valueOf(ex.getErrorCode());
+        // 상태가 4xx · 5xx 가 아니면(HTTP 코드가 아닌 값) 400 — 그대로 쓰면 HttpStatusCode.valueOf 가 던져 500 이었다 (Jira 143)
+        int code = ex.getErrorCode();
+        HttpStatusCode status = code >= 400 && code < 600 ? HttpStatusCode.valueOf(code) : HttpStatus.BAD_REQUEST;
         ProblemDetail body = ProblemDetail.forStatusAndDetail(status, PARAMETER_UNREADABLE);
         return handleExceptionInternal(ex, body, new HttpHeaders(), status, request);
     }

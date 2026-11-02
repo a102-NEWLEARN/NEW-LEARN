@@ -4,6 +4,7 @@ import java.time.Instant;
 import kr.io.newlearn.analysis.AnalysisJob;
 import kr.io.newlearn.analysis.AnalysisResultHandler;
 import kr.io.newlearn.analysis.AnalysisStage;
+import kr.io.newlearn.analysis.ResultFields;
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
 import kr.io.newlearn.mindmap.dto.ExtractResult;
@@ -81,9 +82,7 @@ class ExtractResultHandler implements AnalysisResultHandler {
         if (value == null || value.isBlank()) {
             throw new ResultSchemaInvalidException("EXTRACT 인데 봉투의 " + field + " 이 없다");
         }
-        if (value.indexOf('\u0000') >= 0) {
-            throw new ResultSchemaInvalidException("봉투의 " + field + " 에 U+0000 이 있다");
-        }
+        ResultFields.storableEnvelope(value, field);
         return value;
     }
 }

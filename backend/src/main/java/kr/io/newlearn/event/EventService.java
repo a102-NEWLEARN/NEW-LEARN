@@ -14,7 +14,6 @@ import kr.io.newlearn.event.dto.EventPanelResponse;
 import kr.io.newlearn.issue.dto.EventRef;
 import kr.io.newlearn.issue.dto.IssueRef;
 import org.jspecify.annotations.Nullable;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -56,10 +55,10 @@ public class EventService {
                 ApiTime.toKst(event.getOccurredAt()),
                 event.getSummary(),
                 event.getOccurredAtBasis(),
-                issue == null ? null : new IssueRef(issue.getId(), issue.getTitle()),
+                issue == null ? null : IssueRef.from(issue),
                 links.countReleasedArticles(eventId),
                 links.findReleasedPublishers(eventId).stream()
-                        .map(p -> new PublisherRef(p.getCode(), p.getName()))
+                        .map(PublisherRef::from)
                         .toList(),
                 previous,
                 next);
@@ -67,17 +66,16 @@ public class EventService {
 
     // memberId 는 세션 회원, 손님이면 null (ArticleService.list 와 같은 까닭으로 손님용 짧은 판은 두지 않는다)
     public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query, @Nullable Long memberId) {
-        if (!events.existsById(eventId)) throw missing(eventId);
+        if (!events.existsById(eventId)) {
+            throw missing(eventId);
+        }
         var pageable = query.toPageable(Sort.by(Sort.Direction.ASC, "publishedAt", "id"));
         var page = articles.findReleasedByEventId(eventId, pageable);
-        return PageResponse.from(
-                new PageImpl<>(summaries.assemble(page.getContent(), memberId), pageable, page.getTotalElements()));
+        return PageResponse.of(page, summaries.assemble(page.getContent(), memberId));
     }
 
     private static @Nullable EventRef firstRef(List<Event> events) {
-        if (events.isEmpty()) return null;
-        var event = events.getFirst();
-        return new EventRef(event.getId(), event.getTitle(), event.getLabel(), ApiTime.toKst(event.getOccurredAt()));
+        return events.isEmpty() ? null : EventRef.from(events.getFirst());
     }
 
     private static NotFoundException missing(long id) {
