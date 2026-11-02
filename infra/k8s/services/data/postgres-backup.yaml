@@ -92,7 +92,7 @@ spec:
 ---
 # 매주 일요일 05:00 — 그날 04:00 의 매일 백업 하나를 S3 에도 올린다. 두 서버를 다 잃어도 남는 사본 (Jira S15P31A102-109)
 # 버킷은 infra/terraform/backup.tf(35일 뒤 수명 규칙이 지움), 키는 올리기만 되는 IAM 사용자 — 봉인 Secret pg-backup-s3
-# (infra/server/seal-secrets.sh pg-backup-s3). 이 키로는 백업을 읽거나 지울 수 없다
+# (infra/server/seal-secrets.sh pg-backup-s3). 이 키로는 백업을 읽거나 지울 수 없고 관리 서버 IP 에서만 쓴다. 버킷 버전 관리로 덮어써도 이전 판이 남는다(Jira S15P31A102-147)
 apiVersion: batch/v1
 kind: CronJob
 metadata:

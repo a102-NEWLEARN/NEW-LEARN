@@ -63,13 +63,20 @@ kubectl -n data exec postgres-0 -- dropdb -U newlearn newlearn_restore_check
 
 ## 매주 S3 사본
 
-CronJob `postgres-backup-s3`(같은 파일)가 매주 일요일 05:00(한국) 그날 가장 새 매일 백업 하나를 `s3://<버킷>/postgres/` 에 올린다. 이틀 안의 매일 백업이 없으면 실패로 남는다. 버킷 수명 규칙이 35일 뒤 지운다(`infra/terraform/backup.tf`). 올리는 키는 올리기만 되고, 받기는 apply 키(`newlearn-apply` 프로필)로 한다. 버킷 · 키를 처음 만드는 순서는 `infra/README.md` 「DB 백업 버킷 · 올리는 키」.
+CronJob `postgres-backup-s3`(같은 파일)가 매주 일요일 05:00(한국) 그날 가장 새 매일 백업 하나를 `s3://<버킷>/postgres/` 에 올린다. 이틀 안의 매일 백업이 없으면 실패로 남는다. 버킷 수명 규칙이 35일 뒤 지운다(`infra/terraform/backup.tf`). 버전 관리를 켜 두어 덮어쓰거나 지운 백업도 이전 판이 35일 남는다(Jira S15P31A102-147). 올리는 키는 올리기만 되고 관리 서버 IP 에서만 쓸 수 있으며, 받기는 apply 키(`newlearn-apply` 프로필)로 한다. 버킷 · 키를 처음 만드는 순서는 `infra/README.md` 「DB 백업 버킷 · 올리는 키」.
 
 **확인 · 손으로 돌리기**
 
 ```bash
 kubectl -n data create job --from=cronjob/postgres-backup-s3 postgres-backup-s3-manual-$(date +%m%d%H%M)   # EC2. 로그 끝에 올린 주소 · 크기 · sha256
 aws s3 ls s3://<버킷>/postgres/ --profile newlearn-apply                                               # 관리자 PC
+aws s3api list-object-versions --bucket <버킷> --prefix postgres/ --profile newlearn-apply             # 판마다 VersionId · 지금 판(IsLatest) · 삭제 표시
+```
+
+**이전 판 받기** (관리자 PC) — 같은 이름으로 덮어써졌거나 지워진 백업. 위 목록에서 `VersionId` 를 고른다
+
+```bash
+aws s3api get-object --bucket <버킷> --key postgres/<파일> --version-id <VersionId> <파일> --profile newlearn-apply
 ```
 
 **S3 에서 받아 되살리기** (관리자 PC) — 받은 파일을 관리 서버를 거쳐 그대로 넣는다. 그다음은 위 「되살리기 연습」 · 「사고 때」와 같다

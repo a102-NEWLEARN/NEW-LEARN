@@ -23,9 +23,23 @@ resource "aws_s3_bucket_public_access_block" "pg_backup" {
   restrict_public_buckets = true
 }
 
+# 올리는 키는 PutObject 가 있어 같은 이름으로 올리면 덮어쓴다 — 버전 관리로 덮어쓴 · 지운 백업의 이전 판을 남긴다 (Jira S15P31A102-147)
+# 한 번 켜면 끌 수 없고 「일시 중지(Suspended)」만 된다(S3 규칙). 되돌릴 때는 지우지 말고 status 를 Suspended 로
+resource "aws_s3_bucket_versioning" "pg_backup" {
+  bucket = aws_s3_bucket.pg_backup.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 # 주간 백업은 35일(약 5주) 남긴다 — 발표(11-18) 뒤까지 덮는다. 올리는 키는 지울 수 없어 지우기는 이 규칙만 한다
+# 버전 관리 버킷에서 35일 만료는 삭제 표시를 얹을 뿐이라, 이전 판도 35일 뒤 지우고 남은 삭제 표시를 치운다
 resource "aws_s3_bucket_lifecycle_configuration" "pg_backup" {
   bucket = aws_s3_bucket.pg_backup.id
+
+  # 버전 관리가 먼저 켜져야 이전 판 규칙이 뜻을 가진다
+  depends_on = [aws_s3_bucket_versioning.pg_backup]
 
   rule {
     id     = "expire-postgres-35d"
@@ -37,6 +51,24 @@ resource "aws_s3_bucket_lifecycle_configuration" "pg_backup" {
 
     expiration {
       days = 35
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 35
+    }
+  }
+
+  # expired_object_delete_marker 는 days 와 한 expiration 에 둘 수 없어 규칙을 나눈다
+  rule {
+    id     = "clean-postgres-delete-markers"
+    status = "Enabled"
+
+    filter {
+      prefix = "postgres/"
+    }
+
+    expiration {
+      expired_object_delete_marker = true
     }
   }
 }

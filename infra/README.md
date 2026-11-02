@@ -122,11 +122,11 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 
 - 새 Ubuntu 이미지가 나와도 서버를 바꿔 끼우지 않는다 (`compute.tf` 의 `ignore_changes`). OS 갱신은 서버 안에서 한다
 - **최종 발표(11/18) 뒤 `terraform destroy` 로 지운다.** 서버를 멈추기만 하면 EBS · 탄력적 IP 요금이 계속 나간다. 상태 버킷은 destroy 가 끝난 뒤 버전까지 비우고 지운다
-- DB 백업 버킷은 `force_destroy` 를 꺼 두어 안에 백업이 있으면 destroy 가 멈춘다(실수 방지). 남길 백업을 받은 뒤 S3 콘솔(루트 계정)에서 비우고 destroy 한다 — apply 키에는 백업을 지우는 권한을 주지 않았다
+- DB 백업 버킷은 `force_destroy` 를 꺼 두어 안에 백업이 있으면 destroy 가 멈춘다(실수 방지). 남길 백업을 받은 뒤 S3 콘솔(루트 계정)에서 「비우기」로 이전 판까지 비우고 destroy 한다(버전 관리 버킷, Jira S15P31A102-147) — apply 키에는 백업을 지우는 권한을 주지 않았다
 
 ## 루트 디스크 늘리기 (Jira S15P31A102-146)
 
-관리 서버를 멈추지 않고 늘린다. EBS 는 줄일 수 없고, 한 번 바꾸면 6시간 뒤에야 다시 바꿀 수 있다.
+관리 서버를 멈추지 않고 늘린다. EBS 는 줄일 수 없다. 다시 바꾸려면 앞 변경이 `completed` 가 될 때까지 기다리고, 연속 24시간에 최대 4번까지 바꿀 수 있다(AWS 문서 「Modify an Amazon EBS volume using Elastic Volumes」, 2026-11-02 확인).
 
 1. `variables.tf` 의 `root_volume_gb` 를 올리고 MR 로 머지한다
 2. plan 이 `aws_instance.control_plane` 하나를 제자리에서 바꾸는지(`1 to change`, `root_block_device` 의 `volume_size` 만) 본다. `must be replaced` 가 나오면 멈춘다 — 서버를 새로 만든다는 뜻이다
@@ -145,11 +145,11 @@ sudo resize2fs /dev/nvme0n1p1
 
 ## DB 백업 버킷 · 올리는 키 (Jira S15P31A102-109)
 
-매주 DB 백업 하나를 S3 에 올린다(`backup.tf`, 35일 뒤 지움). 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
+매주 DB 백업 하나를 S3 에 올린다(`backup.tf`, 35일 뒤 지움). 버전 관리를 켜 두어 같은 이름으로 덮어쓰거나 지워도 이전 판이 35일 남는다(Jira S15P31A102-147). 쓰는 법 · 되살리는 법은 `infra/server/db-backup.md`. 처음 한 번 사람이 콘솔에서 한다.
 
 1. **apply 정책 고치기** — IAM 콘솔 → 「정책」 → `newlearn-terraform-apply` → 「편집」 → JSON 탭에 `infra/terraform/iam/apply-policy.json` 을 그대로 붙이고 저장한다. 버킷 `newlearn-pg-backup-*` 를 만들고 설정 · 읽는 권한이 더해진다(지우기 권한은 없다). 이전 판은 「정책 버전」에 남아 되돌릴 수 있다
-2. **버킷 만들기** — `terraform.tfvars` 에 `backup_bucket_name` 을 넣고 plan → 「3 to add, 0 to change, 0 to destroy」(버킷 · 공개 막기 · 수명 규칙)인지 사람이 보고 그 plan 으로 apply 한다
-3. **올리기만 되는 사용자** — 「정책 생성」 → JSON 에 `infra/terraform/iam/pg-backup-uploader-policy.json` · 이름 `newlearn-pg-backup-uploader` → 「사용자 생성」 → 이름 `newlearn-pg-backup-uploader`, 콘솔 액세스 없음, 「직접 정책 연결」로 그 정책 → 「보안 자격 증명」 → 「액세스 키 만들기」 → 사용 사례 「AWS 외부에서 실행되는 애플리케이션」. 비밀 키는 이 화면에서 한 번만 보인다 — 띄워 둔 채 바로 4번에 입력하고 어디에도 저장하지 않는다
+2. **버킷 만들기** — `terraform.tfvars` 에 `backup_bucket_name` 을 넣고 plan → 「4 to add, 0 to change, 0 to destroy」(버킷 · 공개 막기 · 버전 관리 · 수명 규칙)인지 사람이 보고 그 plan 으로 apply 한다
+3. **올리기만 되는 사용자** — 「정책 생성」 → JSON 에 `infra/terraform/iam/pg-backup-uploader-policy.json` 을 붙이고 `<관리 서버 탄력적 IP>` 자리에 `terraform -chdir=infra/terraform output control_plane_public_ip` 값을 넣는다(저장소에는 IP 를 적지 않는다. 올리는 잡은 관리 서버에서만 돈다) · 이름 `newlearn-pg-backup-uploader` → 「사용자 생성」 → 이름 `newlearn-pg-backup-uploader`, 콘솔 액세스 없음, 「직접 정책 연결」로 그 정책 → 「보안 자격 증명」 → 「액세스 키 만들기」 → 사용 사례 「AWS 외부에서 실행되는 애플리케이션」. 비밀 키는 이 화면에서 한 번만 보인다 — 띄워 둔 채 바로 4번에 입력하고 어디에도 저장하지 않는다
 4. **봉인** (EC2 터미널, 값을 묻는다) — 버킷 이름은 `terraform -chdir=infra/terraform output pg_backup_bucket`
 
    ```bash
@@ -157,7 +157,8 @@ sudo resize2fs /dev/nvme0n1p1
    ```
 
    만든 `~/sealed/sealed-pg-backup-s3.yaml` 을 `infra/k8s/services/data/sealed-pg-backup-s3.yaml` 로 가져와 커밋 · MR 한다
-- 키가 샜으면 IAM 콘솔에서 그 키를 비활성화하고 3 · 4번을 다시 한다. 이 키로는 백업을 읽거나 지울 수 없다
+- 키가 샜으면 IAM 콘솔에서 그 키를 비활성화하고 3 · 4번을 다시 한다. 이 키로는 백업을 읽거나 지울 수 없고, 관리 서버 IP 밖에서는 올리지도 못한다. 같은 이름으로 덮어써도 이전 판이 남는다
+- 이미 만든 사용자에 버전 관리 · IP 조건을 더할 때(2026-11-02, Jira S15P31A102-147): 1번처럼 apply 정책을 새 JSON 으로 바꾸고, 「정책」 → `newlearn-pg-backup-uploader` → 「편집」에 3번처럼 IP 를 채운 JSON 을 붙인다. 그다음 plan(「1 to add, 1 to change, 0 to destroy」)을 보고 apply 하고, 바로 `infra/server/db-backup.md` 「확인 · 손으로 돌리기」로 올리기 잡을 한 번 돌려 막히지 않았는지 본다. 막히면 그 정책의 「정책 버전」에서 이전 판으로 되돌린다
 
 ## 이미지 저장소 (GHCR)
 
