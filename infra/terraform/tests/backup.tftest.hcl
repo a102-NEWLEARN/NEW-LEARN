@@ -53,6 +53,35 @@ run "백업은_35일_뒤_지운다" {
   }
 }
 
+# 올리기 키는 PutObject 가 있어 같은 이름으로 올리면 덮어쓴다 — 버전 관리로 이전 판을 남긴다 (Jira S15P31A102-147)
+run "덮어쓰거나_지워도_이전_판이_남는다" {
+  command = plan
+
+  assert {
+    condition     = aws_s3_bucket_versioning.pg_backup.versioning_configuration[0].status == "Enabled"
+    error_message = "버전 관리를 켜야 덮어쓴 · 지운 백업의 이전 판이 남는다"
+  }
+}
+
+run "이전_판도_35일_뒤_지운다" {
+  command = plan
+
+  assert {
+    condition     = aws_s3_bucket_lifecycle_configuration.pg_backup.rule[0].noncurrent_version_expiration[0].noncurrent_days == 35
+    error_message = "이전 판은 35일 뒤 지운다 — 수명 규칙이 없으면 버전 관리 버킷에 판이 쌓인다"
+  }
+
+  assert {
+    condition     = aws_s3_bucket_lifecycle_configuration.pg_backup.rule[1].filter[0].prefix == "postgres/"
+    error_message = "삭제 표시 정리 규칙도 postgres/ 아래에만 건다"
+  }
+
+  assert {
+    condition     = aws_s3_bucket_lifecycle_configuration.pg_backup.rule[1].expiration[0].expired_object_delete_marker == true
+    error_message = "판이 다 지워진 뒤 남는 삭제 표시를 치운다 — days 와 한 규칙에 둘 수 없어 따로 둔다"
+  }
+}
+
 run "destroy_를_잘못_해도_백업은_남는다" {
   command = plan
 
