@@ -2,8 +2,11 @@ package kr.io.newlearn;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
 
-@SpringBootApplication
+// Spring Security 의 기본 계정(InMemoryUserDetailsManager)을 만들지 않는다 — 로그인은 AuthService 와 세션이 하고(Jira 62),
+// 그대로 두면 뜰 때마다 기본 계정 비밀번호를 로그에 찍어 Loki 에 비밀값이 남는다 (Jira 144)
+@SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
 public class BackendApplication {
 
     public static void main(String[] args) {

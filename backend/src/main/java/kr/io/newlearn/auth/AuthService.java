@@ -9,12 +9,16 @@ import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.member.Member;
 import kr.io.newlearn.member.MemberRepository;
 import kr.io.newlearn.member.MemberService;
+import kr.io.newlearn.member.PasswordRule;
 import kr.io.newlearn.member.dto.MemberResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 // A15 로그인 — 아이디 · 비밀번호를 맞춰 보고 회원 정보를 준다. 세션을 여는 일은 컨트롤러가 LoginSessions 로 한다 (Jira 62)
+// 회원 행과 관심 분야를 읽기 트랜잭션 하나에서 읽는다(docs/backend-convention.md 6절)
 @Service
+@Transactional(readOnly = true)
 public class AuthService {
 
     // 어느 쪽이 틀렸는지 알려 주지 않는다 — 없는 아이디와 틀린 비밀번호가 같은 응답이다 (docs/api-screen.md A15)
@@ -58,7 +62,7 @@ public class AuthService {
 
     private boolean passwordMatches(String password, Optional<Member> member) {
         // bcrypt 가 읽지 못하는 길이는 비교하지 않고 틀린 것으로 본다(가입에서 막아 맞는 회원이 있을 수 없다)
-        if (MemberService.tooLongForHash(password)) {
+        if (PasswordRule.tooLongForHash(password)) {
             return false;
         }
         if (member.isEmpty()) {

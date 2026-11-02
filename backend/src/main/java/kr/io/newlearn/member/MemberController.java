@@ -72,8 +72,7 @@ public class MemberController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
         MemberResponse member = service.signUp(request);
-        loginSessions.open(
-                new MemberPrincipal(member.id(), member.loginId(), member.name()), httpRequest, httpResponse);
+        loginSessions.open(member.toPrincipal(), httpRequest, httpResponse);
         return ResponseEntity.created(URI.create("/api/v1/members/me")).body(member);
     }
 

@@ -1,6 +1,5 @@
 package kr.io.newlearn.member;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import kr.io.newlearn.category.Category;
 import kr.io.newlearn.category.CategoryRepository;
@@ -21,9 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class MemberService {
-
-    // bcrypt 는 72바이트까지만 읽는다. 한글 비밀번호는 글자 수보다 바이트 수가 먼저 찬다
-    static final int MAX_PASSWORD_BYTES = 72;
 
     private final MemberRepository members;
     private final MemberCategoryRepository memberCategories;
@@ -46,7 +42,7 @@ public class MemberService {
         if (members.existsByLoginId(request.loginId())) {
             throw new ApiException(ErrorCode.LOGIN_ID_TAKEN, "이미 쓰는 아이디다: " + request.loginId());
         }
-        if (tooLongForHash(request.password())) {
+        if (PasswordRule.tooLongForHash(request.password())) {
             throw invalid("password", "비밀번호가 너무 길어요");
         }
         List<Category> chosen = chosenCategories(request.categoryCodes());
@@ -63,15 +59,13 @@ public class MemberService {
     }
 
     public MemberResponse profile(long memberId) {
-        Member member = members.findById(memberId)
-                .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "세션의 회원이 없다: " + memberId));
+        Member member = members.findById(memberId).orElseThrow(() -> sessionMemberGone(memberId));
         return toResponse(member);
     }
 
     @Transactional
     public MemberResponse changeCategories(long memberId, ChangeCategoriesRequest request) {
-        Member member = members.findForUpdateById(memberId)
-                .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "세션의 회원이 없다: " + memberId));
+        Member member = members.findForUpdateById(memberId).orElseThrow(() -> sessionMemberGone(memberId));
         List<Category> chosen = chosenCategories(request.categoryCodes());
         memberCategories.deleteForMember(memberId);
         memberCategories.saveAllAndFlush(chosen.stream()
@@ -96,15 +90,16 @@ public class MemberService {
         return chosen;
     }
 
-    public static boolean tooLongForHash(String password) {
-        return password.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES;
-    }
-
     private MemberResponse toResponse(Member member) {
         List<CategoryRef> refs = memberCategories.findCategoriesOfMember(member.getId()).stream()
                 .map(CategoryRef::from)
                 .toList();
         return new MemberResponse(member.getId(), member.getLoginId(), member.getName(), refs);
+    }
+
+    // 로그인한 뒤 회원 행이 지워졌다 — 세션은 남았지만 그 회원으로 볼 수 없어 401 (내 정보 · 관심 분야 바꾸기)
+    private static ApiException sessionMemberGone(long memberId) {
+        return new ApiException(ErrorCode.UNAUTHORIZED, "세션의 회원이 없다: " + memberId);
     }
 
     private static ApiException invalid(String field, String reason) {
