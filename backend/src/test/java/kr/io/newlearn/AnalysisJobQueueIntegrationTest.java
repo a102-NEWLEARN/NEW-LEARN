@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import kr.io.newlearn.analysis.AnalysisJob;
+import kr.io.newlearn.analysis.AnalysisJobRecovery;
 import kr.io.newlearn.analysis.AnalysisJobService;
 import kr.io.newlearn.analysis.AnalysisResultHandler;
 import kr.io.newlearn.analysis.AnalysisResultHandlers;
@@ -97,6 +98,9 @@ class AnalysisJobQueueIntegrationTest {
 
     @Autowired
     AnalysisJobService service;
+
+    @Autowired
+    AnalysisJobRecovery recovery;
 
     @Autowired
     ArticleRepository articles;
@@ -366,17 +370,17 @@ class AnalysisJobQueueIntegrationTest {
     void failureIsRetriedAfterItsDelayOnce() {
         long job = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
 
-        assertThat(service.retryDue(T0.plusSeconds(59))).isZero();
+        assertThat(recovery.retryDue(T0.plusSeconds(59))).isZero();
         assertThat(row(job)).containsEntry("status", "FAILED");
 
-        assertThat(service.retryDue(T0.plusSeconds(61))).isEqualTo(1);
+        assertThat(recovery.retryDue(T0.plusSeconds(61))).isEqualTo(1);
         assertThat(row(job)).containsEntry("status", "QUEUED").containsEntry("attempt", 2);
         assertThat(row(job).get("published_at")).isNotNull();
         JsonNode message = lastMessage(AnalysisStreams.RELEASED);
         assertThat(message.get("attempt").asInt()).isEqualTo(2);
         assertThat(message.get("jobs").get("EXTRACT").asLong()).isEqualTo(job);
 
-        assertThat(service.retryDue(T0.plus(Duration.ofHours(1)))).isZero();
+        assertThat(recovery.retryDue(T0.plus(Duration.ofHours(1)))).isZero();
     }
 
     // 최대 시도 수 · 「한 번만 더」 코드 · 다시 걸지 않는 코드는 아무리 지나도 그대로
@@ -386,7 +390,7 @@ class AnalysisJobQueueIntegrationTest {
         long once = job(ARTICLE, "EMBED", "FAILED", 2, "LLM_OUTPUT_INVALID", T0, T0, T0, null);
         long refused = job(article(3002), "EXTRACT", "FAILED", 1, "LLM_REFUSED", T0, T0, T0, null);
 
-        assertThat(service.retryDue(T0.plus(Duration.ofDays(1)))).isZero();
+        assertThat(recovery.retryDue(T0.plus(Duration.ofDays(1)))).isZero();
         assertThat(row(limit)).containsEntry("status", "FAILED").containsEntry("attempt", 3);
         assertThat(row(once)).containsEntry("status", "FAILED").containsEntry("attempt", 2);
         assertThat(row(refused)).containsEntry("status", "FAILED").containsEntry("attempt", 1);
@@ -407,7 +411,7 @@ class AnalysisJobQueueIntegrationTest {
                 """).param("t0", java.sql.Timestamp.from(T0)).update();
         long due = job(ARTICLE, "EXTRACT", "FAILED", 1, "LLM_TIMEOUT", T0, T0, T0, T0.plusSeconds(60));
 
-        assertThat(service.retryDue(T0.plus(Duration.ofHours(1)))).isEqualTo(1);
+        assertThat(recovery.retryDue(T0.plus(Duration.ofHours(1)))).isEqualTo(1);
         assertThat(row(due)).containsEntry("status", "QUEUED").containsEntry("attempt", 2);
     }
 
@@ -421,11 +425,11 @@ class AnalysisJobQueueIntegrationTest {
             List<Future<Integer>> runs = List.of(
                     pool.submit(() -> {
                         start.await();
-                        return service.retryDue(T0.plusSeconds(61));
+                        return recovery.retryDue(T0.plusSeconds(61));
                     }),
                     pool.submit(() -> {
                         start.await();
-                        return service.retryDue(T0.plusSeconds(61));
+                        return recovery.retryDue(T0.plusSeconds(61));
                     }));
             start.countDown();
             assertThat(runs.get(0).get() + runs.get(1).get()).isEqualTo(1);
@@ -440,15 +444,15 @@ class AnalysisJobQueueIntegrationTest {
     void unpublishedJobIsPublishedAfterAMinuteOnce() {
         long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(30))).isZero();
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(30))).isZero();
         assertThat(row(job).get("published_at")).isNull();
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
         assertThat(row(job).get("published_at")).isNotNull();
         JsonNode message = lastMessage(AnalysisStreams.RELEASED);
         assertThat(message.get("jobs").get("EXTRACT").asLong()).isEqualTo(job);
 
-        assertThat(service.publishUnpublished(T0.plus(Duration.ofHours(1)))).isZero();
+        assertThat(recovery.publishUnpublished(T0.plus(Duration.ofHours(1)))).isZero();
     }
 
     // 큐에 다시 넣다 실패하면(Redis 끊김) 표시를 지우고 그 차례를 멈춘다 — 다음 차례에 둘 다 다시 넣는다
@@ -461,7 +465,7 @@ class AnalysisJobQueueIntegrationTest {
                 .when(publisher)
                 .publish(eq(AnalysisStreams.RELEASED), anyString());
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(61))).isZero();
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(61))).isZero();
 
         verify(publisher, times(1)).publish(eq(AnalysisStreams.RELEASED), anyString());
         assertThat(row(first).get("published_at")).isNull();
@@ -493,7 +497,7 @@ class AnalysisJobQueueIntegrationTest {
         }
         long extract = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, null, null);
 
-        assertThat(service.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
+        assertThat(recovery.publishUnpublished(T0.plusSeconds(61))).isEqualTo(1);
         assertThat(row(extract).get("published_at")).isNotNull();
     }
 

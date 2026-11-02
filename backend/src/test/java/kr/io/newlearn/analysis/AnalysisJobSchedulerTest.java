@@ -13,14 +13,15 @@ class AnalysisJobSchedulerTest {
 
     @Test
     void oneFailureDoesNotStopTheOthers() {
+        AnalysisJobRecovery recovery = mock(AnalysisJobRecovery.class);
         AnalysisJobService service = mock(AnalysisJobService.class);
-        when(service.retryDue(any())).thenThrow(new IllegalStateException("다시 걸기 실패"));
+        when(recovery.retryDue(any())).thenThrow(new IllegalStateException("다시 걸기 실패"));
         doThrow(new IllegalStateException("판정 고르기 실패")).when(service).dispatchMatch();
 
-        new AnalysisJobScheduler(service).tick();
+        new AnalysisJobScheduler(recovery, service).tick();
 
-        verify(service).retryDue(any());
-        verify(service).publishUnpublished(any());
+        verify(recovery).retryDue(any());
+        verify(recovery).publishUnpublished(any());
         verify(service).dispatchMatch();
         verify(service).dispatchIssue();
     }
