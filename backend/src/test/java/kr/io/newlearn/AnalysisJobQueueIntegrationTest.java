@@ -1,6 +1,7 @@
 package kr.io.newlearn;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,6 +41,8 @@ import kr.io.newlearn.article.ArticleRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -226,6 +229,41 @@ class AnalysisJobQueueIntegrationTest {
         w1(done, envelope(1, "FAILED", "null", error("LLM_TIMEOUT")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("JOB_STATE_CONFLICT"));
+    }
+
+    // FAILED 봉투의 error.code · message 에 U+0000 이 있으면 결과 모양이 틀린 것으로 거절한다(400, 바로 한 번 더) —
+    // PostgreSQL 이 이 글자를 받지 않아 그대로 남기면 저장에서 터진다 (Jira 143)
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(
+            strings = {
+                "{\"code\": \"LLM\\u0000TIMEOUT\", \"message\": \"느림\"}",
+                "{\"code\": \"LLM_TIMEOUT\", \"message\": \"느\\u0000림\"}"
+            })
+    void failureWithNulIsRejected(String error) throws Exception {
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+
+        w1(job, envelope(1, "FAILED", "null", error))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"))
+                .andExpect(jsonPath("$.detail").value(startsWith("FAILED 인데 error.")));
+
+        assertThat(row(job))
+                .containsEntry("status", "QUEUED")
+                .containsEntry("attempt", 2)
+                .containsEntry("error_code", "RESULT_SCHEMA_INVALID");
+    }
+
+    // message 는 비어 와도 받는다 — 위 U+0000 검사가 null 을 건너뛴다
+    @Test
+    void failureWithoutMessageIsStored() throws Exception {
+        long job = job(ARTICLE, "EXTRACT", "QUEUED", 1, null, null, T0, T0, null);
+
+        w1(job, envelope(1, "FAILED", "null", "{\"code\": \"LLM_TIMEOUT\"}")).andExpect(status().isNoContent());
+
+        assertThat(row(job))
+                .containsEntry("status", "FAILED")
+                .containsEntry("error_code", "LLM_TIMEOUT")
+                .containsEntry("error_message", null);
     }
 
     // 실패를 받으면 코드 · 설명을 남긴다. 늦춰 걸 코드는 지금 걸지 않고 스케줄러가 건다

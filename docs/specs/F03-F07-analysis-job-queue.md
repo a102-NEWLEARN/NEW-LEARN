@@ -18,8 +18,8 @@
   — `unknownJobIs404` · `wrongAttemptOrFinishedJobIs409` · `successGoesThroughTheHandlerOnce`
 - AC-7: W1 성공은 단계별 처리기에 넘겨 저장하고 `SUCCEEDED`, 실패는 `error_code` · `error_message` 를 남긴다. 늦춰 걸 코드는 그 자리에서 다시 걸지 않는다
   — `successGoesThroughTheHandlerOnce` · `failureIsStoredAndLeftForTheScheduler`
-- AC-8: 처리기가 결과를 거절하거나 봉투 안끼리 안 맞으면 400 `RESULT_SCHEMA_INVALID` 다. 처리기가 쓴 것은 되돌리고, 작업은 실패를 남긴 뒤 바로 한 번(`attempt + 1`) 다시 건다. 다시 건 시도도 거절되면 멈춘다. 봉투를 못 읽거나 `attempt` 가 없으면 400 이고 작업은 그대로다
-  — `rejectedResultIsRolledBackRetriedOnceThenStops` · `badEnvelopesAre400`
+- AC-8: 처리기가 결과를 거절하거나 봉투 안끼리 안 맞거나 실패 봉투의 `error.code` · `message` 에 U+0000 이 있으면(2026-11-02 Jira 143) 400 `RESULT_SCHEMA_INVALID` 다. 처리기가 쓴 것은 되돌리고, 작업은 실패를 남긴 뒤 바로 한 번(`attempt + 1`) 다시 건다. 다시 건 시도도 거절되면 멈춘다. 봉투를 못 읽거나 `attempt` 가 없으면 400 이고 작업은 그대로다
+  — `rejectedResultIsRolledBackRetriedOnceThenStops` · `badEnvelopesAre400` · `failureWithNulIsRejected`
 - AC-9: 늦춰 거는 실패는 API 가 받은 때 + 간격(`api.md` 2절)을 `retry_at` 에 적고, 그때가 지나야 `attempt + 1` 로 다시 걸어 큐에 넣는다. 최대 시도 수(3) · 「한 번만 더」(시도 2) · 다시 걸지 않는 코드에서 멈추고 `retry_at` 을 비운다. 멈춘 실패가 한 차례(100개)보다 많이 쌓여도 때가 된 실패는 걸린다
   — `failureIsStoredAndLeftForTheScheduler` · `failureIsRetriedAfterItsDelayOnce` · `retriesStopWhereThePolicySays` · `stoppedFailuresDoNotBlockDueRetries` · `RetryPolicyTest.decidesByCodeAndAttempt`
 - AC-10: 스케줄러 둘이 같이 돌아도(배포 중 Pod 둘) 한 번만 다시 건다
