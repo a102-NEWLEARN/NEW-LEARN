@@ -42,9 +42,12 @@
 ## 작업 순서
 
 - [x] MR A: 관리 서버 steal 측정(창 · 식 기록) → 10절 맨 위 줄 · 대시보드 설명 → reviewer → MR → infra 머지
-- [ ] MR B: A 머지된 infra 에서 브랜치 → 고치기 → grep · `terraform plan` → reviewer → MR → infra 머지
-- [ ] infra → dev 한 번 → 분야 브랜치 셋 맞추기 → `/feature-done` → Jira 149 · 150 완료
-- [ ] 사용자: dev 머지 커밋의 `infra/k8s/bootstrap/ci-exporter` 를 서버로 보내 `kubectl diff -k` 로 대시보드 ConfigMap 만 바뀌는지 본 뒤 `kubectl apply -k` → Grafana 에서 설명 확인 — 파일 카드로
+- [x] MR B: A 머지된 infra 에서 브랜치 → 고치기 → grep · `terraform plan` → reviewer → MR → infra 머지
+  - 결과: !513 infra 머지(2026-11-02 15:57 KST)
+- [x] infra → dev 한 번 → 분야 브랜치 셋 맞추기 → `/feature-done` → Jira 149 · 150 완료
+  - 결과: infra → dev !514(`1bebacd6`). 분야 브랜치는 셋이 아니라 네 개(infra · backend · ai · frontend, !515 ~ !518). Jira 149 · 150 완료
+- [x] 사용자: dev 머지 커밋의 `infra/k8s/bootstrap/ci-exporter` 를 서버로 보내 `kubectl diff -k` 로 대시보드 ConfigMap 만 바뀌는지 본 뒤 `kubectl apply -k` → Grafana 에서 설명 확인 — 파일 카드로
+  - 결과: `kubectl diff -k` 에 ConfigMap `grafana-dashboard-ci-bottleneck` 하나만 나옴(07:03 UTC). 뒤이어 Grafana 사이드카가 `ci-dashboard.json` 을 다시 씀(07:04:29 UTC) — 사람이 친 `apply -k` 명령은 기록에 없고 이 둘로 반영을 확인했다. Grafana 화면을 본 기록은 없음
 
 ## 안 바꿀 것
 
