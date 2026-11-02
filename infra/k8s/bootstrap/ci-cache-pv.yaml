@@ -11,7 +11,7 @@ metadata:
   labels:
     app.kubernetes.io/name: ci-cache-local
 spec:
-  # 로컬 볼륨은 크기를 강제하지 않는다. 디스크 계획용 표시값이다 (관리 서버 디스크 30 GiB)
+  # 로컬 볼륨은 크기를 강제하지 않는다. 디스크 계획용 표시값이다 (관리 서버 디스크 크기는 infra/terraform/variables.tf 의 root_volume_gb)
   capacity:
     storage: 8Gi
   accessModes:
