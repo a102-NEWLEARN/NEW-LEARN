@@ -42,6 +42,7 @@ Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 1. 큰 곳 — `df -h /` · `sudo du -xh --max-depth=2 /var/lib | sort -h | tail`. 평소에는 containerd(이미지) · `/var/lib/newlearn/prometheus`(보존 7일 · 8GB, `monitoring-values.yaml`) · `/var/lib/newlearn/ci-cache` 순이다
 2. 이미지 — 어떤 컨테이너도 안 쓰고 CI · 매니페스트가 부르지 않는 것만 이름으로 지운다(`sudo crictl rmi <이름>`). 다이제스트로 고정한 CI 잡 이미지(`.gitlab-ci.yml` 의 node · uv · gradle · buildpack-deps · terraform · python · kaniko · services 의 redis · pgvector)는 잡이 끝나면 「안 씀」으로 보이지만 다음 잡이 다시 받는다. 백업 CronJob 의 `amazon/aws-cli`(주 1회라 엿새는 「안 씀」으로 보인다) · `pgvector/pgvector`(`infra/k8s/services/data/postgres-backup.yaml`), pause · 러너 helper · webhook-certgen 도 남긴다. `crictl rmi --prune` 은 이것들까지 지워 쓰지 않는다
 3. Prometheus — `prometheus_tsdb_storage_blocks_bytes` 가 보존 안에서 멈춰 있나 본다. 수집 대상이 늘면 하루 증가분이 커진다
+4. 그래도 모자라면 디스크를 늘린다 — `infra/README.md` 「루트 디스크 늘리기」. 2026-11-02 30 → 50GiB (Jira S15P31A102-146)
 
 ## 바꿀 때
 
