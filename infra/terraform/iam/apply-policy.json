@@ -13,6 +13,7 @@
         "ec2:ModifyInstanceAttribute",
         "ec2:ModifyInstanceMetadataOptions",
         "ec2:ModifyInstanceCreditSpecification",
+        "ec2:ModifyVolume",
         "ec2:ImportKeyPair",
         "ec2:DeleteKeyPair",
         "ec2:CreateSecurityGroup",
