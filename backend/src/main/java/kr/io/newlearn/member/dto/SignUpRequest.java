@@ -14,7 +14,7 @@ public record SignUpRequest(
         @Pattern(regexp = "[a-z0-9_]{4,20}", message = "아이디는 영문 소문자 · 숫자 · _ 로 4~20자여야 해요")
         String loginId,
 
-        // 64자 상한: bcrypt 는 72바이트까지만 읽는다. 바이트 수는 서비스가 한 번 더 본다
+        // 64자 상한: bcrypt 는 72바이트까지만 읽는다. 바이트 수는 PasswordRule 이 한 번 더 본다
         // 공백만으로 된 값은 막는다 — 로그인(LoginRequest)이 「비었음」으로 거절해 다시 들어올 길이 없어진다
         @NotBlank(message = "비밀번호를 입력해 주세요") @Size(min = 8, max = 64, message = "비밀번호는 8~64자여야 해요")
         String password,

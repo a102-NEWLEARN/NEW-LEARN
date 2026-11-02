@@ -10,8 +10,8 @@
   — `signUpRejectsTakenLoginId`
 - AC-4: A15 는 맞으면 200 과 회원 정보를 주고 세션 ID 를 새로 낸다(이미 세션이 있어도). 새 CSRF 번호표가 함께 온다
   — `loginReturnsMemberAndIssuesNewSessionId`
-- AC-5: 틀린 비밀번호와 없는 아이디는 같은 401 `LOGIN_FAILED` 본문이다. 빈 칸은 400. U+0000 이 든 아이디도 없는 아이디와 같은 401 이고 똑같이 센다(2026-10-30 — DB 가 이 글자를 받지 못해 500 이었다)
-  — `wrongPasswordAndUnknownIdLookTheSame` · `loginRejectsMissingFields` · `nulInLoginIdIsAnUnknownIdAndCounted`
+- AC-5: 틀린 비밀번호와 없는 아이디는 같은 401 `LOGIN_FAILED` 본문이다. 빈 칸은 400. U+0000 이 든 아이디도 없는 아이디와 같은 401 이고 똑같이 센다(2026-10-30 — DB 가 이 글자를 받지 못해 500 이었다). 72바이트를 넘는 비밀번호는 앞 72바이트가 맞아도 401 이다(bcrypt 는 앞 72바이트만 비교한다, 2026-11-02 Jira 144)
+  — `wrongPasswordAndUnknownIdLookTheSame` · `loginRejectsMissingFields` · `nulInLoginIdIsAnUnknownIdAndCounted` · `passwordLongerThan72BytesDoesNotMatchItsFirst72Bytes`
 - AC-6: 같은 아이디로 5번 연속 틀리면 1분 동안 429 `TOO_MANY_REQUESTS`(비밀번호가 맞아도). 없는 아이디도 똑같이 센다. 성공하면 센 횟수를 지운다. 한꺼번에 보내도 비밀번호를 맞춰 보는 것은 5번까지다
   — `fiveFailuresLockTheLoginIdForOneMinute` · `unknownIdIsCountedTooSoNothingLeaks` · `successResetsTheFailureCount` · `concurrentAttemptsStillCompareAtMostFiveTimes`
 - AC-7: A16 은 세션을 끝내고 204 를 준다. 끝난 세션이나 세션 없이 부르면 401 `UNAUTHORIZED`

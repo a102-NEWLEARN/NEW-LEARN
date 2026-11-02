@@ -53,6 +53,7 @@ public class ArticleController {
     public PageResponse<ArticleSummaryResponse> list(
             @Parameter(description = "대표 카테고리 코드(A1 의 code). 보내지 않으면 전체", example = "economy")
                     @RequestParam(required = false)
+                    @Nullable
                     String category,
             @ParameterObject @Valid PageQuery query,
             @AuthenticationPrincipal @Nullable MemberPrincipal me) {

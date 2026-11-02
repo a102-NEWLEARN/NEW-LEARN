@@ -1,6 +1,7 @@
 package kr.io.newlearn.interest;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import kr.io.newlearn.common.error.ErrorCode;
@@ -44,7 +45,9 @@ public class InterestIssueService {
 
     public InterestIssueListResponse list(long memberId) {
         var saved = interests.findSavedByMemberId(memberId);
-        if (saved.isEmpty()) return new InterestIssueListResponse(java.util.List.of());
+        if (saved.isEmpty()) {
+            return new InterestIssueListResponse(List.of());
+        }
         var ids = saved.stream().map(i -> i.getId().getIssueId()).toList();
         var byId = cards.assemble(queries.findCardsByIds(ids), Set.copyOf(ids)).stream()
                 .collect(Collectors.toMap(c -> c.id(), c -> c));
@@ -53,8 +56,9 @@ public class InterestIssueService {
         for (var row : saved) {
             var card = byId.get(row.getId().getIssueId());
             // 여러 조회 사이에 삭제된 이슈는 FK cascade와 같은 의미로 목록에서 제외한다.
-            if (card != null)
+            if (card != null) {
                 items.add(new InterestIssueListResponse.InterestIssueItem(card, ApiTime.toKst(row.getCreatedAt())));
+            }
         }
         return new InterestIssueListResponse(items);
     }

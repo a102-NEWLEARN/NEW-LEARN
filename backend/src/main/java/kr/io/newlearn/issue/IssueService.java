@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import kr.io.newlearn.category.CategoryFilter;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.category.dto.CategoryRef;
 import kr.io.newlearn.common.error.ErrorCode;
@@ -11,7 +12,6 @@ import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.common.web.PageResponse;
-import kr.io.newlearn.common.web.QueryText;
 import kr.io.newlearn.event.Event;
 import kr.io.newlearn.event.EventRepository;
 import kr.io.newlearn.interest.InterestIssueId;
@@ -70,9 +70,13 @@ public class IssueService {
     }
 
     public TimelineResponse timeline(long issueId) {
-        if (!issues.existsById(issueId)) throw missingIssue(issueId);
+        if (!issues.existsById(issueId)) {
+            throw missingIssue(issueId);
+        }
         var ordered = events.findByIssue_IdOrderByOccurredAtAscIdAsc(issueId);
-        if (ordered.isEmpty()) return new TimelineResponse(issueId, List.of());
+        if (ordered.isEmpty()) {
+            return new TimelineResponse(issueId, List.of());
+        }
         var ids = ordered.stream().map(Event::getId).toList();
         var counts = queries.findEventCounts(ids).stream()
                 .collect(Collectors.toMap(IssueQueryRepository.EventCountRow::eventId, c -> c));
@@ -104,23 +108,14 @@ public class IssueService {
     }
 
     public PageResponse<IssueCardResponse> list(
-            String category, String sort, PageQuery query, @Nullable Long memberId) {
-        // U+0000 이 든 코드는 있을 수 없는 코드다 — DB 에 묻지 않고 없는 코드와 같은 404 (PostgreSQL 이 받지 못해 500 이었다)
-        if (category != null && (QueryText.containsNul(category) || !categories.existsById(category))) {
-            throw new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND, "카테고리를 찾을 수 없다: " + category);
-        }
+            @Nullable String category, String sort, PageQuery query, @Nullable Long memberId) {
+        CategoryFilter.check(categories, category);
         var page = queries.findCards(category, sort, query.toPageable(Sort.unsorted()));
         if (page.isEmpty()) {
-            return new PageResponse<>(
-                    List.of(), page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
+            return PageResponse.of(page, List.of());
         }
         var ids = page.stream().map(IssueQueryRepository.CardRow::id).toList();
         Set<Long> interested = memberId == null ? Set.of() : new HashSet<>(interests.findIssueIds(memberId, ids));
-        return new PageResponse<>(
-                cards.assemble(page.getContent(), interested),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages());
+        return PageResponse.of(page, cards.assemble(page.getContent(), interested));
     }
 }

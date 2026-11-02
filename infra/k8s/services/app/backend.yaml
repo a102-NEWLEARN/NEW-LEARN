@@ -90,7 +90,7 @@ spec:
               port: http
             periodSeconds: 5
             failureThreshold: 36
-          # DB · Redis 가 안 되면 요청을 받지 않는다 (readiness 그룹에 둘 다 들어 있다). 끊기면 앱이 30 · 60초 붙잡아
+          # DB 가 안 되면 요청을 받지 않는다 (readiness 그룹은 DB 만 — Redis 는 2026-11-02 뺐다, Jira 145). 끊기면 앱이 30초 붙잡아
           # 기본 timeout 1초에 실패로 잡힌다 — 두 번(10초)이면 Envoy 목록에서 빠진다 (SSOT 10절 2026-10-28)
           readinessProbe:
             httpGet:

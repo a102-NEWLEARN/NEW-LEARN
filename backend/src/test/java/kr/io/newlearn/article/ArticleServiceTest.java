@@ -31,7 +31,7 @@ class ArticleServiceTest {
 
     @Test
     void missingOrUnreleasedArticleStopsBeforeRelations() {
-        assertThatThrownBy(() -> service.get(4210)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.get(4210, null)).isInstanceOf(NotFoundException.class);
         verifyNoInteractions(assembler, jobs, links, mindmaps);
     }
 }

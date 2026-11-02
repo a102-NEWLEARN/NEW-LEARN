@@ -1,8 +1,10 @@
 package kr.io.newlearn.analysis.embedding;
 
+import static kr.io.newlearn.analysis.ResultFields.invalid;
+
 import java.util.ArrayList;
 import java.util.List;
-import kr.io.newlearn.analysis.ResultSchemaInvalidException;
+import kr.io.newlearn.common.web.QueryText;
 import tools.jackson.databind.JsonNode;
 
 // W1 EMBED 결과(봉투의 result) — docs/api-internal.md 5절 (Jira 35)
@@ -19,6 +21,10 @@ public record EmbedResult(String model, List<Double> vector) {
         var model = result.path("model");
         if (!model.isString() || model.stringValue().isBlank()) {
             throw invalid("model 이 없다");
+        }
+        // article_embedding.model(text)이 받지 않는다 — 그대로 두면 저장에서 500 이었다. 다른 세 단계와 같이 거절 (Jira 143)
+        if (QueryText.containsNul(model.stringValue())) {
+            throw invalid("model 에 U+0000 이 있다");
         }
         var dimension = result.path("dimension");
         if (!dimension.isInt() || dimension.intValue() != DIMENSION) {
@@ -40,9 +46,5 @@ public record EmbedResult(String model, List<Double> vector) {
             values.add(value.doubleValue());
         }
         return new EmbedResult(model.stringValue(), List.copyOf(values));
-    }
-
-    private static ResultSchemaInvalidException invalid(String detail) {
-        return new ResultSchemaInvalidException(detail);
     }
 }
