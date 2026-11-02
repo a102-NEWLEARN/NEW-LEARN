@@ -1,6 +1,10 @@
 package kr.io.newlearn.event;
 
-import kr.io.newlearn.analysis.ResultSchemaInvalidException;
+import static kr.io.newlearn.analysis.ResultFields.id;
+import static kr.io.newlearn.analysis.ResultFields.invalid;
+import static kr.io.newlearn.analysis.ResultFields.text;
+
+import kr.io.newlearn.common.web.QueryText;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,20 +44,15 @@ public record MatchEventResult(
             throw invalid("decision 이 없다");
         }
         return switch (decision.stringValue()) {
-            case "EXISTING" -> new MatchEventResult(Decision.EXISTING, eventId(result.path("eventId")), null, reason);
+            // "97" 같은 글자 · 97.5 같은 소수는 거절한다
+            case "EXISTING" ->
+                new MatchEventResult(
+                        Decision.EXISTING, id(result.path("eventId"), "EXISTING 인데 eventId"), null, reason);
             case "NEW" -> new MatchEventResult(Decision.NEW, null, newEvent(result.path("newEvent")), reason);
             // 받은 글자는 JSON 노드로 찍는다(U+0000 이 \u0000 으로 이스케이프된다). 날것으로 붙이면 이 문구를 실패 기록
             // (error_message)에 넣다 DB 가 거절해 400 이 아니라 500 이 된다
             default -> throw invalid("decision 이 EXISTING · NEW 가 아니다: " + decision);
         };
-    }
-
-    // "97" 같은 글자 · 97.5 같은 소수는 거절한다
-    private static long eventId(JsonNode eventId) {
-        if (!eventId.isInt() && !eventId.isLong()) {
-            throw invalid("EXISTING 인데 eventId 가 정수가 아니다: " + eventId);
-        }
-        return eventId.longValue();
     }
 
     private static NewEvent newEvent(JsonNode newEvent) {
@@ -83,9 +82,7 @@ public record MatchEventResult(
     // 반응 대상 한 줄은 화면 API 로 내보내지 않는 칸이라, 담을 수 없으면(글자가 아님 · 공백뿐 · U+0000) 거절하지 않고 버린다.
     // 거절하면 판정을 다시 걸어 GMS 를 한 번 더 부른다
     private static @Nullable String keptOrNull(JsonNode node) {
-        if (!node.isString()
-                || node.stringValue().isBlank()
-                || node.stringValue().indexOf('\u0000') >= 0) {
+        if (!node.isString() || node.stringValue().isBlank() || QueryText.containsNul(node.stringValue())) {
             return null;
         }
         return node.stringValue();
@@ -101,20 +98,5 @@ public record MatchEventResult(
             log.warn("반응 대상 사건 번호가 정수가 아니라 null 로 받는다: reactsToEventId={}", node);
         }
         return null;
-    }
-
-    // 비거나 공백뿐이면 거절. U+0000 은 PostgreSQL text · jsonb 가 받지 않아 저장에서 500 이 나므로 거절 — EXTRACT 와 같은 기준
-    private static String text(JsonNode node, String field) {
-        if (!node.isString() || node.stringValue().isBlank()) {
-            throw invalid(field + " 이 비었다");
-        }
-        if (node.stringValue().indexOf('\u0000') >= 0) {
-            throw invalid(field + " 에 U+0000 이 있다");
-        }
-        return node.stringValue();
-    }
-
-    private static ResultSchemaInvalidException invalid(String detail) {
-        return new ResultSchemaInvalidException(detail);
     }
 }
