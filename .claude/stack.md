@@ -219,8 +219,8 @@ Windows 에서 고친 것이 컨테이너에 안 닿는 함정은 `docs/harness-
 | 항목 | 값 |
 |---|---|
 | 헬스 엔드포인트 | API `GET /actuator/health` (DB · Redis 연결 포함) · 워커 `GET /health` (Redis 연결 포함). 정상이면 200, 아니면 503 |
-| 🔴 **배포 판정용** 엔드포인트 | 쿠버네티스 준비 확인(readinessProbe) — backend `GET /actuator/health` · ai `GET /health`. 안 되면 새 Pod 가 요청을 받지 않고 옛 Pod 가 남는다. 살아 있는지(livenessProbe)는 포트만 본다 — DB 가 잠깐 끊겼다고 재시작하지 않게 (`infra/k8s/services/`) |
-| 배포 판정에 **포함**할 것 | PostgreSQL · Redis 연결 (Spring 기본 health 표시기, 워커는 Redis ping) |
+| 🔴 **배포 판정용** 엔드포인트 | 쿠버네티스 준비 확인(readinessProbe) — backend `GET /actuator/health/readiness` · ai `GET /health`. 안 되면 새 Pod 가 요청을 받지 않고 옛 Pod 가 남는다. 살아 있는지(livenessProbe)는 backend 가 `GET /actuator/health/liveness`(앱 상태만), frontend · ai 는 포트만 본다 — DB 가 잠깐 끊겼다고 재시작하지 않게 (`infra/k8s/services/`) |
+| 배포 판정에 **포함**할 것 | backend 는 PostgreSQL(readiness 그룹 `readinessState,db` — Redis 는 2026-11-02 뺐다, Jira S15P31A102-145 · `SSOT.md` 9절), 워커는 Redis ping |
 | 배포 판정에서 **뺄 것** | SSAFY GMS · NewsData.io 같은 외부 API — 지금 health 에 없고 넣지 않는다 |
 | 외부 노출 여부 | `/actuator/health` 한 경로만 연다(화면이 상태를 부른다, 세부는 안 보임). 다른 actuator 경로와 `/internal` 은 Envoy 길에 없다 (`infra/k8s/services/app/routes.yaml`) |
 
