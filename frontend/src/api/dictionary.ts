@@ -27,13 +27,16 @@ export function fetchDictionary(q: string) {
 }
 
 // 서버처럼 앞뒤 공백을 지우고 NFC 로 맞춰 키를 만든다 — 같은 말을 다시 찾으면 받아 둔 결과를 쓴다.
-// 뜻풀이는 그사이 바뀌지 않아 낡았다고 보지 않는다. 실패는 다시 부르지 않는다 — 사용자가 다시 보내면 된다
+// 뜻풀이는 그사이 바뀌지 않아 낡았다고 보지 않는다. 다만 결과 없음은 바로 낡은 것으로 보고 다시 부른다 —
+// 서버도 틀린 키의 빈 본문을 굳히지 않으려고 결과 없음은 저장하지 않는다(docs/api-screen.md A19).
+// 실패는 저장되지 않고 다시 부르지도 않는다 — 사용자가 다시 보내면 된다
 export const dictionaryQuery = (q: string) => {
   const word = q.trim().normalize("NFC");
   return queryOptions({
     queryKey: ["dictionary", word],
     queryFn: () => fetchDictionary(word),
-    staleTime: Infinity,
+    staleTime: (query) =>
+      query.state.data && query.state.data.items.length > 0 ? Infinity : 0,
     retry: false,
   });
 };

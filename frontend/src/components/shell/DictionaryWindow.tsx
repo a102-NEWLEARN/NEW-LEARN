@@ -147,7 +147,7 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
         ref={buttonRef}
         type="button"
         aria-label="용어 사전 열기"
-        aria-expanded={false}
+        aria-haspopup="dialog"
         onClick={() => setOpen(true)}
         style={{ right }}
         className={`t5-bold fixed bottom-[24px] z-[1] inline-flex h-[48px] items-center gap-x2 rounded-full bg-bg-brand-solid pr-[18px] pl-x4 text-palette-static-white shadow-s3 hover:bg-bg-brand-solid-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:scale-[0.96] ${shift}`}
@@ -163,7 +163,7 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
       role="dialog"
       aria-labelledby={titleId}
       style={{ right }}
-      className={`fixed bottom-[24px] z-[1] flex h-[min(480px,calc(100dvh-120px))] w-[min(360px,calc(100vw-48px))] origin-bottom-right flex-col overflow-hidden rounded-r5 border border-stroke-neutral-weak bg-bg-layer-default shadow-s3 motion-safe:animate-[newlearn-dictionary-in_200ms_var(--seed-timing-function-enter)] ${shift}`}
+      className={`fixed bottom-[24px] z-[1] flex h-[min(480px,calc(100dvh-120px))] w-[min(360px,calc(100vw-48px))] origin-bottom-right flex-col overflow-hidden rounded-r5 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3 motion-safe:animate-[newlearn-dictionary-in_200ms_var(--seed-timing-function-enter)] ${shift}`}
     >
       <div className="flex items-center gap-x2_5 border-b border-stroke-neutral-weak py-x3 pr-x3 pl-x4">
         <span
@@ -313,6 +313,7 @@ function Answer({
       {hidden > 0 && (
         <button
           type="button"
+          aria-label={`'${term}' 뜻 ${hidden}개 더 보기`}
           onClick={() => setExpanded(true)}
           className="t3-bold mt-x2_5 rounded-r1 text-fg-brand hover:underline focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
         >

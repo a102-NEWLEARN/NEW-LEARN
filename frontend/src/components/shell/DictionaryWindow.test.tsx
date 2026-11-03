@@ -54,6 +54,9 @@ function holdDictionary() {
 
 test("버튼을 누르면 창이 열리고 입력칸에 포커스가 간다. 접으면 버튼으로 포커스가 돌아온다", () => {
   renderWithProviders(<DictionaryWindow />);
+  // 창을 여는 버튼이라고 알린다. 열려 있는 동안 버튼은 없어서 aria-expanded 는 두지 않는다
+  expect(openButton().getAttribute("aria-haspopup")).toBe("dialog");
+  expect(openButton().hasAttribute("aria-expanded")).toBe(false);
 
   openWindow();
 
@@ -109,7 +112,8 @@ test("결과가 3개를 넘으면 3개만 보이고 더 보기로 나머지를 �
   ).toBeNull();
 
   fireEvent.click(
-    within(dictionary()).getByRole("button", { name: "1개 더 보기" }),
+    // 대답마다 같은 버튼이 생기니 이름에 그 말을 넣어 스크린리더가 가르게 한다. 보이는 글자는 「1개 더 보기」
+    within(dictionary()).getByRole("button", { name: "'사과' 뜻 1개 더 보기" }),
   );
 
   const items = within(list).getAllByRole("listitem");
@@ -222,16 +226,25 @@ test.each([
     "네트워크 상태를 확인한 뒤 다시 시도해 주세요.",
   ],
 ])("%s 창 안에 알린다", async (_case, respond, message) => {
-  server.use(http.get(PATH, respond));
+  let calls = 0;
+  server.use(
+    http.get(PATH, () => {
+      calls += 1;
+      return respond();
+    }),
+  );
   renderWithProviders(<DictionaryWindow />);
   openWindow();
 
   ask("금리");
 
   expect(await within(dictionary()).findByText(message)).toBeDefined();
-  // 실패한 뒤에도 다시 보낼 수 있다
-  fireEvent.change(input(), { target: { value: "금리" } });
-  expect((sendButton() as HTMLButtonElement).disabled).toBe(false);
+  // 실패는 받아 두지 않는다 — 다시 보내면 A19 를 다시 부른다
+  ask("금리");
+  await waitFor(() =>
+    expect(within(dictionary()).getAllByText(message)).toHaveLength(2),
+  );
+  expect(calls).toBe(2);
 });
 
 test("빈칸 · 공백만 있으면 보내기가 꺼지고, 입력은 50자까지 받는다", () => {
@@ -285,6 +298,34 @@ test("같은 단어를 다시 찾으면 받아 둔 결과를 쓴다", async () =
     ),
   );
   expect(calls).toBe(1);
+});
+
+test("결과 없음은 받아 두지 않아 다시 찾으면 A19 를 다시 부른다", async () => {
+  // 서버도 결과 없음은 저장하지 않는다 — 틀린 키도 빈 본문이라 그 답을 굳히지 않으려고 (docs/api-screen.md A19)
+  let calls = 0;
+  server.use(
+    http.get(PATH, () => {
+      calls += 1;
+      return HttpResponse.json({
+        query: "없는말",
+        items: [],
+        source: "국립국어원 표준국어대사전",
+      });
+    }),
+  );
+  const notFound =
+    "'없는말'의 뜻을 찾지 못했어요. 다른 표현으로 물어봐 주세요.";
+  renderWithProviders(<DictionaryWindow />);
+  openWindow();
+
+  ask("없는말");
+  await within(dictionary()).findByText(notFound);
+  ask("없는말");
+
+  await waitFor(() =>
+    expect(within(dictionary()).getAllByText(notFound)).toHaveLength(2),
+  );
+  expect(calls).toBe(2);
 });
 
 test("창을 접었다 펴도 대화가 남는다", async () => {
@@ -355,16 +396,21 @@ test("먼저 처리된 Esc(preventDefault)로는 닫지 않는다", () => {
   expect(dictionary()).toBeDefined();
 });
 
-test("결과는 aria-live 로 읽어 준다", () => {
+test("결과 · 실패 안내는 aria-live 영역 안에 뜬다", async () => {
   renderWithProviders(<DictionaryWindow />);
   openWindow();
 
-  expect(
-    within(dictionary())
-      .getByText("모르는 용어를 입력하면 뜻을 알려드려요.")
-      .closest("[aria-live]")
-      ?.getAttribute("aria-live"),
-  ).toBe("polite");
+  ask("금리");
+  const list = await meanings("금리");
+  ask("없는말");
+  const notFound = await within(dictionary()).findByText(
+    "'없는말'의 뜻을 찾지 못했어요. 다른 표현으로 물어봐 주세요.",
+  );
+
+  for (const element of [list, notFound])
+    expect(element.closest("[aria-live]")?.getAttribute("aria-live")).toBe(
+      "polite",
+    );
 });
 
 test("오른쪽 패널 폭(inset)만큼 버튼과 창이 왼쪽으로 비킨다", () => {
