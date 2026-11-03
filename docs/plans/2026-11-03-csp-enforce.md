@@ -22,7 +22,7 @@
 - 보고 주소가 없어 보고만 판은 누가 콘솔을 열어야만 위반을 안다. 며칠 둬도 아는 것이 거의 늘지 않는다. 강제 판에서는 위반이 화면에서 깨져 보여 FE 가 알아챈다
 - FE 가 계속 배포한다. 한 빌드를 며칠 봐도 다음 빌드는 보증되지 않는다
 - 번들과 화면 코드에 같은 사이트 밖을 부르는 곳이 없음을 정적으로 확인했다(위 표). 데이터가 무엇이든 바깥 자원을 부를 길이 없어, 못 본 이슈 화면도 같은 판단이다
-- 되돌리기는 머리 이름 한 줄이다(MR 두 번 — 분 단위, 아래 「되돌리는 법」). 발표(11-18) 직전보다 지금 켜고 2주 동안 강제 판으로 보는 편이 낫다
+- 되돌리기는 머리 값 한 줄이다(MR 두 번 — 분 단위, 아래 「되돌리는 법」). 발표(11-18) 직전보다 지금 켜고 2주 동안 강제 판으로 보는 편이 낫다
 
 ## 정한 것
 
@@ -31,7 +31,7 @@
 | 규칙 값 | 1단계와 같다(출처 더하기 없음) — `default-src 'self'; script-src 'self' 'sha256-YBQY3WM31w/XgUZiCAkDXyEKGqOEfxNRIDEAoPoaHXY='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` |
 | 보고 주소(report-to) | 두지 않는다 — 받을 곳이 없다. 위반은 브라우저 콘솔(`Refused to …`)로 본다 |
 | 해시 CI 검사 | **두지 않는다.** ① `@seed-design/css` 3.0.3 · `@seed-design/vite-plugin` 2.1.1 이 정확한 판으로 고정돼 있고(잠금 파일에 css 한 벌, Dockerfile 은 `npm ci`), GitLab 에 자동 판 올리기(Renovate)가 없어 FE 가 손으로 바꿀 때만 글이 바뀐다. 두 판은 10-18 뒤로 그대로다 ② 어긋나도 막히는 것은 테마 script 하나이고, 위 관찰대로 색 값은 그대로다 ③ 검사는 `generateThemingScript` 결과 해시를 `routes.yaml` 값과 견주는 vitest 몇 줄이면 되지만, FE 영역 코드라 FE 동의가 필요하고 두 영역이 서로 묶인다. 운영은 길어야 12월이다. **받아들이는 것:** 보고 주소가 없어 어긋나도 콘솔 오류 말고는 조용하다. 대신 `routes.yaml` 주석에 재는 법 · 판을 올리는 순서를 적고, FE 에 「seed-design 판 · 플러그인 설정 · 바깥 출처를 바꾸면 인프라에 알려 달라」고 Jira 120 댓글로 알린다 |
-| 판을 올리는 순서 | `script-src` 는 해시를 여럿 받는다. 새 해시를 옛 해시 옆에 먼저 넣고(infra MR), FE 반영이 끝난 뒤 옛 것을 뺀다 — 두 MR 사이에 막히는 틈이 없다 |
+| 판을 올리는 순서 | `script-src` 는 해시를 여럿 받는다. 새 해시를 옛 해시 옆에 먼저 넣고, frontend 반영 뒤 옛 것을 뺀다 — 사이에 막히는 틈이 없다. 차례의 자세한 것(dev 반영 · Argo CD Synced 뒤 frontend 태그 MR)은 `routes.yaml` 주석(반영 뒤 고침, 「되돌리는 법」 아래 기록) |
 
 ## 바꿀 파일
 
@@ -41,13 +41,14 @@
   - 8절 CSP 줄 지우기
   - 10절에 잰 것 한 줄(관찰 표 · 로그인 화면 결과, 「말하지 못하는 것」: 이슈 화면 · 다른 브라우저)
 - `docs/plans/2026-11-03-csp-enforce.md` — 승인한 계획 사본(이 파일을 옮김)
+- 후속 MR(반영 뒤 사용자 승인, 2026-11-03): `routes.yaml` 주석의 되돌리는 줄, 이 계획의 「되돌리는 법」, SSOT 6절(되돌리는 법이 주석에 있다는 가리킴) · 10절(반영 뒤 확인 · 304 관찰)
 
 ## 작업 순서
 
 - [x] 1. 로그인 화면 관찰 — 사용자가 앱 안 브라우저에서 로그인 → Claude 가 `/home` · 기사 마인드맵(`/articles/1`) · 용어사전 창 · 검색 · `/bookmarks` · `/me` 를 열어 위반을 모은다. **위반이 하나라도 나오면 멈추고 계획을 고친다**
 - [x] 2. worktree `C:/tmp/wt-120` · 브랜치 `feat/infra/S15P31A102-120-csp-enforce` ← `origin/infra`, 파일 셋 고치기(10절에는 반영 전에 잰 것만), infra 게이트(stack.md 3절), YAML 이 그대로 읽히는지(`kubectl apply --dry-run=server` — 권한이 막으면 사용자에게 파일 카드)
-- [ ] 3. reviewer 조수(MR) → MR(→ infra) → 파이프라인 success → 머지 직전 원격 infra · dev SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev MR 같은 방식 → Argo CD `app` 반영
-- [ ] 4. 반영 뒤 확인(아래 「어떻게 검증하나」). 결과는 Jira 120 댓글 · zoo_docs 에 남긴다(SSOT 를 고치는 MR 을 하나 더 만들지 않는다)
+- [x] 3. reviewer 조수(MR) → MR(→ infra) → 파이프라인 success → 머지 직전 원격 infra · dev SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev MR 같은 방식 → Argo CD `app` 반영 — !602 · !603
+- [x] 4. 반영 뒤 확인(아래 「어떻게 검증하나」). 결과는 Jira 120 댓글 · zoo_docs 에 남긴다. 확인하다 되돌리는 법이 틀린 것이 드러나, 그것을 고치는 후속 MR 에 SSOT 10절 반영 뒤 줄도 함께 넣는다(위 「바꿀 파일」 마지막 줄)
 - [ ] 5. 분야 브랜치 맞추기 — infra · backend · ai 를 dev 에(내용 차이부터). frontend 는 11-03 FE 머지 때 지웠다가 FE 가 다시 만들어 쓰는 중이라 FE 에 맡긴다(11-03 메인 세션 지시)
 - [ ] 6. Jira 120 결과 댓글(FE 알림 · 이슈 화면 남은 확인) · 완료, `/feature-done`, zoo_docs 기록
 - [ ] 7. 남는 확인 한 줄 — 11-15 데이터 적재 뒤 `/issues/:id` 를 강제 상태에서 한 번 열어 위반 0 확인(Jira 120 댓글 · 현황판에 적어 둠)
@@ -74,6 +75,17 @@
 
 ## 되돌리는 법
 
-- 화면이 깨지면: `routes.yaml` 머리 이름을 `Content-Security-Policy-Report-Only` 로 되돌리는 MR(또는 이번 MR Revert)을 infra 에 머지하고 곧바로 infra → dev. MR 파이프라인 두 번이라 분 단위다(10-21 실측 117 ~ 192초씩, 몰리면 10분대). dev 에 들어간 뒤 Argo CD 반영은 몇 초다
+**지금 되돌리는 법은 `infra/k8s/services/app/routes.yaml` 주석이 이긴다** — 이름 `Content-Security-Policy` 는 두고 값을 고친다(출처 더하기, 급하면 `frame-ancestors 'none'` 하나). 아래는 기록이다.
+
+> 반영 뒤 고침(2026-11-03) — 처음에 적은 것: 「머리 이름을 `Content-Security-Policy-Report-Only` 로 되돌리면(또는 MR Revert) 다음 화면 요청부터 풀린다」. 반영 뒤 확인에서 틀린 것이 드러났다.
+>
+> 까닭: `index.html` 은 `no-cache` 라 캐시에 둔 채 매번 ETag 로 재검증한다. 304 응답은 저장된 응답에 304 의 머리를 더하고, 이름이 같은 것은 값을 바꾼다. 304 에 없는 머리를 지우는 규칙은 없다(RFC 9111 3.2절). Chromium · Firefox · WebKit 소스도 같다(reviewer 조수 대조, 그날 main 기준). WebKit 은 2023-01 전 판에서 304 로 CSP 를 아예 갱신하지 않았다 — 옛 Safari 는 새 200 을 받기 전까지 저장된 머리가 남는다(어느 판부터인지는 미확인).
+>
+> 관찰: 반영 직후 캐시가 있던 `/home` 은 304(전송 300바이트)로 재검증됐고 옛 보고만 · 새 강제 머리가 둘 다 걸렸다(`disposition` report · enforce). 새 주소로 받은 200 은 강제만 있었다. 거꾸로도 같아서, 이름만 바꾸면 전에 화면을 연 브라우저에 강제 머리가 남는다.
+
+- 처음 적은 「판을 올리는 순서」(새 해시를 먼저 넣는 infra MR)도 반영 뒤 고쳤다 — infra 머지만으로는 사이트에 안 들어가 dev 반영 · Argo CD Synced 뒤에 frontend 태그 MR 을 머지해야 한다(지금 순서는 `routes.yaml` 주석)
+- 풀리는 때: 사용자가 새로 고침하거나 주소로 다시 들어오면 304 가 바뀐 값을 싣는다. 이미 열린 탭의 화면 안 이동은 문서를 다시 받지 않는다
+- 풀렸는지 볼 때는 `disposition` 이 `enforce` 인 위반이 없는지로 본다. 17:34 전에 캐시를 둔 Chromium 에는 옛 보고만 머리(원래 규칙)가 남아 있어 되돌린 뒤에도 `[Report Only]` 줄은 찍힐 수 있다. 그 머리는 `index.html` 이 바뀔 때(다음 frontend 배포) 200 을 받으며 사라진다
+- MR 파이프라인 두 번이라 분 단위다(10-21 실측 117 ~ 192초씩, 몰리면 10분대). dev 에 들어간 뒤 Argo CD 반영은 몇 초다(2026-11-03 !603 머지 6초 안에 — 첫 확인에서 이미 붙어 있었다)
 - kubectl 로 직접 고치는 길은 없다 — Argo CD `app` 이 `selfHeal: true` 라 다시 되돌린다
-- 브라우저는 CSP 를 기억하지 않아 다음 화면 요청부터 풀린다(`index.html` 은 `no-cache`). 데이터 · 이미지 변화가 없어 되돌릴 수 없는 것은 없다
+- 데이터 · 이미지 변화가 없어 되돌릴 수 없는 것은 없다
