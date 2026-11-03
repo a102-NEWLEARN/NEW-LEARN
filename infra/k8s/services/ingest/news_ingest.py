@@ -9,7 +9,7 @@ CronJob news-ingest(옆의 news-ingest.yaml)가 ConfigMap 으로 얹어 돌린�
 - 키: NEWSDATA_API_KEY(봉인 Secret newsdata-api) · INTERNAL_BATCH_KEY(internal-api 의 배치 키, full 만)
 
 로그는 줄마다 JSON 하나이고 키는 모두 *** 로 가린다. 끝에 {"msg": "수집 결과", …} 한 줄
-종료 코드: 0 끝까지 돎 · 1 NewsData 실패 또는 기사가 하나도 B1 까지 못 감 · 2 다시 해도 같음(설정 · 출입증) — CronJob 은 2 면 다시 시도하지 않는다
+종료 코드 0 · 1 · 2 의 뜻은 infra/server/ingest.md 「로그 읽기」의 표 — CronJob 은 2(다시 해도 같음)면 다시 시도하지 않는다
 
 표준 라이브러리만 쓴다 — 공개 Python 이미지에 이 파일만 얹는다. 불러올 때는 env 를 읽지 않는다(시험이 main 에 넘긴다)
 """
@@ -63,7 +63,8 @@ def redact(text, secrets):
     for secret in secrets:
         if secret:
             text = text.replace(secret, "***")
-    return re.sub(r"apikey=[^&\s\"']+", "apikey=***", text)
+    # 역슬래시에서도 멈춘다 — JSON 으로 적은 줄에서 값 뒤 \" 까지 먹으면 줄이 깨진다
+    return re.sub(r"apikey=[^&\s\"'\\]+", "apikey=***", text)
 
 
 def skip_reason(item):
@@ -264,8 +265,7 @@ class Run:
         except CONNECTION_ERRORS as err:
             status, raw = None, repr(err).encode()
             if self.connection_failed():
-                self.b1["failed"] += 1
-                self.log({"msg": "B1 실패", "articleId": article_id, "status": None, "body": self.short(raw)})
+                # 이 기사 번호는 ingest() 가 멈추며 남긴다
                 raise BackendDown(f"backend 연결이 {BACKEND_DOWN_AFTER}번 이어서 실패했다") from err
         if status == 202:
             self.b1["released"] += 1
@@ -280,15 +280,28 @@ class Run:
         return True
 
     def ingest(self, articles):
-        retry = []
-        for article in articles:
-            article_id = self.load(article)
-            if article_id is not None and not self.release(article_id, last_try=False):
-                retry.append(article_id)
-        # B2 는 됐는데 B1 이 연결 · 5xx 로 실패한 기사 — 최신 기사만 받아 다음 실행에 대개 다시 오지 않으니 끝에 한 번 더
-        for article_id in retry:
-            self.b1["retried"] += 1
-            self.release(article_id, last_try=True)
+        retry, current = [], None
+        try:
+            for article in articles:
+                article_id = self.load(article)
+                if article_id is None:
+                    continue
+                current = article_id
+                if not self.release(article_id, last_try=False):
+                    retry.append(article_id)
+                current = None
+            # B2 는 됐는데 B1 이 연결 · 5xx 로 실패한 기사 — 최신 기사만 받아 다음 실행에 대개 다시 오지 않으니 끝에 한 번 더
+            while retry:
+                current = retry.pop(0)
+                self.b1["retried"] += 1
+                self.release(current, last_try=True)
+                current = None
+        except (AuthError, BackendDown):
+            # 멈추면 B2 는 됐는데 B1 을 끝내 못 건 기사가 남는다 — 사람이 그 번호로 B1 을 걸게 번호를 남긴다(docs/api-internal.md 2절)
+            for article_id in ([current] if current is not None else []) + retry:
+                self.b1["failed"] += 1
+                self.log({"msg": "B1 실패", "articleId": article_id, "status": None, "body": "멈춰서 걸지 못함"})
+            raise
 
     def summary(self, kept):
         record = {"msg": "수집 결과", "mode": self.config["mode"], "requests": self.requests, "fetched": self.fetched, "kept": kept, "skipped": dict(self.skipped)}

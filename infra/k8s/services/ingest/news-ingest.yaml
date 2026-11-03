@@ -19,7 +19,7 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      # 종료 1(NewsData 실패 · backend 연결 실패 · 기사가 하나도 B1 까지 못 감)이면 한 번 다시 — 다시 돌면 NewsData 를 또 부른다(요청 상한만큼 크레딧).
+      # 종료 2 가 아닌 실패(종료 1 · 예상 못 한 오류 · 메모리 초과 등)면 한 번 다시 — 다시 돌면 NewsData 를 또 부른다(요청 상한만큼 크레딧).
       # 같은 기사는 B2 200 · B1 409 로 건너뛴다. 종료 코드 뜻은 infra/server/ingest.md 「로그 읽기」
       backoffLimit: 1
       # 종료 2 는 다시 해도 같다(설정 · 출입증 401 · 403) — 다시 시도하지 않고 실패로 끝낸다(크레딧을 안 쓰게)
