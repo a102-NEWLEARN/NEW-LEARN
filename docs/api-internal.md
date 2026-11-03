@@ -8,6 +8,7 @@ SSOT 2절 3~6번(배치가 적재 · 투입, 작업 큐 등록, 워커 분석, �
 - **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 표시(`primaryCoreIndex`)와 대표 사건이 없는 기사는 판정을 건너뛰는 규칙, 분석할 수 없는 입력, 후보 사건의 원문 근거, 판정 기록, GMS 연결 실패를 더했다
 - **v1.2 (2026-10-26, Jira S15P31A102-30)**: 출입증(`X-Internal-Key`), 스트림 길이 상한 · 그룹 만들기 · 큐에 못 넣은 작업 다시 넣기, W1 의 401 · 403 · 봉투를 못 읽을 때, 워커 쪽 숫자(BE 안)를 정했다. 다시 걸기 간격은 `api.md` 2절
 - **v1.3 (2026-10-26, Jira S15P31A102-34)**: B1 은 분석만 건다 — 기사가 보이는 때(`released_at`)는 EXTRACT 결과를 처음 저장한 때로 옮겼다(사용자 결정). 202 본문을 정했다
+- **v1.4 (2026-11-03, Jira S15P31A102-153)**: 기사 적재 B2 를 더했다. 수집 배치는 기사를 B2 로 넣고 돌려받은 id 로 B1 을 부른다 — DB 에 직접 쓰지 않는다(`SSOT.md` 8절에 미정으로 있던 적재 길)
 
 표 읽는 법은 `docs/api-screen.md` 머리와 같다. 「저장하는 곳」은 API 가 그 값을 어느 칸에 넣는지다.
 
@@ -19,7 +20,7 @@ SSOT 2절 3~6번(배치가 적재 · 투입, 작업 큐 등록, 워커 분석, �
 
 ```mermaid
 flowchart TD
-  B["수집 배치 — CronJob 하루 두 번, 발행 순서대로"] -->|"B1 투입"| A1["API 서버 — EXTRACT · EMBED 작업을 만든 뒤 큐에 넣음(아직 화면에 안 보임)"]
+  B["수집 배치 — CronJob 하루 두 번, 발행 순서대로"] -->|"B2 적재 → B1 투입"| A1["API 서버 — 기사를 넣고(B2) EXTRACT · EMBED 작업을 만든 뒤 큐에 넣음(아직 화면에 안 보임)"]
   A1 -->|"analysis.released"| Q1[("Redis 작업 큐")]
   Q1 -->|"그룹 extract · embed 가 각자 읽음"| W1["AI 워커 — 핵심 정보 추출 · 임베딩"]
   W1 -->|"W1 결과 — 마인드맵 · 요약 · 발생 시점 / 벡터"| A2["API 서버 — 저장하고(EXTRACT 처음이면 기사 공개) 비슷한 기사로 후보 사건 최대 5개를 찾음"]
@@ -50,9 +51,48 @@ flowchart LR
 
 ---
 
-## 2. B1. 기사 투입 — `POST /internal/v1/articles/{articleId}/release`
+## 2. 수집 배치 — B2 기사 적재 · B1 기사 투입
 
-수집 배치가 적재해 둔 기사에 분석을 건다. 적재할 때 `released_at` 은 비워 둔다 — 공개는 API 가 한다. 실서비스 수집 배치는 NewsData.io 를 k8s CronJob 으로 하루 두 번(00 · 12시, `Asia/Seoul`) 돈다(2026-10-20). API 는 `EXTRACT` · `EMBED` 작업 행을 만들고 커밋 뒤 큐에 넣는다 — 분석만 건다. **기사가 화면에 보이는 때(`article.released_at`)는 EXTRACT 결과를 처음 저장한 때다.** 분석이 끝난 기사부터 보이게 하려는 것이다(2026-10-26 사용자, Jira 34). EXTRACT 가 끝내 실패한 기사(분석할 내용 없음 · 거절 등)는 화면에 나오지 않는다. 같은 기사 투입 둘이 동시에 와도 기사 행을 잠그고 보아 하나만 202 다.
+실서비스 수집 배치는 NewsData.io 를 k8s CronJob 으로 하루 두 번(00 · 12시, `Asia/Seoul`) 돈다(2026-10-20). 기사마다 B2 로 넣고, 돌려받은 id 로 B1 을 부른다. DB 에 직접 쓰지 않는다 — 필수 값 검사 · 언론사 등록 · 같은 URL 처리를 API 한 곳이 시험으로 지키려는 것이다(2026-11-02 인프라 담당, Jira 153). 실행 한 번의 받은 수 · 넣은 수 · B1 결과는 배치 Job 로그 한 줄로 남기고, `ingest_run` 은 지금 쓰지 않는다.
+
+배치가 B2 를 부르기 전에 거르는 기사(2026-11-03 인프라 담당)
+
+- 본문(`content`)이 없는 기사 — B2 도 400 으로 거절하지만 헛 요청을 줄인다. 2026-11-03 최신 기사 50건 중 6건이 null 이었다
+- 연예 · 스포츠 — `category` 에 `entertainment` · `sports` 가 있는 기사(`SSOT.md` 9절 2026-10-20 「카테고리 7개 → 5개」, `data-model.md` 2절 category_mapping). B2 는 분류를 보고 거절하지 않는다
+- `pubDateTZ` 가 UTC 가 아닌 기사 — 지금까지 받은 응답은 모두 UTC 였다. 다른 값이 오면 배치가 시각을 바로 붙이지 못하니 세고 넘긴다
+
+### B2. 기사 적재 — `POST /internal/v1/articles`
+
+기사 하나를 `article` 에 넣고 id 를 돌려준다. `released_at` 은 비워 둔다 — 공개는 B1 으로 분석을 건 뒤 API 가 한다. 지금은 NewsData 기사만 받는다(소스가 늘면 `source` 칸을 더한다).
+
+| 칸 | 타입 | 필수 | 규칙 | NewsData 에서 | 저장하는 곳 |
+|---|---|---|---|---|---|
+| `url` | string | 예 | `http://` · `https://` 로 시작하고 그 뒤에 주소가 한 글자 이상 있다. 경로는 보지 않는다(퍼센트 인코딩 안 된 한글도 받는다). 2048자까지. 받은 그대로 둔다 — 정규화하지 않는다 | `link` | `article.url` |
+| `pressSourceId` | string | 예 | 100자까지 | `source_id` | 언론사를 고르는 대응 키(`press_mapping.source_value`). 처음 보는 언론사면 `press.code` |
+| `pressName` | string | 예 | 100자까지. 언론사를 처음 등록할 때만 쓴다 — 있는 언론사의 이름은 바꾸지 않는다 | `source_name` | 처음이면 `press.name` |
+| `title` | string | 예 | 300자까지 | `title` | `article.title` |
+| `reporter` | string | 아니오 | 200자까지. 빈 값은 없는 것으로 둔다 | `creator[]` — 잇는 법은 배치가 정한다 | `article.reporter` |
+| `body` | string | 예 | 공백만은 안 된다. 10만 자까지 | `content` | `article.body` |
+| `publishedAt` | string(시각) | 예 | 오프셋이 있어야 한다(`docs/api.md` 1절 「시간」). `pubDate` 는 시간대가 없어 배치가 `pubDateTZ`(UTC)를 붙여 `2026-11-02T23:15:46Z` 로 보낸다 | `pubDate` + `pubDateTZ` | `article.published_at` |
+| `sourceCategories` | string[] | 아니오 | 20개 · 항목마다 100자까지, 빈 항목은 안 된다. 없으면 빈 목록 | `category[]` | `article.source_categories`. 대표 카테고리는 `category_mapping` 으로 고른다(`data-model.md` 2절) |
+| `sourceTags` | string[] | 아니오 | 같은 규칙. 없으면 비운다 | `ai_tag[]` | `article.source_tags` |
+
+- 글자 칸 · 목록 항목에 U+0000 이 있으면 400 이다(PostgreSQL 이 글자로 받지 못한다). 길이 · 개수 상한은 우리 제안이다 — 2026-11-03 응답 50건의 최댓값은 제목 57자 · 링크 197자 · 본문 7,157자였다
+- 언론사는 `press_mapping(NEWSDATA, pressSourceId)` 가 가리키는 곳이다. 대응 행이 없으면 처음 보는 언론사로 등록한다 — 규칙은 `data-model.md` 2절 press
+
+| 응답 | 뜻 |
+|---|---|
+| 201 | 새로 넣었다 — `{ "articleId": 123, "created": true }` |
+| 200 | 같은 URL 의 기사가 이미 있다 — `{ "articleId": 123, "created": false }`. 아무 칸도 바꾸지 않는다. 같은 URL 둘이 동시에 와도 한 행만 생기고 둘 다 그 id 를 받는다 |
+| 400 `VALIDATION_FAILED` | 필수 값이 없거나 규칙에 어긋난다. `errors[]` 에 칸(`url` · `sourceCategories[1]` 처럼)과 이유가 있다. 다시 보내도 같다 — 배치는 세고 다음 기사로 |
+| 401 `UNAUTHORIZED` · 403 `FORBIDDEN` | B1 과 같다(배치 출입증만 연다) |
+| 500 `INTERNAL_ERROR` | 저장이 URL 이 아닌 까닭으로 실패했다 — 정한 id 로 데이터를 넣은 뒤 시퀀스가 낮게 남았거나, 인코딩 안 된 한글 · 기호가 많은 링크가 DB 고유 색인 상한(UTF-8 약 2,700바이트)을 넘었다(지금까지 받은 링크는 197자까지). 같은 URL 로 읽지 않는다 |
+
+배치는 201 · 200 모두 그 id 로 B1 을 부르고, 409 `ALREADY_RELEASED` 는 건너뛴다. 그래서 적재 뒤 B1 이 실패한 기사도 다음 실행에서 같은 기사를 다시 받으면 그때 다시 걸린다. 최신 기사만 받으니 대개 다시 오지는 않는다 — B1 이 실패한 기사를 실행 안에서 다시 걸지는 수집 배치(Jira 154)가 정한다.
+
+### B1. 기사 투입 — `POST /internal/v1/articles/{articleId}/release`
+
+B2 로 적재해 둔 기사에 분석을 건다. 적재할 때 `released_at` 은 비워 둔다 — 공개는 API 가 한다. API 는 `EXTRACT` · `EMBED` 작업 행을 만들고 커밋 뒤 큐에 넣는다 — 분석만 건다. **기사가 화면에 보이는 때(`article.released_at`)는 EXTRACT 결과를 처음 저장한 때다.** 분석이 끝난 기사부터 보이게 하려는 것이다(2026-10-26 사용자, Jira 34). EXTRACT 가 끝내 실패한 기사(분석할 내용 없음 · 거절 등)는 화면에 나오지 않는다. 같은 기사 투입 둘이 동시에 와도 기사 행을 잠그고 보아 하나만 202 다.
 
 | 인자 | 타입 | 용도 |
 |---|---|---|
@@ -66,8 +106,7 @@ flowchart LR
 | 404 `ARTICLE_NOT_FOUND` | 그런 기사가 없다 |
 | 409 `ALREADY_RELEASED` | 이미 투입했다(그 기사의 분석 작업이 있다) 또는 이미 화면에 있다(`released_at` 이 있다). 배치는 건너뛴다 |
 
-- 기사를 적재하는 길(배치가 DB 에 바로 넣나, API 를 부르나)은 수집 배치 구현 언어와 같이 정한다(`SSOT.md` 8절)
-- 실행 한 번의 기록은 `ingest_run` 에 남긴다(`data-model.md` 2절). 데이터셋은 검증용이라(SSOT 5절) 서비스에 투입할지는 정하지 않았다(`data-model.md` 5절 17번)
+- 데이터셋은 검증용이라(SSOT 5절) 서비스에 투입할지는 정하지 않았다(`data-model.md` 5절 17번)
 
 ## 3. 큐 모양과 순서
 
