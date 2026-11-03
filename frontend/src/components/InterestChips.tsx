@@ -27,6 +27,15 @@ type InterestChipsProps = {
 const CHIP =
   "t4-medium inline-flex h-[40px] items-center gap-x1 rounded-r2 border px-x3_5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring";
 
+/** 고를 수 있는 칩 모양 — 고른 것 · 안 고른 것. 가입의 사용 목적 칩도 같은 모양을 쓴다 */
+export function chipClassName(on: boolean) {
+  return `${CHIP} ${
+    on
+      ? "border-stroke-brand-solid bg-bg-brand-weak text-fg-brand-contrast active:bg-bg-brand-weak-pressed"
+      : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral hover:bg-bg-layer-default-pressed"
+  }`;
+}
+
 // 관심 분야 칩 — 가입 · 마이페이지 (EXPERIENCE.md Component Patterns 「관심 분야 칩」, 프로토타입 v21 AuthPage).
 // 여러 개 고른다(aria-pressed). 마지막 남은 칩은 풀리지 않는다. 준비 중 분야는 고르지 않고 누르면 안내한다.
 // 고른 칩 모양은 DESIGN.md 「선택된 필터 칩」, 높이 40px 은 [가정] (누르는 영역 44px 목표와 v21 38px 사이)
@@ -88,11 +97,7 @@ export function InterestChips({
                   type="button"
                   aria-pressed={on}
                   onClick={() => toggle(category.code)}
-                  className={`${CHIP} ${
-                    on
-                      ? "border-stroke-brand-solid bg-bg-brand-weak text-fg-brand-contrast active:bg-bg-brand-weak-pressed"
-                      : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral hover:bg-bg-layer-default-pressed"
-                  }`}
+                  className={chipClassName(on)}
                 >
                   {on ? (
                     <IconCheckmarkLine aria-hidden size={16} />
