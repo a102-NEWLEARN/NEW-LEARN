@@ -15,7 +15,9 @@ import re
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "k8s" / "services" / "ingest" / "news_ingest.py"
 _spec = importlib.util.spec_from_file_location("news_ingest", SCRIPT)
@@ -26,7 +28,11 @@ _spec.loader.exec_module(news_ingest)
 KEY = "pub_testkey0123456789abcdef"
 BATCH_KEY = "batch-test-key-0123456789"
 BACKEND = "http://backend.test:8080"
-NEWSDATA = "https://newsdata.io/api/1/latest"
+NEWSDATA_API = "https://newsdata.io/api/1/"
+NEWSDATA = NEWSDATA_API + "latest"
+ARCHIVE = NEWSDATA_API + "archive"
+KST = timezone(timedelta(hours=9))
+NOW = datetime(2026, 11, 4, 10, 0, tzinfo=KST)  # 매일 10시 실행 — 전날은 11-03
 B2 = BACKEND + "/internal/v1/articles"
 B1 = re.compile(re.escape(BACKEND) + r"/internal/v1/articles/(\d+)/release")
 
@@ -102,7 +108,7 @@ class FakeNet:
 
     def __call__(self, method, url, headers, body):
         self.calls.append((method, url, dict(headers), body))
-        if url.startswith(NEWSDATA):
+        if url.startswith(NEWSDATA_API):
             resp = self.pages.pop(0)
             if isinstance(resp, BaseException):
                 raise resp
@@ -130,7 +136,13 @@ class FakeNet:
         return status, json.dumps(payload, ensure_ascii=False).encode()
 
     def newsdata_calls(self):
-        return [c for c in self.calls if c[1].startswith(NEWSDATA)]
+        return [c for c in self.calls if c[1].startswith(NEWSDATA_API)]
+
+    def newsdata_query(self, n=0):
+        """n 번째 NewsData 요청의 (주소, 질의 dict) — 같은 키가 둘이면 시험이 깨지게 dict 로"""
+        url = self.newsdata_calls()[n][1]
+        base, _, query = url.partition("?")
+        return base, dict(urllib.parse.parse_qsl(query, strict_parsing=True))
 
     def b2_calls(self):
         return [c for c in self.calls if c[1] == B2]
@@ -139,10 +151,14 @@ class FakeNet:
         return [c for c in self.calls if B1.fullmatch(c[1])]
 
 
-def run(environ, net):
-    """main 을 돌려 (종료 코드, JSON 줄 목록, 찍힌 글 전체)를 돌려준다. 줄마다 JSON 이 아니면 여기서 깨진다"""
+def run(environ, net, now=None, sleep=None):
+    """main 을 돌려 (종료 코드, JSON 줄 목록, 찍힌 글 전체)를 돌려준다. 줄마다 JSON 이 아니면 여기서 깨진다
+
+    now: 「지금」(KST) — 전날을 셀 때. sleep: 요청 사이 쉬기를 대신 받는 함수(진짜로 쉬지 않게)
+    """
     out = io.StringIO()
-    code = news_ingest.main(environ, net, out)
+    extra = {k: v for k, v in (("now", now), ("sleep", sleep)) if v is not None}
+    code = news_ingest.main(environ, net, out, **extra)
     text = out.getvalue()
     lines = [json.loads(line) for line in text.splitlines()]
     return code, lines, text
@@ -399,7 +415,7 @@ class Limits(unittest.TestCase):
         self.assertEqual([json.loads(c[3])["url"] for c in net.b2_calls()], [item(4)["link"]])
         self.assertEqual(
             summary(lines)["skipped"],
-            {"bad_item": 0, "no_body": 1, "category": 1, "timezone": 1, "bad_date": 0, "duplicate": 0, "over_limit": 0},
+            {"bad_item": 0, "no_body": 1, "category": 1, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0},
         )
 
 
@@ -582,6 +598,304 @@ class Flow(unittest.TestCase):
         _, lines, _ = run(env(), net)
         result = summary(lines)
         self.assertEqual((result["mode"], result["requests"], result["fetched"], result["kept"]), ("full", 1, 3, 2))
+
+
+def day_item(n, pub_date, **over):
+    """발행 시각(UTC)을 정한 기사 — 링크 · article_id 는 n 으로 서로 다르게"""
+    return item(n, pubDate=pub_date, **over)
+
+
+class LoadOnly(unittest.TestCase):
+    """넣기만 — B2 만 부르고 B1 은 부르지 않는다(Jira 156, 덤프가 들어갈 때까지)"""
+
+    def test_calls_b2_never_b1(self):
+        net = FakeNet([page([item(1), item(2)])])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.b2_calls()), 2)
+        self.assertEqual(net.b1_calls(), [])
+        result = summary(lines)
+        self.assertEqual(result["b2"], {"created": 2, "existing": 0, "rejected": 0, "failed": 0})
+        self.assertNotIn("b1", result)
+
+    def test_existing_articles_count_as_loaded(self):
+        net = FakeNet([page([item(1)])], b2=lambda article: (200, {"articleId": 7, "created": False}))
+        code, _, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+
+    def test_none_loaded_exits_1(self):
+        for b2 in (lambda a: (500, {"code": "INTERNAL_ERROR"}), lambda a: (400, {"code": "VALIDATION_FAILED", "errors": []})):
+            with self.subTest(b2=b2):
+                net = FakeNet([page([item(1), item(2)])], b2=b2)
+                code, _, _ = run(env(INGEST_MODE="load-only"), net)
+                self.assertEqual(code, 1)
+
+    def test_needs_batch_key_and_backend(self):
+        for environ in (env(INGEST_MODE="load-only", INTERNAL_BATCH_KEY=None), env(INGEST_MODE="load-only", BACKEND_URL=None)):
+            with self.subTest(environ=environ):
+                net = FakeNet([page([item(1)])])
+                code, _, _ = run(environ, net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+
+class Timeframe(unittest.TestCase):
+    def test_hours_and_minutes_sent(self):
+        for value in ("36", "48", "1", "30m", "2880m"):
+            with self.subTest(value=value):
+                net = FakeNet([page([item(1)])])
+                run(env(INGEST_TIMEFRAME=value), net)
+                self.assertEqual(net.newsdata_query()[1]["timeframe"], value)
+
+    def test_not_sent_when_empty(self):
+        net = FakeNet([page([item(1)])])
+        run(env(INGEST_TIMEFRAME=""), net)
+        self.assertNotIn("timeframe", net.newsdata_query()[1])
+
+    def test_bad_values_exit_2(self):
+        for value in ("0", "49", "036", "0m", "2881m", "36h", "abc", "3 6", "-1"):
+            with self.subTest(value=value):
+                net = FakeNet([page([item(1)])])
+                code, _, _ = run(env(INGEST_TIMEFRAME=value), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+
+class Days(unittest.TestCase):
+    """발행 시각(pubDate, UTC)을 KST 날짜로 바꿔 거른다 — KST 11-03 은 UTC 11-02 15:00 ~ 11-03 14:59:59"""
+
+    EDGES = [
+        day_item(1, "2026-11-02 14:59:59"),  # KST 11-02 23:59:59 — 빠짐
+        day_item(2, "2026-11-02 15:00:00"),  # KST 11-03 00:00 — 들어감
+        day_item(3, "2026-11-03 14:59:59"),  # KST 11-03 23:59:59 — 들어감
+        day_item(4, "2026-11-03 15:00:00"),  # KST 11-04 00:00 — 빠짐
+    ]
+
+    def sent_numbers(self, net):
+        return sorted(int(json.loads(c[3])["url"].rsplit("/", 1)[1]) for c in net.b2_calls())
+
+    def test_yesterday_kst_edges(self):
+        net = FakeNet([page(self.EDGES)])
+        code, lines, _ = run(env(INGEST_DAYS="yesterday"), net, now=NOW)
+        self.assertEqual(code, 0)
+        self.assertEqual(self.sent_numbers(net), [2, 3])
+        result = summary(lines)
+        self.assertEqual(result["skipped"]["out_of_range"], 2)
+        self.assertEqual(result["days"], ["2026-11-03", "2026-11-03"])
+
+    def test_yesterday_right_after_midnight(self):
+        net = FakeNet([page(self.EDGES)])
+        run(env(INGEST_DAYS="yesterday"), net, now=datetime(2026, 11, 4, 0, 30, tzinfo=KST))
+        self.assertEqual(self.sent_numbers(net), [2, 3])
+
+    def test_yesterday_uses_kst_even_if_now_is_utc(self):
+        # 서버 시계가 UTC 여도 KST 로 센다 — UTC 11-03 16:00 은 KST 11-04 01:00
+        net = FakeNet([page(self.EDGES)])
+        run(env(INGEST_DAYS="yesterday"), net, now=datetime(2026, 11, 3, 16, 0, tzinfo=timezone.utc))
+        self.assertEqual(self.sent_numbers(net), [2, 3])
+
+    def test_fixed_day_and_range(self):
+        net = FakeNet([page(self.EDGES)])
+        run(env(INGEST_DAYS="2026-11-03"), net, now=NOW)
+        self.assertEqual(self.sent_numbers(net), [2, 3])
+        net = FakeNet([page(self.EDGES)])
+        _, lines, _ = run(env(INGEST_DAYS="2026-11-02..2026-11-03"), net, now=NOW)
+        self.assertEqual(self.sent_numbers(net), [1, 2, 3])
+        self.assertEqual(summary(lines)["days"], ["2026-11-02", "2026-11-03"])
+
+    def test_empty_keeps_all(self):
+        net = FakeNet([page(self.EDGES)])
+        _, lines, _ = run(env(INGEST_DAYS=""), net, now=NOW)
+        self.assertEqual(self.sent_numbers(net), [1, 2, 3, 4])
+        self.assertIsNone(summary(lines)["days"])
+
+    def test_bad_days_exit_2(self):
+        for value in ("tomorrow", "2026-13-01", "2026-11-3", "20261103", "2026-11-03..2026-11-01", "2026-11-01..", "..2026-11-01", "2026-11-01...2026-11-02"):
+            with self.subTest(value=value):
+                net = FakeNet([page([item(1)])])
+                code, _, _ = run(env(INGEST_DAYS=value), net, now=NOW)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+    def test_out_of_range_does_not_use_up_article_limit(self):
+        # 범위 밖 기사는 상한을 먹지 않고, 상한이 찬 뒤에 와도 「상한 넘침」이 아니라 「범위 밖」으로 센다 —
+        # 거꾸로 세면 하루치를 다 받았는데도 max_articles 로 멈춘 것(종료 2)이 된다
+        items = [day_item(10, "2026-11-04 00:30:00"), day_item(2, "2026-11-02 15:00:00"), day_item(11, "2026-11-03 23:00:00"), day_item(1, "2026-11-01 09:00:00")]
+        net = FakeNet([page(items)])
+        code, lines, _ = run(env(INGEST_DAYS="yesterday", INGEST_MAX_ARTICLES="1"), net, now=NOW)
+        self.assertEqual(self.sent_numbers(net), [2])
+        result = summary(lines)
+        self.assertEqual((result["skipped"]["out_of_range"], result["skipped"]["over_limit"]), (3, 0))
+        self.assertEqual((code, result["stoppedBy"]), (0, "end"))
+
+
+class Archive(unittest.TestCase):
+    def archive_env(self, **over):
+        values = {"INGEST_SOURCE": "archive", "INGEST_ARCHIVE_FROM": "2026-10-28", "INGEST_ARCHIVE_TO": "2026-10-30", "INGEST_MODE": "load-only"}
+        values.update(over)
+        return env(**values)
+
+    def test_archive_url_and_dates_as_given(self):
+        net = FakeNet([page([item(1)])])
+        code, lines, _ = run(self.archive_env(), net)
+        self.assertEqual(code, 0)
+        base, query = net.newsdata_query()
+        self.assertEqual(base, ARCHIVE)
+        self.assertEqual((query["from_date"], query["to_date"]), ("2026-10-28", "2026-10-30"))
+        self.assertNotIn("timeframe", query)
+        result = summary(lines)
+        self.assertEqual((result["source"], result["credits"]), ("archive", 5))
+
+    def test_archive_datetime_form_passes(self):
+        net = FakeNet([page([item(1)])])
+        run(self.archive_env(INGEST_ARCHIVE_FROM="2026-10-28 15:00:00", INGEST_ARCHIVE_TO="2026-11-02 14:59:59"), net)
+        query = net.newsdata_query()[1]
+        self.assertEqual((query["from_date"], query["to_date"]), ("2026-10-28 15:00:00", "2026-11-02 14:59:59"))
+
+    def test_bad_archive_config_exits_2(self):
+        bad = [
+            self.archive_env(INGEST_ARCHIVE_FROM=None),
+            self.archive_env(INGEST_ARCHIVE_TO=""),
+            self.archive_env(INGEST_ARCHIVE_FROM="2026-10-31", INGEST_ARCHIVE_TO="2026-10-30"),
+            self.archive_env(INGEST_ARCHIVE_FROM="2026-10-28T15:00:00"),
+            self.archive_env(INGEST_ARCHIVE_TO="2026-10-32"),
+            self.archive_env(INGEST_TIMEFRAME="36"),
+            env(INGEST_SOURCE="latest", INGEST_ARCHIVE_FROM="2026-10-28"),
+            env(INGEST_ARCHIVE_TO="2026-10-30"),
+            env(INGEST_SOURCE="history"),
+        ]
+        for environ in bad:
+            with self.subTest(environ=environ):
+                net = FakeNet([page([item(1)])])
+                code, _, _ = run(environ, net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+    def test_sleeps_only_between_requests(self):
+        slept = []
+        net = FakeNet([page([item(1)], "n1"), page([item(2)], "n2"), page([item(3)])])
+        code, lines, _ = run(self.archive_env(INGEST_REQUEST_INTERVAL="3"), net, sleep=slept.append)
+        self.assertEqual(code, 0)
+        self.assertEqual(slept, [3, 3])
+        self.assertEqual(summary(lines)["credits"], 15)
+
+    def test_no_sleep_when_interval_empty(self):
+        slept = []
+        net = FakeNet([page([item(1)], "n1"), page([item(2)])])
+        run(env(), net, sleep=slept.append)
+        self.assertEqual(slept, [])
+
+    def test_bad_interval_exits_2(self):
+        for value in ("-1", "61", "abc", "1.5"):
+            with self.subTest(value=value):
+                net = FakeNet([page([item(1)])])
+                code, _, _ = run(env(INGEST_REQUEST_INTERVAL=value), net)
+                self.assertEqual(code, 2)
+
+
+class Query(unittest.TestCase):
+    def test_default_is_korea_korean(self):
+        net = FakeNet([page([item(1)])])
+        run(env(), net)
+        _, query = net.newsdata_query()
+        self.assertEqual({k: v for k, v in query.items() if k != "apikey"}, {"country": "kr", "language": "ko"})
+
+    def test_conditions_are_sent(self):
+        raw = "country=kr&language=ko&category=politics,business&domainurl=yna.co.kr,news1.kr&sort=pubdateasc&removeduplicate=1"
+        net = FakeNet([page([item(1)])])
+        run(env(INGEST_QUERY=raw), net)
+        _, query = net.newsdata_query()
+        self.assertEqual(query["category"], "politics,business")
+        self.assertEqual(query["domainurl"], "yna.co.kr,news1.kr")
+        self.assertEqual((query["sort"], query["removeduplicate"]), ("pubdateasc", "1"))
+        self.assertEqual(query["apikey"], KEY)  # 키는 스크립트가 붙인다
+
+    def test_blocked_unknown_or_empty_keys_exit_2(self):
+        for raw in ("apikey=zzz", "country=kr&page=abc", "timeframe=3", "from_date=2026-10-01", "to_date=2026-10-02", "timezone=asia/seoul",
+                    "country=kr&foo=1", "country=", "country", "country=kr&country=us", "country=kr&&language=ko"):
+            with self.subTest(raw=raw):
+                net = FakeNet([page([item(1)])])
+                code, _, _ = run(env(INGEST_QUERY=raw), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+
+class Dedupe(unittest.TestCase):
+    def test_same_article_id_with_other_link_sent_once(self):
+        net = FakeNet([page([item(1), item(2, article_id=item(1)["article_id"])])])
+        _, lines, _ = run(env(), net)
+        self.assertEqual(len(net.b2_calls()), 1)
+        self.assertEqual(summary(lines)["skipped"]["duplicate"], 1)
+
+
+class StopReasons(unittest.TestCase):
+    """stoppedBy — 다음 쪽이 남았는데 멈추면 빠진 구간이 있다. 상한이면 받은 데까지 넣고 종료 2(다시 해도 같은 상한)"""
+
+    def test_end_when_no_next_page(self):
+        net = FakeNet([page([item(1)], "n1"), page([item(2)])])
+        code, lines, _ = run(env(), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(summary(lines)["stoppedBy"], "end")
+
+    def test_ceilings_accept_planned_values(self):
+        net = FakeNet([page([item(1)])])
+        code, _, _ = run(env(INGEST_MAX_ARTICLES="20000", INGEST_MAX_REQUESTS="500"), net)
+        self.assertEqual(code, 0)
+
+    def test_max_requests_with_next_page_loads_then_exits_2(self):
+        for mode in ("load-only", "full"):
+            with self.subTest(mode=mode):
+                net = FakeNet([page([item(1)], "n1"), page([item(2)], "n2")])
+                code, lines, _ = run(env(INGEST_MODE=mode, INGEST_MAX_REQUESTS="2"), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(len(net.b2_calls()), 2)
+                self.assertEqual(summary(lines)["stoppedBy"], "max_requests")
+        net = FakeNet([page([item(1)], "n1"), page([item(2)], "n2")])
+        run(env(INGEST_MAX_REQUESTS="2"), net)
+        self.assertEqual(len(net.b1_calls()), 2)  # full 은 넣은 기사에 B1 까지 건 뒤 종료 2
+
+    def test_max_articles_with_more_left_exits_2(self):
+        net = FakeNet([page([item(1), item(2), item(3)])])
+        code, lines, _ = run(env(INGEST_MODE="load-only", INGEST_MAX_ARTICLES="2"), net)
+        self.assertEqual(code, 2)
+        self.assertEqual(len(net.b2_calls()), 2)
+        self.assertEqual(summary(lines)["stoppedBy"], "max_articles")
+
+    def test_fetch_only_with_next_page_is_still_success(self):
+        net = FakeNet([page([item(1)], "n1")])
+        code, lines, _ = run(env(INGEST_MODE="fetch-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(summary(lines)["stoppedBy"], "max_requests")
+
+    def test_later_newsdata_failure_loads_what_came_then_exits_1(self):
+        for failure in ((500, {"status": "error"}), urllib.error.URLError("끊김")):
+            with self.subTest(failure=failure):
+                net = FakeNet([page([item(1), item(2)], "n1"), failure])
+                code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+                self.assertEqual(code, 1)
+                self.assertEqual(len(net.b2_calls()), 2)
+                self.assertEqual(summary(lines)["stoppedBy"], "newsdata_error")
+
+    def test_first_newsdata_failure_sends_nothing(self):
+        net = FakeNet([(500, {"status": "error"})])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 1)
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual(summary(lines)["stoppedBy"], "newsdata_error")
+
+
+class SummaryFields(unittest.TestCase):
+    def test_pub_dates_source_and_credits(self):
+        net = FakeNet([page([day_item(3, "2026-11-02 10:03:00"), day_item(1, "2026-11-01 23:59:00"), day_item(2, "bad")])])
+        _, lines, _ = run(env(), net)
+        result = summary(lines)
+        self.assertEqual(result["pubDates"], {"min": "2026-11-01 23:59:00", "max": "2026-11-02 10:03:00"})
+        self.assertEqual((result["source"], result["credits"]), ("latest", 1))
+
+    def test_pub_dates_null_when_nothing_fetched(self):
+        net = FakeNet([page([])])
+        _, lines, _ = run(env(), net)
+        self.assertIsNone(summary(lines)["pubDates"])
 
 
 if __name__ == "__main__":
