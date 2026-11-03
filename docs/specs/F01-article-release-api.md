@@ -1,6 +1,6 @@
 # F01 뉴스 데이터 적재·조회 — B1 기사 투입 · 기사가 보이는 때
 
-계약 원본은 [B1](../api-internal.md) 2절, [공개 전 기사](../api.md) 1절, [article.released_at](../data-model.md) 2절이다. 이 문서는 Jira S15P31A102-34 의 검증 기준과 그 기준을 지키는 시험만 둔다. 수집 배치(NewsData 받기 · 정규화 · 중복 · CronJob)는 보류라 여기 없다.
+계약 원본은 [B1](../api-internal.md) 2절, [공개 전 기사](../api.md) 1절, [article.released_at](../data-model.md) 2절이다. 이 문서는 Jira S15P31A102-34 의 검증 기준과 그 기준을 지키는 시험만 둔다. 수집 배치(NewsData 받기 · 거르기 · CronJob)는 여기 없다 — 2026-11-03 멈춘 채 반영(Jira 154, `infra/server/ingest.md`).
 
 2026-10-26 사용자 결정: 기사는 분석이 끝난 뒤부터 보인다. 그래서 B1 은 분석만 걸고, 기사가 보이기 시작하는 때(`released_at`)는 EXTRACT 결과를 처음 저장한 때다.
 
@@ -23,5 +23,5 @@
 
 ## 이 티켓에서 하지 않는 것
 
-- 수집 배치 · `ingest_run` 기록 · URL 정규화 · 언론사 대응 — 보류(다시 열 때 새 티켓). 기사 적재(B2 · 언론사 대응)는 2026-11-03 `F01-article-ingest-api.md`(Jira 153)
+- 수집 배치 · `ingest_run` 기록 · URL 정규화 · 언론사 대응 — 이 티켓 밖. 기사 적재(B2 · 언론사 대응)는 2026-11-03 `F01-article-ingest-api.md`(Jira 153), 수집 배치는 Jira 154(`infra/server/ingest.md` — `ingest_run` 은 쓰지 않는다)
 - EXTRACT 결과 저장(마인드맵 · 요약) — Jira 56(`F03-F04-mindmap.md`). 2026-10-27 부터 W1 EXTRACT 성공이 저장되고 그때 기사가 공개된다. 그 전에는 처리기가 없어 500(`INTERNAL`)이었다
