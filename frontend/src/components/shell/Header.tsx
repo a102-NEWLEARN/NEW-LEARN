@@ -7,7 +7,6 @@ import { PrefixIcon } from "@seed-design/react";
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { Logo } from "@/components/Logo";
-import { useComingSoon } from "@/components/useSnackbar";
 
 type HeaderProps = {
   /** 로고를 눌렀을 때 — 셸이 본문을 맨 위로 올린다 */
@@ -23,7 +22,6 @@ type HeaderProps = {
 // 좁은 화면에서는 메뉴 버튼을 두고, 오른쪽 버튼은 글자를 숨긴 40px 아이콘 버튼이 된다.
 // 이름은 스크린 리더에 남는다 (EXPERIENCE.md Responsive & Platform · Accessibility Floor)
 export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
-  const comingSoon = useComingSoon();
   const label = narrow ? "sr-only" : undefined;
   const iconButton = narrow ? "size-x10 px-0" : undefined;
 
@@ -49,18 +47,18 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
         <Logo height={26} />
       </Link>
       <div className="ml-auto flex items-center gap-x1">
-        {/* 나의 뉴스함은 범위 미정이라 곧 제공 항목이다 (EXPERIENCE.md Component Patterns) */}
         <ActionButton
+          asChild
           variant="ghost"
           size="small"
           className={iconButton}
-          onClick={comingSoon}
         >
-          <PrefixIcon svg={<IconBookmarkLine />} />
-          <span className={label}>나의 뉴스함</span>
+          <Link to="/bookmarks">
+            <PrefixIcon svg={<IconBookmarkLine />} />
+            <span className={label}>나의 뉴스함</span>
+          </Link>
         </ActionButton>
         <span aria-hidden className="h-[14px] w-px bg-stroke-neutral-weak" />
-        {/* /me 는 S15P31A102-66 에서 생긴다. 그전에는 찾을 수 없음 화면이 뜬다 */}
         <ActionButton
           asChild
           variant="ghost"

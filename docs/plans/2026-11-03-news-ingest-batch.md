@@ -88,10 +88,10 @@
 - [x] 2. 스크립트 · 경보 규칙 구현 → `infra_TEST` 통과. 고친 곳(거르기 · 키 가리기 · 요청 상한 · B1 다시 걸기 · 409 를 「감」으로 · 경보 suspend 조건 · `unless` 꼴)을 하나씩 되돌려 해당 시험이 단언에서 실패하는지 — 일곱 모두 해당 시험이 FAIL(오류 아님), 복구 뒤 통과
 - [x] 3. CronJob · kustomization · Argo CD 앱 · 정책 · 봉인 하위 명령 · 주석 · 문서 → `infra_LINT`, `kubectl kustomize` 로 그린 두 폴더(ingest · app) — ConfigMap 이름 고정 · 볼륨 · suspend · 받기만 · `podFailurePolicy` 확인, app 은 정책 이름표 두 줄만 다름, 루트 차트가 `ingest` 앱을 그림. 구현 중 `infra/server/ai-worker.md` 56줄(「수집 배치가 없는 동안」)도 같은 낡은 사실이라 고쳤다
 - [x] 4. (선택) 로컬 compose backend 에 전체 모드 — NewsData 대신 지어낸 견본을 돌려주는 보내기 함수를 끼워 B2 201 · 200 · B1 202 · 409 를 실제 backend 코드로 본다. Docker Desktop · backend 띄우기가 오래 걸리면 건너뛰고 MR 에 적는다 — 일회용 compose 프로젝트(dev 의 backend 코드)에 두 번: 1번째 B2 새로 2 · 400 1(제목 301자) · B1 202 2, 2번째 B2 200 2 · B1 409 2, 둘 다 종료 0. 끝난 뒤 그 프로젝트와 볼륨을 지웠다
-- [ ] 5. 사람 몫 — 바뀐 서버 스크립트를 EC2 로 보내고 `seal-secrets.sh newsdata` → 봉인 파일을 worktree 로 가져옴(파일 카드)
-- [ ] 6. MR reviewer → MR(작업 → infra) → 파이프라인 success → 머지 직전 비교 SHA · 열린 MR 확인 → infra → dev → 분야 브랜치 넷 맞추기
-- [ ] 7. Argo CD 반영 확인(읽기) → 사람 몫: 받기만 잡 하나 만들기(파일 카드) → 로그 확인
-- [ ] 8. `/feature-done` — Jira 154 · 155 댓글 · 완료, `SSOT.md` 10절 잰 것
+- [x] 5. 사람 몫 — 바뀐 서버 스크립트를 EC2 로 보내고 `seal-secrets.sh newsdata` → 봉인 파일을 worktree 로 가져옴(파일 카드) — 스크립트 보내기 · 파일 가져오기는 Claude, 봉인은 인프라 담당(확인 요청 HTTP 200)
+- [x] 6. MR reviewer → MR(작업 → infra) → 파이프라인 success → 머지 직전 비교 SHA · 열린 MR 확인 → infra → dev → 분야 브랜치 넷 맞추기 — !574 → !581(dev `f4d0442e`) → !582 backend · !583 ai · !584 frontend(infra 는 내용 차이 0). 머지 직전 확인에서 대상 브랜치가 움직인 것을 보고 멈췄는데, 파이프라인 성공 직후 팀원이 머지한 것이었다(다섯 모두)
+- [x] 7. Argo CD 반영 확인(읽기) → 사람 몫: 받기만 잡 하나 만들기(파일 카드) → 로그 확인 — 결과는 `SSOT.md` 10절 2026-11-03
+- [x] 8. `/feature-done` — Jira 154 · 155 댓글 · 완료, `SSOT.md` 10절 잰 것
 
 ## 안 바꿀 것
 

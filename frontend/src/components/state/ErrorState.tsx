@@ -14,10 +14,15 @@ type ErrorStateProps = {
   onRetry: () => void;
 };
 
+/** 실패 안내 한 줄 — 서버에 닿지 못했으면 네트워크 안내, 아니면 일반 오류 안내 */
+export function errorDescription(error: unknown) {
+  return isNetworkError(error) ? NETWORK_ERROR : GENERAL_ERROR;
+}
+
 // 불러오기 실패 — 화면 전체가 아니라 실패한 영역 자리에 둔다 (EXPERIENCE.md State Patterns).
 // 서버의 detail · code 는 화면에 내지 않는다 (docs/api.md 2절)
 export function ErrorState({ title, error, onRetry }: ErrorStateProps) {
-  const description = isNetworkError(error) ? NETWORK_ERROR : GENERAL_ERROR;
+  const description = errorDescription(error);
 
   return (
     <div className="flex flex-col items-center gap-x2_5 p-x6 text-center">

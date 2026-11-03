@@ -9,7 +9,7 @@
 
 ## 개발 환경 세팅
 
-**Docker Desktop 하나면 됩니다.** 저장소를 받고 `.env` 를 만든 뒤 명령 한 줄로 화면 · API · AI 워커 · DB · Redis 가 모두 뜹니다. 브라우저에서 「API 상태: UP」 이 보이면 끝입니다.
+**Docker Desktop 하나면 됩니다.** 저장소를 받고 `.env` 를 만든 뒤 명령 한 줄로 화면 · API · AI 워커 · DB · Redis 가 모두 뜹니다. 브라우저에 홈이 뜨고 http://localhost:5173/actuator/health 가 `UP` 이면 끝입니다.
 
 AI 도구(Claude Code · Codex · Cursor 등)에게 맡기려면 [방법 1](#방법-1-ai-에게-맡기기), 직접 치려면 [방법 2](#방법-2-직접-입력하기) 를 따릅니다. 두 방법은 같은 순서를 밟습니다.
 
@@ -18,7 +18,7 @@ flowchart LR
   A["Docker Desktop<br/>설치 · 켜기"] --> B["저장소 클론<br/>Windows 는 WSL 2 안에"]
   B --> C[".env 만들기"]
   C --> D["compose 로 띄우기"]
-  D --> E["localhost:5173<br/>API 상태: UP"]
+  D --> E["localhost:5173<br/>홈 · actuator/health UP"]
   E --> F["커밋 검사 훅 설치"]
 ```
 
@@ -49,7 +49,7 @@ NEW:LEARN 저장소(https://lab.ssafy.com/s15-final/S15P31A102.git)의 로컬 �
 5. 다 떴는지 확인해. 포트를 바꿨으면 바꾼 번호로 본다.
    - `docker compose --profile full ps` 의 STATUS 가 모두 healthy
    - http://localhost:8080/actuator/health 와 http://localhost:8000/health 가 200
-   - http://localhost:5173 화면에 「API 상태: UP」
+   - http://localhost:5173 에 홈(「오늘의 이슈를 탐색해 보세요」)이 뜨고, http://localhost:5173/actuator/health 가 `UP` — 화면 서버를 거쳐 API 까지 이어졌다는 뜻이다
 6. 커밋 검사 훅을 설치해: `bash .claude/hooks/install.sh`
    - 확인: `git commit --allow-empty -m " "` 를 쳐서 검사 배너가 뜨는지 본다 (커밋은 남지 않는다).
 7. 끝나면 무엇을 했고 무엇이 안 됐는지 명령 출력과 함께 알려 줘.
@@ -86,7 +86,7 @@ NEW:LEARN 저장소(https://lab.ssafy.com/s15-final/S15P31A102.git)의 로컬 �
    docker compose --profile full up -d --wait
    ```
 
-4. 브라우저로 http://localhost:5173 을 엽니다. 「API 상태: UP」 이 보이면 화면 · API · DB · Redis 가 다 이어진 것입니다.
+4. 브라우저로 http://localhost:5173 을 열어 홈이 뜨는지 봅니다. 이어서 http://localhost:5173/actuator/health 가 `UP` 이면 화면 · API · DB · Redis 가 다 이어진 것입니다. 백엔드 화면용 API(S15P31A102-41)가 들어오기 전에는 홈의 이슈 칸에 「…불러오지 못했어요」가 뜨는데, 정상입니다.
 
 5. 커밋 검사 훅을 설치합니다. 커밋할 때 포맷 · 린트 · 테스트가 자동으로 돕니다.
 
