@@ -1,6 +1,6 @@
 # 경보 — Alertmanager → Mattermost
 
-Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermost 「A102 배포알림」 채널로 보낸다. 차트 기본 경보는 평가만 하고 채널로는 안 보낸다 — 받는 길은 `infra/k8s/bootstrap/monitoring-values.yaml` 의 `alertmanager.config`. 왜 · 무엇을 고르나는 계획 `docs/plans/2026-10-30-alertmanager-mattermost.md`(Jira S15P31A102-138). 모니터링 설치는 `infra/server/README.md` 「모니터링」.
+Alertmanager 가 우리 경보 일곱(`infra/k8s/alerts/rules.yaml`)만 Mattermost 「A102 배포알림」 채널로 보낸다. 차트 기본 경보는 평가만 하고 채널로는 안 보낸다 — 받는 길은 `infra/k8s/bootstrap/monitoring-values.yaml` 의 `alertmanager.config`. 왜 · 무엇을 고르나는 계획 `docs/plans/2026-10-30-alertmanager-mattermost.md`(Jira S15P31A102-138). 모니터링 설치는 `infra/server/README.md` 「모니터링」.
 
 ## 켜는 순서
 
@@ -30,7 +30,7 @@ Alertmanager 가 우리 경보 여섯(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 |---|---|---|
 | Pod | `kubectl -n monitoring get pod -l app.kubernetes.io/name=alertmanager` | Running, 재시작 0 |
 | 이어짐 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-prometheus:9090/proxy/api/v1/alertmanagers"` | `activeAlertmanagers` 하나 — 서비스 목록으로 채우는 값이라 실제로 닿는지는 아래 「보냄」으로 본다 |
-| 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 여섯이 `health: ok` |
+| 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 일곱이 `health: ok` |
 | 받는 곳 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts/groups"` | 기본 경보(Watchdog 등)는 `receiver.name` 이 `null` |
 | 들어오는 길 정책 | `kubectl -n monitoring get cnp alertmanager-ingress` | `VALID` True |
 | 보냄 | 「이어짐」과 같은 길의 `/api/v1/query?query=sum(increase(prometheus_notifications_errors_total%5B10m%5D))` · 같은 식의 `…_sent_total` | 오류 0 · 보냄 0 보다 큼(늘 울리는 Watchdog 도 보낸다) — 정책의 Prometheus 이름표가 틀리면 경보가 소리 없이 끊긴다(`infra/k8s/alerts/alertmanager-netpol.yaml`) |

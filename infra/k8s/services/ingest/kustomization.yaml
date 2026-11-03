@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# 뉴스 수집 배치 (Jira S15P31A102-154) — Argo CD 앱 ingest(infra/k8s/apps/templates/ingest.yaml)가 app 네임스페이스에 반영한다
+# 네임스페이스 · 이름은 바꾸지 않는다 — SealedSecret 은 이름 · 네임스페이스(app)에 묶여 봉인돼 있다
+resources:
+  - news-ingest.yaml
+  - sealed-newsdata-api.yaml
+# 스크립트를 ConfigMap 으로 얹는다. 이름에 해시를 안 붙인다 — 붙이면 스크립트를 고친 MR 이 옛 ConfigMap 을 지워,
+# 그때 돌던 잡의 다시 시도 Pod 가 붙일 것이 없어 시간 상한까지 멈춘다. 고정 이름이면 다음 Pod 가 새 파일을 붙인다
+configMapGenerator:
+  - name: news-ingest
+    files:
+      - news_ingest.py
+    options:
+      disableNameSuffixHash: true

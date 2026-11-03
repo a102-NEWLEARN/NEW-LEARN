@@ -50,7 +50,7 @@
 정확한 버전은 각 영역의 매니페스트(`package.json` · `build.gradle` · `pyproject.toml` · `infra/terraform/versions.tf`)와 `compose.yaml` 의 이미지 태그가 진실이다.
 왜 이 버전인지는 `SSOT.md` 1절 · 6절.
 
-뉴스 수집 배치는 구현 언어가 정해지면(`SSOT.md` 8절) 영역으로 넣을지 같이 정한다.
+뉴스 수집 배치(Python 표준 라이브러리 스크립트 하나, `SSOT.md` 1절)는 `infra` 영역이다 — 스크립트는 `infra/k8s/services/ingest/`, 시험은 `infra/ci/` 에 있어 `infra_TEST` 가 돈다.
 
 ---
 
@@ -105,7 +105,7 @@ infra_RUN="ssh newlearn 'kubectl -n argocd get applications' && curl -fsS https:
 infra_FORMAT_FIX="terraform fmt -recursive"
 infra_FORMAT_CHECK="terraform fmt -check -recursive"
 infra_LINT='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform validate && for f in kind/*.sh server/*.sh ci/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || exit 1; done && bash ci/alert_rules.sh check'   # 셸 스크립트(kind 리허설 · 서버 설정 · CI)는 문법만 본다. 경보 규칙(k8s/alerts/rules.yaml)은 promtool 로 검사한다 — 호스트에 promtool 이 있어야 하고 CI 는 스크립트가 받는다(ci/alert_rules.sh). 작은따옴표 — 큰따옴표면 이 블록을 읽을 때 $f 가 빈 값으로 펼쳐져 아무 파일도 안 본다. 매니페스트는 kind 리허설(up.sh)로 확인한다
-infra_TEST='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test && for py in python3 python; do "$py" -c "" 2>/dev/null && break; py=""; done && "${py:?python 이 없다}" -B -m unittest discover -s ci && bash ci/alert_rules.sh test'   # 가짜 provider 로 보안 그룹 규칙을, unittest 로 태그 MR 스크립트(ci/)를, promtool 로 경보 규칙(ci/alert_rules_test.yaml)을 검사한다. python3 가 안 되면 python — Windows 의 python3 는 Store 안내용 가짜일 수 있다. -B 는 __pycache__ 를 안 남긴다. 작은따옴표 이유는 infra_LINT 와 같다
+infra_TEST='terraform -chdir=terraform init -backend=false -input=false >/dev/null && terraform -chdir=terraform test && for py in python3 python; do "$py" -c "" 2>/dev/null && break; py=""; done && "${py:?python 이 없다}" -B -m unittest discover -s ci && bash ci/alert_rules.sh test'   # 가짜 provider 로 보안 그룹 규칙을, unittest 로 태그 MR 스크립트 · 뉴스 수집 스크립트(시험은 ci/)를, promtool 로 경보 규칙(ci/alert_rules_test.yaml)을 검사한다. python3 가 안 되면 python — Windows 의 python3 는 Store 안내용 가짜일 수 있다. -B 는 __pycache__ 를 안 남긴다. 작은따옴표 이유는 infra_LINT 와 같다
 infra_BUILD=""   # 산출물이 없다 — 실제 생성(apply)은 사람이 plan 을 읽고 한다 (.claude/docs/deploy.md 3절)
 
 # 진실 문서는 쪼갤 곳이 없어 크기 상한에서 뺀다 (HARNESS.md 5절). 저장소 루트 기준 경로를 글자 그대로 맞춘다 (* 는 안 펼친다).
