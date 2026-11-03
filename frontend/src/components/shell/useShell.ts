@@ -4,6 +4,8 @@ import { useOutletContext } from "react-router";
 export type ShellContext = {
   /** 사이드바를 접는다 — 오른쪽 패널이 열릴 때 (EXPERIENCE.md 앱 셸 「오른쪽 패널」) */
   collapseSidebar: () => void;
+  /** 오른쪽 패널의 폭(px)을 알린다. 용어사전 버튼이 그만큼 비킨다 (EXPERIENCE.md 앱 셸 「용어사전 버튼」). 닫히면 0 */
+  setRightPanelWidth: (width: number) => void;
 };
 
 // 셸 밖에서 그리면(화면만 따로 시험할 때) undefined

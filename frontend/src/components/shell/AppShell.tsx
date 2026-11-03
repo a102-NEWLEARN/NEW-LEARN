@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
+import { DictionaryWindow } from "@/components/shell/DictionaryWindow";
 import { Header } from "@/components/shell/Header";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { SidebarDrawer } from "@/components/shell/SidebarDrawer";
@@ -12,7 +13,7 @@ import type { ShellContext } from "@/components/shell/useShell";
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
 // 화면 높이에 맞추고 본문만 스크롤해서 헤더가 늘 위에 붙어 있다.
-// 767px 이하에서는 사이드바가 서랍이 되고 헤더의 메뉴 버튼으로 연다
+// 767px 이하에서는 사이드바가 서랍이 되고 헤더의 메뉴 버튼으로 연다. 오른쪽 아래에는 용어사전 버튼이 늘 떠 있다
 export function AppShell() {
   const mainRef = useRef<HTMLElement>(null);
   const narrow = useMediaQuery(NARROW_SCREEN);
@@ -29,9 +30,14 @@ export function AppShell() {
   };
 
   const quickSearch = useQuickSearch();
-  // 화면에 건네는 일 — 사건 패널이 열리면 사이드바를 접는다 (useShell)
+  // 오른쪽 패널(사건 패널)의 폭 — 용어사전 버튼이 그만큼 비킨다
+  const [rightPanelWidth, setRightPanelWidth] = useState(0);
+  // 화면에 건네는 일 — 사건 패널이 열리면 사이드바를 접고 패널 폭을 알린다 (useShell)
   const shell = useMemo<ShellContext>(
-    () => ({ collapseSidebar: () => setSidebarExpanded(false) }),
+    () => ({
+      collapseSidebar: () => setSidebarExpanded(false),
+      setRightPanelWidth,
+    }),
     [],
   );
 
@@ -100,10 +106,12 @@ export function AppShell() {
             {...explorer}
           />
         )}
-        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
+        {/* isolate — 본문 안의 z-index(검색 목록 · TIP)가 본문 밖의 용어사전 버튼 위로 새지 않게 */}
+        <main ref={mainRef} className="isolate min-w-0 flex-1 overflow-y-auto">
           <Outlet context={shell} />
         </main>
       </div>
+      <DictionaryWindow inset={rightPanelWidth} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw/http";
 import type { ArticleDetail, EventMatchStatus } from "@/api/article";
 import type { BookmarkItem, BookmarkState } from "@/api/bookmarks";
 import type { Category } from "@/api/categories";
+import type { DictionaryItem, DictionaryResult } from "@/api/dictionary";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
 import type { IssueSummary } from "@/api/issues";
@@ -667,6 +668,48 @@ function search(q: string): SearchResult {
   };
 }
 
+// A19 — 표제어마다 첫 뜻풀이 하나. 뜻풀이는 지어낸 것이다. 사과는 동음이의어가 여럿인 예(결과 3개 넘음),
+// 구원^투수는 품사가 없는 구 표제어 예(docs/api-screen.md A19, 2026-10-29 실제 키로 확인한 모양).
+// 사전은 표제어 번호 차례로 줘서 흔한 뜻이 뒤에 온다 — 사이트의 「사과」 8개 중 「사과나무의 열매」가 5번째,
+// 「용서를 빎」이 8번째다(2026-11-03). 그 차례를 흉내 낸다
+const dictionaryEntries: DictionaryItem[] = [
+  {
+    word: "금리",
+    pos: "명사",
+    definition: "빌려준 돈이나 맡긴 돈에 붙는 이자의 비율.",
+  },
+  { word: "사과", pos: "명사", definition: "참외의 한 가지." },
+  {
+    word: "사과",
+    pos: "명사",
+    definition: "옛 군대에 둔 벼슬의 하나.",
+  },
+  { word: "사과", pos: "명사", definition: "사과나무의 열매." },
+  {
+    word: "사과",
+    pos: "명사",
+    definition: "자기의 잘못을 인정하고 용서를 빎.",
+  },
+  {
+    word: "구원^투수",
+    pos: null,
+    definition: "앞서 던지던 투수가 위기에 몰렸을 때 대신 나와 던지는 투수.",
+  },
+];
+
+// 서버처럼 검색어를 다듬고, 사전처럼 띄어쓰기 자리(^ · 공백)는 보지 않고 맞춘다
+function lookUp(q: string): DictionaryResult {
+  const query = q.trim().normalize("NFC");
+  const bare = (text: string) => text.replace(/[\s^]/g, "");
+  return {
+    query,
+    items: dictionaryEntries.filter(
+      (entry) => bare(entry.word) === bare(query),
+    ),
+    source: "국립국어원 표준국어대사전",
+  };
+}
+
 export const handlers = [
   http.get("/api/v1/categories", () =>
     HttpResponse.json({ items: categories } satisfies ItemList<Category>),
@@ -902,5 +945,8 @@ export const handlers = [
   }),
   http.get("/api/v1/search", ({ request }) =>
     HttpResponse.json(search(new URL(request.url).searchParams.get("q") ?? "")),
+  ),
+  http.get("/api/v1/dictionary", ({ request }) =>
+    HttpResponse.json(lookUp(new URL(request.url).searchParams.get("q") ?? "")),
   ),
 ];
