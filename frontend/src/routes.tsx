@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router";
 import { RequireMember } from "@/components/RequireMember";
 import { AppShell } from "@/components/shell/AppShell";
 import { ArticlePage } from "@/pages/ArticlePage";
+import { BookmarksPage } from "@/pages/BookmarksPage";
 import { HomePage } from "@/pages/HomePage";
 import { IssuePage } from "@/pages/IssuePage";
 import { LandingPage } from "@/pages/LandingPage";
@@ -43,6 +44,7 @@ export const routes: RouteObject[] = [
     { path: "/issues/:issueId", element: <IssuePage /> },
     { path: "/articles/:articleId", element: <ArticlePage /> },
     { path: "/me", element: <MyPage /> },
+    { path: "/bookmarks", element: <BookmarksPage /> },
     // 그 밖의 주소
     { path: "*", element: <NotFoundPage /> },
   ]),
