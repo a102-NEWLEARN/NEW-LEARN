@@ -53,7 +53,7 @@ kubectl -n ai logs deploy/ai -c ai | grep "EXTRACT job="                        
 
 배치 키를 서버 안에서 표준 입력으로 ai Pod 에 넘겨 화면 · 명령 기록에 안 남긴다. ai → backend 는 W1 길이라 정책(`services/app/netpol.yaml`) 안이다. `<ID>` 는 `article.id` 다. 켜져 있는 동안에는 기사마다 팀 공용 GMS 크레딧을 쓴다.
 
-수집 배치(`infra/server/ingest.md`)가 멈춘 동안 B1 은 사람이 건다. 추가 B1 은 AI 팀에 미리 알리고, 하루 상한(`docs/data-model.md` 5절 9번)을 정하기 전에는 소량만 건다 — 실패하면 BE 다시 걸기로 GMS 가 더 불린다. 처음에는 오류(인프라 — 로그 · 경보)와 GMS 크레딧(AI 팀장 — GMS 사용 현황 화면, 인프라에서는 볼 수 없다)을 같이 본다(2026-11-02 AI 팀장과 정함).
+수집 배치(`infra/server/ingest.md`)는 2026-11-04 부터 기사를 넣기만 하고 B1 은 부르지 않는다. **AI 결과 덤프가 들어갈 때까지는 사람도 B1 을 걸지 않는다** — 분석 행이 생기면 덤프 적재(Jira S15P31A102-152)가 통째로 되돌아간다(Jira 156). 덤프 뒤 추가 B1 은 AI 팀에 미리 알리고, 하루 상한(`docs/data-model.md` 5절 9번)을 정하기 전에는 소량만 건다 — 실패하면 BE 다시 걸기로 GMS 가 더 불린다. 처음에는 오류(인프라 — 로그 · 경보)와 GMS 크레딧(AI 팀장 — GMS 사용 현황 화면, 인프라에서는 볼 수 없다)을 같이 본다(2026-11-02 AI 팀장과 정함).
 
 ```bash
 kubectl -n app get secret internal-api -o jsonpath='{.data.INTERNAL_BATCH_KEY}' | base64 -d \
