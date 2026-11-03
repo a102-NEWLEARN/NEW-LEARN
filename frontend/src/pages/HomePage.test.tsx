@@ -136,3 +136,13 @@ test("창에 돌아와도 A17 을 다시 부르지 않아 탭 순서가 그대�
 
   expect(calls).toBe(1);
 });
+
+test("추천 이슈 아래에 최신 기사를 둔다", async () => {
+  renderHome();
+
+  const headings = screen
+    .getAllByRole("heading", { level: 2 })
+    .map((heading) => heading.textContent);
+  expect(headings.at(-1)).toBe("최신 기사");
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+});

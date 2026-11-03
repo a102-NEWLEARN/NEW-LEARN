@@ -1,4 +1,5 @@
 import {
+  IconBookmarkFill,
   IconBookmarkLine,
   IconChevronLeftLine,
   IconChevronRightLine,
@@ -100,7 +101,9 @@ function RailButton({
 function SidebarRail({ onExpand }: { onExpand: () => void }) {
   const comingSoon = useComingSoon();
   const quickSearch = useQuickSearch();
-  const atHome = useLocation().pathname === "/home";
+  const { pathname } = useLocation();
+  const atHome = pathname === "/home";
+  const atBookmarks = pathname === "/bookmarks";
 
   return (
     <div className="flex flex-col items-center gap-x1 py-x2_5">
@@ -138,11 +141,19 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
         icon={<IconStarLine size={20} aria-hidden />}
         onClick={comingSoon}
       />
-      <RailButton
-        label="나의 뉴스함"
-        icon={<IconBookmarkLine size={20} aria-hidden />}
-        onClick={comingSoon}
-      />
+      <Link
+        to="/bookmarks"
+        aria-label="나의 뉴스함"
+        title="나의 뉴스함"
+        aria-current={atBookmarks ? "page" : undefined}
+        className={railItemClass}
+      >
+        {atBookmarks ? (
+          <IconBookmarkFill size={20} aria-hidden />
+        ) : (
+          <IconBookmarkLine size={20} aria-hidden />
+        )}
+      </Link>
       <RailButton
         label="분야별 이슈 보기"
         icon={<IconGridLine size={20} aria-hidden />}
