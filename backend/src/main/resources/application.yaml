@@ -65,7 +65,7 @@ management:
         readiness:
           include: readinessState,db
 
-# 직원용 문(/internal/**) 출입증 두 장 (Jira 30) — 워커 키는 W1, 배치 키는 B1 만 연다. 비어 있으면 모두 막는다
+# 직원용 문(/internal/**) 출입증 두 장 (Jira 30) — 워커 키는 W1, 배치 키는 B2 · B1 만 연다. 비어 있으면 모두 막는다
 # 사이트는 봉인 Secret internal-api 를 env 로 넣는다(Jira 30 의 Infra 작업, 넣기 전에는 비어 모두 막힘). 로컬은 루트 .env
 newlearn:
   internal:

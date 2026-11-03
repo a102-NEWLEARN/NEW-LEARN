@@ -10,7 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 // 소스마다 다른 언론사 표기를 한 언론사로 묶는 행 (data-model.md 2절)
-// 같은 언론사로 묶을 때는 press 를 바꾸는 메서드를 수집 티켓(Jira 34)이 더한다
+// 같은 언론사로 묶는 일은 아직 사람이 SQL 로 한다(data-model.md 2절 press). B2 적재는 대응 행을 새로 만들기만 한다 (Jira 153)
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

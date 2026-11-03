@@ -22,8 +22,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
-// 기사. 수집 배치가 적재하고(보류), 투입(B1)하면 분석이 걸린다. 화면에 보이는 때(released_at)는 EXTRACT 결과를 처음
-// 저장할 때 markReleased 가 채운다 (data-model.md 2절, Jira 34). 기자명 · 대표 카테고리 · 태그를 채우는 일은 수집 티켓이 더한다
+// 기사. 수집 배치가 적재(B2, Jira 153)하고 투입(B1)하면 분석이 걸린다. 화면에 보이는 때(released_at)는 EXTRACT 결과를 처음
+// 저장할 때 markReleased 가 채운다 (data-model.md 2절, Jira 34)
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -83,6 +83,14 @@ public class Article {
         this.body = body;
         this.publishedAt = publishedAt;
         this.sourceCategories = new ArrayList<>(sourceCategories);
+    }
+
+    // 적재할 때 원본에서 온 선택 칸을 채운다 — 기자명 · 대표 카테고리(category_mapping 으로 고름) · 태그(NewsData ai_tag) (Jira 153)
+    public void fillSourceDetails(
+            @Nullable String reporter, @Nullable Category category, @Nullable List<String> sourceTags) {
+        this.reporter = reporter;
+        this.category = category;
+        this.sourceTags = sourceTags == null ? null : new ArrayList<>(sourceTags);
     }
 
     // 화면에 내놓는다 — EXTRACT 결과를 처음 저장할 때 부른다(분석이 끝난 뒤부터 보인다, 2026-10-26 Jira 34)

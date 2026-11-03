@@ -4,6 +4,7 @@ NEW:LEARN 서비스 테이블의 설계다. 기능 티켓이 테이블을 만들
 
 - **v0 (2026-10-19, Jira S15P31A102-28)**: 확정 기능(F01~F08 · F11)만으로 짤 수 있는 것만 담았다
 - **v1 (2026-10-21, Jira S15P31A102-99)**: 10-19 테이블 검토 · 10-20 팀 회의 · 10-21 마인드맵 회의에서 정한 것을 더했다. 카테고리 5개 · 원본 분류 대응 · 언론사 명부 · 회원과 관심 분야 · 이슈를 만드는 길 · 사건 키워드 · 마인드맵 가지 4개 · 수집 실행 기록 · 사용자 URL 입력 삭제. 아직 정하지 못한 것은 5절 「미정 목록」에 있다
+- **v1.4 (2026-11-03, Jira S15P31A102-153)**: 기사 적재 B2 로 정한 것을 옮겼다 — NewsData 언론사 대응 키를 `source_name` 에서 `source_id` 로 바꾸고, 처음 보는 언론사 코드 규칙(5절 15번)을 2절로 옮겨 닫았다. URL 은 정규화하지 않고, `ingest_run` 은 지금 쓰지 않는다
 - **v1.3 (2026-10-27, Jira S15P31A102-35)**: 기사 벡터 표(`article_embedding`)를 V6 으로 만들었다. 판정 작업의 후보 칸 모양(`[{ eventId, similarity }]`)을 정하고, 판정 결과로 사건을 만들고 붙이고 발생 시점을 당기는 일을 구현했다
 - **v1.2 (2026-10-26, Jira S15P31A102-114)**: 북마크(`bookmark`) · 관심 이슈(`interest_issue`) 칸을 프로토타입 v21 과 대조해 확정했다. `last_visited_at` 은 만들지 않는다
 - **v1.1 (2026-10-26, Jira S15P31A102-111)**: AI 답(2026-10-23)을 반영했다. 대표 사건 칸(`article_mindmap.primary_core_index`) · 판정 기록 칸(`analysis_job.result`)을 다음 마이그레이션 예정으로 더하고, NewsData 실제 응답(2026-10-22)에서 본 것을 적고, AI 가 동의한 미정 항목(4 · 12번)을 닫았다
@@ -208,7 +209,7 @@ erDiagram
 | `source` | text | 기본 키 | `SSAFY` · `NEWSDATA` |
 | `source_value` | text | 기본 키 | 원본 분류 값. 데이터셋은 「경제 일반」 같은 경로의 마디, NewsData 는 `business` 같은 영문 코드 |
 | `category_code` | text | 아니오 · 외래 키 | 맞춘 카테고리. **비어 있으면 대표 카테고리를 고를 때 건너뛴다**(NewsData `top` · `other` 처럼 주제가 아닌 값) |
-| `priority` | smallint | 예 | 기사에 원본 값이 여럿일 때 대표를 고르는 순서. 작을수록 먼저 |
+| `priority` | smallint | 예 | 기사에 원본 값이 여럿일 때 대표를 고르는 순서. 작을수록 먼저. 같으면 카테고리 `sort_order` 가 앞인 것(2026-11-03, Jira 153) |
 
 - 표에 없는 원본 값은 「처음 보는 값」이다. 그 기사의 대표 카테고리는 비우고 로그를 남긴다. 행을 더하면 다시 계산할 수 있다(`article.source_categories` 가 남아 있어서)
 - 「표에 행은 있고 칸만 빈 값」은 일부러 무시하는 값이고, 「표에 없는 값」은 아직 아무도 대응을 정하지 않은 값이다
@@ -221,11 +222,11 @@ erDiagram
 | `press.code` | text | 기본 키 | 언론사 코드. API 에 이 코드와 이름이 같이 나간다 |
 | `press.name` | text | 예 | 화면에 보이는 언론사 이름 |
 | `press_mapping.source` | text | 기본 키 | `SSAFY` · `NEWSDATA` |
-| `press_mapping.source_value` | text | 기본 키 | 원본 언론사 표기. 데이터셋 `company`, NewsData 는 `source_name`(예: 뉴시스). 언론사 ID 는 `source_id`(예: `newsis` · `hani` · `kbs_kr`)로 따로 온다(2026-10-22 응답, AI 확인) |
+| `press_mapping.source_value` | text | 기본 키 | 원본 언론사 표기. 데이터셋 `company`, NewsData 는 언론사 ID `source_id`(예: `newsis` · `hani` · `kbs_kr`). 이름 `source_name`(예: 뉴시스 · `Kbs 뉴스`)은 표기가 바뀔 수 있어 키로 쓰지 않는다(2026-11-03, Jira 153) |
 | `press_mapping.press_code` | text | 예 · 외래 키 | 어느 언론사인가 |
 
 - 소스마다 같은 언론사를 다르게 적어 와도 한 언론사로 묶으려고 명부와 대응 표를 나눴다. 언론사 수(`publisherCount`)를 세거나 언론사 필터(P1)를 걸 때 같은 곳이 둘로 갈리지 않는다
-- 처음 보는 표기는 수집할 때 `press` 행과 대응 행을 새로 만든다. 새 코드를 짓는 규칙은 5절 15번. 같은 언론사로 묶을 때는 대응 행의 `press_code` 를 고치고, 옛 코드를 쓰던 기사들의 `article.press_code` 도 새 코드로 바꾼 뒤 옛 `press` 행을 지운다(제안). 그래야 이미 들어온 기사의 언론사 수가 둘로 세어지지 않는다
+- 처음 보는 표기는 적재(B2, `docs/api-internal.md` 2절)할 때 `press` 행과 대응 행을 새로 만든다. NewsData 는 코드 = `source_id`, 이름 = `source_name` 그대로다 — `Hani` · `Kbs 뉴스` 처럼 와도 넣고 사람이 고친다. 같은 코드의 언론사가 이미 있으면 대응 행만 붙이고 이름은 바꾸지 않는다(2026-11-03 인프라 담당, Jira 153). 같은 언론사로 묶을 때는 대응 행의 `press_code` 를 고치고, 옛 코드를 쓰던 기사들의 `article.press_code` 도 새 코드로 바꾼 뒤 옛 `press` 행을 지운다(제안). 그래야 이미 들어온 기사의 언론사 수가 둘로 세어지지 않는다
 - 로고는 지금 두지 않는다. 쓰게 되면 `press` 에 칸을 더한다
 
 ### article — 기사 (F01 뉴스 데이터 적재·조회)
@@ -234,7 +235,7 @@ erDiagram
 |---|---|---|---|
 | `id` | bigint | 기본 키 | 기사 ID. 목록 · 상세 · 마인드맵이 같은 ID 를 쓴다(Jira 42) |
 | `source` | text | 예 | 어느 소스에서 왔나. `SSAFY_2025H1` · `SSAFY_2024H1` · `SSAFY_2024H2` · `NEWSDATA` (SSOT 5절) |
-| `url` | text | 예 · 고유 | 원문 링크. 데이터셋에 기사 ID 가 없어서 고유 키로 쓴다(addendum). 같은 링크를 두 번 넣지 않는다. 정규화(끝 `/` · 쿼리)는 Jira 34 |
+| `url` | text | 예 · 고유 | 원문 링크. 데이터셋에 기사 ID 가 없어서 고유 키로 쓴다(addendum). 같은 링크를 두 번 넣지 않는다. 받은 그대로 두고 정규화(끝 `/` · 쿼리)하지 않는다(2026-11-03, Jira 153) |
 | `press_code` | text | 예 · 외래 키 | 언론사(`press`). 모든 기사 화면에 보인다(PRD FR-2) |
 | `title` | text | 예 | 기사 제목. 마인드맵 · 흐름지도 가운데에도 쓴다 |
 | `reporter` | text | 아니오 | 기자명. 없는 기사가 있다 |
@@ -246,8 +247,8 @@ erDiagram
 | `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
-- 필수 값이 빠진 기사는 저장하지 않고 이유를 남긴다(PRD FR-1). 실행 한 번에 몇 건 받았는지는 `ingest_run`, 기사마다의 이유는 수집 티켓(Jira 34)이 정한다
-- NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 실제 응답(2026-10-22, 한국어 최신 50건, AI 확인)에서는 49건에 오고 1건은 비었다. 본문에 줄바꿈이 없어 문단이 하나라 근거의 `paragraphIndex` 는 늘 0이다. 저작권 · 안내 문구가 본문 앞뒤에 붙어 오지만 원문 그대로 저장한다(워커가 문장을 나눌 때 그 구간을 뺀다). `pubDate` 에는 시간대가 없고 `pubDateTZ` 가 50건 모두 UTC 라 적재할 때 `+09:00` 으로 바꾼다. `duplicate: true` 가 2건 있었다. 2024 데이터셋 필드는 아직 못 봤다
+- 필수 값이 빠진 기사는 저장하지 않고 이유를 돌려준다(PRD FR-1) — B2 가 400 과 `errors[]` 로 답하고, 배치가 세어 Job 로그에 남긴다(`docs/api-internal.md` 2절, Jira 153)
+- NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 실제 응답(2026-10-22, 한국어 최신 50건, AI 확인)에서는 49건에 오고 1건은 비었다. 본문에 줄바꿈이 없어 문단이 하나라 근거의 `paragraphIndex` 는 늘 0이다. 저작권 · 안내 문구가 본문 앞뒤에 붙어 오지만 원문 그대로 저장한다(워커가 문장을 나눌 때 그 구간을 뺀다). `pubDate` 에는 시간대가 없고 `pubDateTZ` 가 50건 모두 UTC 라 배치가 UTC 오프셋(`Z`)을 붙여 B2 에 보낸다(`docs/api-internal.md` 2절, 2026-11-03 최신 50건도 모두 UTC). `duplicate: true` 가 2건 있었다. 2024 데이터셋 필드는 아직 못 봤다
 - 언제 공개하나(무엇이 끝나야 화면에 보이나)는 정했다(2026-10-26 사용자, Jira 34) — 분석이 끝난 뒤(EXTRACT 결과를 처음 저장할 때). 적재할 때는 `released_at` 을 비워 둔다
 
 ### ingest_run — 수집 실행 기록 (F01, 2026-10-19)
@@ -261,6 +262,7 @@ erDiagram
 | `next_cursor` | text | 아니오 | 다음에 이어 받을 위치(NewsData 의 다음 쪽 값) |
 | `status` | text | 예 | `RUNNING` → `SUCCEEDED` · `FAILED` |
 
+- 지금은 쓰지 않는다 — 하루 약 100건 최신 기사라 이어 받을 위치가 필요 없고, 실행 기록은 배치 Job 로그 한 줄로 남긴다(2026-11-02 인프라 담당, Jira 153). 표는 지우지 않는다. 아래는 쓰게 될 때의 규칙이다
 - 실서비스 기사는 NewsData.io 를 k8s CronJob 으로 하루 두 번(00 · 12시, `Asia/Seoul`) 받는다(2026-10-20). 실행 한 번이 한 행이다
 - 실패하면 다음 실행이 마지막 성공 행의 `next_cursor` 부터 이어 받는다(제안). 데이터셋 적재는 이 표에 남기지 않는다(데이터셋은 검증용, SSOT 5절)
 
@@ -442,7 +444,7 @@ erDiagram
 | 정해진 값만 받는 칸(단계 · 상태 · 소스 등)은 Java enum(`@Enumerated(STRING)`)과 DB `CHECK` 제약 두 겹으로 막는다. 제약 이름은 PostgreSQL 기본 규칙대로 적는다(`analysis_job_stage_check`) (2026-10-21, Jira 101) | 기사 적재를 묶음 SQL 로 해도(Jira 34) DB 가 막는다. 값을 더할 때는 새 마이그레이션에서 그 이름으로 제약을 지우고 다시 건다 |
 | `analysis_job` 은 (기사, 단계)가 유일하다 (Jira 101) | 「기사 하나 · 단계 하나에 한 행」을 DB 가 지킨다. 다시 돌릴 때는 행을 더하지 않고 `attempt` 를 올린다 |
 
-데이터셋 적재처럼 한꺼번에 많이 넣는 일은 JPA 로 한 행씩 넣으면 느리다(자동 증가 키는 묶어 넣기가 꺼진다). 적재 방법은 수집 티켓(Jira 34)이 정한다.
+데이터셋 적재처럼 한꺼번에 많이 넣는 일은 JPA 로 한 행씩 넣으면 느리다(자동 증가 키는 묶어 넣기가 꺼진다). NewsData 는 B2 로 한 건씩 넣는다(`docs/api-internal.md` 2절, Jira 153). 데이터셋을 넣는 길은 정하지 않았다(5절 17번).
 
 ---
 
@@ -460,18 +462,17 @@ erDiagram
 | 10 | 본문을 화면에 얼마나 보여 주나 | `body` 는 저장만 하고 API 로 안 내보냄 | Q3 · Q28 |
 | 13 | 사건 요약을 기사가 붙을 때 다시 쓰나, 사건 · 이슈 요약에 AI 표시를 붙이나 | 사건 이름 · 키워드 · 요약은 새 사건 때 판정과 같은 호출에서 한 번 짓고 고정한다(2026-10-21 BE 안, 평가 뒤 다시 볼 수 있음). AI 표시는 UX `EXPERIENCE.md` 의 「AI 가 만든 요약 · 마인드맵에는 AI 생성 표시를 붙인다」를 사건 · 이슈 요약에도 따른다 | AI · FE |
 | 14 | F09 · F10 주장 · 변화 카드 테이블 | 그리지 않음 | 추후 논의 |
-| 15 | 언론사 표기 대응을 누가 맞추나, 처음 보는 언론사의 코드를 어떻게 짓나 | 처음 보는 표기는 수집 때 새 언론사로 등록하고, 묶기는 사람이 한다. 코드는 NewsData `source_id`(예: `newsis`)를 쓰는 쪽이 유력하다 — 응답에서 안정적으로 보였다(2026-10-22, AI 확인) | BE |
 | 17 | 데이터셋을 서비스 DB 에 넣나(검증용), 검증 실행을 따로 세나 | 정하지 않음. 넣지 않으면 서비스 첫 며칠은 비교할 기사가 적다 | AI · BE |
 
 ---
 
 ## 6. 기능 대조표
 
-기능마다 쓰는 테이블과 API 다. A · B1 · W1 번호는 `docs/api.md` 3절 목록에 있고, 상세는 A 가 `docs/api-screen.md`, B1 · W1 이 `docs/api-internal.md` 다. F12 · F13 은 MVP 개요 MR 에서 제안하는 번호다.
+기능마다 쓰는 테이블과 API 다. A · B2 · B1 · W1 번호는 `docs/api.md` 3절 목록에 있고, 상세는 A 가 `docs/api-screen.md`, B2 · B1 · W1 이 `docs/api-internal.md` 다. F12 · F13 은 MVP 개요 MR 에서 제안하는 번호다.
 
 | 기능 | 테이블 | API |
 |---|---|---|
-| F01 뉴스 데이터 적재·조회 | `article` · `press` · `press_mapping` · `category_mapping` · `ingest_run` · `analysis_job` | A7 · A8, 투입 B1 |
+| F01 뉴스 데이터 적재·조회 | `article` · `press` · `press_mapping` · `category_mapping` · `ingest_run` · `analysis_job` | A7 · A8, 적재 B2 · 투입 B1 |
 | F02 카테고리별 뉴스·이슈 조회 | `category` · `issue_category` · `issue` · `article` · `event`(A13 제목 검색) | A1 · A2(새로 생성된 이슈 순 포함) · A7, 빠른 이동 A13 |
 | F03 기사 핵심 정보 구조화 | `analysis_job`(`EXTRACT`) · `article_mindmap` | W1 (`EXTRACT`) |
 | F04 기사 마인드맵 생성 | `article_mindmap.content` | A9 (흐름지도 · 마인드맵 두 보기) |
