@@ -41,6 +41,7 @@ class SecurityRulesTest {
     static final String BATCH_KEY = "test-batch-key";
     static final String W1 = "/internal/v1/analysis-jobs/1/result";
     static final String B1 = "/internal/v1/articles/1/release";
+    static final String B2 = "/internal/v1/articles";
 
     @RestController
     static class NoEndpoints {}
@@ -113,7 +114,7 @@ class SecurityRulesTest {
     // 직원용 문(/internal/v1)은 출입증(X-Internal-Key)이 없거나 틀리면 401 이다. 워커 · 배치는 CSRF 번호표를 안 보낸다
     @Test
     void internalApisWithoutValidKeyAreUnauthorized() throws Exception {
-        for (String path : new String[] {W1, B1}) {
+        for (String path : new String[] {W1, B1, B2}) {
             mockMvc.perform(post(path))
                     .andExpect(status().isUnauthorized())
                     .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
@@ -124,13 +125,16 @@ class SecurityRulesTest {
         }
     }
 
-    // 출입증은 제 문만 연다 — 워커 키는 W1, 배치 키는 B1. 남의 문 키면 403 이다
+    // 출입증은 제 문만 연다 — 워커 키는 W1, 배치 키는 B1 · B2. 남의 문 키면 403 이다
     @Test
     void internalKeyOpensOnlyItsOwnDoor() throws Exception {
         mockMvc.perform(post(W1).header(InternalKeyFilter.HEADER, BATCH_KEY))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mockMvc.perform(post(B1).header(InternalKeyFilter.HEADER, WORKER_KEY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(post(B2).header(InternalKeyFilter.HEADER, WORKER_KEY))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         // 정하지 않은 직원용 주소는 어느 키로도 못 연다
@@ -154,6 +158,8 @@ class SecurityRulesTest {
         assertThat(worker.getResponse().getCookie("XSRF-TOKEN")).isNull();
         assertThat(worker.getRequest().getSession(false)).isNull();
         mockMvc.perform(post(B1).header(InternalKeyFilter.HEADER, BATCH_KEY)).andExpect(status().isNotFound());
+        // B2 처럼 /** 앞 주소 자체도 배치 키로 열린다(/internal/v1/articles/** 규칙)
+        mockMvc.perform(post(B2).header(InternalKeyFilter.HEADER, BATCH_KEY)).andExpect(status().isNotFound());
     }
 
     // 출입증은 직원용 문에서만 쓴다. 손님용 문에서는 로그인 대신이 되지 않는다
