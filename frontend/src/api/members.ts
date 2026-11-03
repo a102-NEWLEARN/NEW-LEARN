@@ -50,8 +50,8 @@ export function fetchMe(): Promise<Member | null> {
 }
 
 // 한 번 받으면 다시 부르지 않는다. 창에 돌아올 때마다 다시 불러 관심 분야가 바뀌면 홈 탭 순서가 바뀌는데,
-// SEED Tabs 는 방향키 순서를 처음 그릴 때만 읽어서 엇나간다. 관심 분야를 바꾸거나 로그인 · 로그아웃할 때(S15P31A102-66)
-// 이 쿼리를 새로 고친다
+// SEED Tabs 는 방향키 순서를 처음 그릴 때만 읽어서 엇나간다. 로그인(LoginPage) · 로그아웃(MyPage)하면 이 쿼리를 직접 바꾸고,
+// 관심 분야를 바꿀 때(S15P31A102-69)도 그렇게 한다
 export const meQuery = queryOptions({
   queryKey: ["members", "me"],
   queryFn: fetchMe,

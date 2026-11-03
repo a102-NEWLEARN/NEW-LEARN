@@ -60,7 +60,6 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
           <span className={label}>나의 뉴스함</span>
         </ActionButton>
         <span aria-hidden className="h-[14px] w-px bg-stroke-neutral-weak" />
-        {/* /me 는 S15P31A102-66 에서 생긴다. 그전에는 찾을 수 없음 화면이 뜬다 */}
         <ActionButton
           asChild
           variant="ghost"
