@@ -7,11 +7,12 @@ import { TextField, TextFieldInput } from "seed-design/ui/text-field";
 import { login } from "@/api/auth";
 import { ApiError } from "@/api/error";
 import { meQuery } from "@/api/members";
+import { AuthSwitch } from "@/components/AuthSwitch";
 import { Logo } from "@/components/Logo";
 import { errorDescription } from "@/components/state/ErrorState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { useSnackbar } from "@/components/useSnackbar";
-import { nextPath } from "@/lib/login-path";
+import { nextPath, signupPath } from "@/lib/login-path";
 
 type Field = "loginId" | "password";
 type FieldErrors = Partial<Record<Field, string>>;
@@ -44,7 +45,7 @@ function serverFieldErrors(error: unknown): FieldErrors | null {
 }
 
 // 로그인 — 셸 없이 전체 화면으로 뜬다 (EXPERIENCE.md Information Architecture · Component Patterns 「로그인 · 가입 폼」).
-// 가입(*아직 계정이 없나요?*)은 가입 화면을 만들 때 붙인다
+// 아래 *회원가입* 은 가입 화면으로 가며 돌아올 곳(next)을 넘긴다
 export function LoginPage() {
   usePageTitle("로그인");
   const [params] = useSearchParams();
@@ -180,6 +181,11 @@ export function LoginPage() {
           >
             로그인
           </ActionButton>
+          <AuthSwitch
+            question="아직 계정이 없나요?"
+            to={signupPath(next)}
+            label="회원가입"
+          />
         </form>
       </main>
     </div>

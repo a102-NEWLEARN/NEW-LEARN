@@ -235,3 +235,14 @@ test("닫기를 누르면 랜딩으로 간다", async () => {
 
   await waitFor(() => expect(router.state.location.pathname).toBe("/"));
 });
+
+test("가입 화면으로 가는 버튼이 next 를 넘긴다", async () => {
+  asGuest();
+  renderRoute("/login?next=/issues/12");
+
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+  expect(screen.getByText("아직 계정이 없나요?")).toBeDefined();
+  expect(
+    screen.getByRole("link", { name: "회원가입" }).getAttribute("href"),
+  ).toBe("/signup?next=/issues/12");
+});
