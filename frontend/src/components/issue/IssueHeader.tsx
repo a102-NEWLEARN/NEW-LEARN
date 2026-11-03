@@ -3,6 +3,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { useLayoutEffect, useRef, useState } from "react";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { IssueDetail } from "@/api/issue";
+import { InterestButton } from "@/components/issue/InterestButton";
 import { errorDescription } from "@/components/state/ErrorState";
 import { kstYear } from "@/lib/date";
 
@@ -23,7 +24,7 @@ function categoryLine(issue: IssueDetail) {
     .join(" · ");
 }
 
-// 이슈 헤더 — 분야 · 연도, 제목, 요약 (프로토타입 v21 IssueHeader). 고정 핀 · AI 배지 · 관점 비교 · 알림은 아직 없다.
+// 이슈 헤더 — 분야 · 연도, 제목과 관심 이슈 별, 요약 (프로토타입 v21 IssueHeader). AI 배지 · 관점 비교 · 알림은 아직 없다.
 // h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
 export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   const [more, setMore] = useState(false);
@@ -55,28 +56,34 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
       ) : (
         !failed && <Skeleton radius="8" width="x16" height="lineHeight.t2" />
       )}
-      <h1
-        tabIndex={-1}
-        onFocus={() => onTitleFocusChange?.(true)}
-        onBlur={() => onTitleFocusChange?.(false)}
-        className="t9-bold md:t11-bold mt-x1_5 text-fg-neutral outline-none"
-      >
-        {issue ? (
-          issue.title
-        ) : failed ? (
-          "이슈를 불러오지 못했어요"
-        ) : (
-          <>
-            <span className="sr-only">이슈 불러오는 중</span>
-            <Skeleton
-              radius="8"
-              width="full"
-              height="lineHeight.t11"
-              className="max-w-[420px]"
-            />
-          </>
+      {/* 제목 바로 옆에 관심 이슈 별 (프로토타입 v21 IssueHeader). 제목이 길어 줄이 바뀌면 별은 첫 줄 높이에 남는다 */}
+      <div className="mt-x1_5 flex items-start gap-x1">
+        <h1
+          tabIndex={-1}
+          onFocus={() => onTitleFocusChange?.(true)}
+          onBlur={() => onTitleFocusChange?.(false)}
+          className={`t9-bold md:t11-bold min-w-0 text-fg-neutral outline-none ${issue ? "" : "flex-1"}`}
+        >
+          {issue ? (
+            issue.title
+          ) : failed ? (
+            "이슈를 불러오지 못했어요"
+          ) : (
+            <>
+              <span className="sr-only">이슈 불러오는 중</span>
+              <Skeleton
+                radius="8"
+                width="full"
+                height="lineHeight.t11"
+                className="max-w-[420px]"
+              />
+            </>
+          )}
+        </h1>
+        {issue && (
+          <InterestButton issueId={issue.id} interested={issue.interested} />
         )}
-      </h1>
+      </div>
       {failed && (
         <div className="mt-x2 flex flex-wrap items-center gap-x3">
           <p className="t4-regular text-fg-neutral-muted">

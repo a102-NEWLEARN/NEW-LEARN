@@ -4,6 +4,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { ArticleDetail } from "@/api/article";
+import { BookmarkButton } from "@/components/BookmarkButton";
 import { errorDescription } from "@/components/state/ErrorState";
 import { formatFullDateTime } from "@/lib/date";
 
@@ -53,8 +54,7 @@ function IssueLink({ article }: { article: ArticleDetail }) {
   );
 }
 
-// 기사 헤더 — 분야 · 이슈, 제목, 언론사 · 일시 · 기자, 원문 보기 · 이슈 보기 (프로토타입 v21 MindmapScreen).
-// 북마크 버튼은 S15P31A102-67 에서 붙인다.
+// 기사 헤더 — 분야 · 이슈, 제목, 언론사 · 일시 · 기자, 북마크 · 원문 보기 · 이슈 보기 (프로토타입 v21 MindmapScreen).
 // h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
 export function ArticleHeader({
   query,
@@ -118,6 +118,7 @@ export function ArticleHeader({
       </div>
       {article && (
         <div className="flex flex-wrap items-center gap-x2">
+          <BookmarkButton article={article} variant="text" />
           <ActionButton
             asChild
             variant="neutralOutline"

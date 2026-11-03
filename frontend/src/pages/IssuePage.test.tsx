@@ -15,7 +15,11 @@ import { renderRoute } from "@/test/render";
 
 const title = () =>
   screen.findByRole("heading", { level: 1, name: "한빛반도체 미국 공장 건설" });
-const node = (name: RegExp) => screen.findByRole("button", { name });
+// 타임라인의 사건 노드. 사건 패널의 기사 행 북마크 버튼도 이름에 사건 이름이 든 기사 제목을 달고 있어서 타임라인 안에서 찾는다
+const node = async (name: RegExp) =>
+  within(
+    await screen.findByRole("group", { name: "사건 타임라인" }),
+  ).findByRole("button", { name });
 
 function serverError(path: string) {
   return http.get(path, () =>
