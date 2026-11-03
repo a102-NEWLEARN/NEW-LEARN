@@ -18,7 +18,12 @@ import {
 } from "react";
 import { useNavigate } from "react-router";
 import { type IssueSummary, issuesQuery } from "@/api/issues";
-import { type SearchResult, searchQuery } from "@/api/search";
+import { ApiError } from "@/api/error";
+import {
+  SEARCH_MAX_LENGTH,
+  type SearchResult,
+  searchQuery,
+} from "@/api/search";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 
@@ -104,6 +109,13 @@ function highlight(title: string, word: string): ReactNode {
   );
 }
 
+/** A13 이 400 VALIDATION_FAILED 와 함께 준 검색어 까닭. 없으면 null */
+function invalidReason(error: unknown) {
+  if (!(error instanceof ApiError) || error.code !== "VALIDATION_FAILED")
+    return null;
+  return error.errors.find(({ field }) => field === "q")?.reason ?? null;
+}
+
 function useDebounced(value: string, delay: number) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -182,7 +194,16 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
         <RowsSkeleton label="검색하는 중" />
       );
   } else if (results.isError) {
-    message = (
+    // 서버가 까닭을 주는 400(빈 검색어 · 50자 넘음 등)은 같은 검색어로 다시 불러도 같아서 *다시 시도* 없이 그 문장만 둔다
+    const reason = invalidReason(results.error);
+    message = reason ? (
+      <p
+        role="status"
+        className="t4-regular px-x4 pt-x3 pb-x4 text-fg-neutral-muted"
+      >
+        {reason}
+      </p>
+    ) : (
       <ErrorState
         title="검색 결과를 불러오지 못했어요"
         error={results.error}
@@ -329,6 +350,7 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
             aria-activedescendant={activeId}
             autoComplete="off"
             enterKeyHint="search"
+            maxLength={SEARCH_MAX_LENGTH}
             value={text}
             onChange={(event) => {
               setText(event.target.value);

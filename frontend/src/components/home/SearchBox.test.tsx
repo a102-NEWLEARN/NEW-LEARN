@@ -73,9 +73,10 @@ test("글자를 치면 이슈 · 사건 · 기사로 나눠 보이고 맞는 글
   expect(optionTitles(screen.getByRole("group", { name: "사건" }))).toEqual([
     "텍사스 공장 엔지니어 수급 우려 보도",
   ]);
+  // 기사는 발행 시각 최신순 (A13)
   expect(optionTitles(screen.getByRole("group", { name: "기사" }))).toEqual([
-    "한빛반도체, 텍사스 공장 착공식 열어",
     "美 공장 인력난에 국내 엔지니어 파견 검토",
+    "한빛반도체, 텍사스 공장 착공식 열어",
   ]);
   const marks = screen.getByRole("listbox").querySelectorAll("mark");
   expect([...marks].map((mark) => mark.textContent)).toEqual([
@@ -424,4 +425,38 @@ test("최근 이슈를 못 불러오면 목록 안에 안내와 다시 시도를
   expect(
     await screen.findByRole("group", { name: "최근 업데이트된 이슈" }),
   ).toBeDefined();
+});
+
+test("검색 칸에는 50자까지만 들어간다 (A13)", () => {
+  renderSearch();
+
+  expect(input().getAttribute("maxlength")).toBe("50");
+});
+
+test("서버가 까닭을 준 400 이면 그 문장만 두고 다시 시도는 두지 않는다", async () => {
+  server.use(
+    http.get("/api/v1/search", () =>
+      HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "Bad Request",
+          status: 400,
+          detail: "q: 검색어에 쓸 수 없는 글자가 들어 있어요",
+          instance: "/api/v1/search",
+          code: "VALIDATION_FAILED",
+          errors: [
+            { field: "q", reason: "검색어에 쓸 수 없는 글자가 들어 있어요" },
+          ],
+        },
+        { status: 400 },
+      ),
+    ),
+  );
+  renderSearch();
+  await openWith("공장");
+
+  expect(
+    await screen.findByText("검색어에 쓸 수 없는 글자가 들어 있어요"),
+  ).toBeDefined();
+  expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
 });
