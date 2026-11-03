@@ -30,9 +30,14 @@ export function AppShell() {
   };
 
   const quickSearch = useQuickSearch();
-  // 화면에 건네는 일 — 사건 패널이 열리면 사이드바를 접는다 (useShell)
+  // 오른쪽 패널(사건 패널)의 폭 — 용어사전 버튼이 그만큼 비킨다
+  const [rightPanelWidth, setRightPanelWidth] = useState(0);
+  // 화면에 건네는 일 — 사건 패널이 열리면 사이드바를 접고 패널 폭을 알린다 (useShell)
   const shell = useMemo<ShellContext>(
-    () => ({ collapseSidebar: () => setSidebarExpanded(false) }),
+    () => ({
+      collapseSidebar: () => setSidebarExpanded(false),
+      setRightPanelWidth,
+    }),
     [],
   );
 
@@ -106,7 +111,7 @@ export function AppShell() {
           <Outlet context={shell} />
         </main>
       </div>
-      <DictionaryWindow />
+      <DictionaryWindow inset={rightPanelWidth} />
     </div>
   );
 }

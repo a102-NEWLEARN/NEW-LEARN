@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, onTestFinished, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { server } from "@/mocks/node";
 import { stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
@@ -434,4 +434,64 @@ test("패널이 닫혀 있을 때 타임라인 빈 곳을 누르면 포커스를
   fireEvent.click(screen.getByRole("group", { name: "사건 타임라인" }));
 
   expect(document.activeElement).toBe(document.body);
+});
+
+// 용어사전 버튼은 셸이 오른쪽 아래에 띄운다. 넓은 화면의 사건 패널이 열리면 패널의 실제 폭만큼 비킨다
+// (EXPERIENCE.md 앱 셸 「용어사전 버튼」). jsdom 은 폭을 0 으로 재서 사건 패널만 420 으로 준다
+const dictionaryButton = () =>
+  screen.getByRole("button", { name: "용어 사전 열기" });
+
+function measurePanel(width: number) {
+  const spy = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("aria-label") === "사건 상세" ? width : 0;
+    });
+  onTestFinished(() => spy.mockRestore());
+}
+
+test("넓은 화면에서 사건 패널이 열리면 용어사전 버튼이 패널 폭만큼 비키고, 닫으면 돌아온다", async () => {
+  measurePanel(420);
+  renderRoute("/issues/12");
+  await node(/착공식/);
+  expect(dictionaryButton().style.right).toBe("24px");
+
+  fireEvent.click(await node(/착공식/));
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+  expect(dictionaryButton().style.right).toBe("444px");
+
+  fireEvent.click(screen.getByRole("button", { name: "상세 패널 닫기" }));
+  expect(dictionaryButton().style.right).toBe("24px");
+});
+
+test("패널이 줄어든 폭(max-w 50%)도 잰 대로 비킨다", async () => {
+  measurePanel(380);
+  renderRoute("/issues/12?event=119");
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+
+  expect(dictionaryButton().style.right).toBe("404px");
+});
+
+test("사건 패널을 연 채 다른 화면으로 가면 용어사전 버튼이 제자리로 돌아온다", async () => {
+  measurePanel(420);
+  const { router } = renderRoute("/issues/12?event=119");
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+  expect(dictionaryButton().style.right).toBe("444px");
+
+  await act(() => router.navigate("/home"));
+
+  expect(dictionaryButton().style.right).toBe("24px");
+});
+
+test("좁은 화면에서는 사건 시트가 올라와도 용어사전 버튼이 비키지 않는다", async () => {
+  stubScreen("narrow");
+  measurePanel(420);
+  renderRoute("/issues/12?event=119");
+  await screen.findByRole("dialog", { name: "사건 상세" });
+
+  // 시트는 모달이라 뒤를 aria-hidden 으로 가린다 — 역할로는 못 찾아 속성으로 찾는다
+  const button = document.querySelector<HTMLElement>(
+    'button[aria-label="용어 사전 열기"]',
+  );
+  expect(button?.style.right).toBe("24px");
 });

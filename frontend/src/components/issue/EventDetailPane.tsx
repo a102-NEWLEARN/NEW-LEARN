@@ -2,6 +2,8 @@ import { IconXmarkLine } from "@karrotmarket/react-monochrome-icon";
 import { BottomSheet } from "@seed-design/react";
 import { useEffect, useRef } from "react";
 import { EventPanel } from "@/components/issue/EventPanel";
+import { useElementSize } from "@/components/issue/useElementSize";
+import { useShell } from "@/components/shell/useShell";
 
 type EventDetailPaneProps = {
   /** 좁은 화면 시트가 열려 있나. 닫힐 때 SEED 가 내려가는 동안 내용을 남기려고 따로 받는다. 넓은 화면은 늘 true */
@@ -28,6 +30,16 @@ export function EventDetailPane({
 }: EventDetailPaneProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 넓은 화면 패널의 폭을 셸에 알린다 — 용어사전 버튼이 그만큼 비킨다. 420px 이지만 좁아지면 max-w 50% 로 줄어서 잰다.
+  // 패널이 빠지면 0. 좁은 화면 시트는 딤으로 덮어서 재지 않는다(0)
+  const asideRef = useRef<HTMLElement>(null);
+  const { width } = useElementSize(asideRef);
+  const shell = useShell();
+  useEffect(() => {
+    shell?.setRightPanelWidth(width);
+    return () => shell?.setRightPanelWidth(0);
+  }, [shell, width]);
 
   // 열면 포커스를 패널 제목으로 (Accessibility Floor). 이전 · 다음으로 사건만 바꿀 때는 그대로 둔다
   useEffect(() => {
@@ -97,6 +109,7 @@ export function EventDetailPane({
 
   return (
     <aside
+      ref={asideRef}
       aria-label="사건 상세"
       className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
     >
