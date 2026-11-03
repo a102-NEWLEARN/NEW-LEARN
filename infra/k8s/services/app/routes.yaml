@@ -76,11 +76,15 @@ spec:
           port: 8080
     # 화면 응답의 보안 머리 (Jira S15P31A102-120) — /api · Swagger 에는 스프링 시큐리티가 HSTS · nosniff · X-Frame-Options 셋을 붙이고, 화면(nginx)에는 없었다
     # nginx 에 두지 않는 까닭: location 에 add_header 가 있으면 바깥 add_header 를 물려받지 않는다(frontend/nginx.conf 의 /index.html · /assets/)
-    # CSP 는 아직 보고만(Report-Only) — 위반은 브라우저 콘솔에만 뜨고 막지 않는다. 강제로 바꿀 때는 SSOT 8절
-    #   script-src 의 sha256 은 seed-design 플러그인(frontend/vite.config.ts)이 index.html 에 넣는 테마 초기화 script 하나다 — 2026-10-27 사이트 index.html 에서 잼
-    #   글은 @seed-design/css(frontend/package.json)의 generateThemingScript 가 만든다 — 그 패키지 판이나 플러그인 설정(colorMode · fontScaling)이 바뀌면 이 해시도 같이 바꾼다
+    # CSP 는 강제다(2026-11-03, 1단계 보고만은 2026-10-27) — 규칙에 없는 것은 브라우저가 막는다. 위반을 어디서 보는지는 SSOT 6절 「도메인 · HTTPS」
+    #   화면이 깨지면 이름을 Content-Security-Policy-Report-Only 로 되돌리는 MR 을 낸다(보고만, docs/plans/2026-11-03-csp-enforce.md 「되돌리는 법」). kubectl 로 고치면 Argo CD 가 되돌린다
+    #   화면이 바깥 출처(뉴스 사진 · 글꼴 · 분석 도구)를 쓰려면 그 출처를 아래 규칙(img-src · font-src · style-src · script-src · connect-src)에 더해야 한다 — 로컬 vite 는 Envoy 를 안 거쳐 사이트에서만 깨진다
+    #   script-src 의 sha256 은 seed-design 플러그인(frontend/vite.config.ts)이 index.html 에 넣는 테마 초기화 script 하나다 — 2026-10-27 · 2026-11-03 사이트 index.html 에서 잼
+    #   글은 @seed-design/css(frontend/package.json)의 generateThemingScript 가 만든다 — 그 패키지 판, @seed-design/vite-plugin 판, 플러그인 설정(colorMode · fontScaling)이 바뀌면 이 해시도 같이 바꾼다
+    #   재는 법: 사이트(또는 npm run build 의 dist) index.html 의 <script>…</script> 안 글자를 그대로 SHA-256 → Base64 해서 'sha256-…' 로
+    #   판을 올릴 때: 새 해시를 옛 해시 옆에 먼저 더해 dev 에 반영하고(Argo CD app Synced 확인), 그 뒤에 frontend 배포 태그 MR 을 머지하고, 반영이 끝나면 옛 것을 뺀다 — 사이에 테마 script 가 막히는 틈이 없다
     #   style-src 의 'unsafe-inline' 은 vite.config.ts 가 넣는 @layer 순서 한 줄 · 런타임에 붙는 스타일 몫
-    #   img-src 의 data: 는 Vite 가 로고 SVG(frontend/src/components/Logo.tsx)를 data: 주소로 번들에 넣어서 — 빼면 강제 단계에서 로고가 깨진다
+    #   img-src 의 data: 는 Vite 가 로고 SVG(frontend/src/components/Logo.tsx)를 data: 주소로 번들에 넣어서 — 빼면 로고가 깨진다
     - matches:
         - path:
             type: PathPrefix
@@ -97,7 +101,7 @@ spec:
                 value: DENY
               - name: Referrer-Policy
                 value: strict-origin-when-cross-origin
-              - name: Content-Security-Policy-Report-Only
+              - name: Content-Security-Policy
                 value: "default-src 'self'; script-src 'self' 'sha256-YBQY3WM31w/XgUZiCAkDXyEKGqOEfxNRIDEAoPoaHXY='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
       backendRefs:
         - name: frontend
