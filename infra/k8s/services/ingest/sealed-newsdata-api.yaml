@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: newsdata-api
+  namespace: app
+spec:
+  encryptedData:
+    NEWSDATA_API_KEY: AgA9m8Oy/WZjzvtFYeWtjL1US4Gh/ujVH3x9B0jAHQY525DbztRpicOYsqFbOrwinyKYGANCnwECff+odlULV1oiQ2rHVinXHKEYmfkzBcHMiU1+Kul2OoPBYVXzoE+rcLcMPKK+hi0xcqZmr/ei5NQ0q2elv08PP2ovU6DlhsGbBUdHExSYTFdB5bArpOJpbC2+eIpPOrAn55YZdcix95OUxBDU3Cyvl2yWDwxmxXToE4wvFVmIkDnM/VUdIvlyDsztJt308LYY3SyyTbHTl9jwjhOo+YeJTVqTuckO90y7jBtNINwd2nYY8QBtmIyj/omMZdkKzR2OamjCFz2n7sExU4XfliXp4t/3YiWUXBu18xmVYI5I0gVnTanK9zJmTQTbhcX6ts87Zg0QKx02oTcgdZcTr3OACtIeYC6hZnt6s99nnE4syGbi3aTaclBaHRQ+Pofui82c8zUnVIHrtycoO64XL5KWEud6bvH9Hu2YKCOSnwnxKvBpT+Rw1jUl2ONW2ryrfyjL8Ex7P5p0WfXvCtxwVPhF7O/6x6EEsd/pEj+gVkDVRuDg0VjcRR3bJXl08QtgPHbj6y2oxcmKcHDLmNpHQ5y8xNkcNJsjnJ2p/8f0ER2AE+2MHM162j3jiU4HV9NQ6BTiW+3fj7146ZQei9grp28Woc1+E7sTSLWmUJs8jcimuST9U/91oIJHVLkQcPlvpNnU0GHVe3Z7GJXBwv6LNMDEoGOJOgNM9ZhKEcyyzWg=
+  template:
+    metadata:
+      name: newsdata-api
+      namespace: app

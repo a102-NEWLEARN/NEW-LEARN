@@ -5,7 +5,7 @@
 # 그대로 남는 길: 워커 노드 호스트에서 오는 것(kubelet · 호스트 네트워크 Pod) — Cilium 은 로컬 호스트 통신을 기본으로 허용한다 (admin-ui/grafana-netpol.yaml 과 같다)
 #   PostgreSQL · Redis 의 상태 확인은 컨테이너 안 exec(pg_isready · redis-cli ping)라 네트워크를 타지 않는다
 # 네임스페이스 이름표가 없는 규칙은 이 정책의 네임스페이스(data)로 한정된다
-# 수집 배치를 만들면(SSOT 8절, 보류) 그 Pod 를 여기와 app/netpol.yaml 에 더한다
+# 뉴스 수집 배치(ingest/news-ingest.yaml)는 여기 없다 — DB · Redis 에 직접 붙지 않고 backend 의 B2 · B1 만 부른다(app/netpol.yaml)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
