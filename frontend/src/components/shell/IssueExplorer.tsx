@@ -163,12 +163,13 @@ function CategoryIssues({ category }: { category: Category }) {
   );
 }
 
-// 이슈의 연도는 첫 사건의 해다 (프로토타입 v21 의 period.start). 최근 해부터, 해 안에서는 API 순서(마지막 사건 최신순) 그대로
+// 이슈의 연도는 첫 사건의 해다 (프로토타입 v21 의 period.start). 사건이 0개라 첫 사건이 없으면 이슈를 만든 해로 둔다.
+// 최근 해부터, 해 안에서는 API 순서(마지막 사건 최신순) 그대로.
 // 시각 문자열의 앞 네 자리를 쓴다 — 서버가 한국 시각 오프셋(+09:00)으로 주므로 브라우저 시간대에 따라 해가 바뀌지 않는다
 function groupByYear(issues: IssueSummary[]) {
   const years = new Map<string, IssueSummary[]>();
   for (const issue of issues) {
-    const year = issue.firstEventAt.slice(0, 4);
+    const year = (issue.firstEventAt ?? issue.createdAt).slice(0, 4);
     years.set(year, [...(years.get(year) ?? []), issue]);
   }
   return [...years.entries()].sort(([a], [b]) => b.localeCompare(a));
