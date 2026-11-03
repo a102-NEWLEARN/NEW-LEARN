@@ -5,14 +5,12 @@ import { renderWithProviders } from "@/test/render";
 
 const noop = () => {};
 
-test("나의 뉴스함은 곧 제공 안내를 띄운다", async () => {
+test("나의 뉴스함은 /bookmarks 로 간다", () => {
   renderWithProviders(<Header onLogoClick={noop} />);
 
-  fireEvent.click(screen.getByRole("button", { name: "나의 뉴스함" }));
-
   expect(
-    await screen.findByText("MVP 이후 제공 예정인 기능이에요"),
-  ).toBeDefined();
+    screen.getByRole("link", { name: "나의 뉴스함" }).getAttribute("href"),
+  ).toBe("/bookmarks");
 });
 
 test("마이페이지는 /me 로 간다", () => {

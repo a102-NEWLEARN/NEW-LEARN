@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { ArticleSummary, ItemList } from "@/api/types";
 
@@ -41,3 +41,42 @@ export const bookmarksQuery = queryOptions({
   queryKey: ["members", "me", "bookmarks"],
   queryFn: fetchBookmarks,
 });
+
+// 기사는 bookmarked 칸이 있는 객체로 알아본다. 바뀐 것이 없으면 같은 참조를 돌려 화면을 다시 그리지 않게 한다
+function patchArticle(
+  value: unknown,
+  articleId: number,
+  bookmarked: boolean,
+): unknown {
+  if (Array.isArray(value)) {
+    const next = value.map((item) => patchArticle(item, articleId, bookmarked));
+    return next.some((item, at) => item !== value[at]) ? next : value;
+  }
+  if (value === null || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  if ("bookmarked" in record && record.id === articleId)
+    return record.bookmarked === bookmarked ? value : { ...record, bookmarked };
+  let next: Record<string, unknown> | null = null;
+  for (const [key, child] of Object.entries(record)) {
+    const patched = patchArticle(child, articleId, bookmarked);
+    if (patched !== child) (next ??= { ...record })[key] = patched;
+  }
+  return next ?? value;
+}
+
+/**
+ * 담기 · 빼기가 끝나면 받아 둔 기사 응답 — 최신 기사(A7) · 사건 관련 기사(A6) · 기사 상세(A8) — 에서 이 기사의 bookmarked 를
+ * 응답대로 바꾼다. 나의 뉴스함(A22)은 들고 나는 기사가 달라져서 새로 받게 한다
+ */
+export function setBookmarked(
+  queryClient: QueryClient,
+  articleId: number,
+  bookmarked: boolean,
+) {
+  for (const queryKey of [["articles"], ["event"], ["article", articleId]]) {
+    queryClient.setQueriesData({ queryKey }, (data: unknown) =>
+      patchArticle(data, articleId, bookmarked),
+    );
+  }
+  void queryClient.invalidateQueries({ queryKey: bookmarksQuery.queryKey });
+}

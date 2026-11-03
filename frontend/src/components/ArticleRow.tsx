@@ -1,6 +1,7 @@
 import { IconArrowUpRightLine } from "@karrotmarket/react-monochrome-icon";
 import { Link } from "react-router";
 import type { ArticleSummary } from "@/api/types";
+import { BookmarkButton } from "@/components/BookmarkButton";
 import { formatArticleDate } from "@/lib/date";
 
 type ArticleRowProps = {
@@ -12,7 +13,7 @@ type ArticleRowProps = {
 };
 
 // 기사 행 (DESIGN.md ArticleList, EXPERIENCE.md Component Patterns 「기사 행」) — 사건 패널 관련 기사 · 홈 최신 기사.
-// 행 전체가 기사 마인드맵 링크 하나이고, 원문 보기는 오른쪽의 따로 누르는 버튼이다. 북마크 버튼은 S15P31A102-67 에서 붙인다
+// 행 전체가 기사 마인드맵 링크 하나이고, 북마크 · 원문 보기는 오른쪽의 따로 누르는 버튼이다
 export function ArticleRow({ article, showCategory, now }: ArticleRowProps) {
   const meta = [
     article.publisher.name,
@@ -39,6 +40,7 @@ export function ArticleRow({ article, showCategory, now }: ArticleRowProps) {
           )}
         </span>
       </Link>
+      <BookmarkButton article={article} className="mt-x2" />
       <a
         href={article.url}
         target="_blank"
