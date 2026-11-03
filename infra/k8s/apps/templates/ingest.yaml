@@ -1,0 +1,32 @@
+# 뉴스 수집 배치 — CronJob news-ingest · 스크립트 ConfigMap · NewsData 키 SealedSecret (infra/k8s/services/ingest, Jira S15P31A102-154)
+# 네임스페이스는 app 이지만 앱은 app 앱과 따로 둔다 — 까닭은 SSOT.md 6절 「클러스터 구성」의 배포 설정 줄(배포 알림 조건 · 급히 멈추기)
+# 배포 알림 구독은 두지 않는다 — 동기화 실패 · 건강 나빠짐은 모든 앱 공통 구독으로 온다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingest
+  namespace: argocd
+  annotations:
+    # app(4) 뒤 — 같은 네임스페이스 · 부르는 backend. 멈춘 채라 순서가 어긋나도 해는 없다
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/services/ingest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
