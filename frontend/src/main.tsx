@@ -30,7 +30,8 @@ void enableMocking().then(() => {
     <StrictMode>
       <AppProviders queryClient={queryClient}>
         <RouterProvider router={router} />
-        <ReactQueryDevtools />
+        {/* 개발 때만 뜬다. 오른쪽 아래는 용어사전 버튼 자리라 왼쪽 아래에 둔다 */}
+        <ReactQueryDevtools buttonPosition="bottom-left" />
       </AppProviders>
     </StrictMode>,
   );
