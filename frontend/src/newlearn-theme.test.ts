@@ -32,6 +32,23 @@ const newRoles = {
   "fg-brand-accent": "#28CDAA",
   "bg-brand-accent": "#28CDAA",
   "bg-accent-lime": "#C7F36C",
+  // 기사 마인드맵 가지 4색 — 채움 · 테두리 · 선 · 글자
+  "mindmap-core-fill": "#EEEAFE",
+  "mindmap-core-stroke": "#8B6CF0",
+  "mindmap-core-line": "#CDBFF8",
+  "mindmap-core-text": "#5B3FC4",
+  "mindmap-cause-fill": "#EEF8D8",
+  "mindmap-cause-stroke": "#8DBF3F",
+  "mindmap-cause-line": "#CFE6A2",
+  "mindmap-cause-text": "#4F7A12",
+  "mindmap-reaction-fill": "#DCF5EA",
+  "mindmap-reaction-stroke": "#3FB585",
+  "mindmap-reaction-line": "#A6DFC5",
+  "mindmap-reaction-text": "#1E7A55",
+  "mindmap-outlook-fill": "#FDF1D0",
+  "mindmap-outlook-stroke": "#D19A2E",
+  "mindmap-outlook-line": "#ECD08A",
+  "mindmap-outlook-text": "#8A5E06",
 };
 
 // SEED 레시피 중 역할 변수 대신 당근 팔레트(carrot-200)를 직접 쓰는 곳

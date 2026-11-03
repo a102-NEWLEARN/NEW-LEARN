@@ -1,4 +1,5 @@
 import {
+  IconBookmarkFill,
   IconBookmarkLine,
   IconChevronLeftLine,
   IconChevronRightLine,
@@ -14,6 +15,7 @@ import {
   IssueExplorer,
   type IssueExplorerProps,
 } from "@/components/shell/IssueExplorer";
+import { useQuickSearch } from "@/components/shell/useQuickSearch";
 import { useComingSoon } from "@/components/useSnackbar";
 
 type SidebarProps = IssueExplorerProps & {
@@ -98,7 +100,10 @@ function RailButton({
 
 function SidebarRail({ onExpand }: { onExpand: () => void }) {
   const comingSoon = useComingSoon();
-  const atHome = useLocation().pathname === "/home";
+  const quickSearch = useQuickSearch();
+  const { pathname } = useLocation();
+  const atHome = pathname === "/home";
+  const atBookmarks = pathname === "/bookmarks";
 
   return (
     <div className="flex flex-col items-center gap-x1 py-x2_5">
@@ -110,11 +115,11 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
         aria-expanded={false}
         aria-keyshortcuts={SHORTCUT}
       />
-      {/* 빠른 이동(통합 검색)은 MVP 포함 미정이라 곧 제공 항목이다 (EXPERIENCE.md IA, Jira S15P31A102-46) */}
+      {/* 빠른 이동 — 홈 검색창으로 간다 (EXPERIENCE.md IA 통합 검색) */}
       <RailButton
         label="빠른 이동"
         icon={<IconMagnifyingglassLine size={20} aria-hidden />}
-        onClick={comingSoon}
+        onClick={quickSearch}
       />
       <span aria-hidden className="my-x1 h-px w-x7 bg-stroke-neutral-weak" />
       <Link
@@ -136,11 +141,19 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
         icon={<IconStarLine size={20} aria-hidden />}
         onClick={comingSoon}
       />
-      <RailButton
-        label="나의 뉴스함"
-        icon={<IconBookmarkLine size={20} aria-hidden />}
-        onClick={comingSoon}
-      />
+      <Link
+        to="/bookmarks"
+        aria-label="나의 뉴스함"
+        title="나의 뉴스함"
+        aria-current={atBookmarks ? "page" : undefined}
+        className={railItemClass}
+      >
+        {atBookmarks ? (
+          <IconBookmarkFill size={20} aria-hidden />
+        ) : (
+          <IconBookmarkLine size={20} aria-hidden />
+        )}
+      </Link>
       <RailButton
         label="분야별 이슈 보기"
         icon={<IconGridLine size={20} aria-hidden />}
@@ -156,14 +169,16 @@ export function SidebarMenu({
   onCollapse,
   ...explorer
 }: IssueExplorerProps & { onCollapse?: () => void }) {
-  const comingSoon = useComingSoon();
+  const quickSearch = useQuickSearch();
 
   return (
     <div className="flex flex-col gap-x3 p-x2_5">
       <div className="flex items-center gap-x1">
+        {/* 다른 화면(홈)으로 가서 서랍도 닫는다 — SidebarDrawer 가 data-navigates 를 본다 */}
         <button
           type="button"
-          onClick={comingSoon}
+          data-navigates
+          onClick={quickSearch}
           className="t4-medium flex h-x9 min-w-0 flex-1 items-center gap-x2 rounded-r2 px-x2_5 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
         >
           <IconMagnifyingglassLine size={16} aria-hidden />
