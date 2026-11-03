@@ -656,27 +656,36 @@ function mindmapOf({ id, title, summary, publishedAt }: ArticleSummary) {
   } satisfies Mindmap;
 }
 
-// A13 — 우리가 가진 뉴스 데이터 가운데 검색어가 들어간 것 (2026-10-23 사용자가 정한 규칙).
-// 이슈 · 사건은 이름, 기사는 제목이나 요약에 들어 있으면 준다. 영문은 대소문자를 가리지 않는다.
-// 진짜 검색 규칙은 백엔드 A13(Jira 43, 보류)이 정한다
-function search(q: string): SearchResult {
-  const word = q.trim().toLowerCase();
-  const has = (...texts: (string | null)[]) =>
-    word.length > 0 && texts.some((text) => text?.toLowerCase().includes(word));
+// A13 — 이슈 · 사건 · 기사 제목에 검색어가 들어간 것 (docs/api-screen.md A13, 2026-10-30 규칙). 요약은 찾지 않는다.
+// 영문은 대소문자를 가리지 않는다. 유형마다 최신순 20개까지 — 이슈는 만든 때, 사건은 발생 시점, 기사는 발행 시각, 같으면 id 가 큰 것 먼저.
+// 사건은 이슈마다 마지막 사건만 가짜로 둔다
+const SEARCH_LIMIT = 20;
+
+function search(word: string): SearchResult {
+  const has = (title: string) =>
+    title.toLowerCase().includes(word.toLowerCase());
+  const newest = <T extends { id: number }>(
+    items: T[],
+    at: (item: T) => string,
+  ) =>
+    [...items]
+      .sort((a, b) => at(b).localeCompare(at(a)) || b.id - a.id)
+      .slice(0, SEARCH_LIMIT);
   return {
-    issues: issues
-      .filter((issue) => has(issue.title))
-      .map(({ id, title }) => ({ id, title })),
-    events: issues
-      .filter((issue) => has(issue.lastEvent.title))
-      .map(({ id, lastEvent }) => ({
-        id: lastEvent.id,
-        title: lastEvent.title,
-        issueId: id,
-      })),
-    articles: looseArticles
-      .filter((article) => has(article.title, article.summary))
-      .map(({ id, title }) => ({ id, title })),
+    issues: newest(
+      issues.filter((issue) => has(issue.title)),
+      (issue) => issue.createdAt,
+    ).map(({ id, title }) => ({ id, title })),
+    events: newest(
+      issues
+        .filter((issue) => has(issue.lastEvent.title))
+        .map(({ id, lastEvent }) => ({ ...lastEvent, issueId: id })),
+      (event) => event.occurredAt,
+    ).map(({ id, title, issueId }) => ({ id, title, issueId })),
+    articles: newest(
+      looseArticles.filter((article) => has(article.title)),
+      (article) => article.publishedAt,
+    ).map(({ id, title }) => ({ id, title })),
   };
 }
 
@@ -992,9 +1001,33 @@ export const handlers = [
       );
     return HttpResponse.json({ items } satisfies ItemList<InterestIssueItem>);
   }),
-  http.get("/api/v1/search", ({ request }) =>
-    HttpResponse.json(search(new URL(request.url).searchParams.get("q") ?? "")),
-  ),
+  // A13 — 검색어는 앞뒤 공백을 지우고 1 ~ 50자. 아니면 400 과 errors[q] (docs/api-screen.md A13)
+  http.get("/api/v1/search", ({ request }) => {
+    const word = (new URL(request.url).searchParams.get("q") ?? "")
+      .trim()
+      .normalize("NFC");
+    const reason =
+      word === ""
+        ? "검색어를 입력해 주세요"
+        : word.length > 50
+          ? "검색어는 50자까지예요"
+          : null;
+    if (reason) {
+      return HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "Bad Request",
+          status: 400,
+          detail: `q: ${reason}`,
+          instance: "/api/v1/search",
+          code: "VALIDATION_FAILED",
+          errors: [{ field: "q", reason }],
+        },
+        { status: 400 },
+      );
+    }
+    return HttpResponse.json(search(word));
+  }),
   http.get("/api/v1/dictionary", ({ request }) =>
     HttpResponse.json(lookUp(new URL(request.url).searchParams.get("q") ?? "")),
   ),
