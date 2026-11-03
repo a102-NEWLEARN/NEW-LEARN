@@ -10,6 +10,7 @@ sources:
   - '{project-root}/docs/api.md'
   - '{project-root}/docs/api-screen.md'
   - '{project-root}/docs/prototype/NEW-LEARN 프로토타입 v21.html'
+  - '{project-root}/docs/prototype/NEW-LEARN 모바일 v1.html'
   - imports/newlearn-design-system-v2/Foundations/
   - imports/newlearn-design-system-v2/components/
 ---
