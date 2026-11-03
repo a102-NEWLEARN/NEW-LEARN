@@ -5,6 +5,10 @@ import type { Category } from "@/api/categories";
 import type { DictionaryItem, DictionaryResult } from "@/api/dictionary";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
+import type {
+  InterestIssueItem,
+  InterestIssueState,
+} from "@/api/interestIssues";
 import type { IssueSummary } from "@/api/issues";
 import type { Member, SignUpRequest } from "@/api/members";
 import type { BranchType, Mindmap, MindmapBranch } from "@/api/mindmap";
@@ -189,6 +193,13 @@ function timelineOf(
 
 // A2 — 분야마다 이슈 개수를 위 issueCount 와 맞췄다. 12번은 docs/api-screen.md A2 예시다.
 // 사건 · 기사 수와 마지막 사건은 A4 사건 목록(timelineOf)에서 센다
+// A25 — 가짜 회원이 관심 이슈로 저장해 둔 이슈와 저장한 시각 (지어낸 것). 북마크(bookmarkedAts)처럼 상태를 기억하지 않아서
+// 저장 · 해제를 해도 그대로다. 이슈 응답(A2 · A3)의 interested 도 이 표를 따른다
+const interestedAts: Record<number, string> = {
+  12: "2026-10-27T08:30:00+09:00",
+  21: "2026-10-25T19:05:00+09:00",
+};
+
 function issue(
   id: number,
   code: string,
@@ -218,6 +229,7 @@ function issue(
       label: last.label,
       occurredAt: last.occurredAt,
     },
+    interested: id in interestedAts,
   };
 }
 
@@ -756,7 +768,8 @@ export const handlers = [
     if (!found) return issueNotFound(`/api/v1/issues/${params.issueId}`);
     const { id, title, summary, eventCount, articleCount, publisherCount } =
       found;
-    const { categories, firstEventAt, lastEventAt, createdAt } = found;
+    const { categories, firstEventAt, lastEventAt, createdAt, interested } =
+      found;
     return HttpResponse.json({
       id,
       title,
@@ -768,6 +781,7 @@ export const handlers = [
       firstEventAt,
       lastEventAt,
       createdAt,
+      interested,
     } satisfies IssueDetail);
   }),
   // A4 — 그 이슈의 사건 전부. 없는 이슈는 404 (docs/api-screen.md A4)
@@ -942,6 +956,41 @@ export const handlers = [
         (a, b) => b.bookmarkedAt.localeCompare(a.bookmarkedAt) || b.id - a.id,
       );
     return HttpResponse.json({ items } satisfies ItemList<BookmarkItem>);
+  }),
+  // A23 · A24 · A25 — 저장은 이미 저장한 이슈면 저장한 시각을 그대로 두고, 없는 이슈면 404. 해제는 이슈를 확인하지 않는다.
+  // 목록은 저장한 시각 최신순(같으면 이슈 id 내림차순) (docs/api-screen.md A23 ~ A25)
+  http.put("/api/v1/members/me/interest-issues/:issueId", ({ params }) => {
+    const issueId = Number(params.issueId);
+    if (!issues.some((item) => item.id === issueId)) {
+      return issueNotFound(
+        `/api/v1/members/me/interest-issues/${params.issueId}`,
+      );
+    }
+    return HttpResponse.json({
+      issueId,
+      interested: true,
+      interestedAt: interestedAts[issueId] ?? kstIso(Date.now()),
+    } satisfies InterestIssueState);
+  }),
+  http.delete("/api/v1/members/me/interest-issues/:issueId", ({ params }) =>
+    HttpResponse.json({
+      issueId: Number(params.issueId),
+      interested: false,
+      interestedAt: null,
+    } satisfies InterestIssueState),
+  ),
+  http.get("/api/v1/members/me/interest-issues", () => {
+    const items = issues
+      .filter((item) => item.id in interestedAts)
+      .map((item) => ({
+        ...item,
+        interested: true,
+        interestedAt: interestedAts[item.id],
+      }))
+      .sort(
+        (a, b) => b.interestedAt.localeCompare(a.interestedAt) || b.id - a.id,
+      );
+    return HttpResponse.json({ items } satisfies ItemList<InterestIssueItem>);
   }),
   http.get("/api/v1/search", ({ request }) =>
     HttpResponse.json(search(new URL(request.url).searchParams.get("q") ?? "")),

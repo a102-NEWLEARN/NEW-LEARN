@@ -22,6 +22,7 @@ const issue: IssueSummary = {
     label: "인력 수급 우려",
     occurredAt: "2026-10-09T08:41:00+09:00",
   },
+  interested: false,
 };
 
 // 최근 사건 날짜는 올해인지에 따라 연도를 붙인다. Date 만 고정한다

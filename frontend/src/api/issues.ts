@@ -15,6 +15,8 @@ export type IssueSummary = {
   lastEventAt: string;
   createdAt: string;
   lastEvent: { id: number; title: string; label: string; occurredAt: string };
+  /** 로그인한 회원이 관심 이슈로 저장했나 — 별을 채울지. 손님이면 false */
+  interested: boolean;
 };
 
 export type IssuesParams = {

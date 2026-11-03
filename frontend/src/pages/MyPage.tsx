@@ -4,14 +4,15 @@ import { useNavigate } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { logout } from "@/api/auth";
 import { meQuery } from "@/api/members";
+import { InterestIssues } from "@/components/mypage/InterestIssues";
 import { InterestSettings } from "@/components/mypage/InterestSettings";
 import { errorDescription } from "@/components/state/ErrorState";
 import { QueryState } from "@/components/state/QueryState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { useSnackbar } from "@/components/useSnackbar";
 
-// 마이페이지 — 관심 분야 바꾸기 · 이름 · 아이디 보기와 로그아웃 (EXPERIENCE.md Information Architecture, 프로토타입 v21 MyPageScreen).
-// 관심 이슈(S15P31A102-68)는 그 티켓에서 붙인다
+// 마이페이지 — 관심 이슈 · 관심 분야 바꾸기 · 이름 · 아이디 보기와 로그아웃
+// (EXPERIENCE.md Information Architecture, 프로토타입 v21 MyPageScreen)
 export function MyPage() {
   usePageTitle("마이페이지");
   const me = useQuery(meQuery);
@@ -56,8 +57,9 @@ export function MyPage() {
           {member ? `${member.name}님` : "마이페이지"}
         </h1>
       </div>
-      {/* 관심 분야 · 개인정보 · 로그아웃 — 섹션마다 위에 줄을 긋는다 */}
-      <div className="mt-x5">
+      {/* 관심 이슈 · 관심 분야 · 개인정보 · 로그아웃 — 관심 이슈 밑부터 섹션마다 위에 줄을 긋는다 */}
+      <div className="mt-x5 border-t border-stroke-neutral-weak">
+        <InterestIssues />
         {member && <InterestSettings member={member} />}
         <section
           aria-labelledby="mypage-info"
