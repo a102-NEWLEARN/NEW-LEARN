@@ -1,4 +1,4 @@
-# 경보 여섯 — Mattermost 「A102 배포알림」 채널로 간다 (2026-10-30 사용자, Jira S15P31A102-138, 계획 docs/plans/2026-10-30-alertmanager-mattermost.md)
+# 경보 일곱 — Mattermost 「A102 배포알림」 채널로 간다 (2026-10-30 사용자, Jira S15P31A102-138, 계획 docs/plans/2026-10-30-alertmanager-mattermost.md)
 # notify: mattermost 이름표가 있어야 채널로 간다 — 받는 길은 infra/k8s/bootstrap/monitoring-values.yaml 의 alertmanager.config
 #   차트 기본 경보 규칙은 이 이름표가 없어 채널로 안 간다(평가만)
 # release: kps 이름표가 있어야 Prometheus 가 이 규칙을 읽는다(ruleSelector, 2026-10-30 확인)
@@ -104,3 +104,31 @@ spec:
           annotations:
             summary: 'DB 백업 {{ $labels.cronjob }} 의 마지막 성공이 {{ $value | humanizeDuration }} 전이다 (값이 1s 면 지표가 없음)'
             description: "kubectl -n data get jobs · logs job/<이름>. 손으로 돌리는 법은 infra/server/db-backup.md"
+        # 뉴스 수집(Jira S15P31A102-154, infra/k8s/services/ingest) — 멈춘 동안(suspend)은 보지 않는다
+        # 「마지막 성공이 오래됨」만 보면 안 된다 — 손으로 돌린 잡(create job --from)도 성공 시각을 바꿔서(2026-11-03 주간 S3 백업에서 확인),
+        #   멈춘 동안 손으로 받기만 돌린 뒤 켜면 첫 예약 전에 울린다. 손으로 돌려도 안 바뀌는 예약 시각과 견준다
+        # ① 마지막 예약 뒤 2시간이 지나도 그 뒤 성공이 없음 — 성공 기록이 아예 없어도(그 줄이 없어도) 울리게 unless 로 쓴다
+        #   2시간은 시작 마감(startingDeadlineSeconds 1시간) + 실행 상한(activeDeadlineSeconds 15분)보다 길게
+        #   두 시각 비교는 on 없이 — on 을 쓰면 kube-state-metrics Pod 가 바뀌는 동안 같은 줄이 둘이 되어 평가 오류가 난다
+        # ② 예약 실행이 13시간 넘게 없음(시각을 놓침) — 00 · 12시 두 번 기준이라 schedule 을 바꾸면 같이 고친다
+        # 한계: 오래 멈췄다 다시 켜면 첫 예약 전까지 ②가 울릴 수 있다. 켰는데 예약이 한 번도 안 생기면(예약 시각 줄이 없으면) 안 울린다
+        - alert: NewlearnIngestMissing
+          expr: |
+            (
+              (
+                time() - kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"} > 2 * 3600
+                unless on (namespace, cronjob)
+                (kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"} >= kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"})
+              )
+              or
+              time() - kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"} > 13 * 3600
+            )
+            and on (namespace, cronjob)
+            kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"} == 0
+          for: 10m
+          labels:
+            notify: mattermost
+            severity: warning
+          annotations:
+            summary: '뉴스 수집 {{ $labels.cronjob }} — 마지막 예약 실행이 {{ $value | humanizeDuration }} 전인데 그 뒤 성공이 없거나 다음 예약 실행이 없다'
+            description: "kubectl -n app get jobs · kubectl -n app logs job/<이름>. 볼 것 · 멈추는 법은 infra/server/ingest.md 「경보가 오면」"
