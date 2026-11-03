@@ -47,7 +47,7 @@ SKIP_CATEGORIES = frozenset({"entertainment", "sports"})
 PUB_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 KST = timezone(timedelta(hours=9))  # 서머타임이 없어 고정 오프셋 — slim 이미지에 시간대 자료가 없어도 된다
 REPORTER_MAX = 200  # B2 의 reporter 상한
-# 하루 7,000건(팀장 공지 2026-11-03) · archive 한 구간(UTC 3일 약 420요청)이 들어가게
+# 하루 7,000건(팀장 공지 2026-11-03) · archive 한 구간(UTC 이틀 약 280요청, ingest.md)이 여유 있게 들어가게
 MAX_ARTICLES_CEILING = 20000
 MAX_REQUESTS_CEILING = 500
 INTERVAL_CEILING = 60
@@ -213,6 +213,8 @@ def parse_archive(environ, source):
             stamps.append(datetime.strptime(value, PUB_DATE_FORMAT if " " in value else "%Y-%m-%d"))
         except ValueError as err:
             raise ConfigError(f"{name} 가 없는 시각이다 (지금: {value!r})") from err
+    if " " not in raw[1]:
+        stamps[1] += timedelta(days=1, seconds=-1)  # 끝을 날짜로만 주면 그날 끝까지로 견준다
     if stamps[0] > stamps[1]:
         raise ConfigError(f"INGEST_ARCHIVE_FROM 이 INGEST_ARCHIVE_TO 보다 늦다 (지금: {raw})")
     return raw[0], raw[1]
@@ -332,8 +334,12 @@ class Run:
                 return kept if self.requests else None
             self.requests += 1
             if status in (401, 403):
-                # 키가 틀렸거나 막혔다(구독이 끝난 뒤도) — 다시 해도 같다
-                raise AuthError(f"NewsData → {status} {self.short(body)}")
+                # 키가 틀렸거나 막혔다(구독이 끝난 뒤도) — 다시 해도 같다. 받은 쪽이 있으면 그것은 넣고 종료 2
+                if self.requests == 1:
+                    raise AuthError(f"NewsData → {status} {self.short(body)}")
+                self.log({"msg": "NewsData 출입증 오류 — 받은 데까지 넣고 멈춘다", "status": status, "body": self.short(body)})
+                self.stopped_by = "newsdata_auth"
+                return kept
             data = _json(body)
             if status != 200 or not isinstance(data, dict) or data.get("status") != "success" or not isinstance(data.get("results"), list):
                 self.log({"msg": "NewsData 실패", "status": status, "body": self.short(body)})
@@ -522,6 +528,8 @@ def run(environ, send, log, now, sleep):
     if job.stopped_by in CAPPED:
         # 다음 쪽이 남았다 — 받은 데까지는 넣었다. 다시 돌아도 같은 상한이라 2(다시 시도 없음 → 경보)
         log({"msg": "상한에 닿아 멈춤 — 빠진 구간이 있다", "stoppedBy": job.stopped_by})
+        return 2
+    if job.stopped_by == "newsdata_auth":
         return 2
     if job.stopped_by == "newsdata_error":
         return 1

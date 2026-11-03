@@ -31,7 +31,7 @@ spec:
               containerName: ingest
               operator: In
               values: [2]
-      # 하루치(요청 약 210 + B2 7천 건 안팎)와 손 실행 archive 한 구간(요청 약 420 × 쉬기 3초)이 들어가는 시간. 요청마다 20초 상한은 스크립트에.
+      # 하루치(요청 약 210 + B2 7천 건 안팎)가 넉넉히 들어가는 시간. 손 실행 archive 는 2시간으로 올려 띄운다(ingest.md). 요청마다 20초 상한은 스크립트에.
       # 넘기면 다시 돌지 않고 실패한다. 경보 ①(3시간)은 시작 마감 1시간 + 이 값보다 길어야 한다
       activeDeadlineSeconds: 3600
       template:
@@ -95,7 +95,7 @@ spec:
                 requests:
                   cpu: 20m
                   memory: 64Mi
-                # 기사는 거른 자리에서 B2 요청 모양만 남긴다 — 하루 1만 건 · archive 한 구간 약 2만 건이 들어가게
+                # 기사는 거른 자리에서 B2 요청 모양만 남긴다 — 하루 1만 건 · archive 한 구간(UTC 이틀) 약 1만 4천 건이 들어가게
                 limits:
                   memory: 512Mi
               securityContext:

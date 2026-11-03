@@ -752,6 +752,12 @@ class Archive(unittest.TestCase):
         query = net.newsdata_query()[1]
         self.assertEqual((query["from_date"], query["to_date"]), ("2026-10-28 15:00:00", "2026-11-02 14:59:59"))
 
+    def test_date_only_to_means_end_of_that_day(self):
+        # 끝을 날짜로만 주면 그날 끝까지로 견준다 — 같은 날 낮부터 그날까지는 거꾸로가 아니다
+        net = FakeNet([page([item(1)])])
+        code, _, _ = run(self.archive_env(INGEST_ARCHIVE_FROM="2026-10-30 12:00:00", INGEST_ARCHIVE_TO="2026-10-30"), net)
+        self.assertEqual(code, 0)
+
     def test_bad_archive_config_exits_2(self):
         bad = [
             self.archive_env(INGEST_ARCHIVE_FROM=None),
@@ -875,6 +881,16 @@ class StopReasons(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertEqual(len(net.b2_calls()), 2)
                 self.assertEqual(summary(lines)["stoppedBy"], "newsdata_error")
+
+    def test_later_newsdata_auth_error_loads_what_came_then_exits_2(self):
+        # 둘째 쪽에서 키를 안 받음(구독 · 크레딧이 끝남 등) — 받은 쪽은 넣고, 다시 해도 같으니 2
+        for status in (401, 403):
+            with self.subTest(status=status):
+                net = FakeNet([page([item(1), item(2)], "n1"), (status, {"status": "error"})])
+                code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(len(net.b2_calls()), 2)
+                self.assertEqual(summary(lines)["stoppedBy"], "newsdata_auth")
 
     def test_first_newsdata_failure_sends_nothing(self):
         net = FakeNet([(500, {"status": "error"})])
