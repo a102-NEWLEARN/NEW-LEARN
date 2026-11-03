@@ -1,6 +1,6 @@
 import { IconXmarkLine } from "@karrotmarket/react-monochrome-icon";
 import { BottomSheet } from "@seed-design/react";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { EventPanel } from "@/components/issue/EventPanel";
 import { useElementSize } from "@/components/issue/useElementSize";
 import { useShell } from "@/components/shell/useShell";
@@ -30,16 +30,6 @@ export function EventDetailPane({
 }: EventDetailPaneProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // 넓은 화면 패널의 폭을 셸에 알린다 — 용어사전 버튼이 그만큼 비킨다. 420px 이지만 좁아지면 max-w 50% 로 줄어서 잰다.
-  // 패널이 빠지면 0. 좁은 화면 시트는 딤으로 덮어서 재지 않는다(0)
-  const asideRef = useRef<HTMLElement>(null);
-  const { width } = useElementSize(asideRef);
-  const shell = useShell();
-  useEffect(() => {
-    shell?.setRightPanelWidth(width);
-    return () => shell?.setRightPanelWidth(0);
-  }, [shell, width]);
 
   // 열면 포커스를 패널 제목으로 (Accessibility Floor). 이전 · 다음으로 사건만 바꿀 때는 그대로 둔다
   useEffect(() => {
@@ -108,11 +98,7 @@ export function EventDetailPane({
     );
 
   return (
-    <aside
-      ref={asideRef}
-      aria-label="사건 상세"
-      className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
-    >
+    <WidePanel>
       <button
         type="button"
         aria-label="상세 패널 닫기"
@@ -128,6 +114,29 @@ export function EventDetailPane({
       >
         {panel}
       </div>
+    </WidePanel>
+  );
+}
+
+// 넓은 화면 패널 — 폭을 재서 셸에 알린다. 용어사전 버튼이 그만큼 비킨다. 420px 이지만 좁아지면 max-w 50% 로 줄어서 잰다.
+// 패널과 함께 생기고 사라지게 따로 둔다 — 이슈 화면은 시트와 패널을 같은 자리에 그려서 화면 폭이 바뀌어도
+// EventDetailPane 이 그대로 남아, 거기서 재면 나중에 나타난 패널을 못 잰다. 사라지면 0 으로 돌린다
+function WidePanel({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const { width } = useElementSize(ref);
+  const shell = useShell();
+  useEffect(() => {
+    shell?.setRightPanelWidth(width);
+    return () => shell?.setRightPanelWidth(0);
+  }, [shell, width]);
+
+  return (
+    <aside
+      ref={ref}
+      aria-label="사건 상세"
+      className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
+    >
+      {children}
     </aside>
   );
 }
