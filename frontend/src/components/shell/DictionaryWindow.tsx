@@ -46,8 +46,10 @@ function failureMessage(error: unknown) {
   return errorDescription(error);
 }
 
-// 사전은 띄어 써도 되는 자리에 ^ 를 남긴다(「구원^투수」). 화면에는 띄어 쓴다
-const headword = (word: string) => word.replace(/\^/g, " ");
+// 사전은 띄어 써도 되는 자리를 ^, 낱말이 붙은 자리를 - 로 적는다(「구원^투수」 · 「이-자」). 화면에는 ^ 를 띄어 쓰고
+// 글자 사이의 - 는 지운다. 맨 앞 · 맨 끝의 - 는 접사 · 어미 · 어간이라는 표시라 남긴다(「-자」 · 「먹-」)
+const headword = (word: string) =>
+  word.replace(/\^/g, " ").replace(/(?<=[^\s-])-(?=[^\s-])/g, "");
 
 type DictionaryWindowProps = {
   /** 오른쪽에 붙은 패널의 폭(px). 그만큼 왼쪽으로 비킨다 (EXPERIENCE.md 앱 셸 「용어사전 버튼」) */

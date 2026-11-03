@@ -136,6 +136,32 @@ test("품사가 없으면 품사를 빼고, 표제어의 ^ 는 띄어 쓴다", a
   expect(within(item).queryByText("명사")).toBeNull();
 });
 
+test("표제어 글자 사이의 - 는 지우고, 접사 · 어미를 뜻하는 맨 앞 · 맨 끝의 - 는 남긴다", async () => {
+  // 사전은 낱말이 붙은 자리를 - 로 적는다(「이-자」, 2026-11-03 사이트에서 확인)
+  server.use(
+    http.get(PATH, () =>
+      HttpResponse.json({
+        query: "이자",
+        items: [
+          { word: "이-자", pos: "대명사", definition: "이 사람." },
+          { word: "-자", pos: "접사", definition: "뒤에 붙는 말." },
+          { word: "먹-", pos: "동사", definition: "어간." },
+        ],
+        source: "국립국어원 표준국어대사전",
+      }),
+    ),
+  );
+  renderWithProviders(<DictionaryWindow />);
+  openWindow();
+
+  ask("이자");
+
+  const words = within(await meanings("이자"))
+    .getAllByRole("listitem")
+    .map((item) => item.querySelector("strong")?.textContent);
+  expect(words).toEqual(["이자", "-자", "먹-"]);
+});
+
 test("결과가 없으면 그 말의 뜻을 찾지 못했다고 알린다", async () => {
   renderWithProviders(<DictionaryWindow />);
   openWindow();
