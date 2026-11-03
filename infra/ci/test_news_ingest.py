@@ -468,9 +468,12 @@ class Flow(unittest.TestCase):
 
     def test_auth_error_on_b1_stops_with_exit_2(self):
         net = FakeNet([page([item(1), item(2)])], b1=lambda aid, n: (403, {"code": "FORBIDDEN"}))
-        code, _, _ = run(env(), net)
+        code, lines, _ = run(env(), net)
         self.assertEqual(code, 2)
         self.assertEqual(len(net.b1_calls()), 1)
+        # 그때 걸던 기사 1 은 B2 는 됐으니 번호가 남아야 한다
+        self.assertTrue(any(line.get("msg") == "B1 실패" and line.get("articleId") == 1 for line in lines))
+        self.assertEqual(summary(lines)["b1"]["failed"], 1)
 
     def test_none_reached_b1_exits_1(self):
         net = FakeNet([page([item(1), item(2)])], b2=lambda article: (500, {"code": "INTERNAL_ERROR"}))
