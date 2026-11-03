@@ -119,10 +119,10 @@ MR 2 — 덤프 가이드라인 (Jira 152, MR 1 다음)
 
 ## 작업 순서
 
-- [ ] 승인 뒤 작업 폴더 `C:/tmp/wt-156`(origin/infra 에서 `feat/infra/S15P31A102-156-ingest-load-only`), 계획 파일 이름 바꿔 커밋 — `git log -1`
-- [ ] 시험 먼저: 넣기만 · timeframe · 날짜 거르기 · archive · 쉬기 · `article_id` 중복 · 질의 검사 · 천장 · 중간 실패 — 지금 코드에서 빨간 것 확인
-- [ ] 스크립트 고치기 → 시험 초록, 고친 것을 하나씩 되돌려 해당 시험이 단언에서 빨개지는지
-- [ ] CronJob · 경보(시험 25시간 먼저 빨강 → 규칙) · `kubectl kustomize` · `set env --local` 시험
+- [x] 승인 뒤 작업 폴더 `C:/tmp/wt-156`(origin/infra 에서 `feat/infra/S15P31A102-156-ingest-load-only`), 계획 파일 이름 바꿔 커밋 — `git log -1`(5893bde)
+- [x] 시험 먼저: 넣기만 · timeframe · 날짜 거르기 · archive · 쉬기 · `article_id` 중복 · 질의 검사 · 천장 · 중간 실패 — 지금 코드에서 빨간 것 확인(시험 83 중 실패 41 · 오류 27)
+- [x] 스크립트 고치기 → 시험 초록, 고친 것을 하나씩 되돌려 해당 시험이 단언에서 빨개지는지 — 13가지 모두 빨강(처음엔 「상한을 범위 밖보다 먼저」가 초록이라 시험 기사 순서를 고침), 7d027bd
+- [x] CronJob · 경보(시험 25시간 먼저 빨강 → 규칙) · `kubectl kustomize` · `set env --local` 시험 — 옛 규칙에서 실패 넷, 손 실행 두 벌 env 를 스크립트 설정 검사에 넣어 통과, 7276d02
 - [ ] 문서(`ingest.md` · `api-internal.md` · `SSOT.md`) → infra 게이트 → reviewer 조수 MR 리뷰 → MR → infra → dev(11시 뒤) → backend · ai 맞추기
 - [ ] 사이트 확인(Argo CD `ingest` Synced, CronJob `suspend=false` · 다음 예약 11-05 10:00) → 사용자 손 실행: 11/3 받기만 1번 → 11/3 넣기만 → 로그 `수집 결과`
 - [ ] MR 2 가이드라인 → reviewer 조수 → MR → infra → dev → 맞추기, Jira 152 다시 열고 설명 고침
