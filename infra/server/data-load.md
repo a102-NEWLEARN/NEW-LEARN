@@ -102,7 +102,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 
 | 검사 | 기준 |
 |---|---|
-| 판 | 목록표의 Flyway 판 = 운영 판. 그리고 덤프의 `COPY` 칸 목록이 운영 표 칸(`information_schema.columns`)과 똑같다 — 칸이 많으면 `COPY` 가 실패하지만, 낡은 판이라 칸이 적으면 `COPY` 는 통과하고 빠진 칸이 조용히 빈다(V5 전 덤프면 `primary_core_index` 가 모두 비어 모든 기사가 「사건 없음」) |
+| 판 | 목록표의 Flyway 판 = 운영 판. 그리고 덤프의 `COPY` 칸 목록이 운영 표 칸(`information_schema.columns`)과 똑같다 — 이 대조만은 트랜잭션 **앞에** 따로 한다(`load` 표는 운영 표를 `LIKE` 로 본떠 늘 같게 보인다): 6절 5단계에서 풀린 SQL 의 `COPY public.<표> (…)` 줄을 운영 칸 목록과 견준다. 칸이 많으면 `COPY` 가 실패하지만, 낡은 판이라 칸이 적으면 `COPY` 는 통과하고 빠진 칸이 조용히 빈다(V5 전 덤프면 `primary_core_index` 가 모두 비어 모든 기사가 「사건 없음」) |
 | 행 수 | 표마다 목록표와 같다 |
 | 작업 행 | `QUEUED` 0, `retry_at` 이 있는 `FAILED` 0 |
 | 공개 기사 | `released_at` 이 찼는데 마인드맵이나 EXTRACT `SUCCEEDED` 행이 없는 기사 0 |
