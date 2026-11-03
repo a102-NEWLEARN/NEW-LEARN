@@ -33,6 +33,20 @@
 | AC | 9개 | 목록 개수 · 항목 길이 · 빈 항목, `reporter` 빈 값 → null, `sourceTags` 없음 → null, 기본 키 충돌 500 더함 | 계획이 정한 규칙을 시험으로 |
 | 시험 문맥 | — | `@TestPropertySource` 키 값을 `ArticleReleaseIntegrationTest` 와 같게 | Spring 문맥을 다시 써 CI 공용 DB 연결을 늘리지 않음 |
 
+## MR 전 리뷰에서 바뀐 것 (reviewer 조수 2026-11-03, 「통과」 · 선택 반영)
+
+| 무엇 | 전 | 지금 | 근거 |
+|---|---|---|---|
+| B1 다시 걸기 설명 | 「적재 뒤 B1 이 실패한 기사가 다음 실행에서 다시 걸린다」 | 같은 기사를 다시 받을 때만. 실행 안에서 다시 걸지는 154 가 정한다 | 최신 기사만 받아 대개 다시 오지 않음 |
+| 언론사 등록 로그 | 트랜잭션 안에서 | 커밋 뒤 | 같은 URL 충돌로 되돌아가면 없는 언론사를 「등록했다」고 남김 |
+| 대표 카테고리 동률 | 계획 · 스펙 · 코드에만 | `docs/data-model.md` 2절 category_mapping `priority` 칸에도 | 대응 행을 더하고 다시 계산할 때 쓰는 진실 문서 |
+| 시험 원본 분류 | 실제 값 `top` · `business` | `ingest153-` 시험 값 | 대응 행이 나중에 생겨도 AC-1 이 엉뚱하게 깨지지 않게 |
+| AC-5 경우 | — | `url` · `pressName` 공백, 태그 항목 101자 더함 | 같은 꼴이지만 빠짐없이 |
+| URL 설명 | 「호스트가 비지 않았다」 | 「`http://` · `https://` 뒤에 한 글자 이상」, 500 행에 DB 색인 상한(약 2,700바이트) | 정규식은 `https://@` 도 통과. 2048자 한글은 색인 상한을 넘음 |
+| 낡은 말 | `PressMapping` 주석 · data-model 4절 끝 「수집 티켓(Jira 34)」 | B2 · 사람이 SQL 로 묶기 | B2 뒤 틀린 말 |
+| `SSOT.md` 8절 줄 | 「누가」 · 「관련」 칸도 바꾸고 「B2 로 정했다」를 더함 | 「적재하는 길」만 지움(계획대로) | 정한 사실을 「못 정한 것」 표에 다시 적지 않기 |
+| SSOT 가리키기 | 8절 「스포츠 · 연예 제외」 | 9절 2026-10-20 「카테고리 7개 → 5개」 | 8절 그 말은 처리 상한 칸의 괄호 문구 |
+
 ## B2 약속 — 구현 · 명세의 기준
 
 `POST /internal/v1/articles`, 배치 출입증(`X-Internal-Key`, 역할 BATCH). 본문은 기사 하나다. 지금은 NewsData 기사만 받는다(소스가 늘면 `source` 칸을 더한다).
@@ -90,7 +104,7 @@
 
 `C:/tmp/wt-153` worktree, 브랜치 `feat/backend/S15P31A102-153-article-ingest-api`(`origin/backend` 에서).
 
-- [ ] 계획 커밋 — `docs(backend): …` 
+- [x] 계획 커밋 — `docs(backend): …` 
 - [ ] 시험을 먼저 쓰고 빨강 확인(컨트롤러 · DTO 뼈대만 둔 상태에서 단언으로). 구현 → 초록 → 고친 곳을 하나씩 되돌려 그 시험이 단언에서 빨개지는지 — 충돌 잡기(동시 요청 시험) · 다시 찾아 없으면 다시 던지기(기본 키 충돌 시험) · URL 모양 · U+0000 · 언론사 등록 · 대표 카테고리. 커밋 게이트가 빨간 커밋을 막으니 시험과 구현은 한 커밋, 빨강 결과는 MR 본문에 — `feat(backend): …`
 - [ ] 문서 커밋 — `docs(backend): …`
 - [ ] reviewer 조수 → 반영 커밋 → MR(feat → backend) → 파이프라인 success → 머지 직전 원격 SHA 를 같은 스크립트에서 GitLab API 로 읽고 머지 → MR(backend → dev, 제목은 같은 방향으로 머지된 MR 을 읽고 따른다) → 머지 → 분야 브랜치 맞추기
@@ -110,6 +124,7 @@
 - `ingest_run` — 쓰지 않는다(지우지도 않는다)
 - URL 정규화 · 언론사 묶기(대응 행 바꾸기) · 이미 있는 기사 고치기
 - 수집 배치 · CronJob · 정책 · 경보(154), 키 봉인(155), `SSOT.md` 6절 「수집 배치를 만들면 backend · PostgreSQL 길을 더한다」 줄(154 가 고친다)
+- infra 주석 둘 — `infra/server/seal-secrets.sh` · `infra/k8s/services/app/backend.yaml` 의 「배치 키는 B1 만」(구현 중 찾음). backend MR 에 infra 파일을 섞지 않고 154 에서 고친다
 - Swagger 문서 — 내부 API 는 `springdoc.paths-to-exclude` 로 빠진다
 
 ## 리스크
