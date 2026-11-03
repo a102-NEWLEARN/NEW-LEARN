@@ -2,7 +2,7 @@
 # 비밀값을 봉인해 저장소에 넣을 SealedSecret 파일을 만든다 — EC2 에서, sudo 없이, 터미널에서 (값을 물어본다)
 # 평문은 화면 · 파일 · 명령 인자(ps)에 남기지 않는다. 남는 것은 ~/sealed/ 의 봉인 파일뿐이다 (컨트롤러만 풀 수 있다)
 #
-# 쓰는 법 — 언제 · 어디서 돌리나는 infra/server/README.md (gms 는 ai-worker.md, pg-backup-s3 는 infra/README.md)
+# 쓰는 법 — 언제 · 어디서 돌리나는 infra/server/README.md (gms 는 ai-worker.md, pg-backup-s3 는 infra/README.md, newsdata 는 ingest.md)
 #   bash infra/server/seal-secrets.sh basic-auth    관리 화면(/argocd · /grafana) 팝업 계정 하나 → argocd · monitoring 두 곳
 #   bash infra/server/seal-secrets.sh db            PostgreSQL 계정 — 비밀번호는 무작위로 만든다(묻지 않음) → data · app 두 곳
 #   bash infra/server/seal-secrets.sh ghcr          워커가 GHCR 비공개 이미지를 받을 읽기 토큰 → app · ai 두 곳
@@ -13,6 +13,7 @@
 #   bash infra/server/seal-secrets.sh gms           AI 워커가 SSAFY GMS 를 부를 키 — 봉인 전에 그 키로 GMS 를 불러 본다 → ai
 #   bash infra/server/seal-secrets.sh internal-api  직원용 문(/internal/v1) 출입증 — 워커 · 배치 키를 무작위로 만든다(묻지 않음) → app 에 둘 · ai 에 워커 키
 #   bash infra/server/seal-secrets.sh stdict        용어사전(A19)이 표준국어대사전을 부를 키 — 봉인 전에 그 키로 「나무」를 찾아본다 → app
+#   bash infra/server/seal-secrets.sh newsdata      수집 배치가 NewsData 최신 기사를 받을 키 — 봉인 전에 그 키로 최신 기사 요청 하나(크레딧 1 안팎) → app
 # 만든 파일은 관리자 PC 로 가져와 저장소의 자리에 넣고 커밋한다 (봉인 파일은 저장소에 둬도 된다)
 #   ssh <EC2> 'cat ~/sealed/sealed-basic-auth-argocd.yaml' > infra/k8s/admin-ui/sealed-basic-auth-argocd.yaml
 # 봉인은 Secret 이름 · 네임스페이스에 묶인다(strict). 다른 이름 · 네임스페이스로 옮기면 못 푼다
@@ -21,7 +22,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,15p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,16p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -217,7 +218,7 @@ case "${1:-}" in
     echo "관리자 PC 로 가져와 infra/k8s/services/ai/sealed-gms-api.yaml 로"
     ;;
   internal-api)
-    # 직원용 문(/internal/v1) 출입증 — backend 는 X-Internal-Key 머리를 두 키와 비교한다. 워커 키는 W1(분석 결과), 배치 키는 B1(기사 넣기)만 연다 (docs/api-internal.md)
+    # 직원용 문(/internal/v1) 출입증 — backend 는 X-Internal-Key 머리를 두 키와 비교한다. 워커 키는 W1(분석 결과), 배치 키는 B2 · B1(기사 적재 · 분석 걸기)만 연다 (docs/api-internal.md)
     # 봉인 파일이 있으면 건너뛴다 — 한쪽만 새로 만들면 backend 와 워커의 키가 어긋난다. 바꿀 때는 두 파일을 지우고 돌려 둘 다 커밋한다
     files=("$OUT/sealed-internal-api-app.yaml" "$OUT/sealed-internal-api-ai.yaml")
     if [ -e "${files[0]}" ] || [ -e "${files[1]}" ]; then
@@ -270,6 +271,37 @@ case "${1:-}" in
     echo "관리자 PC 로 가져와 infra/k8s/services/app/sealed-stdict-api.yaml 로 (kustomization.yaml 의 resources 에도 한 줄)"
     # env 는 컨테이너가 뜰 때만 읽는다 — 봉인 파일만 넣는 MR 은 Pod 를 바꾸지 않는다
     echo "Secret 이 풀린 뒤: kubectl -n app rollout restart deploy/backend"
+    ;;
+  newsdata)
+    need_tty
+    # 수집 배치(CronJob news-ingest)가 NewsData 최신 기사를 받을 키 — 그 CronJob 의 NEWSDATA_API_KEY 가 이 이름 · 키를 읽는다 (infra/server/ingest.md, Jira 155)
+    # 키는 팀장 계정으로 결제한 Basic 구독의 것(SSOT.md 5절)
+    read -rsp "NewsData 키 (화면에 안 보인다): " key
+    echo
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    [[ "$key" =~ ^[A-Za-z0-9_-]{16,}$ ]] || { unset key; echo "❌ 키 모양이 아니다 — 영문 · 숫자 · _ · - 로 16자 이상" >&2; exit 2; }
+    # 봉인하기 전에 이 키로 수집 배치와 같은 최신 기사 요청을 하나 보낸다(크레딧 1 안팎) — 질의는 news_ingest.py 의 NEWSDATA_QUERY 와 같게(바꾸면 같이)
+    # 키가 주소의 쿼리에 실려서 curl 설정(url 한 줄)을 표준 입력으로 넘긴다(ps 에 안 보임). 본문(기사 수십 건)은 찍지 않는다
+    resp="$(printf 'url = "https://newsdata.io/api/1/latest?apikey=%s&country=kr&language=ko"\n' "$key" \
+      | curl -s -w '\n%{http_code}' --max-time 20 -K - || true)"
+    code="${resp##*$'\n'}"
+    body="${resp%$'\n'*}"
+    if [ "$code" = 200 ] && [[ "$body" == *'"status":"success"'* ]]; then
+      total=""
+      [[ "$body" =~ \"totalResults\":([0-9]+) ]] && total="${BASH_REMATCH[1]}"
+      echo "NewsData 키 확인 — 최신 기사 요청 통과 (HTTP 200, totalResults ${total:-?})"
+    else
+      # 오류 본문에 키가 섞여 와도 화면에 남지 않게 가린 뒤 자른다 — 거꾸로 하면 자르는 자리에 걸친 키의 앞부분이 남는다
+      msg="${body//"$key"/***}"
+      msg="$(printf '%s' "$msg" | tr -d '\n' | cut -c1-200)"
+      unset key resp body
+      echo "❌ 이 키로 최신 기사를 받지 못했다 (HTTP $code) — 봉인하지 않는다: $msg" >&2
+      exit 1
+    fi
+    printf '%s' "$key" | seal newsdata-api app NEWSDATA_API_KEY "$OUT/sealed-newsdata-api.yaml"
+    unset key resp body
+    echo "관리자 PC 로 가져와 infra/k8s/services/ingest/sealed-newsdata-api.yaml 로 (kustomization.yaml 의 resources 에 이미 있다)"
+    # CronJob 의 Pod 는 실행마다 새로 떠 env 를 그때 읽는다 — 다시 띄울 것이 없다
     ;;
   *)
     usage
