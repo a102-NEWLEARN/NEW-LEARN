@@ -10,7 +10,7 @@ import {
 } from "@/api/categories";
 import { type IssueSummary, issuesQuery } from "@/api/issues";
 import { QueryState } from "@/components/state/QueryState";
-import { useSnackbar } from "@/components/useSnackbar";
+import { useUpcomingCategory } from "@/components/useSnackbar";
 
 // 한 분야에서 불러올 이슈 수. 사이드바는 쪽을 넘기지 않는다 (A2 size 상한 100)
 const ISSUES_PER_CATEGORY = 50;
@@ -26,13 +26,13 @@ export type IssueExplorerProps = {
 
 // 사이드바 이슈 탐색 — 분야 → 연도 → 이슈 (EXPERIENCE.md 앱 셸, PRD FR-3).
 // 펼친 분야는 셸이 기억한다 — 사이드바를 접거나 서랍을 닫았다 열어도 그대로다.
-// 사건까지 내려가는 칸은 이슈 화면(S15P31A102-50)이 생길 때 붙인다
+// 사건까지 내려가는 칸은 아직 없다 — 이슈마다 A4 타임라인을 불러 붙인다
 export function IssueExplorer({
   openCode,
   onOpenCodeChange,
 }: IssueExplorerProps) {
   const categories = useQuery(categoriesQuery);
-  const snackbar = useSnackbar();
+  const notifyUpcoming = useUpcomingCategory();
 
   return (
     <QueryState
@@ -61,9 +61,7 @@ export function IssueExplorer({
               <button
                 type="button"
                 className={`${rowClass} text-fg-neutral-muted`}
-                onClick={() =>
-                  snackbar.show(`${category.name}는 준비 중이에요`)
-                }
+                onClick={() => notifyUpcoming(category.name)}
               >
                 <span className="truncate pl-x5">{category.name}</span>
                 <span className="t1-medium ml-auto shrink-0 text-fg-neutral-muted">
@@ -146,7 +144,6 @@ function CategoryIssues({ category }: { category: Category }) {
                   const to = `/issues/${issue.id}`;
                   return (
                     <li key={issue.id}>
-                      {/* /issues/:id 는 S15P31A102-50 에서 생긴다. 그전에는 찾을 수 없음 화면이 뜬다 */}
                       <Link
                         to={to}
                         aria-current={pathname === to ? "page" : undefined}
