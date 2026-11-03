@@ -6,11 +6,13 @@ NewsData · backend 는 가짜 보내기 함수로 대신한다. 견본 기사�
 표준 라이브러리만 쓴다: python3 -B -m unittest discover -s infra/ci
 """
 
+import http.server
 import importlib.util
 import io
 import json
 import pathlib
 import re
+import threading
 import unittest
 import urllib.error
 from collections import Counter
@@ -232,6 +234,22 @@ class Secrets(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertNotIn(KEY, text)
 
+    def test_masked_url_in_error_body_keeps_line_json(self):
+        # 오류 본문의 주소가 apikey=… 로 끝나고 바로 따옴표가 오면, 가릴 때 JSON 의 \" 까지 먹어 줄이 깨지면 안 된다
+        body = b'{"status":"error","results":{"message":"bad","url":"https://newsdata.io/api/1/latest?country=kr&apikey=zzz"}}'
+        net = FakeNet([(500, body)])
+        code, lines, text = run(env(), net)  # run() 이 줄마다 json.loads 한다
+        self.assertEqual(code, 1)
+        self.assertIn("apikey=***", text)
+
+    def test_key_with_json_escaped_chars_is_masked(self):
+        # JSON 으로 적으며 모양이 바뀌는 글자(따옴표)가 든 키도 가린다
+        odd = 'ab"cd-0123456789xyz'
+        net = FakeNet([ValueError(f"뜻밖의 오류 {odd}")])
+        _, _, text = run(env(NEWSDATA_API_KEY=odd), net)
+        self.assertNotIn(odd, text)
+        self.assertNotIn(json.dumps(odd)[1:-1], text)  # 로그에 실제로 적히는 모양(ab\"cd…)
+
     def test_key_cut_at_body_limit_is_still_masked(self):
         # 본문을 자르는 자리에 키가 걸쳐도 앞부분이 남으면 안 된다 — 가린 뒤 자른다
         for filler in range(280, 300):
@@ -262,6 +280,49 @@ class Secrets(unittest.TestCase):
         self.assertEqual(net.b2_calls()[0][2]["Content-Type"], "application/json")
         self.assertEqual(net.b1_calls()[0][2]["X-Internal-Key"], BATCH_KEY)
         self.assertEqual(net.b1_calls()[0][3], b"")  # B1 은 본문 없이
+
+
+class NoRedirect(unittest.TestCase):
+    """urllib 은 3xx 를 따라가며 X-Internal-Key 를 새 주소로도 옮긴다 — 따라가지 않고 3xx 를 그대로 돌려줘야 한다"""
+
+    def test_redirect_is_not_followed(self):
+        hits = []
+
+        class Target(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                hits.append(self.headers.get("X-Internal-Key"))
+                self.send_response(200)
+                self.end_headers()
+
+            do_GET = do_POST
+
+            def log_message(self, *args):
+                pass
+
+        target = http.server.HTTPServer(("127.0.0.1", 0), Target)
+
+        class Mover(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{target.server_port}/steal")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        mover = http.server.HTTPServer(("127.0.0.1", 0), Mover)
+        for server in (target, mover):
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            status, _ = news_ingest.urllib_send("POST", f"http://127.0.0.1:{mover.server_port}/internal/v1/articles", {"X-Internal-Key": BATCH_KEY}, b"{}")
+        finally:
+            for server in (target, mover):
+                server.shutdown()
+                server.server_close()
+        self.assertEqual(status, 302)
+        self.assertEqual(hits, [])
 
 
 class Limits(unittest.TestCase):
@@ -455,6 +516,46 @@ class Flow(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(summary(lines)["b2"]["failed"], 1)
         self.assertEqual(net.b1_calls(), [])
+
+    def test_backend_down_keeps_pending_article_ids(self):
+        # 기사 2 는 B2 는 됐는데 B1 이 503 → 끝에 다시 걸 목록에 있다가, 뒤 기사들의 B2 가 이어서 끊겨 멈춤 — 번호가 로그에 남아야 한다
+        def b2(article):
+            if article["url"].endswith("/2"):
+                return (201, {"articleId": 102, "created": True})
+            raise TimeoutError("timed out")
+
+        net = FakeNet([page([item(i) for i in range(1, 6)])], b2=b2, b1=lambda aid, n: (503, b""))
+        code, lines, _ = run(env(), net)
+        self.assertEqual(code, 1)
+        self.assertTrue(any(line.get("msg") == "B1 실패" and line.get("articleId") == 102 for line in lines))
+        self.assertEqual(summary(lines)["b1"]["failed"], 1)
+
+    def test_backend_down_during_retry_logs_the_rest(self):
+        # 다섯 모두 B1 첫 시도 503, 다시 걸 때는 연결 거부 → 세 번째에서 멈춰도 다섯 번호가 모두 남아야 한다
+        def b1(aid, n):
+            if n == 1:
+                return (503, b"")
+            raise ConnectionRefusedError("refused")
+
+        net = FakeNet([page([item(i) for i in range(1, 6)])], b1=b1)
+        code, lines, _ = run(env(), net)
+        self.assertEqual(code, 1)
+        logged = sorted(line["articleId"] for line in lines if line.get("msg") == "B1 실패")
+        self.assertEqual(logged, [1, 2, 3, 4, 5])
+        self.assertEqual(summary(lines)["b1"]["failed"], 5)
+
+    def test_scattered_connection_failures_do_not_stop(self):
+        # 이어서가 아니라 띄엄띄엄 끊기면 멈추지 않는다 — 사이에 답이 오면 센 수가 0 으로
+        def b2(article):
+            if int(article["url"].rsplit("/", 1)[1]) % 2:
+                raise TimeoutError("timed out")
+            return (201, {"articleId": int(article["url"].rsplit("/", 1)[1]), "created": True})
+
+        net = FakeNet([page([item(i) for i in range(1, 8)])], b2=b2)
+        code, lines, _ = run(env(), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.b2_calls()), 7)
+        self.assertEqual(summary(lines)["b2"]["failed"], 4)
 
     def test_backend_unreachable_stops_early_with_summary(self):
         # 정책 실수로 패킷이 버려지면 요청마다 시간 초과다 — 이어서 3번이면 멈춰 시간 상한 전에 결과 줄을 남긴다
