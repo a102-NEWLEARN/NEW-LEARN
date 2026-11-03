@@ -41,7 +41,7 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 나머지는 공통 처리기가 한다(`common/error/GlobalExceptionHandler`): 스프링이 내는 오류에 상태 이름 코드 붙이기, 입력 오류의 `errors[]`, 예상 못 한 오류를 500 `INTERNAL_ERROR` 로 바꾸고 원인은 로그에만 남기기. Tomcat 이 쿼리 인자를 못 읽은 오류(`InvalidParameterException` — UTF-8 이 아닌 퍼센트 인코딩 등)는 Tomcat 이 준 상태(보통 400)와 `VALIDATION_FAILED` 로 바꾼다(2026-10-30). 상태가 4xx · 5xx 가 아니면 400(2026-11-02)
 - 아직 막지 않은 구멍
   - 필터 단계에서 터진 오류는 스프링 기본 `/error` 응답으로 가서 `code` 가 없다
-  - 본문 시각을 숫자(epoch)로 보내면 받아들인다. 지금 시각을 받는 API 는 내부 W1 뿐이다
+  - 본문 시각을 숫자(epoch)로 보내면 받아들인다. 지금 시각을 받는 API 는 내부 W1 · B2 뿐이다
 
 ## 5. 보안
 
@@ -50,7 +50,7 @@ API 의 모양(주소 · 오류 코드 · 시간 · 목록)은 `docs/api.md`, �
 - 로그인은 세션(Redis, 하루)이고 CSRF 는 번호표 쿠키(`csrf.spa()`)다(`docs/api.md` 1절 「인증」, Jira 62). 세션을 여닫는 일은 `auth/LoginSessions` 한 곳이 한다 — 세션 ID 새로 내기 · 번호표 새로 주기가 거기 있다
 - 로그인한 회원은 컨트롤러 인자 `@AuthenticationPrincipal MemberPrincipal me` 로 받는다(`common/security/MemberPrincipal` — `id` · `loginId` · `name`). 로그인이 필요한 주소면 손님은 `SecurityConfig` 가 먼저 401 로 막는다. 로그인 없이 여는 주소에서는 `me` 가 null 일 수 있다
 - POST · PUT · DELETE 테스트에는 `.with(TestCsrf.csrfToken())` 을 넣는다(번호표 쿠키 + 같은 값의 헤더). spring-security-test 의 `.with(csrf())` 는 쓰지 않는다 — 공용 CSRF 필터의 저장소를 세션용으로 바꿔 놓아 뒤에 도는 테스트가 엉뚱하게 깨진다(2026-10-26)
-- 직원용 문(`/internal/**` — W1 · B1)은 체인이 따로다(`common/security/InternalApiSecurityConfig`, Jira 30). 세션 · CSRF 번호표 없이 `X-Internal-Key` 출입증으로만 연다 — 워커 키는 `/internal/v1/analysis-jobs/**`, 배치 키는 `/internal/v1/articles/**`. 새 직원용 주소는 `InternalApiSecurityConfig` 의 규칙과 `SecurityRulesTest` 를 같은 MR 에서 고친다(규칙에 없는 주소는 어느 키로도 403). 테스트는 `newlearn.internal.worker-key` · `batch-key` 를 시험 값으로 주고 `.header(InternalKeyFilter.HEADER, 키)` 를 붙인다. `.with(TestCsrf.csrfToken())` 은 붙이지 않는다. 직원용 컨트롤러는 동기로 답한다 — 비동기 응답은 아직 시험하지 않았다
+- 직원용 문(`/internal/**` — W1 · B2 · B1)은 체인이 따로다(`common/security/InternalApiSecurityConfig`, Jira 30). 세션 · CSRF 번호표 없이 `X-Internal-Key` 출입증으로만 연다 — 워커 키는 `/internal/v1/analysis-jobs/**`, 배치 키는 `/internal/v1/articles/**`(B2 의 `/internal/v1/articles` 자체도 덮는다). 새 직원용 주소는 `InternalApiSecurityConfig` 의 규칙과 `SecurityRulesTest` 를 같은 MR 에서 고친다(규칙에 없는 주소는 어느 키로도 403). 테스트는 `newlearn.internal.worker-key` · `batch-key` 를 시험 값으로 주고 `.header(InternalKeyFilter.HEADER, 키)` 를 붙인다. `.with(TestCsrf.csrfToken())` 은 붙이지 않는다. 직원용 컨트롤러는 동기로 답한다 — 비동기 응답은 아직 시험하지 않았다
 - 테스트에서 로그인 상태는 가입 · 로그인 API 를 실제로 불러 받은 `SESSION` 쿠키를 다음 요청에 붙여 만든다. 예시: `MemberAuthApiIntegrationTest` 의 `signUp` · `login` · `sessionCookie`. 쿠키 속성(`HttpOnly` · `Secure` · `Max-Age`)은 MockMvc 가 못 보므로 실제 서버로 띄우는 `SessionCookieHttpTest` 에서 본다
 
 ## 6. 조회 쿼리 · 트랜잭션

@@ -14,7 +14,7 @@
 |---|---|
 | `docs/api.md` (이 문서) | 계약 지도, 공통 규칙, 오류 코드, 엔드포인트 목록과 흐름, 질문, Jira 대조 |
 | `docs/api-screen.md` | 화면용 A1 ~ A9 · A13 ~ A25 의 인자 · 응답 필드(용도 · 어디서 오나) · 예시, 마인드맵 `content` 모양 |
-| `docs/api-internal.md` | 수집 배치 투입(B1) · 작업 큐 · 워커 결과(W1)의 필드, 작업 상태 |
+| `docs/api-internal.md` | 수집 배치 적재(B2) · 투입(B1) · 작업 큐 · 워커 결과(W1)의 필드, 작업 상태 |
 
 번호 A10 · A11 · A12 는 지운 사용자 URL 분석이 쓰던 번호라 비워 둔다. 옛 문서 · Jira 의 번호와 헷갈리지 않게 새 엔드포인트는 A14 부터 붙였다.
 
@@ -24,9 +24,8 @@
 flowchart LR
   FE["화면 (React)"] -- "A1~A9 · A13~A25 · /api/v1" --> API["API 서버 (Spring Boot)"]
   N["NewsData.io"] -- "기사 받기" --> B["수집 배치 (CronJob 하루 두 번)"]
-  B -- "B1 투입 · /internal/v1" --> API
-  B -. "적재 (길 미정)" .-> DB[("PostgreSQL + pgvector")]
-  API -- "조회 · 저장 · 후보 검색" --> DB
+  B -- "B2 적재 · B1 투입 · /internal/v1" --> API
+  API -- "조회 · 저장 · 후보 검색" --> DB[("PostgreSQL + pgvector")]
   API -- "작업 메시지 · 용어 결과 캐시 · 로그인 세션" --> R[("Redis")]
   R -- "그룹 extract · embed · match_event · issue" --> W["AI 워커 (FastAPI)"]
   W -- "W1 결과 · /internal/v1" --> API
@@ -52,7 +51,7 @@ flowchart LR
 | 없는 값 | 필드를 빼지 않고 `null` 로 보낸다 |
 | 공개 전 기사 | `released_at` 이 빈 기사(`data-model.md` 2절)는 모든 조회 · 집계 · 검색에서 없는 것으로 본다. 단건 조회도 404 다. 투입(B1)했어도 EXTRACT 결과가 처음 저장되기 전까지는 공개 전이다(2026-10-26, Jira 34) |
 | 오류 | RFC 9457 Problem Details(`application/problem+json`) + `code`. Spring 의 `ProblemDetail` 타입을 쓴다. 컨트롤러 예외는 `@RestControllerAdvice`, 인증 · 권한 오류는 Security 진입점에서 같은 모양으로 만든다 — 그래야 모든 오류에 `code` 가 붙는다 |
-| 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) · 북마크 · 관심 이슈(A20 ~ A25)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 번호표 쿠키가 없는 요청이면 어느 응답에든 새 번호표 쿠키가 붙는다 — 화면은 앱이 뜰 때 부르는 GET(A1 · A17 등) 응답으로 첫 번호표를 받고, 가입 · 로그인 · 로그아웃 때 번호표가 새로 바뀐다. 세션 쿠키 이름은 `SESSION`(`HttpOnly`)이고 로그인한 때부터 하루 남는다(쿠키 `Max-Age` 1일 · Redis 세션 비활동 만료 1일) — 브라우저를 닫아도 하루는 로그인이 남는다. 두 쿠키 모두 `SameSite=Lax` 이고 사이트에서는 `Secure` 다(2026-10-26 Jira 62). 어느 주소를 로그인 없이 여는지는 `backend` 의 `SecurityConfig` 한 곳에 있다(Jira 100). Swagger 화면(`/swagger-ui.html`)과 OpenAPI 문서(`/v3/api-docs`)도 개발하는 동안 로그인 없이 연다 — 코드에서 만든 사본이라 계약의 원본은 이 문서다. 내부 API 는 문서에서도 뺀다. 다시 잠글지는 `SSOT.md` 8절(Jira 107). 로그인 실패 잠금(5번 틀리면 1분)은 `api-screen.md` A15. 내부 API(`/internal/v1`)는 세션 · CSRF 번호표 없이 출입증 두 장으로 연다 — 워커 키는 W1, 배치 키는 B1 만 열고, `X-Internal-Key` 헤더로 보낸다. 출입증이 없거나 틀리면 401, 남의 문 출입증이면 403 이다. 키는 env `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` 로 받는다 — 사이트는 봉인 Secret `internal-api` 를 Jira 30 의 Infra 작업에서 넣고, 넣기 전에는 비어 모두 막힌다(2026-10-26 Jira 30, `backend` 의 `InternalApiSecurityConfig`). 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전은 입구(Envoy)가 손님 IP 마다 1분 100 · 300 · 100건으로 막는다(가입 · 로그인은 처음 10 · 20, 2026-10-30 Jira 137) — 넘으면 429 `RATE_LIMITED`(2절, `SSOT.md` 6절 「외부 입구」, 2026-10-29 Jira 135) |
+| 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) · 북마크 · 관심 이슈(A20 ~ A25)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 번호표 쿠키가 없는 요청이면 어느 응답에든 새 번호표 쿠키가 붙는다 — 화면은 앱이 뜰 때 부르는 GET(A1 · A17 등) 응답으로 첫 번호표를 받고, 가입 · 로그인 · 로그아웃 때 번호표가 새로 바뀐다. 세션 쿠키 이름은 `SESSION`(`HttpOnly`)이고 로그인한 때부터 하루 남는다(쿠키 `Max-Age` 1일 · Redis 세션 비활동 만료 1일) — 브라우저를 닫아도 하루는 로그인이 남는다. 두 쿠키 모두 `SameSite=Lax` 이고 사이트에서는 `Secure` 다(2026-10-26 Jira 62). 어느 주소를 로그인 없이 여는지는 `backend` 의 `SecurityConfig` 한 곳에 있다(Jira 100). Swagger 화면(`/swagger-ui.html`)과 OpenAPI 문서(`/v3/api-docs`)도 개발하는 동안 로그인 없이 연다 — 코드에서 만든 사본이라 계약의 원본은 이 문서다. 내부 API 는 문서에서도 뺀다. 다시 잠글지는 `SSOT.md` 8절(Jira 107). 로그인 실패 잠금(5번 틀리면 1분)은 `api-screen.md` A15. 내부 API(`/internal/v1`)는 세션 · CSRF 번호표 없이 출입증 두 장으로 연다 — 워커 키는 W1, 배치 키는 B2 · B1 만 열고(2026-11-03 Jira 153), `X-Internal-Key` 헤더로 보낸다. 출입증이 없거나 틀리면 401, 남의 문 출입증이면 403 이다. 키는 env `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` 로 받는다 — 사이트는 봉인 Secret `internal-api` 를 Jira 30 의 Infra 작업에서 넣고, 넣기 전에는 비어 모두 막힌다(2026-10-26 Jira 30, `backend` 의 `InternalApiSecurityConfig`). 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전은 입구(Envoy)가 손님 IP 마다 1분 100 · 300 · 100건으로 막는다(가입 · 로그인은 처음 10 · 20, 2026-10-30 Jira 137) — 넘으면 429 `RATE_LIMITED`(2절, `SSOT.md` 6절 「외부 입구」, 2026-10-29 Jira 135) |
 | 내 상태 칸 | 기사 응답(A6 · A7 · A8 · A22)의 `bookmarked`, 이슈 응답(A2 · A3 · A25)의 `interested` 는 세션 회원 기준이고 손님이면 false 다(2026-10-26 Jira 114). 같은 주소라도 로그인 여부로 응답이 다르다. 응답을 캐시하게 되면 회원 공통 부분만 캐시하고 두 칸은 캐시 밖에서 덧씌운다 |
 
 목록 응답
@@ -178,7 +177,8 @@ flowchart LR
   M --> MS["/me/bookmarks — A20 · A21 담기 · 빼기 · A22 나의 뉴스함<br/>/me/interest-issues — A23 · A24 저장 · 해제 · A25 목록"]
   R --> AU["/auth — A15 로그인 · A16 로그아웃"]
   R --> D["/dictionary — A19 용어사전"]
-  R2["/internal/v1 (배치 · 워커만)"] --> B1["/articles/{articleId}/release — B1 투입"]
+  R2["/internal/v1 (배치 · 워커만)"] --> B2["/articles — B2 적재"]
+  R2 --> B1["/articles/{articleId}/release — B1 투입"]
   R2 --> W1["/analysis-jobs/{jobId}/result — W1 결과 전달"]
 ```
 
@@ -206,6 +206,7 @@ flowchart LR
 | A23 | `PUT /api/v1/members/me/interest-issues/{issueId}` | 관심 이슈 저장 — 이슈 이름 옆 별표 (F12, Jira 64) |
 | A24 | `DELETE /api/v1/members/me/interest-issues/{issueId}` | 관심 이슈 해제 (F12, Jira 64) |
 | A25 | `GET /api/v1/members/me/interest-issues` | 마이페이지 관심 이슈 — 저장한 이슈 전부, 최근 저장 순 (F12, Jira 64) |
+| B2 | `POST /internal/v1/articles` | 수집 배치의 기사 적재 — `docs/api-internal.md` (F01 뉴스 데이터 적재·조회, Jira 153) |
 | B1 | `POST /internal/v1/articles/{articleId}/release` | 수집 배치의 기사 투입 — `docs/api-internal.md` |
 | W1 | `POST /internal/v1/analysis-jobs/{jobId}/result` | 워커의 분석 결과 전달 — `docs/api-internal.md` |
 
@@ -279,6 +280,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 64 | A23 · A24 · A25 (관심 이슈 저장 · 해제 · 목록), A2 · A3 의 `interested` | 같음. 표 `interest_issue`. 「지난 방문 이후 새 사건」은 보류 |
 | 102 | A19 용어사전 | 2026-10-29 구현 · 사이트 반영(`docs/specs/F13-dictionary-api.md`). 키는 봉인 Secret `stdict-api`(SSOT 5절) |
 | 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 보류(다시 열 때 새 티켓) |
+| 153 | B2 적재 | 2026-11-03 구현(`docs/specs/F01-article-ingest-api.md`). 같은 URL 이면 그 기사 id, 처음 보는 언론사는 `source_id` 로 등록. 수집 배치(Jira 154)가 B2 → B1 순서로 부른다 |
 | 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | 2026-10-26 구현(`docs/specs/F03-F07-analysis-job-queue.md`) |
 | 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | 2026-10-27 구현(`docs/specs/F06-event-match.md`) |
 | 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현 · 사이트 반영(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |

@@ -6,7 +6,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-// 언론사 명부. 처음 보는 언론사는 수집할 때 행을 새로 만든다 (data-model.md 2절, 코드 짓는 규칙은 5절 15번)
+// 언론사 명부. 처음 보는 언론사는 B2 적재가 행을 새로 만든다 — 코드는 NewsData source_id (data-model.md 2절, Jira 153)
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
