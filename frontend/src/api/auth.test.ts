@@ -65,15 +65,25 @@ test("로그아웃하면 204 를 받고 아무것도 돌려주지 않는다", as
   await expect(logout()).resolves.toBeUndefined();
 });
 
-test("세션 없이 로그아웃하면 401 UNAUTHORIZED 를 던진다", async () => {
+test("세션이 이미 없으면(401) 로그아웃한 것으로 보고 던지지 않는다", async () => {
   server.use(
     http.post("/api/v1/auth/logout", () =>
       problem(401, "UNAUTHORIZED", "/api/v1/auth/logout"),
     ),
   );
 
+  await expect(logout()).resolves.toBeUndefined();
+});
+
+test("CSRF 번호표가 없거나 틀리면(403) 세션이 남았을 수 있어 던진다", async () => {
+  server.use(
+    http.post("/api/v1/auth/logout", () =>
+      problem(403, "FORBIDDEN", "/api/v1/auth/logout"),
+    ),
+  );
+
   await expect(logout()).rejects.toMatchObject({
-    status: 401,
-    code: "UNAUTHORIZED",
+    status: 403,
+    code: "FORBIDDEN",
   });
 });

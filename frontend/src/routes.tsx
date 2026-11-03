@@ -6,6 +6,7 @@ import { HomePage } from "@/pages/HomePage";
 import { IssuePage } from "@/pages/IssuePage";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { MyPage } from "@/pages/MyPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorPage } from "@/pages/RouteErrorPage";
 
@@ -35,6 +36,7 @@ export const routes: RouteObject[] = [
     { path: "/home", element: <HomePage /> },
     { path: "/issues/:issueId", element: <IssuePage /> },
     { path: "/articles/:articleId", element: <ArticlePage /> },
+    { path: "/me", element: <MyPage /> },
     // 그 밖의 주소
     { path: "*", element: <NotFoundPage /> },
   ]),
