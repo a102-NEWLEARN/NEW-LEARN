@@ -5,6 +5,8 @@ import { server } from "@/mocks/node";
 
 // A15 로그인 · A16 로그아웃 (docs/api-screen.md A15 · A16)
 
+const account = { loginId: "newlearn01", password: "password1" }; // secret-scan:allow — 시험용 값
+
 function problem(status: number, code: string, instance: string) {
   return HttpResponse.json(
     { type: "about:blank", title: code, status, detail: code, instance, code },
@@ -13,7 +15,7 @@ function problem(status: number, code: string, instance: string) {
 }
 
 test("로그인하면 회원 정보를 받는다", async () => {
-  const member = await login({ loginId: "newlearn01", password: "password1" });
+  const member = await login(account);
 
   expect(member).toMatchObject({ id: 7, loginId: "newlearn01" });
 });
@@ -32,9 +34,9 @@ test("로그인은 아이디 · 비밀번호를 본문으로 보낸다", async (
     }),
   );
 
-  await login({ loginId: "newlearn01", password: "password1" });
+  await login(account);
 
-  expect(body).toEqual({ loginId: "newlearn01", password: "password1" });
+  expect(body).toEqual(account);
 });
 
 test("아이디가 없거나 비밀번호가 틀리면 401 LOGIN_FAILED 를 던진다", async () => {
@@ -44,9 +46,10 @@ test("아이디가 없거나 비밀번호가 틀리면 401 LOGIN_FAILED 를 던�
     ),
   );
 
-  await expect(
-    login({ loginId: "newlearn01", password: "wrong" }),
-  ).rejects.toMatchObject({ status: 401, code: "LOGIN_FAILED" });
+  await expect(login({ ...account, password: "wrong" })).rejects.toMatchObject({
+    status: 401,
+    code: "LOGIN_FAILED",
+  });
 });
 
 test("잠긴 아이디는 429 TOO_MANY_REQUESTS 를 던진다", async () => {
@@ -56,9 +59,10 @@ test("잠긴 아이디는 429 TOO_MANY_REQUESTS 를 던진다", async () => {
     ),
   );
 
-  await expect(
-    login({ loginId: "newlearn01", password: "password1" }),
-  ).rejects.toMatchObject({ status: 429, code: "TOO_MANY_REQUESTS" });
+  await expect(login(account)).rejects.toMatchObject({
+    status: 429,
+    code: "TOO_MANY_REQUESTS",
+  });
 });
 
 test("로그아웃하면 204 를 받고 아무것도 돌려주지 않는다", async () => {
