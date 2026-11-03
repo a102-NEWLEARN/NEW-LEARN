@@ -200,13 +200,20 @@ const interestedAts: Record<number, string> = {
   21: "2026-10-25T19:05:00+09:00",
 };
 
+// 가짜 이슈는 모두 사건이 있어서 기간 · 최근 사건이 늘 있다. A2 의 null(사건 0개 이슈)은 테스트가 따로 준다
+type MockIssue = IssueSummary & {
+  firstEventAt: string;
+  lastEventAt: string;
+  lastEvent: NonNullable<IssueSummary["lastEvent"]>;
+};
+
 function issue(
   id: number,
   code: string,
   title: string,
   firstEventAt: string,
   lastEventAt: string,
-): IssueSummary {
+): MockIssue {
   const category = categories.find((item) => item.code === code)!;
   const events = timelineOf(id, title, firstEventAt, lastEventAt);
   const last = events[events.length - 1];
@@ -233,7 +240,7 @@ function issue(
   };
 }
 
-const issues: IssueSummary[] = [
+const issues: MockIssue[] = [
   issue(
     21,
     "politics",

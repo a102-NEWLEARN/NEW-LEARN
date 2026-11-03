@@ -5,6 +5,12 @@ import { IssueCard } from "@/components/IssueCard";
 import { renderWithProviders } from "@/test/render";
 
 // docs/api-screen.md A2 예시
+const lastEvent = {
+  id: 98,
+  title: "텍사스 공장 엔지니어 수급 우려 보도",
+  label: "인력 수급 우려",
+  occurredAt: "2026-10-09T08:41:00+09:00",
+};
 const issue: IssueSummary = {
   id: 12,
   title: "한빛반도체 미국 공장 건설",
@@ -16,12 +22,7 @@ const issue: IssueSummary = {
   firstEventAt: "2026-08-04T00:00:00+09:00",
   lastEventAt: "2026-10-09T08:41:00+09:00",
   createdAt: "2026-08-21T12:30:00+09:00",
-  lastEvent: {
-    id: 98,
-    title: "텍사스 공장 엔지니어 수급 우려 보도",
-    label: "인력 수급 우려",
-    occurredAt: "2026-10-09T08:41:00+09:00",
-  },
+  lastEvent,
   interested: false,
 };
 
@@ -57,7 +58,7 @@ test("최근 사건이 올해가 아니면 연도를 붙인다", () => {
       issue={{
         ...issue,
         lastEvent: {
-          ...issue.lastEvent,
+          ...lastEvent,
           occurredAt: "2025-12-01T10:00:00+09:00",
         },
       }}
@@ -65,6 +66,26 @@ test("최근 사건이 올해가 아니면 연도를 붙인다", () => {
   );
 
   expect(screen.getByText("최근 사건 · 2025.12.01")).toBeDefined();
+});
+
+test("사건이 없는 이슈는 최근 사건 줄을 두지 않는다 (A2 기간 · lastEvent 가 null)", () => {
+  renderWithProviders(
+    <IssueCard
+      issue={{
+        ...issue,
+        eventCount: 0,
+        articleCount: 0,
+        publisherCount: 0,
+        firstEventAt: null,
+        lastEventAt: null,
+        lastEvent: null,
+      }}
+    />,
+  );
+
+  const link = screen.getByRole("link");
+  expect(link.textContent).toContain("한빛반도체 미국 공장 건설");
+  expect(link.textContent).not.toContain("최근 사건");
 });
 
 test("분야가 여럿이면 모두 적는다", () => {
