@@ -2,8 +2,8 @@
 # 로컬 개발은 이 파일을 쓰지 않는다 — compose.yaml 이 폴더를 연결해 vite 개발 서버를 띄운다
 # 이미지는 digest 로 고정한다. 태그는 사람이 읽으라고 남긴다
 
-# 1단계 — 빌드. CI 의 w12:frontend 와 같은 이미지다 (Node 26.12.0)
-FROM node:26-trixie@sha256:1b84b89ada025e3b14543cbb837ffaa1c1b5273b841c5b94dd1a8f9c1d8cf7fe AS build
+# 1단계 — 빌드. CI 의 w12:frontend 와 같은 이미지다 (Node 26.12.1 — Node2Shell 보안 판, Jira S15P31A102-158)
+FROM node:26.12.1-trixie@sha256:97fa0f1b59035c6072721a88d55be1371c7cb1cc942b521e1cc5c72ec87655f4 AS build
 WORKDIR /src
 # 잠금 파일이 그대로면 설치 층을 다시 쓴다
 COPY package.json package-lock.json .npmrc ./
