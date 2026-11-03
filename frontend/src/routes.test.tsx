@@ -171,7 +171,9 @@ test("다른 화면으로 가면 포커스를 본문 맨 위 제목으로 옮긴
 
 test("같은 화면에서 ?category= 만 바뀌면 포커스를 옮기지 않는다", async () => {
   const { router } = renderRoute("/home");
-  const tab = await screen.findByRole("tab", { name: "국제" });
+  // 추천 이슈의 분야 탭. 최신 기사에도 분야 탭이 있다
+  const tabs = await screen.findByRole("tablist", { name: "분야" });
+  const tab = within(tabs).getByRole("tab", { name: "국제" });
 
   act(() => tab.focus());
   fireEvent.click(tab);
