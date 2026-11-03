@@ -18,6 +18,8 @@ type InterestChipsProps = {
   onKeepOne: () => void;
   /** 칩 묶음 아래에 띄울 오류 */
   error?: string;
+  /** 바깥 제목의 id. 주면 「관심 분야 · 여러 개 고를 수 있어요」 줄을 두지 않고 그 제목을 묶음 이름으로 쓴다 (마이페이지) */
+  labelledBy?: string;
   /** 오류가 났을 때 부모가 포커스를 옮길 곳 — 칩 묶음 */
   ref?: Ref<HTMLDivElement>;
 };
@@ -33,9 +35,10 @@ export function InterestChips({
   onValueChange,
   onKeepOne,
   error,
+  labelledBy,
   ref,
 }: InterestChipsProps) {
-  const labelId = useId();
+  const ownLabelId = useId();
   const errorId = useId();
   const categories = useQuery(categoriesQuery);
   const notifyUpcoming = useUpcomingCategory();
@@ -55,18 +58,20 @@ export function InterestChips({
       ref={ref}
       tabIndex={-1}
       role="group"
-      aria-labelledby={labelId}
+      aria-labelledby={labelledBy ?? ownLabelId}
       aria-describedby={error ? errorId : undefined}
       className="flex flex-col gap-x2_5 outline-none"
     >
-      <div className="flex items-baseline gap-x2">
-        <span id={labelId} className="t4-bold text-fg-neutral">
-          관심 분야
-        </span>
-        <span className="t3-regular text-fg-neutral-muted">
-          여러 개 고를 수 있어요
-        </span>
-      </div>
+      {!labelledBy && (
+        <div className="flex items-baseline gap-x2">
+          <span id={ownLabelId} className="t4-bold text-fg-neutral">
+            관심 분야
+          </span>
+          <span className="t3-regular text-fg-neutral-muted">
+            여러 개 고를 수 있어요
+          </span>
+        </div>
+      )}
       <QueryState
         query={categories}
         loadingLabel="분야 불러오는 중"

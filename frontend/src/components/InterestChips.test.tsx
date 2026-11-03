@@ -100,3 +100,20 @@ test("오류가 있으면 칩 묶음 아래에 띄우고 묶음 설명으로 잇
   const message = screen.getByText("관심 분야를 1개 이상 골라 주세요.");
   expect(group.getAttribute("aria-describedby")).toBe(message.id);
 });
+
+test("바깥 제목을 받으면 제목 줄을 두지 않고 그 제목으로 묶음 이름을 짓는다", () => {
+  renderWithProviders(
+    <>
+      <h2 id="outside">내 관심 분야</h2>
+      <InterestChips
+        value={[]}
+        onValueChange={() => {}}
+        onKeepOne={() => {}}
+        labelledBy="outside"
+      />
+    </>,
+  );
+
+  expect(screen.getByRole("group", { name: "내 관심 분야" })).toBeDefined();
+  expect(screen.queryByText("여러 개 고를 수 있어요")).toBeNull();
+});
