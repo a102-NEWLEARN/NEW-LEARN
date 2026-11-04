@@ -440,6 +440,23 @@ class ArticleIngestIntegrationTest {
         assertThat(categoryFor("v11-unknown", "business", "ingest153-newcat")).isNull();
     }
 
+    // AC-11 대표가 정치로 골린 기사만 제목 규칙으로 국제에 옮긴다 — CategoryMappingMigrationTest 의 V12 와 같은 조합(Jira 171)
+    @Test
+    void foreignPoliticsTitleMovesOnlyArticlesChosenAsPolitics() throws Exception {
+        assertThat(categoryForTitle("v12-foreign", "트럼프, 이란 공습 시사", "politics", "top"))
+                .isEqualTo("world");
+        assertThat(categoryForTitle("v12-domestic", "국민의힘 \"美 관세 대책 내놔라\"", "politics"))
+                .isEqualTo("politics");
+        assertThat(categoryForTitle("v12-not-politics", "뉴욕증시, 美 중간선거에 약세", "politics"))
+                .isEqualTo("politics");
+        assertThat(categoryForTitle("v12-north", "北, 단거리 탄도미사일 발사", "politics")).isEqualTo("politics");
+        assertThat(categoryForTitle("v12-economy", "트럼프 관세에 수입 물가 들썩", "business", "top"))
+                .isEqualTo("economy");
+        assertThat(categoryForTitle("v12-empty", "트럼프, 이란 공습 시사", "top")).isNull();
+        assertThat(categoryForTitle("v12-unknown", "트럼프, 이란 공습 시사", "politics", "ingest153-newcat"))
+                .isNull();
+    }
+
     // AC-9 B2 는 배치 출입증으로만 연다. 워커 출입증은 403, 출입증이 없으면 401. 아무것도 저장하지 않는다
     @Test
     void onlyTheBatchKeyCanIngest() throws Exception {
@@ -513,7 +530,12 @@ class ArticleIngestIntegrationTest {
     }
 
     private String categoryFor(String name, String... sourceCategories) throws Exception {
+        return categoryForTitle(name, "적재 시험 기사", sourceCategories);
+    }
+
+    private String categoryForTitle(String name, String title, String... sourceCategories) throws Exception {
         Map<String, Object> body = body(URL + "category-" + name);
+        body.put("title", title);
         body.put("sourceCategories", List.of(sourceCategories));
         long id = created(b2(body, BATCH_KEY));
         return jdbc.sql("select category_code from article where id = :id")

@@ -116,15 +116,104 @@ class CategoryMappingMigrationTest {
         }
     }
 
+    // V11 까지 올린 DB 에 기사를 넣고 V12 로 올린다 — 정치로 골린 기사 가운데 해외 정치만 국제로 (Jira 171)
+    // 같은 스키마에서 되돌리는 SQL(계획 「되돌리는 법」)이 규칙이 옮긴 기사만 원래 값으로 돌리는지도 본다
+    @Test
+    void v11ToV12MovesForeignPoliticsToWorldAndCanBeUndone() throws Exception {
+        String schema = "category171_" + UUID.randomUUID().toString().replace("-", "");
+        try (var connection = dataSource.getConnection()) {
+            try {
+                Flyway.configure()
+                        .dataSource(dataSource)
+                        .schemas(schema)
+                        .defaultSchema(schema)
+                        .target("11")
+                        .load()
+                        .migrate();
+                connection.setSchema(schema);
+                var db = JdbcClient.create(new SingleConnectionDataSource(connection, true));
+                db.sql("insert into press(code, name) values ('p170', '가람일보')").update();
+                insert(db, 1, "NEWSDATA", "{politics}", "politics", "트럼프, 이란 공습 시사"); // 옮김
+                insert(db, 2, "NEWSDATA", "{top,politics}", "politics", "정부, 독일과 전략 대화"); // 외교도 옮김
+                insert(db, 3, "NEWSDATA", "{politics}", "politics", "국민의힘 \"美 관세 대책 내놔라\""); // 국내 주체
+                insert(db, 4, "NEWSDATA", "{politics}", "politics", "뉴욕증시, 美 중간선거에 약세"); // 정치가 아닌 말
+                insert(db, 5, "NEWSDATA", "{politics}", "politics", "北, 단거리 탄도미사일 발사"); // 북한만
+                insert(db, 6, "NEWSDATA", "{politics}", "politics", "법무장관 후보 압축"); // 낱말 없음
+                insert(db, 7, "NEWSDATA", "{business,top}", "economy", "트럼프 관세에 수입 물가 들썩"); // 경제로 골림
+                insert(db, 8, "SSAFY_2025H1", "{politics}", "politics", "트럼프, 이란 공습 시사"); // 다른 출처
+                insert(db, 9, "NEWSDATA", "{world,politics}", "world", "국회, 트럼프 관세 논의"); // 원래 국제
+                insert(db, 10, "NEWSDATA", "{top}", null, "트럼프, 이란 공습 시사"); // 대표가 빈 기사
+
+                var result = Flyway.configure()
+                        .dataSource(dataSource)
+                        .schemas(schema)
+                        .defaultSchema(schema)
+                        .target("12")
+                        .load()
+                        .migrate();
+
+                assertThat(result.migrationsExecuted).isEqualTo(1);
+                assertThat(categories(db))
+                        .isEqualTo(List.of(
+                                "1:world",
+                                "2:world",
+                                "3:politics",
+                                "4:politics",
+                                "5:politics",
+                                "6:politics",
+                                "7:economy",
+                                "8:politics",
+                                "9:world",
+                                "10:-"));
+
+                db.sql("""
+                        update article set category_code = 'politics'
+                        where source = 'NEWSDATA' and category_code = 'world'
+                          and 'politics' = any(source_categories) and not 'world' = any(source_categories)
+                        """).update();
+
+                assertThat(categories(db))
+                        .isEqualTo(List.of(
+                                "1:politics",
+                                "2:politics",
+                                "3:politics",
+                                "4:politics",
+                                "5:politics",
+                                "6:politics",
+                                "7:economy",
+                                "8:politics",
+                                "9:world",
+                                "10:-"));
+            } finally {
+                connection.setSchema("public");
+                try (var statement = connection.createStatement()) {
+                    statement.execute("drop schema if exists " + schema + " cascade");
+                }
+            }
+        }
+    }
+
+    private static List<String> categories(JdbcClient db) {
+        return db.sql("select id || ':' || coalesce(category_code, '-') from article order by id")
+                .query(String.class)
+                .list();
+    }
+
     private static void insert(JdbcClient db, long id, String source, String categories, String categoryCode) {
+        insert(db, id, source, categories, categoryCode, "제목");
+    }
+
+    private static void insert(
+            JdbcClient db, long id, String source, String categories, String categoryCode, String title) {
         db.sql("""
                         insert into article(id, source, url, press_code, title, body, published_at, category_code,
                                             source_categories, created_at)
-                        values (:id, :source, :url, 'p170', '제목', '본문', now(), :code, cast(:categories as text[]), now())
+                        values (:id, :source, :url, 'p170', :title, '본문', now(), :code, cast(:categories as text[]), now())
                         """)
                 .param("id", id)
                 .param("source", source)
                 .param("url", "https://example.com/category170/" + id)
+                .param("title", title)
                 .param("code", categoryCode)
                 .param("categories", categories)
                 .update();
