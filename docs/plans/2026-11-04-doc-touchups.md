@@ -22,14 +22,15 @@
   - 둘째 칸 체크(!566 → !567 ~ !570, 팀 안내는 Jira 158 11-03 댓글)
   - 셋째 칸 체크(!571 · !572 닫음)
 - `docs/plans/2026-11-04-doc-touchups.md` — 이 계획
+- (158 사후 점검에서 더함) `docs/dev-environment.md` 화면 줄 — 판 줄을 나눠 적고(25 · 26.12.0 까지는 영향 판), 「확인한 버전」을 24.22.1 로, compose `node:26-alpine` 은 `docker compose pull` 이 필요하다고
 
 MR 번호는 GitLab API(`merge_requests?iids[]=…` 의 소스 · 대상 브랜치 · `merged_by`)로 11-04 대조했다.
 
 ## 작업 순서
 
-- [ ] Jira 162 진행 중 → worktree `C:/tmp/wt-162`, 브랜치 `docs/infra/S15P31A102-162-doc-touchups` ← `origin/infra`, 계획 파일 커밋
-- [ ] 대시보드 · stack.md · 계획 셋 고치기 → JSON 파싱 · infra 게이트(stack.md 3절) → 커밋
-- [ ] 158 사후 점검 — reviewer 조수에게 !565 의 바뀐 세 파일(`.gitlab-ci.yml` · `frontend/Dockerfile` · `docs/dev-environment.md`)을 보이고, `/feature-done` 158. 빠진 것이 문서면 이 MR 에 더하고, 코드 · 설정이면 멈추고 묻는다
+- [x] Jira 162 진행 중 → worktree `C:/tmp/wt-162`, 브랜치 `docs/infra/S15P31A102-162-doc-touchups` ← `origin/infra`, 계획 파일 커밋
+- [x] 대시보드 · stack.md · 계획 셋 고치기 → JSON 파싱 · infra 게이트(stack.md 3절) → 커밋
+- [x] 158 사후 점검 — reviewer 조수에게 !565 의 바뀐 세 파일(`.gitlab-ci.yml` · `frontend/Dockerfile` · `docs/dev-environment.md`)을 보이고, `/feature-done` 158. 빠진 것이 문서면 이 MR 에 더하고, 코드 · 설정이면 멈추고 묻는다 — 이미지 · 다이제스트 통과(레지스트리 재확인), `dev-environment.md` 한 줄만 고침
 - [ ] reviewer 조수(이 MR) → MR(→ infra) → 파이프라인 success → 머지 직전 원격 infra · dev SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev 같은 방식 → 분야 브랜치 맞추기(infra · backend · ai, 내용 차이부터. frontend 는 FE 몫)
 - [ ] 대시보드 반영 — 이 폴더는 Argo CD 앱이 아니라 손 `apply -k` 다(`infra/server/README.md` 「모니터링」 6번)
   - Claude 가 머지된 origin/dev 에서 `git archive` 로 폴더만 뽑아 서버 `/tmp/ci-exporter-162` 로 보낸다
@@ -69,4 +70,5 @@ MR 번호는 GitLab API(`merge_requests?iids[]=…` 의 소스 · 대상 브랜�
 - 분야 개수를 stack.md 에 적지 않음(약속 4 — api-screen 이 이미 가짐), 체크칸 근거를 MR 번호 · 달라진 점으로 줄임
 - 대시보드 설명에서 숫자를 빼고, 두 노드를 함께 보는 행의 제목도 고침
 - 리스크에 「`.claude/` 변경 → 영역 전부」를, 반영 절차에 `git archive` · diff 종료 코드 · 권한 검사 대비를 더함
+- 158 사후 리뷰 「고쳐야 함」 1 — `dev-environment.md` 의 「컨테이너는 26.12.1」이 compose(판 고정 없는 `node:26-alpine`)와 다름 → 바꿀 파일에 더함
 - 리뷰가 「MR 번호가 하나씩 밀렸다」고 했지만 GitLab API 로 대조하니 원래 번호가 맞았다(머지 커밋 메시지를 한 칸 밀려 읽은 것) — 번호는 그대로
