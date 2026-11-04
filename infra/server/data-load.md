@@ -31,20 +31,20 @@ flowchart LR
 인프라가 EC2 에서 뽑는다. 한 줄이 기사 하나이고, `id`(운영 번호)를 뺀 나머지가 그대로 B2 요청 본문이다(`docs/api-internal.md` 2절). 만드는 쪽은 각 줄을 자기 로컬 backend 의 B2 로 보내면 운영과 같은 기사 행이 생긴다 — 발행 시각 · 언론사 규칙이 B2 코드 한 곳에서 같다. NewsData 를 두 번 받지 않아 크레딧도 안 든다.
 
 ```bash
-kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -At -c "select json_build_object('id', a.id, 'url', a.url, 'pressSourceId', a.press_code, 'pressName', p.name, 'title', a.title, 'reporter', a.reporter, 'body', a.body, 'publishedAt', to_char(a.published_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), 'sourceCategories', a.source_categories, 'sourceTags', a.source_tags) from article a join press p on p.code = a.press_code where a.source = 'NEWSDATA' and a.released_at is null and a.published_at >= '2026-10-29 00:00+09' and a.published_at < '2026-11-16 00:00+09' order by a.published_at, a.id" > articles-1029-1115.jsonl
+kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -At -c "select json_build_object('id', a.id, 'url', a.url, 'pressSourceId', a.press_code, 'pressName', p.name, 'title', a.title, 'reporter', a.reporter, 'body', a.body, 'publishedAt', to_char(a.published_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), 'sourceCategories', a.source_categories, 'sourceTags', a.source_tags) from article a join press p on p.code = a.press_code where a.source = 'NEWSDATA' and a.released_at is null and a.published_at >= '2026-11-04 00:00+09' and a.published_at < '2026-11-16 00:00+09' order by a.published_at, a.id" > articles-1104-1115.jsonl
 ```
 
 - `COPY` 가 아니라 `psql -At` 로 뽑는다 — `COPY` 텍스트 형식은 JSON 안 역슬래시를 두 번 써 줄이 깨진다
 - 날짜 범위는 넘길 때마다 바꾼다. 줄 수와 sha256 을 같이 넘긴다. 기사 본문이라 저장소 · 팀방에 올리지 않고 공유 드라이브로
 - `pressSourceId` 는 운영 `press.code` 다. B2 가 처음 보는 언론사를 `source_id` 로 등록해 두 값이 같다. 사람이 다르게 묶은 대응이 없는지 뽑기 전에 본다 — `select count(*) from press_mapping where source = 'NEWSDATA' and source_value <> press_code` 가 0
-- 10/21 ~ 28 기반 기사처럼 운영에 없는 기사는 이 목록에 없다 — 만드는 쪽 DB 에 있던 그대로 덤프에 넣으면 적재가 새로 넣는다(3절)
+- 운영에는 **11/4(KST) 기사부터** 있다(수집 배치). 10/21 ~ 11/3 기사는 팀원이 NewsData 로 따로 받아 저장소에 둔다(2026-11-04 팀 결정) — 운영에 없으니 이 목록에도 없고, 만드는 쪽 DB 에 있던 그대로 덤프에 넣으면 적재가 새로 넣는다(3절)
 
 ## 3. 덤프 약속 (만드는 쪽)
 
 ### 만드는 길
 
 - DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — 지금 V10. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
-- 기사는 2절 목록과 기반 기사를 로컬 B2(`POST http://localhost:8080/internal/v1/articles`, 머리 `X-Internal-Key` = 로컬 `.env` 의 `INTERNAL_BATCH_KEY`)로 넣는다. 분석은 로컬 B1(`POST /internal/v1/articles/{id}/release`, 같은 키)으로 걸고 — 이때 작업 행이 생긴다 — 결과는 AI 워커가 **W1 으로** 로컬 backend 에 보내 저장한다. 그래야 마인드맵 `content` 모양(A9 가 이 모양으로 읽는다), 작업 행, `article_event.linked_at`, 이슈가 운영 코드와 같은 모양이 된다. SQL 로 직접 넣은 표가 있으면 무엇을 어떻게 넣었는지 목록표에 적는다
+- 기사는 2절 목록(11/4 부터)과 운영에 없는 기사(10/21 ~ 11/3)를 로컬 B2(`POST http://localhost:8080/internal/v1/articles`, 머리 `X-Internal-Key` = 로컬 `.env` 의 `INTERNAL_BATCH_KEY`)로 넣는다. 분석은 로컬 B1(`POST /internal/v1/articles/{id}/release`, 같은 키)으로 걸고 — 이때 작업 행이 생긴다 — 결과는 AI 워커가 **W1 으로** 로컬 backend 에 보내 저장한다. 그래야 마인드맵 `content` 모양(A9 가 이 모양으로 읽는다), 작업 행, `article_event.linked_at`, 이슈가 운영 코드와 같은 모양이 된다. SQL 로 직접 넣은 표가 있으면 무엇을 어떻게 넣었는지 목록표에 적는다
 - 덤프를 뜨기 전에 5절 검사 가운데 「작업 행」 · 「판정 걸 기사」 · 「공개 기사」 · 「사건에 묶인 기사」를 자기 DB 에 돌려 모두 0 인지 본다 — 견본이 오가는 횟수가 준다
 
 ### 표
