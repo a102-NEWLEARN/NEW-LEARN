@@ -46,10 +46,12 @@ DB · Redis 만 compose 로 띄우고 내 영역은 IDE 나 터미널에서 띄�
 
 | 영역 | 호스트에 필요한 것 | 확인한 버전 |
 |---|---|---|
-| 화면 | Node 24.22.1 이상 또는 26.12.1 이상 (Node2Shell 보안 판, Jira S15P31A102-158 — 도구들의 최소 버전은 24.15) | Node 24.18(보안 판 전) · 컨테이너는 26.12.1 |
+| 화면 | Node 24 줄은 24.22.1 이상, 26 줄은 26.12.1 이상 — 25 와 26.12.0 까지는 Node2Shell 영향 판이다(Jira S15P31A102-158. 도구들의 최소 버전은 24.15) | Node 24.22.1 · 컨테이너는 `node:26-alpine`(판 고정 없음) |
 | API | JDK 21 이상. 컴파일에 쓰는 25 는 Gradle 이 받는다 | JDK 21.0.11 |
 | 워커 | uv. Python 3.14 는 uv 가 받는다 | uv 0.12.5 · 컨테이너는 0.13.1 |
 | 인프라 | Terraform 1.16.6 이상 1.17 미만 (`infra/terraform/versions.tf`). promtool 3.15.0 — 경보 규칙 시험(`infra/ci/alert_rules.sh`), Prometheus 릴리스 파일에 들어 있다 | Terraform 1.16.6 · promtool 3.15.0 |
+
+compose 의 화면 이미지 `node:26-alpine` 은 판을 고정하지 않는다. 예전에 받아 둔 PC 는 `docker compose --profile full pull` 로 새로 받아야 26.12.1 이상이 된다. 화면은 `full` 프로필 안이라 `--profile full` 없이 pull 하면 받지 않고, `up` 은 이미 받아 둔 이미지를 그대로 쓴다.
 
 API 테스트는 Testcontainers 로 DB · Redis 컨테이너를 따로 띄우므로 Docker Desktop 이 켜져 있어야 한다.
 
