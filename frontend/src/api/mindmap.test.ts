@@ -45,3 +45,14 @@ test("없는 기사는 404 ARTICLE_NOT_FOUND 다", async () => {
     code: "ARTICLE_NOT_FOUND",
   });
 });
+
+// 마인드맵 · 용어사전 시연용 — 어려운 경제 용어가 많은 기사 409 (Jira 166)
+test("어려운 기사 409 는 가지 넷 모두 잎이 두 개 이상이다", async () => {
+  const mindmap = await fetchMindmap(409);
+
+  expect(mindmap.branches.map((branch) => branch.type)).toEqual(ORDER);
+  expect(mindmap.branches.every((branch) => branch.items.length >= 2)).toBe(
+    true,
+  );
+  expect(JSON.stringify(mindmap.branches)).toContain("양적긴축");
+});

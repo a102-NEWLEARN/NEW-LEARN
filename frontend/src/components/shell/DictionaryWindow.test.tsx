@@ -10,6 +10,7 @@ import { expect, test } from "vitest";
 import { DictionaryWindow } from "@/components/shell/DictionaryWindow";
 import { problem } from "@/mocks/handlers";
 import { server } from "@/mocks/node";
+import { stubScreen } from "@/test/media";
 import { renderWithProviders } from "@/test/render";
 
 // 용어사전 창 — F13 용어사전 (EXPERIENCE.md Component Patterns 「용어사전 창」, 프로토타입 v21 GlossaryChat).
@@ -422,4 +423,34 @@ test("오른쪽 패널 폭(inset)만큼 버튼과 창이 왼쪽으로 비킨다"
 
   rerender(<DictionaryWindow inset={0} />);
   expect(dictionary().style.right).toBe("24px");
+});
+
+test("넓은 화면에서는 「용어 사전」 글자 버튼이 오른쪽 아래 24px 에 있다", () => {
+  renderWithProviders(<DictionaryWindow />);
+
+  expect(openButton().textContent).toBe("용어 사전");
+  expect(openButton().style.right).toBe("24px");
+  expect(openButton().style.bottom).toBe("24px");
+});
+
+test("좁은 화면에서는 글자 없는 동그라미 아이콘 버튼이 오른쪽 16 · 아래 20px 에 있다 (모바일 v1)", () => {
+  stubScreen("narrow");
+  renderWithProviders(<DictionaryWindow />);
+
+  // 화면 읽기에서는 이름(「용어 사전 열기」)이 그대로다
+  expect(openButton().textContent).toBe("");
+  expect(openButton().style.right).toBe("16px");
+  expect(openButton().style.bottom).toBe("20px");
+});
+
+test("좁은 화면에서는 창을 좌우 · 아래 8px 까지 넓게 연다 (모바일 v1)", () => {
+  stubScreen("narrow");
+  renderWithProviders(<DictionaryWindow />);
+
+  openWindow();
+
+  const window = dictionary();
+  expect(window.style.left).toBe("8px");
+  expect(window.style.right).toBe("8px");
+  expect(window.style.bottom).toBe("8px");
 });

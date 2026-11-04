@@ -9,6 +9,7 @@ import {
 import { expect, test, vi } from "vitest";
 import { fetchTimeline } from "@/api/timeline";
 import { Timeline } from "@/components/issue/Timeline";
+import { stubScreen } from "@/test/media";
 
 // 12번 이슈의 가짜 사건 8개 — 메인 5 · 서브 3, 같은 시각 사건과 「추정」 사건이 있다 (src/mocks/handlers.ts)
 async function renderTimeline(selectedId: number | null = null) {
@@ -365,4 +366,31 @@ test("타임라인 폭이 줄어 고른 사건이 오른쪽 끝에 걸리면 다
     spy.mockRestore();
     vi.stubGlobal("ResizeObserver", original);
   }
+});
+
+test("좁은 화면에서는 레인 이름 칸을 92px 로 줄이고, 확대 % 를 숨기고, 전체 보기를 아이콘 버튼으로 둔다 (모바일 v1)", async () => {
+  stubScreen("narrow");
+  await renderTimeline();
+
+  const lanes = screen.getByRole("list", { name: "레인" });
+  expect(lanes.querySelector("line")?.getAttribute("x1")).toBe("91.5");
+  const zoomGroup = screen.getByRole("group", { name: "확대 · 축소" });
+  expect(within(zoomGroup).queryByText(/%$/)).toBeNull();
+  // 전체 보기는 확대 · 축소 묶음 안의 아이콘 버튼이다. 이름은 그대로
+  const fitButton = within(zoomGroup).getByRole("button", {
+    name: "전체 보기",
+  });
+  expect(fitButton.textContent).toBe("");
+  expect(screen.getAllByRole("button", { name: "전체 보기" })).toHaveLength(1);
+});
+
+test("넓은 화면에서는 레인 이름 칸 140px · 확대 % · 글자 「전체 보기」 버튼이다", async () => {
+  await renderTimeline();
+
+  const lanes = screen.getByRole("list", { name: "레인" });
+  expect(lanes.querySelector("line")?.getAttribute("x1")).toBe("139.5");
+  expect(screen.getByRole("button", { name: "전체 보기" }).textContent).toBe(
+    "전체 보기",
+  );
+  expect(zoomLevel()).toBeGreaterThan(0);
 });

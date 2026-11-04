@@ -3,6 +3,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { useLayoutEffect, useRef, useState } from "react";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { IssueDetail } from "@/api/issue";
+import { AiBadge } from "@/components/AiBadge";
 import { InterestButton } from "@/components/issue/InterestButton";
 import { errorDescription } from "@/components/state/ErrorState";
 import { kstYear } from "@/lib/date";
@@ -24,7 +25,7 @@ function categoryLine(issue: IssueDetail) {
     .join(" · ");
 }
 
-// 이슈 헤더 — 분야 · 연도, 제목과 관심 이슈 별, 요약 (프로토타입 v21 IssueHeader). AI 배지 · 관점 비교 · 알림은 아직 없다.
+// 이슈 헤더 — 분야 · 연도, 제목과 관심 이슈 별, 요약 (프로토타입 v21 IssueHeader). 요약에는 AI 생성 표시를 붙인다. 관점 비교 · 알림은 아직 없다.
 // h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
 export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   const [more, setMore] = useState(false);
@@ -107,16 +108,20 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           >
             {issue.summary}
           </p>
-          {(clamped || more) && (
-            <button
-              type="button"
-              aria-expanded={more}
-              onClick={() => setMore((open) => !open)}
-              className="t2-medium mt-x1 -ml-x1 rounded-r1 px-x1 text-fg-neutral-muted hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
-            >
-              {more ? "접기" : "더보기"}
-            </button>
-          )}
+          {/* AI 생성 표시는 요약 문단 밖, *더보기* 와 같은 줄에 둔다 — v21 처럼 문장 끝에 붙이면 두 줄로 잘릴 때 가려진다 */}
+          <div className="mt-x1 flex items-center gap-x2">
+            <AiBadge />
+            {(clamped || more) && (
+              <button
+                type="button"
+                aria-expanded={more}
+                onClick={() => setMore((open) => !open)}
+                className="t2-medium rounded-r1 px-x1 text-fg-neutral-muted hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+              >
+                {more ? "접기" : "더보기"}
+              </button>
+            )}
+          </div>
         </div>
       )}
       {!issue && !failed && (
