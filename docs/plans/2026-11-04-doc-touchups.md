@@ -1,7 +1,5 @@
 # 문서 손질 — CI 대시보드 「전체 코어」 · stack.md L3 · 계획 체크칸 (Jira S15P31A102-162)
 
-> 승인 뒤 작업 폴더에서 `docs/plans/2026-11-04-doc-touchups.md` 로 이름을 바꿔 커밋한다
-
 ## 무엇을 / 왜
 
 11-02 · 11-03 일을 하다 「지나가다 본 것」으로 미뤄 둔 손질을 한 MR 로 끝낸다. 대시보드 점선 하나가 틀린 숫자(4)를 그리고 있다. 하네스 선언표의 배포 뒤 확인 명령은 10-22 상태(`/api` 401)에 멈춰 있다. 끝난 세 계획은 체크칸이 비어 있다. 158 은 완료 정의 점검(`/feature-done`)과 MR 리뷰도 빠졌다.
@@ -22,7 +20,7 @@
   - 둘째 칸 체크(!566 → !567 ~ !570, 팀 안내는 Jira 158 11-03 댓글)
   - 셋째 칸 체크(!571 · !572 닫음)
 - `docs/plans/2026-11-04-doc-touchups.md` — 이 계획
-- (158 사후 점검에서 더함) `docs/dev-environment.md` 화면 줄 — 판 줄을 나눠 적고(25 · 26.12.0 까지는 영향 판), 「확인한 버전」을 24.22.1 로, compose `node:26-alpine` 은 `docker compose pull` 이 필요하다고
+- (158 사후 점검에서 더함) `docs/dev-environment.md` 화면 줄 — 판 줄을 나눠 적고(25 · 26.12.0 까지는 영향 판), 「확인한 버전」을 24.22.1 로, compose `node:26-alpine` 은 `docker compose --profile full pull` 이 필요하다고(표 아래 문단). 158 계획의 같은 안내도 바로잡음
 
 MR 번호는 GitLab API(`merge_requests?iids[]=…` 의 소스 · 대상 브랜치 · `merged_by`)로 11-04 대조했다.
 
@@ -71,4 +69,5 @@ MR 번호는 GitLab API(`merge_requests?iids[]=…` 의 소스 · 대상 브랜�
 - 대시보드 설명에서 숫자를 빼고, 두 노드를 함께 보는 행의 제목도 고침
 - 리스크에 「`.claude/` 변경 → 영역 전부」를, 반영 절차에 `git archive` · diff 종료 코드 · 권한 검사 대비를 더함
 - 158 사후 리뷰 「고쳐야 함」 1 — `dev-environment.md` 의 「컨테이너는 26.12.1」이 compose(판 고정 없는 `node:26-alpine`)와 다름 → 바꿀 파일에 더함
+- MR 리뷰 「고쳐야 함」 1 — `docker compose pull` 은 `full` 프로필의 화면 이미지를 받지 않음(dry-run 확인) → `--profile full pull` 로, 안내는 표 아래로
 - 리뷰가 「MR 번호가 하나씩 밀렸다」고 했지만 GitLab API 로 대조하니 원래 번호가 맞았다(머지 커밋 메시지를 한 칸 밀려 읽은 것) — 번호는 그대로
