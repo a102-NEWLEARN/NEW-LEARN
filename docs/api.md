@@ -281,6 +281,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 102 | A19 용어사전 | 2026-10-29 구현 · 사이트 반영(`docs/specs/F13-dictionary-api.md`). 키는 봉인 Secret `stdict-api`(SSOT 5절) |
 | 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 Jira 154 · 156 — 2026-11-04 부터 B2 만(넣기만), B1 은 AI 결과 덤프 뒤 |
 | 153 | B2 적재 | 2026-11-03 구현(`docs/specs/F01-article-ingest-api.md`). 같은 URL 이면 그 기사 id, 처음 보는 언론사는 `source_id` 로 등록. 수집 배치(Jira 154)가 B2 → B1 순서로 부른다 — 넣기만 모드(2026-11-04, Jira 156)는 B2 만 |
+| 170 | NewsData 원본 분류 → 카테고리 대응 행 | 2026-11-04 — 마이그레이션 V11(`data-model.md` 2절 category_mapping). B2 대표 카테고리가 차고, 이미 들어온 기사도 다시 계산. A1 · A7 은 대표 카테고리 기준 그대로 |
 | 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | 2026-10-26 구현(`docs/specs/F03-F07-analysis-job-queue.md`) |
 | 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | 2026-10-27 구현(`docs/specs/F06-event-match.md`) |
 | 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현 · 사이트 반영(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |
