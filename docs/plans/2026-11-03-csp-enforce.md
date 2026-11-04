@@ -49,8 +49,8 @@
 - [x] 2. worktree `C:/tmp/wt-120` · 브랜치 `feat/infra/S15P31A102-120-csp-enforce` ← `origin/infra`, 파일 셋 고치기(10절에는 반영 전에 잰 것만), infra 게이트(stack.md 3절), YAML 이 그대로 읽히는지(`kubectl apply --dry-run=server` — 권한이 막으면 사용자에게 파일 카드)
 - [x] 3. reviewer 조수(MR) → MR(→ infra) → 파이프라인 success → 머지 직전 원격 infra · dev SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev MR 같은 방식 → Argo CD `app` 반영 — !602 · !603
 - [x] 4. 반영 뒤 확인(아래 「어떻게 검증하나」). 결과는 Jira 120 댓글 · zoo_docs 에 남긴다. 확인하다 되돌리는 법이 틀린 것이 드러나, 그것을 고치는 후속 MR 에 SSOT 10절 반영 뒤 줄도 함께 넣는다(위 「바꿀 파일」 마지막 줄)
-- [ ] 5. 분야 브랜치 맞추기 — infra · backend · ai 를 dev 에(내용 차이부터). frontend 는 11-03 FE 머지 때 지웠다가 FE 가 다시 만들어 쓰는 중이라 FE 에 맡긴다(11-03 메인 세션 지시)
-- [ ] 6. Jira 120 결과 댓글(FE 알림 · 이슈 화면 남은 확인) · 완료, `/feature-done`, zoo_docs 기록
+- [x] 5. 분야 브랜치 맞추기 — infra · backend · ai 를 dev 에(내용 차이부터). frontend 는 11-03 FE 머지 때 지웠다가 FE 가 다시 만들어 쓰는 중이라 FE 에 맡긴다(11-03 메인 세션 지시) — !606 backend · !607 ai, infra 는 차이 0
+- [x] 6. Jira 120 결과 댓글(FE 알림 · 이슈 화면 남은 확인) · 완료, `/feature-done`, zoo_docs 기록
 - [ ] 7. 남는 확인 한 줄 — 11-15 데이터 적재 뒤 `/issues/:id` 를 강제 상태에서 한 번 열어 위반 0 확인(Jira 120 댓글 · 현황판에 적어 둠)
 
 ## 안 바꿀 것
