@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { logout } from "@/api/auth";
+import { bookmarksQuery } from "@/api/bookmarks";
+import { interestIssuesQuery } from "@/api/interestIssues";
 import { meQuery } from "@/api/members";
 import { InterestIssues } from "@/components/mypage/InterestIssues";
 import { InterestSettings } from "@/components/mypage/InterestSettings";
@@ -17,6 +19,14 @@ export function MyPage() {
   usePageTitle("마이페이지");
   const me = useQuery(meQuery);
   const member = me.data;
+  // 머리 줄의 개수 — 아래 관심 이슈 섹션 · 나의 뉴스함과 같은 쿼리라 받아 둔 것이 있으면 다시 안 부른다
+  const interestIssues = useQuery(interestIssuesQuery);
+  const bookmarks = useQuery(bookmarksQuery);
+  // 셋 다 받았을 때만 그린다. 받는 중이거나 하나라도 실패하면 줄을 두지 않는다 — 아래 섹션이 각자 실패를 알린다
+  const counts =
+    member && interestIssues.data && bookmarks.data
+      ? `관심 분야 ${member.categories.length}개 · 관심 이슈 ${interestIssues.data.length}개 · 북마크 ${bookmarks.data.length}개`
+      : null;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
@@ -52,10 +62,16 @@ export function MyPage() {
             {Array.from(member.name)[0]}
           </span>
         )}
-        {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell). 내 정보를 못 받았어도 제목은 첫 렌더에 그린다 */}
-        <h1 tabIndex={-1} className="t8-bold text-fg-neutral outline-none">
-          {member ? `${member.name}님` : "마이페이지"}
-        </h1>
+        <div className="flex min-w-0 flex-col gap-x0_5">
+          {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell). 내 정보를 못 받았어도 제목은 첫 렌더에 그린다 */}
+          <h1 tabIndex={-1} className="t8-bold text-fg-neutral outline-none">
+            {member ? `${member.name}님` : "마이페이지"}
+          </h1>
+          {/* 머리 줄 — 모바일 v1 · v21 MyPageScreen. 관심 분야는 저장된 것(A17)이다 */}
+          {counts && (
+            <p className="t3-regular text-fg-neutral-muted">{counts}</p>
+          )}
+        </div>
       </div>
       {/* 관심 이슈 · 관심 분야 · 개인정보 · 로그아웃 — 관심 이슈 밑부터 섹션마다 위에 줄을 긋는다 */}
       <div className="mt-x5 border-t border-stroke-neutral-weak">

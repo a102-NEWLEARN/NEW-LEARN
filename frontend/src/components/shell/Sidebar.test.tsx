@@ -188,3 +188,18 @@ test("펼친 사이드바의 빠른 이동도 홈 검색창으로 간다", async
   expect(router.state.location.pathname).toBe("/home");
   expect(document.activeElement).toBe(search);
 });
+
+// 분야 이름 오른쪽에 A1 issueCount — 모바일 v1 · v21 Sidebar (Jira 163).
+// 숫자는 눈으로 보는 보조라 화면 읽기에서 빼서 분야 버튼 이름은 「경제」 그대로다
+test("펼친 사이드바의 분야 옆에 이슈 수를 보인다", async () => {
+  renderRoute("/home");
+
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" }),
+  );
+  const economy = await within(sidebar()).findByRole("button", {
+    name: "경제",
+  });
+  const count = within(economy).getByText("4");
+  expect(count.getAttribute("aria-hidden")).toBe("true");
+});

@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
 import { server } from "@/mocks/node";
+import { stubScreen } from "@/test/media";
 import { renderWithProviders } from "@/test/render";
 
 const ARTICLE: ArticleDetail = {
@@ -154,4 +155,23 @@ test("불러오지 못하면 안내와 다시 시도를 두고, 다시 시도하
   fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
 
   expect(await title()).toBeDefined();
+});
+
+test("좁은 화면에서는 이슈 보기 버튼이 한 줄을 꽉 채운다 (모바일 v1)", async () => {
+  stubScreen("narrow");
+  answer({});
+  renderWithProviders(<Header />);
+  await title();
+
+  const link = screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" });
+  expect(link.className).toContain("w-full");
+});
+
+test("넓은 화면에서는 이슈 보기 버튼이 글자 폭만큼이다", async () => {
+  answer({});
+  renderWithProviders(<Header />);
+  await title();
+
+  const link = screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" });
+  expect(link.className).not.toContain("w-full");
 });
