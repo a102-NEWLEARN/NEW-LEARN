@@ -328,6 +328,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | `infra/terraform/backend.hcl` | Terraform 상태 파일 버킷 이름 · 프로필 | `backend.hcl.example` 을 복사해 채운다. 버킷은 `infra/README.md` 「처음 한 번」에서 한 번 만든다 |
 | AWS 액세스 키 (`~/.aws/credentials`, 저장소 밖) | `terraform plan` · `apply` 자격 증명 — apply 전용 IAM 사용자(`newlearn-apply` 프로필). 10/18 의 읽기 전용 키(`newlearn`)는 비활성화한다 | IAM 콘솔에서 `infra/terraform/iam/apply-policy.json` 을 붙인 사용자를 만들고 `aws configure --profile newlearn-apply` 에 넣는다 — 하는 법은 `infra/README.md` |
 | SSH 개인키 `~/.ssh/newlearn-ec2` (저장소 밖) | 관리 서버 접속 | `ssh-keygen` 으로 만든다. 공개키만 `terraform.tfvars` 에 넣는다 |
+| `.claude/hooks/post-checkout` · `post-commit` · `post-merge` · `pre-push` | Git LFS 훅 — `data/` 의 LFS 파일을 받고 올릴 때 쓴다 | 처음 LFS 파일을 받을 때 Git LFS 가 저절로 만든다(훅 폴더가 `.claude/hooks` 라 그 안에 생김). 커밋하지 않는다 — git-lfs 가 없는 클론에서 `pre-push` 가 push 를 막는다 |
 
 ⚠️ 새로 생기면 **그 즉시** 여기와 `.gitignore` 에 추가한다. **값 자체는 절대 적지 않는다.**
 
