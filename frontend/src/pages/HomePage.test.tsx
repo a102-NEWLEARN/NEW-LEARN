@@ -146,3 +146,12 @@ test("추천 이슈 아래에 최신 기사를 둔다", async () => {
   expect(headings.at(-1)).toBe("최신 기사");
   expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
 });
+
+// 첫 화면 뒤에 마인드맵 모양 배경을 깐다 — 프로토타입 v21 HomeHeroBg (Jira 168)
+test("「오늘의 이슈」 뒤에 장식 그림을 깐다", async () => {
+  renderHome();
+
+  const hero = await screen.findByRole("region", { name: "오늘의 이슈" });
+  const art = hero.querySelector('svg[viewBox="0 0 1200 360"]');
+  expect(art?.getAttribute("aria-hidden")).toBe("true");
+});
