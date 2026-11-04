@@ -104,10 +104,12 @@ class EventReactsToSchemaTest {
                         .query(String.class)
                         .list();
 
+                // 판을 정하지 않으면 뒤의 마이그레이션(V11 ~)까지 같이 돌아 실행 수가 늘어난다
                 var result = Flyway.configure()
                         .dataSource(dataSource)
                         .schemas(schema)
                         .defaultSchema(schema)
+                        .target("10")
                         .load()
                         .migrate();
 
