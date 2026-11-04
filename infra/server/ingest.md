@@ -27,10 +27,10 @@ flowchart LR
 | `INGEST_TIMEFRAME` | `36` | `1` ~ `48`(시간) · `1m` ~ `2880m`(분) · 비움 | latest 의 창. archive 와 같이 주면 종료 2 |
 | `INGEST_DAYS` | `yesterday` | 비움 · `yesterday` · `2026-11-03` · `2026-10-29..2026-11-02` | `pubDate`(UTC)를 KST 날짜로 바꿔 이 날짜만 넣는다. `yesterday` 는 실행 시각(KST)의 전날. 비우면 거르지 않는다 |
 | `INGEST_ARCHIVE_FROM` · `INGEST_ARCHIVE_TO` | 없음 | `YYYY-MM-DD` · `YYYY-MM-DD HH:MM:SS` | archive 의 `from_date` · `to_date` 에 그대로 실린다(둘 다, 처음 ≤ 끝). latest 에 주면 종료 2 |
-| `INGEST_QUERY` | `country=kr&language=ko` | `키=값&키=값` | 고르는 조건(분야 · 언론사). 받는 키는 `news_ingest.py` 의 `QUERY_KEYS`(`category` · `domainurl` · `sort` 등). 키 · 쪽 · 기간 · 시간대 · 모르는 키 · 빈 값 · 겹친 키는 종료 2. Basic 은 요청 하나에 분야 · 언론사 각 5개까지(팀장 공지) |
+| `INGEST_QUERY` | `country=kr&language=ko&removeduplicate=1&excludecategory=sports,entertainment,lifestyle,food,tourism`(팀원이 10/29 ~ 11/3 을 받은 쿼리와 같음) | `키=값&키=값` | 고르는 조건(분야 · 언론사). 받는 키는 `news_ingest.py` 의 `QUERY_KEYS`(`category` · `domainurl` · `sort` 등). 키 · 쪽 · 기간 · 시간대 · 모르는 키 · 빈 값 · 겹친 키는 종료 2. Basic 은 요청 하나에 분야 · 언론사 각 5개까지(팀장 공지) |
 | `INGEST_REQUEST_INTERVAL` | 없음(0) | `0` ~ `60` 초 | NewsData 요청 사이 쉬기. 유료 요금제 한도가 15분에 1,800크레딧이라 archive 는 3(15분에 많아야 300번 × 5 = 1,500) |
-| `INGEST_MAX_REQUESTS` | `250` | `1` ~ `500` | 한 번 실행의 NewsData 요청 = latest 크레딧 상한 |
-| `INGEST_MAX_ARTICLES` | `12000` | `1` ~ `20000` | B2 로 보낼 기사 상한 |
+| `INGEST_MAX_REQUESTS` | `500` | `1` ~ `500` | 한 번 실행의 NewsData 요청 = latest 크레딧 상한 |
+| `INGEST_MAX_ARTICLES` | `20000` | `1` ~ `20000` | B2 로 보낼 기사 상한 |
 | `BACKEND_URL` | `http://backend.app.svc:8080` | `http(s)://<호스트>` | B2 · B1 을 부를 곳(load-only · full) |
 
 - 같은 실행 안의 중복은 링크와 NewsData `article_id` 로 거르고, 실행 사이 중복은 B2 가 URL 로 막는다(200)
@@ -40,7 +40,7 @@ flowchart LR
 ## 매일 실행
 
 - 10:00 에 돈다. 시작 마감이 1시간이라 그 사이 서버가 멈췄다 돌아오면 11시 전까지는 늦게라도 돈다. 10:00 ~ 11:00 에 CronJob 을 바꾸는 MR 이 머지되면 그 자리에서 한 번 돈다
-- 크레딧 어림 — 하루 7,000건(팀장 공지 2026-11-03)이면 36시간 창이 약 1만 500건 · 요청 약 210. 그날 0 ~ 10시 기사는 받은 뒤 버린다(최신부터 오고 latest 에 끝 시각 조건이 없다)
+- 크레딧 어림 — 지금 조건으로 36시간 창이 평균 약 330요청, 평일 최대 약 462요청(팀장 2026-11-04, 10/21 ~ 28 기준). 그날 0 ~ 10시 기사는 받은 뒤 버린다(최신부터 오고 latest 에 끝 시각 조건이 없다)
 - 매일 공유 — 실행마다 `수집 결과` 줄 전체와 종료 코드를 팀장에게 넘긴다(팀장이 `credits` 를 NewsData 대시보드 차감과 견줌, 2026-11-04). 예약 실행 Job 은 이름이 `news-ingest-<숫자>` 다(손 실행은 `-check-` · `-manual-` 처럼 글자가 섞임). 다시 시도가 있었으면 Pod 가 둘이다
 
   ```bash
@@ -53,14 +53,14 @@ flowchart LR
 
 ## 손 실행 (EC2)
 
-CronJob 에서 Job 을 만들며 env 와 다시 시도만 바꾼다. **손 실행은 매일 설정(요청 250 · 기사 12,000 · timeframe 36 · 다시 시도 1 · 실행 상한 1시간)을 물려받으니 상한 · timeframe 을 꼭 같이 준다.** 다시 시도는 0 으로 둔다 — 중간에 실패해 처음부터 다시 돌면 크레딧을 그만큼 또 쓴다. `INGEST_QUERY` 처럼 `&` 가 든 값은 따옴표로 감싼다. 마지막이 `create` 라 같은 이름이 있으면 실패하고 끝난다. 이름은 겹치지 않게 날짜 · 시각을 붙인다.
+CronJob 에서 Job 을 만들며 env 와 다시 시도만 바꾼다. **손 실행은 매일 설정(요청 500 · 기사 20,000 · timeframe 36 · 다시 시도 1 · 실행 상한 1시간)을 물려받으니 상한 · timeframe 을 꼭 같이 준다.** 다시 시도는 0 으로 둔다 — 중간에 실패해 처음부터 다시 돌면 크레딧을 그만큼 또 쓴다. `INGEST_QUERY` 처럼 `&` 가 든 값은 따옴표로 감싼다. 마지막이 `create` 라 같은 이름이 있으면 실패하고 끝난다. 이름은 겹치지 않게 날짜 · 시각을 붙인다.
 
 먼저 받기만 한 번(요청 1, latest 1 · archive 5크레딧)으로 `pubDates` · `totalResults` · `out_of_range` 를 보고, 생각대로면 넣기만으로 돌린다.
 
 **지난 하루(latest)** — 예: 11/3 을 11-04 14시에. `INGEST_TIMEFRAME` = 지금 − 그날 0시 + 1시간(최대 48 — 48시간이 지난 날은 archive)
 
 ```bash
-kubectl -n app create job --from=cronjob/news-ingest news-ingest-1103-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_DAYS=2026-11-03 INGEST_TIMEFRAME=39 INGEST_MAX_REQUESTS=300 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0}}' -o yaml | kubectl -n app create -f -
+kubectl -n app create job --from=cronjob/news-ingest news-ingest-1103-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_DAYS=2026-11-03 INGEST_TIMEFRAME=39 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0}}' -o yaml | kubectl -n app create -f -
 ```
 
 - 받기만 먼저 보려면 `INGEST_MODE=fetch-only` 를 더한다
