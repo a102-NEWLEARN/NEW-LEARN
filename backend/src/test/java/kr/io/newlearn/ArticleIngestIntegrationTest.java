@@ -427,6 +427,19 @@ class ArticleIngestIntegrationTest {
         assertThat(categoryFor("none")).isNull();
     }
 
+    // V11 의 실제 NewsData 대응 행으로 — CategoryMappingMigrationTest 의 다시 계산(SQL)과 같은 조합이 같은 대표가 된다(Jira 170)
+    // 구체적인 것 먼저: 국제 1 · IT·과학 2 · 정치 3 · 경제 4 · 사회 5
+    @Test
+    void newsDataValuesFromV11PickTheMostSpecificCategory() throws Exception {
+        assertThat(categoryFor("v11-it", "top", "business", "technology")).isEqualTo("it_science");
+        assertThat(categoryFor("v11-politics", "crime", "politics", "top")).isEqualTo("politics");
+        assertThat(categoryFor("v11-world", "world", "politics")).isEqualTo("world");
+        assertThat(categoryFor("v11-domestic", "domestic")).isEqualTo("society");
+        assertThat(categoryFor("v11-economy", "environment", "business")).isEqualTo("economy");
+        assertThat(categoryFor("v11-top", "top")).isNull();
+        assertThat(categoryFor("v11-unknown", "business", "ingest153-newcat")).isNull();
+    }
+
     // AC-9 B2 는 배치 출입증으로만 연다. 워커 출입증은 403, 출입증이 없으면 401. 아무것도 저장하지 않는다
     @Test
     void onlyTheBatchKeyCanIngest() throws Exception {

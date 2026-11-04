@@ -20,7 +20,7 @@
   — `nonHttpUrlIs400` · `realWorldLinksAreAccepted`
 - AC-7: U+0000 이 든 글자 칸 · 목록 항목은 400
   — `nulIs400`
-- AC-8: 대표 카테고리 — 원본 값이 모두 대응 표에 있으면 칸이 찬 행 중 `priority` 가 가장 작은 것(같으면 카테고리 순서), 하나라도 없으면 빈다
+- AC-8: 대표 카테고리 — 원본 값이 모두 대응 표에 있으면 칸이 찬 행 중 `priority` 가 가장 작은 것(같으면 카테고리 순서), 하나라도 없으면 빈다. NewsData 실제 값은 V11 대응 행(Jira 170) — 확인: `ArticleIngestIntegrationTest.newsDataValuesFromV11PickTheMostSpecificCategory`, 마이그레이션의 다시 계산은 `CategoryMappingMigrationTest`
   — `categoryIsChosenOnlyWhenEveryValueIsKnown`
 - AC-9: B2 는 배치 출입증으로만 연다. 워커 출입증은 403, 출입증이 없으면 401
   — `onlyTheBatchKeyCanIngest` · `SecurityRulesTest.internalKeyOpensOnlyItsOwnDoor` · `SecurityRulesTest.internalApisWithoutValidKeyAreUnauthorized` · `SecurityRulesTest.matchingKeyPassesWithoutCsrfOrSession`
@@ -30,5 +30,5 @@
 ## 이 티켓에서 하지 않는 것
 
 - 수집 배치 · CronJob · 거르는 조건(본문 없음 · 연예 · 스포츠) — Jira 154
-- 원본 분류 → 카테고리 대응 행 — `data-model.md` 5절 7번(BE · 팀). 행이 없으면 대표 카테고리가 빈다
+- 원본 분류 → 카테고리 대응 행 — 이 티켓 밖. NewsData 행은 마이그레이션 V11 이 넣는다(Jira 170, `data-model.md` 2절 category_mapping). 표에 없는 값이 끼면 대표 카테고리가 빈다
 - URL 정규화, 언론사 묶기(대응 행 바꾸기), `ingest_run` 기록

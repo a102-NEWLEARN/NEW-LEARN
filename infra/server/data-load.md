@@ -2,7 +2,7 @@
 
 **기사는 수집 배치가 운영 DB 에 먼저 넣는다(`infra/server/ingest.md`, 넣기만). AI 결과(마인드맵 · 임베딩 · 작업 행 · 사건 · 이슈)는 만드는 쪽이 이 문서의 약속대로 DB 덤프를 만들어 넘기고, 인프라가 운영 DB 에 넣는다(Jira S15P31A102-152).** 덤프의 기사는 **URL** 로 운영 기사와 맞춘다 — 만드는 쪽의 기사 번호는 아무래도 좋다. 사건 · 이슈 · 작업 번호는 덤프 번호를 그대로 쓴다.
 
-정한 것과 까닭은 계획 `docs/plans/2026-11-04-ingest-load-only-data-load.md` 「덤프 가이드라인」, 표 정의는 `backend/src/main/resources/db/migration/`(V2 ~ V10), 스케줄러 조건은 `backend/src/main/java/kr/io/newlearn/analysis/AnalysisJobRepository.java`(60 ~ 120줄). 적재 SQL 은 견본 덤프로 일회용 DB 시험(R1)을 하며 만든다 — 이 문서에는 절차와 검사 기준까지 있다.
+정한 것과 까닭은 계획 `docs/plans/2026-11-04-ingest-load-only-data-load.md` 「덤프 가이드라인」, 표 정의는 `backend/src/main/resources/db/migration/`(V2 ~ V11), 스케줄러 조건은 `backend/src/main/java/kr/io/newlearn/analysis/AnalysisJobRepository.java`(60 ~ 120줄). 적재 SQL 은 견본 덤프로 일회용 DB 시험(R1)을 하며 만든다 — 이 문서에는 절차와 검사 기준까지 있다.
 
 ```mermaid
 flowchart LR
@@ -60,7 +60,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 
 ### 만드는 길
 
-- DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — 지금 V10. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
+- DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — V11(NewsData 분야 대응 행, Jira 170)이 운영에 반영된 뒤로는 V11. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
 - 기사는 2절 목록(11/4 부터)과 10/21 ~ 11/3 JSONL(2절)을 로컬 B2(`POST http://localhost:8080/internal/v1/articles`, 머리 `X-Internal-Key` = 로컬 `.env` 의 `INTERNAL_BATCH_KEY`)로 넣는다. 분석은 로컬 B1(`POST /internal/v1/articles/{id}/release`, 같은 키)으로 걸고 — 이때 작업 행이 생긴다 — 결과는 AI 워커가 **W1 으로** 로컬 backend 에 보내 저장한다. 그래야 마인드맵 `content` 모양(A9 가 이 모양으로 읽는다), 작업 행, `article_event.linked_at`, 이슈가 운영 코드와 같은 모양이 된다. SQL 로 직접 넣은 표가 있으면 무엇을 어떻게 넣었는지 목록표에 적는다
 - SQLite 칸을 B2 칸으로 바꾸는 규칙은 `infra/server/sqlite_to_b2.py` 한 곳(머리말)에 있다 — SQLite 를 따로 바꿔 넣으면 운영 기사와 값이 달라 적재가 멈출 수 있다
 - 덤프를 뜨기 전에 5절 검사 가운데 「작업 행」 · 「판정 걸 기사」 · 「공개 기사」 · 「사건에 묶인 기사」를 자기 DB 에 돌려 모두 0 인지 본다 — 견본이 오가는 횟수가 준다
@@ -69,7 +69,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 
 | 넣는다 | 넣지 않는다 |
 |---|---|
-| `press` · `press_mapping` · `article` · `article_mindmap` · `article_embedding` · `analysis_job` · `event` · `article_event` · `issue` · `issue_category` | 회원 표(`member` · `member_category` · `bookmark` · `interest_issue`), `category`(마이그레이션이 넣음), `category_mapping`(BE 몫 — 만든 대응이 있으면 BE 에 따로), `ingest_run`, `flyway_schema_history` |
+| `press` · `press_mapping` · `article` · `article_mindmap` · `article_embedding` · `analysis_job` · `event` · `article_event` · `issue` · `issue_category` | 회원 표(`member` · `member_category` · `bookmark` · `interest_issue`), `category`(마이그레이션이 넣음), `category_mapping`(NewsData 행은 마이그레이션 V11 이 넣음 — 다른 대응이 필요하면 BE 에), `ingest_run`, `flyway_schema_history` |
 
 `issue_category` 는 넣어도 적재가 쓰지 않고, 들어간 기사 분야로 backend 와 같은 식(`IssueCategoryRepository.java` — 이슈 기사들의 `category_code` 중 가장 많은 것)으로 다시 계산한다.
 
