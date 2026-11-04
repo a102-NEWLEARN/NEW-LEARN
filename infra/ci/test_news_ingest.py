@@ -17,6 +17,7 @@ import unittest
 import urllib.error
 import urllib.parse
 from collections import Counter
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 
 SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "k8s" / "services" / "ingest" / "news_ingest.py"
@@ -1004,6 +1005,221 @@ class SummaryFields(unittest.TestCase):
         net = FakeNet([page([])])
         _, lines, _ = run(env(), net)
         self.assertIsNone(summary(lines)["pubDates"])
+
+
+# ── INGEST_SOURCE=file — 지난 기사 파일(B2 요청 모양 JSONL)을 표준 입력으로 넣기 (Jira S15P31A102-169) ──
+
+def b2_line(n, **over):
+    """infra/server/sqlite_to_b2.py 가 쓰는 줄 모양 — 값은 지어낸 것"""
+    body = {
+        "url": f"https://news.example.com/old/{n}",
+        "pressSourceId": "garam_kr",
+        "pressName": "가람일보",
+        "title": f"지난 기사 {n}",
+        "body": f"본문 {n}",
+        "publishedAt": f"2026-10-2{n % 10}T09:00:00+09:00",
+        "sourceCategories": ["top", "business"],
+    }
+    body.update(over)
+    return body
+
+
+def jsonl(*rows):
+    """줄 목록 → 바이트. dict 는 JSON 으로, 글자는 그대로(깨진 줄 시험)"""
+    out = []
+    for row in rows:
+        out.append(json.dumps(row, ensure_ascii=False) if isinstance(row, dict) else row)
+    return "".join(line + "\n" for line in out).encode("utf-8")
+
+
+def daily_env(**over):
+    """news-ingest.yaml 의 매일 env 에서 INGEST_SOURCE 만 file 로 — 손 Job 이 CronJob 틀을 그대로 물려받는다"""
+    values = {
+        "INGEST_MODE": "load-only",
+        "INGEST_SOURCE": "file",
+        "INGEST_TIMEFRAME": "36",
+        "INGEST_DAYS": "yesterday",
+        "INGEST_QUERY": "country=kr&language=ko&removeduplicate=1&sort=pubdateasc",
+        "INGEST_MAX_REQUESTS": "500",
+        "INGEST_MAX_ARTICLES": "2",
+        "NEWSDATA_API_KEY": KEY,
+        "INTERNAL_BATCH_KEY": BATCH_KEY,
+        "BACKEND_URL": BACKEND,
+    }
+    values.update(over)
+    return {k: v for k, v in values.items() if v is not None}
+
+
+def run_file(environ, net, data):
+    out = io.StringIO()
+    stdin = data if not isinstance(data, bytes) else io.BytesIO(data)
+    code = news_ingest.main(environ, net, out, stdin=stdin)
+    text = out.getvalue()
+    return code, [json.loads(line) for line in text.splitlines()], text
+
+
+class FileSource(unittest.TestCase):
+    def test_daily_env_with_file_source_sends_every_line_and_ignores_newsdata_settings(self):
+        net = FakeNet()
+        rows = [b2_line(1), b2_line(2), b2_line(3)]
+        code, lines, _ = run_file(daily_env(), net, jsonl(*rows))
+        self.assertEqual(code, 0)
+        self.assertEqual(net.newsdata_calls(), [])
+        self.assertEqual(net.b1_calls(), [])
+        # INGEST_MAX_ARTICLES=2 · INGEST_DAYS=yesterday 가 있어도 파일의 줄을 모두 보낸다
+        self.assertEqual([json.loads(c[3]) for c in net.b2_calls()], rows)
+        result = summary(lines)
+        self.assertEqual(result["source"], "file")
+        self.assertEqual(result["mode"], "load-only")
+        self.assertEqual(result["lines"], 3)
+        self.assertEqual(result["badLines"], 0)
+        self.assertEqual(result["b2"], {"created": 3, "existing": 0, "rejected": 0, "failed": 0})
+
+    def test_newsdata_key_is_not_needed(self):
+        net = FakeNet()
+        code, _, _ = run_file(daily_env(NEWSDATA_API_KEY=None), net, jsonl(b2_line(1)))
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.b2_calls()), 1)
+
+    def test_only_load_only(self):
+        for mode in ("full", "fetch-only"):
+            net = FakeNet()
+            code, lines, _ = run_file(daily_env(INGEST_MODE=mode), net, jsonl(b2_line(1)))
+            self.assertEqual(code, 2, mode)
+            self.assertEqual(lines[0]["msg"], "설정 오류")
+            self.assertEqual(net.calls, [])
+
+    def test_batch_key_and_backend_still_required(self):
+        for over in ({"INTERNAL_BATCH_KEY": None}, {"BACKEND_URL": "backend:8080"}):
+            net = FakeNet()
+            code, _, _ = run_file(daily_env(**over), net, jsonl(b2_line(1)))
+            self.assertEqual(code, 2, over)
+            self.assertEqual(net.calls, [])
+
+    def test_bad_lines_are_not_sent_and_fail_the_run(self):
+        net = FakeNet()
+        no_url = b2_line(3)
+        del no_url["url"]
+        data = jsonl(b2_line(1), "{not json", '["array"]', no_url, b2_line(4, title="   "), "", b2_line(5))
+        data += b"\xff\xfe\n"  # UTF-8 이 아닌 줄
+        code, lines, _ = run_file(daily_env(), net, data)
+        self.assertEqual(code, 1)
+        self.assertEqual([json.loads(c[3])["url"] for c in net.b2_calls()],
+                         ["https://news.example.com/old/1", "https://news.example.com/old/5"])
+        result = summary(lines)
+        self.assertEqual(result["lines"], 8)
+        self.assertEqual(result["badLines"], 6)
+        bad = [line["line"] for line in lines if line.get("msg") == "못 읽은 줄"]
+        self.assertEqual(bad, [2, 3, 4, 5, 6, 8])
+
+    def test_expected_lines_must_match(self):
+        net = FakeNet()
+        code, lines, _ = run_file(daily_env(INGEST_FILE_LINES="4"), net, jsonl(b2_line(1), b2_line(2), b2_line(3)))
+        self.assertEqual(code, 1)
+        self.assertEqual(len(net.b2_calls()), 3)
+        self.assertEqual(summary(lines)["expectedLines"], 4)
+        self.assertTrue(any(line.get("msg") == "줄 수가 다르다" for line in lines))
+
+    def test_expected_lines_match_is_success(self):
+        code, lines, _ = run_file(daily_env(INGEST_FILE_LINES="2"), FakeNet(), jsonl(b2_line(1), b2_line(2)))
+        self.assertEqual(code, 0)
+        self.assertEqual(summary(lines)["expectedLines"], 2)
+
+    def test_expected_lines_must_be_a_positive_integer(self):
+        for raw in ("abc", "0", "-1", "1e3"):
+            net = FakeNet()
+            code, _, _ = run_file(daily_env(INGEST_FILE_LINES=raw), net, jsonl(b2_line(1)))
+            self.assertEqual(code, 2, raw)
+            self.assertEqual(net.calls, [])
+
+    def test_existing_urls_are_fine_so_a_rerun_succeeds(self):
+        code, lines, _ = run_file(daily_env(), FakeNet(), jsonl(b2_line(1), b2_line(1)))
+        self.assertEqual(code, 0)
+        self.assertEqual(summary(lines)["b2"]["existing"], 1)
+
+    def test_rejected_line_fails_the_run(self):
+        def b2(article):
+            if article["url"].endswith("/2"):
+                return 400, {"errors": [{"field": "body"}]}
+            return 201, {"articleId": 7, "created": True}
+
+        code, lines, _ = run_file(daily_env(), FakeNet(b2=b2), jsonl(b2_line(1), b2_line(2), b2_line(3)))
+        self.assertEqual(code, 1)
+        self.assertEqual(summary(lines)["b2"]["rejected"], 1)
+
+    def test_server_error_fails_the_run(self):
+        code, lines, _ = run_file(daily_env(), FakeNet(b2=lambda a: (500, b"oops")), jsonl(b2_line(1)))
+        self.assertEqual(code, 1)
+        self.assertEqual(summary(lines)["b2"]["failed"], 1)
+
+    def test_auth_error_stops_with_two(self):
+        net = FakeNet(b2=lambda a: (401, {"title": "no"}))
+        code, lines, text = run_file(daily_env(), net, jsonl(b2_line(1), b2_line(2)))
+        self.assertEqual(code, 2)
+        self.assertEqual(len(net.b2_calls()), 1)
+        self.assertEqual(summary(lines)["source"], "file")
+        self.assertNotIn(BATCH_KEY, text)
+
+    def test_backend_down_stops_with_one(self):
+        def b2(article):
+            raise ConnectionRefusedError("refused")
+
+        net = FakeNet(b2=b2)
+        code, lines, _ = run_file(daily_env(), net, jsonl(*[b2_line(n) for n in range(1, 7)]))
+        self.assertEqual(code, 1)
+        self.assertEqual(len(net.b2_calls()), news_ingest.BACKEND_DOWN_AFTER)
+        self.assertEqual(summary(lines)["b2"]["failed"], news_ingest.BACKEND_DOWN_AFTER)
+
+    def test_progress_line_every_n_lines(self):
+        with mock.patch.object(news_ingest, "FILE_PROGRESS_LINES", 2):
+            code, lines, _ = run_file(daily_env(), FakeNet(), jsonl(*[b2_line(n) for n in range(1, 6)]))
+        self.assertEqual(code, 0)
+        progress = [line for line in lines if line.get("msg") == "진행"]
+        self.assertEqual([p["lines"] for p in progress], [2, 4])
+        self.assertIn("b2", progress[0])
+
+    def test_reads_one_line_at_a_time(self):
+        """8만 줄 · 270MB 를 메모리에 올리지 않는다 — 첫 B2 를 부를 때 한 줄만 읽혀 있어야 한다"""
+        data = jsonl(b2_line(1), b2_line(2), b2_line(3)).splitlines(keepends=True)
+
+        class Stream:
+            consumed = 0
+
+            def __iter__(self):
+                for line in data:
+                    Stream.consumed += 1
+                    yield line
+
+            def read(self, *args):
+                raise AssertionError("통째로 읽지 않는다")
+
+        seen = []
+
+        def b2(article):
+            seen.append(Stream.consumed)
+            return 201, {"articleId": len(seen), "created": True}
+
+        code, _, _ = run_file(daily_env(), FakeNet(b2=b2), Stream())
+        self.assertEqual(code, 0)
+        self.assertEqual(seen, [1, 2, 3])
+
+    def test_empty_file_fails(self):
+        code, lines, _ = run_file(daily_env(), FakeNet(), b"")
+        self.assertEqual(code, 1)
+        self.assertEqual(summary(lines)["lines"], 0)
+
+    def test_latest_still_ignores_stdin(self):
+        """매일 수집(latest)은 표준 입력을 읽지 않는다"""
+        net = FakeNet(pages=[page([item(1)])])
+
+        class Untouched(io.BytesIO):
+            def __iter__(self):
+                raise AssertionError("latest 가 표준 입력을 읽었다")
+
+        out = io.StringIO()
+        code = news_ingest.main(env(INGEST_MODE="load-only"), net, out, now=NOW, stdin=Untouched(b""))
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.b2_calls()), 1)
 
 
 if __name__ == "__main__":
