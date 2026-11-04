@@ -68,9 +68,10 @@ spec:
                 - name: INGEST_DAYS
                   value: yesterday
                 # 고르는 조건 — 팀원이 10/29 ~ 11/3 을 받은 쿼리와 같다(팀장 2026-11-04). 받는 키는 news_ingest.py 의 QUERY_KEYS.
-                # 이 조건으로 10/21 ~ 28 은 평일 11,400 ~ 15,400건 · 주말 3,400 ~ 5,800건(팀장). 7,000건에서 자르지 않고 전날치를 끝까지 받는다
+                # 이 조건으로 10/21 ~ 28 은 평일 11,400 ~ 15,400건 · 주말 3,400 ~ 5,800건(팀장). 7,000건에서 자르지 않고 전날치를 끝까지 받는다.
+                # sort=pubdateasc — 오래된 순으로 받아 전날 범위를 지난 쪽에서 멈춘다(그날 0 ~ 10시 쪽을 안 받음, 2026-11-04 받기만으로 정렬 확인 — SSOT 10절)
                 - name: INGEST_QUERY
-                  value: country=kr&language=ko&removeduplicate=1&excludecategory=sports,entertainment,lifestyle,food,tourism
+                  value: country=kr&language=ko&removeduplicate=1&excludecategory=sports,entertainment,lifestyle,food,tourism&sort=pubdateasc
                 # 한 번 실행의 NewsData 요청(= 크레딧) · B2 로 보낼 기사 상한 — 코드 천장 그대로. 평일 최대면 36시간 창이 약 462요청 ·
                 # 거른 뒤 약 13,400건(팀장 어림). 다음 쪽이 남았는데 닿으면 받은 데까지 넣고 종료 2(경보). 첫 실행의 시간 · 적재 수 · 메모리를 보고 다시 본다
                 - name: INGEST_MAX_REQUESTS

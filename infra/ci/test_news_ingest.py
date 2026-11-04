@@ -190,6 +190,18 @@ class SkipReason(unittest.TestCase):
     def test_normal_article_passes(self):
         self.assertIsNone(news_ingest.skip_reason(item(1, category=["top", "business"])))
 
+    def test_same_five_categories_as_query(self):
+        # INGEST_QUERY 의 excludecategory 와 같은 다섯 — 쿼리를 바꿔도 로컬에서 한 번 더 거른다(팀장 2026-11-04)
+        for category in ("sports", "entertainment", "lifestyle", "food", "tourism"):
+            with self.subTest(category=category):
+                self.assertEqual(news_ingest.skip_reason(item(1, category=["top", category])), "category")
+
+    def test_marked_duplicate_skipped(self):
+        # NewsData 가 duplicate=true 로 표시한 기사는 뺀다(팀원 수집과 같게, 팀장 2026-11-04)
+        self.assertEqual(news_ingest.skip_reason(item(1, duplicate=True)), "marked_duplicate")
+        self.assertIsNone(news_ingest.skip_reason(item(1, duplicate=False)))
+        self.assertIsNone(news_ingest.skip_reason(item(1, duplicate=None)))
+
 
 class ToArticle(unittest.TestCase):
     def test_maps_fields_like_api_internal_b2(self):
@@ -415,7 +427,7 @@ class Limits(unittest.TestCase):
         self.assertEqual([json.loads(c[3])["url"] for c in net.b2_calls()], [item(4)["link"]])
         self.assertEqual(
             summary(lines)["skipped"],
-            {"bad_item": 0, "no_body": 1, "category": 1, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0},
+            {"bad_item": 0, "no_body": 1, "category": 1, "marked_duplicate": 0, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0},
         )
 
 
@@ -898,6 +910,47 @@ class StopReasons(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(net.b2_calls(), [])
         self.assertEqual(summary(lines)["stoppedBy"], "newsdata_error")
+
+
+class AscendingStop(unittest.TestCase):
+    """sort=pubdateasc 이고 날짜 범위가 있으면, 범위를 지난 기사가 나온 쪽에서 멈춘다 — 그날 0 ~ 10시 쪽들을 안 받는다"""
+
+    ASC = "country=kr&language=ko&sort=pubdateasc"
+
+    def pages(self):
+        return [
+            page([day_item(1, "2026-11-02 14:30:00"), day_item(2, "2026-11-02 15:10:00")], "n1"),   # 그제 밤 · 어제
+            page([day_item(3, "2026-11-03 12:00:00"), day_item(4, "2026-11-03 15:00:01")], "n2"),   # 어제 · 오늘 0시 뒤
+            page([day_item(5, "2026-11-03 18:00:00")]),                                           # 오늘 — 받으면 안 됨(마지막 쪽)
+        ]
+
+    def test_stops_after_page_past_range(self):
+        net = FakeNet(self.pages())
+        code, lines, _ = run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS="yesterday"), net, now=NOW)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.newsdata_calls()), 2)
+        self.assertEqual(sorted(json.loads(c[3])["url"].rsplit("/", 1)[1] for c in net.b2_calls()), ["2", "3"])
+        result = summary(lines)
+        self.assertEqual(result["stoppedBy"], "past_range")
+        self.assertEqual(result["skipped"]["out_of_range"], 2)
+
+    def test_no_stop_without_ascending_sort(self):
+        net = FakeNet(self.pages())
+        _, lines, _ = run(env(INGEST_MODE="load-only", INGEST_DAYS="yesterday"), net, now=NOW)
+        self.assertEqual(len(net.newsdata_calls()), 3)
+        self.assertEqual(summary(lines)["stoppedBy"], "end")
+
+    def test_no_stop_without_days(self):
+        net = FakeNet(self.pages())
+        run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS=""), net, now=NOW)
+        self.assertEqual(len(net.newsdata_calls()), 3)
+
+    def test_before_range_does_not_stop(self):
+        # 오래된 순이라 처음 쪽은 그제 밤(범위 앞)이다 — 멈추면 안 된다
+        pages = [page([day_item(1, "2026-11-02 14:00:00")], "n1"), page([day_item(2, "2026-11-02 16:00:00")])]
+        net = FakeNet(pages)
+        code, lines, _ = run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS="yesterday"), net, now=NOW)
+        self.assertEqual((code, len(net.newsdata_calls()), summary(lines)["stoppedBy"]), (0, 2, "end"))
 
 
 class SummaryFields(unittest.TestCase):
