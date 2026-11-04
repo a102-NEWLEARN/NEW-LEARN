@@ -66,7 +66,7 @@ flowchart LR
 | 용어 | 뜻 | 이름 |
 |---|---|---|
 | 적재 | NewsData · 데이터셋 기사를 DB 에 넣는 것. 화면에는 아직 안 보인다 | `article` 행이 생긴다 (`created_at`). NewsData 는 B2 로 넣는다 |
-| 수집 실행 | CronJob 이 NewsData 를 한 번 부르는 일. 하루 두 번(00 · 12시) | 배치 Job 로그 한 줄. `ingest_run` 은 지금 쓰지 않는다(Jira 153) |
+| 수집 실행 | CronJob 이 NewsData 를 한 번 부르는 일. 매일 10시에 전날치(2026-11-04, 11-16 뒤 15분마다로 바꿀 예정) | 배치 Job 로그 한 줄. `ingest_run` 은 지금 쓰지 않는다(Jira 153) |
 | 투입 | 적재한 기사에 분석을 거는 것(B1). 기사는 아직 화면에 안 보인다 — 보이는 것은 「공개」 | B1, `ALREADY_RELEASED` |
 | 공개 | 기사가 화면에 보이기 시작하는 것. EXTRACT 결과(마인드맵)를 처음 저장할 때 API 가 한다 — 분석이 끝난 기사부터 보인다(2026-10-26, Jira 34). 공개 전 기사는 모든 조회 · 집계에서 없는 것으로 본다 | `article.released_at`, `Article.markReleased` |
 | 분석 작업 | 기사 하나의 분석 단계 하나 | `analysis_job` 한 행, 메시지의 `jobId` |
