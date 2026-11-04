@@ -59,6 +59,7 @@ flowchart LR
 
 - 본문(`content`)이 없는 기사 — B2 도 400 으로 거절하지만 헛 요청을 줄인다. 2026-11-03 최신 기사 50건 중 6건이 null 이었다
 - 스포츠 · 연예 · 생활 · 음식 · 여행 — `category` 에 `sports` · `entertainment` · `lifestyle` · `food` · `tourism` 이 있는 기사(2026-11-04 팀장 조건 — 처음 2026-11-03 은 연예 · 스포츠 둘, `SSOT.md` 9절 2026-10-20 「카테고리 7개 → 5개」, `data-model.md` 2절 category_mapping). B2 는 분류를 보고 거절하지 않는다
+- NewsData 가 `duplicate=true` 로 표시한 기사 — 쿼리의 `removeduplicate=1` 과 같이 겹친 기사를 뺀다(2026-11-04 팀장 조건, 팀원 수집과 같게)
 - `pubDateTZ` 가 UTC 가 아닌 기사 — 지금까지 받은 응답은 모두 UTC 였다. 다른 값이 오면 배치가 시각을 바로 붙이지 못하니 세고 넘긴다
 
 ### B2. 기사 적재 — `POST /internal/v1/articles`

@@ -913,44 +913,83 @@ class StopReasons(unittest.TestCase):
 
 
 class AscendingStop(unittest.TestCase):
-    """sort=pubdateasc 이고 날짜 범위가 있으면, 범위를 지난 기사가 나온 쪽에서 멈춘다 — 그날 0 ~ 10시 쪽들을 안 받는다"""
+    """sort=pubdateasc 이고 날짜 범위가 있으면, 쪽 전체가 범위 뒤일 때 멈춘다 — 그날 0 ~ 10시 쪽들을 안 받는다.
+    한 건만 범위 뒤인 쪽에서는 멈추지 않는다(정렬이 한 건 어긋나도 어제 기사를 잃지 않게, 요청 하나를 더 쓴다)"""
 
     ASC = "country=kr&language=ko&sort=pubdateasc"
 
     def pages(self):
         return [
             page([day_item(1, "2026-11-02 14:30:00"), day_item(2, "2026-11-02 15:10:00")], "n1"),   # 그제 밤 · 어제
-            page([day_item(3, "2026-11-03 12:00:00"), day_item(4, "2026-11-03 15:00:01")], "n2"),   # 어제 · 오늘 0시 뒤
-            page([day_item(5, "2026-11-03 18:00:00")]),                                           # 오늘 — 받으면 안 됨(마지막 쪽)
+            page([day_item(3, "2026-11-03 12:00:00"), day_item(4, "2026-11-03 15:00:01")], "n2"),   # 어제 · 오늘 0시 뒤 — 섞임
+            page([day_item(5, "2026-11-03 18:00:00"), day_item(6, "2026-11-03 19:00:00")], "n3"),   # 모두 오늘 — 여기서 멈춤
+            page([day_item(7, "2026-11-03 20:00:00")]),                                           # 받으면 안 됨
         ]
 
-    def test_stops_after_page_past_range(self):
+    def asc_env(self, **over):
+        return env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS="yesterday", **over)
+
+    def sent(self, net):
+        return sorted(json.loads(c[3])["url"].rsplit("/", 1)[1] for c in net.b2_calls())
+
+    def test_stops_after_page_entirely_past_range(self):
         net = FakeNet(self.pages())
-        code, lines, _ = run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS="yesterday"), net, now=NOW)
+        code, lines, _ = run(self.asc_env(INGEST_MAX_REQUESTS="10"), net, now=NOW)
         self.assertEqual(code, 0)
-        self.assertEqual(len(net.newsdata_calls()), 2)
-        self.assertEqual(sorted(json.loads(c[3])["url"].rsplit("/", 1)[1] for c in net.b2_calls()), ["2", "3"])
+        self.assertEqual(len(net.newsdata_calls()), 3)
+        self.assertEqual(self.sent(net), ["2", "3"])
         result = summary(lines)
         self.assertEqual(result["stoppedBy"], "past_range")
-        self.assertEqual(result["skipped"]["out_of_range"], 2)
+        self.assertEqual(result["skipped"]["out_of_range"], 4)
+
+    def test_one_late_item_does_not_stop(self):
+        # 범위 뒤 기사가 한 건 끼어도 그 쪽에 범위 안 기사가 있으면 다음 쪽을 받는다
+        pages = [page([day_item(1, "2026-11-03 01:00:00"), day_item(9, "2026-11-04 01:00:00")], "n1"), page([day_item(2, "2026-11-03 02:00:00")])]
+        net = FakeNet(pages)
+        code, lines, _ = run(self.asc_env(), net, now=NOW)
+        self.assertEqual((code, len(net.newsdata_calls()), self.sent(net), summary(lines)["stoppedBy"]), (0, 2, ["1", "2"], "end"))
 
     def test_no_stop_without_ascending_sort(self):
         net = FakeNet(self.pages())
-        _, lines, _ = run(env(INGEST_MODE="load-only", INGEST_DAYS="yesterday"), net, now=NOW)
-        self.assertEqual(len(net.newsdata_calls()), 3)
+        _, lines, _ = run(env(INGEST_MODE="load-only", INGEST_DAYS="yesterday", INGEST_MAX_REQUESTS="10"), net, now=NOW)
+        self.assertEqual(len(net.newsdata_calls()), 4)
         self.assertEqual(summary(lines)["stoppedBy"], "end")
 
     def test_no_stop_without_days(self):
         net = FakeNet(self.pages())
-        run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS=""), net, now=NOW)
-        self.assertEqual(len(net.newsdata_calls()), 3)
+        run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS="", INGEST_MAX_REQUESTS="10"), net, now=NOW)
+        self.assertEqual(len(net.newsdata_calls()), 4)
 
     def test_before_range_does_not_stop(self):
         # 오래된 순이라 처음 쪽은 그제 밤(범위 앞)이다 — 멈추면 안 된다
         pages = [page([day_item(1, "2026-11-02 14:00:00")], "n1"), page([day_item(2, "2026-11-02 16:00:00")])]
         net = FakeNet(pages)
-        code, lines, _ = run(env(INGEST_MODE="load-only", INGEST_QUERY=self.ASC, INGEST_DAYS="yesterday"), net, now=NOW)
+        code, lines, _ = run(self.asc_env(), net, now=NOW)
         self.assertEqual((code, len(net.newsdata_calls()), summary(lines)["stoppedBy"]), (0, 2, "end"))
+
+    def test_article_limit_wins_over_past_range(self):
+        # 상한에 걸린 범위 안 기사가 있으면 범위를 지나도 「상한」 — 종료 2(경보)
+        pages = [page([day_item(2, "2026-11-02 16:00:00"), day_item(3, "2026-11-02 17:00:00"), day_item(5, "2026-11-03 18:00:00")], "n1"), page([day_item(6, "2026-11-03 19:00:00")], "n2")]
+        net = FakeNet(pages)
+        code, lines, _ = run(self.asc_env(INGEST_MAX_ARTICLES="1"), net, now=NOW)
+        self.assertEqual(code, 2)
+        self.assertEqual(summary(lines)["stoppedBy"], "max_articles")
+
+    def test_filtered_items_still_mark_position(self):
+        # 본문 없는 기사도 시각이 있으면 위치를 알려 준다 — 그 쪽 전체가 범위 뒤면 멈춘다
+        pages = [page([day_item(2, "2026-11-02 16:00:00")], "n1"), page([day_item(5, "2026-11-03 18:00:00", content=None)], "n2"), page([day_item(6, "2026-11-03 19:00:00")])]
+        net = FakeNet(pages)
+        _, lines, _ = run(self.asc_env(), net, now=NOW)
+        self.assertEqual((len(net.newsdata_calls()), summary(lines)["stoppedBy"]), (2, "past_range"))
+
+    def test_items_without_usable_time_do_not_stop_or_crash(self):
+        # pubDate 칸이 없거나 UTC 가 아닌 기사는 위치로 쓰지 않는다(KeyError 로 실행 전체가 죽으면 안 된다)
+        no_time = item(5, content=None)
+        del no_time["pubDate"]
+        pages = [page([day_item(2, "2026-11-02 16:00:00")], "n1"), page([no_time, day_item(6, "2026-11-03 19:00:00", pubDateTZ="Asia/Seoul")], "n2"), page([day_item(3, "2026-11-02 17:00:00")])]
+        net = FakeNet(pages)
+        code, lines, _ = run(self.asc_env(), net, now=NOW)
+        self.assertEqual((code, len(net.newsdata_calls()), summary(lines)["stoppedBy"]), (0, 3, "end"))
 
 
 class SummaryFields(unittest.TestCase):

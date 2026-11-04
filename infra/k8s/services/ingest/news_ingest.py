@@ -314,11 +314,15 @@ class Run:
         days = self.config["days"]
         return days is not None and not days[0] <= self.kst_day(item) <= days[1]
 
-    def past_range(self, item):
+    def usable_day(self, item):
+        """시각을 믿을 수 있는 기사(UTC · 모양이 맞음)의 KST 날짜. 아니면 None — 오래된 순 멈춤에서 위치로 쓰지 않는다"""
+        pub = item.get("pubDate")
+        if item.get("pubDateTZ") != "UTC" or not isinstance(pub, str):
+            return None
         try:
-            return self.kst_day(item) > self.config["days"][1]
-        except (TypeError, ValueError):
-            return False
+            return (datetime.strptime(pub, PUB_DATE_FORMAT) + timedelta(hours=9)).date()
+        except ValueError:
+            return None
 
     def ascending(self):
         """오래된 순(sort=pubdateasc)이고 날짜 범위가 있으면 범위를 지난 쪽에서 멈출 수 있다"""
@@ -364,7 +368,8 @@ class Run:
                 first = data["results"][0]
                 fields = sorted(first) if isinstance(first, dict) else type(first).__name__
                 self.log({"msg": "받은 칸", "totalResults": data.get("totalResults"), "fields": fields})
-            past_range = False
+            # 오래된 순일 때 이 쪽의 시각을 믿을 수 있는 기사가 모두 범위 뒤인지 — 한 건만 뒤면 멈추지 않는다(정렬이 조금 어긋나도 어제 기사를 잃지 않게)
+            seen_day, all_past = False, True
             for item in data["results"]:
                 self.fetched += 1
                 if not isinstance(item, dict) or not isinstance(item.get("link"), str):
@@ -373,8 +378,11 @@ class Run:
                 self.note_pub_date(item)
                 article_id = item.get("article_id") if isinstance(item.get("article_id"), str) else None
                 reason = skip_reason(item)
-                if reason in (None, "no_body", "category", "marked_duplicate") and ascending and self.past_range(item):
-                    past_range = True
+                if ascending:
+                    day = self.usable_day(item)
+                    if day is not None:
+                        seen_day = True
+                        all_past = all_past and day > config["days"][1]
                 if reason is None and self.out_of_range(item):
                     reason = "out_of_range"
                 if reason is None and (item["link"] in links or article_id in article_ids):
@@ -390,12 +398,13 @@ class Run:
                 # 원본은 버리고 B2 요청 모양만 들고 있는다 — 하루 1만 건 안팎이라 메모리를 덜 쓴다
                 kept.append(to_article(item))
             next_page = data.get("nextPage")
-            if past_range:
-                # 오래된 순이라 이 뒤 쪽은 모두 범위 뒤(그날 기사)다 — 하루 약 330 → 240요청(팀장 어림)
-                self.stopped_by = "past_range"
-                break
+            # 상한이 먼저다 — 상한에 걸린 범위 안 기사가 있으면 범위를 지났어도 빠진 구간이라 종료 2(경보)
             if self.skipped["over_limit"] or (next_page and len(kept) >= config["max_articles"]):
                 self.stopped_by = "max_articles"
+                break
+            if ascending and seen_day and all_past:
+                # 오래된 순이라 이 뒤 쪽은 모두 범위 뒤(그날 기사)다 — 하루 약 330 → 240요청(팀장 어림)
+                self.stopped_by = "past_range"
                 break
             if not next_page:
                 self.stopped_by = "end"
