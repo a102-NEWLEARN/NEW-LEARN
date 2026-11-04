@@ -28,14 +28,31 @@ flowchart LR
 
 ## 2. 운영 기사 목록 받기
 
-인프라가 EC2 에서 뽑는다. 한 줄이 기사 하나이고, `id`(운영 번호)를 뺀 나머지가 그대로 B2 요청 본문이다(`docs/api-internal.md` 2절). 만드는 쪽은 각 줄을 자기 로컬 backend 의 B2 로 보내면 운영과 같은 기사 행이 생긴다 — 발행 시각 · 언론사 규칙이 B2 코드 한 곳에서 같다. NewsData 를 두 번 받지 않아 크레딧도 안 든다.
+인프라가 **매일** 뽑아 넘긴다 — 10:00 수집(`ingest.md`)이 끝난 뒤 전날 하루치(2026-11-04 팀 결정). 한 줄이 기사 하나이고, `id`(운영 번호)를 뺀 나머지가 그대로 B2 요청 본문이다(`docs/api-internal.md` 2절). 만드는 쪽은 각 줄을 자기 로컬 backend 의 B2 로 보내면 운영과 같은 기사 행이 생긴다 — 발행 시각 · 언론사 규칙이 B2 코드 한 곳에서 같다. NewsData 를 두 번 받지 않아 크레딧도 안 든다.
+
+뽑는 SQL 은 `infra/server/export-articles.sql` 이다(발행 시각의 KST 날짜 `from` ~ `to`, 넣기만 기사만). 서버에서 돌리고 파일은 scp 로 받는다 — PowerShell 은 `<` 를 못 쓰고 `>` 가 바이트를 바꿀 수 있어서, 리다이렉트는 서버 셸 안에서만 한다. SQL 이 바뀌면 그 파일을 서버로 한 번 보낸다(관리자 PC 의 저장소 맨 위에서).
 
 ```bash
-kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -At -c "select json_build_object('id', a.id, 'url', a.url, 'pressSourceId', a.press_code, 'pressName', p.name, 'title', a.title, 'reporter', a.reporter, 'body', a.body, 'publishedAt', to_char(a.published_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), 'sourceCategories', a.source_categories, 'sourceTags', a.source_tags) from article a join press p on p.code = a.press_code where a.source = 'NEWSDATA' and a.released_at is null and a.published_at >= '2026-11-04 00:00+09' and a.published_at < '2026-11-16 00:00+09' order by a.published_at, a.id" > articles-1104-1115.jsonl
+scp infra/server/export-articles.sql newlearn:infra/server/
 ```
 
-- `COPY` 가 아니라 `psql -At` 로 뽑는다 — `COPY` 텍스트 형식은 JSON 안 역슬래시를 두 번 써 줄이 깨진다
-- 날짜 범위는 넘길 때마다 바꾼다. 줄 수와 sha256 을 같이 넘긴다. 기사 본문이라 저장소 · 팀방에 올리지 않고 공유 드라이브로
+매일(예: 11/5 10:00 수집 뒤 11/4 분) — 날짜 둘만 바꾼다
+
+```bash
+ssh newlearn "kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -At -v from=2026-11-04 -v to=2026-11-04 < infra/server/export-articles.sql > articles-2026-11-04.jsonl && wc -l articles-2026-11-04.jsonl && sha256sum articles-2026-11-04.jsonl"
+```
+
+```bash
+scp newlearn:articles-2026-11-04.jsonl .
+```
+
+```bash
+ssh newlearn "rm articles-2026-11-04.jsonl"
+```
+
+- 줄 수와 sha256 을 같이 넘긴다(받은 쪽이 `sha256sum` 으로 견줌). 그날 `수집 결과` 의 `b2.created` 와 줄 수가 대개 같다(그 뒤 공개된 기사가 있으면 그만큼 적음). 기사 본문이라 저장소 · 팀방에 올리지 않고 공유 드라이브로, 관리자 PC 사본은 넘긴 뒤 지운다
+- 데이터셋 마감은 **11/14 기사까지**, 11/15 10:00 수집 뒤 11/14 분을 넘기는 것이 마지막이다(2026-11-04 팀 결정). 최종 덤프를 언제 받아 넣을지는 아직이다(`SSOT.md` 8절)
+- 2026-11-04 일회용 DB(운영과 같은 `pgvector/pgvector:0.8.7-pg18`, 마이그레이션 V1 ~ V10)에서 확인 — KST 하루 경계(UTC 전날 15:00 들어감 · 그날 15:00 빠짐), 공개된 기사 빠짐, 따옴표 · 줄바꿈 · 역슬래시 본문이 JSON 으로 그대로
 - `pressSourceId` 는 운영 `press.code` 다. B2 가 처음 보는 언론사를 `source_id` 로 등록해 두 값이 같다. 사람이 다르게 묶은 대응이 없는지 뽑기 전에 본다 — `select count(*) from press_mapping where source = 'NEWSDATA' and source_value <> press_code` 가 0
 - 운영에는 **11/4(KST) 기사부터** 있다(수집 배치). 10/21 ~ 11/3 기사는 팀원이 NewsData 로 따로 받아 저장소에 둔다(2026-11-04 팀 결정) — 운영에 없으니 이 목록에도 없고, 만드는 쪽 DB 에 있던 그대로 덤프에 넣으면 적재가 새로 넣는다(3절)
 

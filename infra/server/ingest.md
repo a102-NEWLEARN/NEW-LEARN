@@ -41,6 +41,13 @@ flowchart LR
 
 - 10:00 에 돈다. 시작 마감이 1시간이라 그 사이 서버가 멈췄다 돌아오면 11시 전까지는 늦게라도 돈다. 10:00 ~ 11:00 에 CronJob 을 바꾸는 MR 이 머지되면 그 자리에서 한 번 돈다
 - 크레딧 어림 — 하루 7,000건(팀장 공지 2026-11-03)이면 36시간 창이 약 1만 500건 · 요청 약 210. 그날 0 ~ 10시 기사는 받은 뒤 버린다(최신부터 오고 latest 에 끝 시각 조건이 없다)
+- 매일 공유 — 실행마다 `수집 결과` 줄 전체와 종료 코드를 팀장에게 넘긴다(팀장이 `credits` 를 NewsData 대시보드 차감과 견줌, 2026-11-04). 예약 실행 Job 은 이름이 `news-ingest-<숫자>` 다(손 실행은 `-check-` · `-manual-` 처럼 글자가 섞임). 다시 시도가 있었으면 Pod 가 둘이다
+
+  ```bash
+  ssh newlearn 'j=$(kubectl -n app get jobs -o name --sort-by=.metadata.creationTimestamp | grep -E "/news-ingest-[0-9]+$" | tail -1); echo "$j"; kubectl -n app get pods -l job-name=${j#job.batch/} -o jsonpath="{range .items[*]}{.metadata.name} exit={.status.containerStatuses[0].state.terminated.exitCode}{\"\n\"}{end}"; kubectl -n app logs "$j" | tail -1'
+  ```
+
+  같은 날 운영 기사 목록 JSONL 도 넘긴다(`infra/server/data-load.md` 2절)
 - 팀장이 매일 적는 항목은 `수집 결과` 한 줄에서 나온다 — 요청 `requests` · 크레딧 `credits` · 받은 수 `fetched` · 새 기사 `b2.created` · 본문 정상 `fetched` − `skipped.no_body` · 빠진 구간 `stoppedBy` 와 `pubDates`. `fetched` · `no_body` 는 36시간 창 전체(그날 0 ~ 10시 · 그제 밤 포함, 절반 가까이)를 센다 — 「전날 기사 수」는 `kept`(날짜 범위 안 · 거른 뒤). 수집 시각은 `article.created_at`(B2 가 넣은 때)
 - 손 실행은 10시를 피한다 — 겹치면 둘이 같이 돌아 크레딧을 두 번 쓰거나 예약이 건너뛰어질 수 있다(손으로 만든 Job 을 CronJob 이 어떻게 세는지는 클러스터에서 확인하지 않았다)
 
