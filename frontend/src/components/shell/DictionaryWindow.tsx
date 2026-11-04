@@ -15,6 +15,7 @@ import {
 } from "react";
 import { type DictionaryItem, dictionaryQuery } from "@/api/dictionary";
 import { ApiError } from "@/api/error";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
 
 // 처음에 보이는 뜻 수 (EXPERIENCE.md 「용어사전 창」). 나머지는 *더 보기* 로 편다 — 사전은 흔한 뜻을 뒤에 줘서
@@ -22,9 +23,11 @@ import { errorDescription } from "@/components/state/ErrorState";
 const SHOWN = 3;
 // 찾을 단어 길이 상한 — 서버와 같다 (docs/api-screen.md A19)
 const MAX_LENGTH = 50;
-// 화면 오른쪽 아래에서 떨어진 거리(px) — 프로토타입 v21. 아래쪽은 클래스 bottom-[24px] 로 준다
-// (위치 클래스 bottom-x6 등은 SEED 테마에 없다)
+// 화면 오른쪽 아래에서 떨어진 거리(px) — 프로토타입 v21
 const EDGE = 24;
+// 좁은 화면 — 모바일 프로토타입 v1. 버튼은 오른쪽 16 · 아래 20 의 동그라미, 창은 좌우 · 아래 8px 까지 넓힌다
+const NARROW_BUTTON = { right: 16, bottom: 20 };
+const NARROW_GAP = 8;
 
 // 말풍선 하나 — 내가 보낸 말 · 찾은 결과 · 실패 안내
 type Draft =
@@ -65,6 +68,7 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [busy, setBusy] = useState(false);
   const queryClient = useQueryClient();
+  const narrow = useMediaQuery(NARROW_SCREEN);
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +140,8 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
       .finally(() => setBusy(false));
   };
 
-  const right = EDGE + inset;
+  // 좁은 화면의 사건 시트는 딤으로 버튼을 덮어서 비키지 않는다 (inset 은 넓은 화면 패널 폭)
+  const right = narrow ? NARROW_BUTTON.right : EDGE + inset;
   // 사건 패널과 같은 곡선 · 시간으로 비킨다. 동작 줄이기를 켜면 바로 옮긴다 (EXPERIENCE.md Interaction Primitives 「모션」)
   const shift =
     "motion-safe:[transition:right_300ms_var(--seed-timing-function-enter),background-color_150ms,scale_150ms]";
@@ -149,11 +154,12 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
         aria-label="용어 사전 열기"
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
-        style={{ right }}
-        className={`t5-bold fixed bottom-[24px] z-[1] inline-flex h-[48px] items-center gap-x2 rounded-full bg-bg-brand-solid pr-[18px] pl-x4 text-palette-static-white shadow-s3 hover:bg-bg-brand-solid-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:scale-[0.96] ${shift}`}
+        style={{ right, bottom: narrow ? NARROW_BUTTON.bottom : EDGE }}
+        className={`t5-bold fixed z-[1] inline-flex items-center rounded-full bg-bg-brand-solid text-palette-static-white shadow-s3 hover:bg-bg-brand-solid-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:scale-[0.96] ${narrow ? "size-[52px] justify-center" : "h-[48px] gap-x2 pr-[18px] pl-x4"} ${shift}`}
       >
-        <IconBookOpenLine aria-hidden size={18} />
-        <span>용어 사전</span>
+        <IconBookOpenLine aria-hidden size={narrow ? 22 : 18} />
+        {/* 좁은 화면은 아이콘만 둔다. 이름은 aria-label 그대로 */}
+        {!narrow && <span>용어 사전</span>}
       </button>
     );
 
@@ -162,8 +168,12 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
       ref={windowRef}
       role="dialog"
       aria-labelledby={titleId}
-      style={{ right }}
-      className={`fixed bottom-[24px] z-[1] flex h-[min(480px,calc(100dvh-120px))] w-[min(360px,calc(100vw-48px))] origin-bottom-right flex-col overflow-hidden rounded-r5 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3 motion-safe:animate-[newlearn-dictionary-in_200ms_var(--seed-timing-function-enter)] ${shift}`}
+      style={
+        narrow
+          ? { left: NARROW_GAP, right: NARROW_GAP, bottom: NARROW_GAP }
+          : { right, bottom: EDGE }
+      }
+      className={`fixed z-[1] flex origin-bottom-right flex-col overflow-hidden rounded-r5 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3 motion-safe:animate-[newlearn-dictionary-in_200ms_var(--seed-timing-function-enter)] ${narrow ? "h-[72dvh]" : "h-[min(480px,calc(100dvh-120px))] w-[min(360px,calc(100vw-48px))]"} ${shift}`}
     >
       <div className="flex items-center gap-x2_5 border-b border-stroke-neutral-weak py-x3 pr-x3 pl-x4">
         <span

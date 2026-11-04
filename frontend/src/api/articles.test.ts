@@ -71,3 +71,13 @@ test("빈 분야 코드도 404 CATEGORY_NOT_FOUND 다 — 전체를 주지 않�
     code: "CATEGORY_NOT_FOUND",
   });
 });
+
+// 시연할 때 홈에서 바로 찾게 최신 기사 맨 앞에 둔다 (Jira 166)
+test("어려운 기사 409 가 최신 기사 맨 앞이다", async () => {
+  const page = await fetchArticles({ size: 8 });
+
+  expect(page.items[0]).toMatchObject({
+    id: 409,
+    category: { code: "economy", name: "경제" },
+  });
+});

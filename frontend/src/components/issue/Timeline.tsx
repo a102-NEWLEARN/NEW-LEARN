@@ -1,4 +1,5 @@
 import {
+  IconCorner4OutwardLine,
   IconMinusLine,
   IconPlusLine,
   IconQuestionmarkCircleLine,
@@ -25,10 +26,13 @@ import type { TimelineEvent, TimelineLane } from "@/api/timeline";
 import {
   GUTTER,
   layoutTimeline,
+  NARROW_GUTTER,
+  NARROW_RIGHT_ROOM,
   RIGHT_ROOM,
   type PlacedEvent,
 } from "@/components/issue/timelineLayout";
 import { useElementSize } from "@/components/issue/useElementSize";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -107,9 +111,13 @@ export function Timeline({
   const measured = useElementSize(wrapRef);
   const width = measured.width || FALLBACK_SIZE.width;
   const height = measured.height || FALLBACK_SIZE.height;
+  // 좁은 화면은 레인 이름 칸 · 오른쪽 여백을 줄여 사건 자리를 넓힌다 (모바일 프로토타입 v1)
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const gutter = narrow ? NARROW_GUTTER : GUTTER;
+  const rightRoom = narrow ? NARROW_RIGHT_ROOM : RIGHT_ROOM;
   const layout = useMemo(
-    () => layoutTimeline(events, { width }),
-    [events, width],
+    () => layoutTimeline(events, { width, gutter, rightRoom }),
+    [events, width, gutter, rightRoom],
   );
   // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치. 그린 뒤 옮겨 둔다
   const sizeRef = useRef({ width, height });
@@ -159,7 +167,7 @@ export function Timeline({
   }, [tipOpen]);
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
-  const screenX = (x: number) => transform.applyX(GUTTER + x);
+  const screenX = (x: number) => transform.applyX(gutter + x);
 
   // d3-zoom 을 한 번 붙인다. 크기는 그때그때 읽는다 — jsdom 은 SVG 크기를 못 재서 extent 를 직접 준다
   useEffect(() => {
@@ -197,7 +205,7 @@ export function Timeline({
         .call(zoomRef.current!.transform, next);
     else selection.call(zoomRef.current!.transform, next);
   };
-  const atScale = (k: number, x = GUTTER * (1 - k)) =>
+  const atScale = (k: number, x = gutter * (1 - k)) =>
     zoomIdentity.translate(x, 0).scale(k);
   // 버튼 배율은 움직이는 중의 배율이 아니라 앞 버튼이 노린 배율에서 잰다 — 빠르게 두 번 눌러도 두 번 다 먹게
   const scaleBy = (factor: number) => {
@@ -220,19 +228,19 @@ export function Timeline({
   };
   // 전체 보기 — 그리는 영역이 다 들어오게. 100% 보다 키우지 않고 50% 아래로 줄이지 않는다
   const fit = () => {
-    const room = sizeRef.current.width - GUTTER - 60;
+    const room = sizeRef.current.width - gutter - 60;
     apply(atScale(Math.max(0.5, Math.min(1, room / layoutRef.current.width))));
   };
   // 그 사건이 화면 가운데쯤 오게 가로로 옮긴다. 배율은 그대로
   const centerOn = (event: PlacedEvent, duration = 300) => {
     const { k } = transformRef.current;
-    const target = GUTTER + (sizeRef.current.width - GUTTER) * 0.45;
-    apply(atScale(k, target - (GUTTER + event.x) * k), duration);
+    const target = gutter + (sizeRef.current.width - gutter) * 0.45;
+    apply(atScale(k, target - (gutter + event.x) * k), duration);
   };
   // 화면 밖이거나 오른쪽 라벨 자리에 걸치면 옮긴다
   const keepInView = (event: PlacedEvent, duration?: number) => {
-    const x = transformRef.current.applyX(GUTTER + event.x);
-    if (x < GUTTER + 20 || x > sizeRef.current.width - LABEL_ROOM)
+    const x = transformRef.current.applyX(gutter + event.x);
+    if (x < gutter + 20 || x > sizeRef.current.width - LABEL_ROOM)
       centerOn(event, duration);
   };
 
@@ -245,7 +253,7 @@ export function Timeline({
     if (!first && !remeasured) return;
     startedWidth.current = measured.width;
     // 배치가 넓은 화면에서 늘리는 폭과 같은 값으로 재야 늘어난 배치가 딱 100% 가 된다
-    const room = sizeRef.current.width - GUTTER - RIGHT_ROOM;
+    const room = sizeRef.current.width - gutter - rightRoom;
     const fitting = room / layoutRef.current.width;
     apply(atScale(fitting >= 0.75 ? Math.min(1, fitting) : 0.75), 0);
     const selected = layoutRef.current.events.find(
@@ -336,9 +344,22 @@ export function Timeline({
           >
             <IconMinusLine aria-hidden size={16} />
           </button>
-          <span className="t4-regular w-[44px] text-center text-fg-neutral-muted tabular-nums">
-            {`${Math.round(transform.k * 100)}%`}
-          </span>
+          {/* 좁은 화면은 확대 % 대신 「전체 보기」 아이콘을 둔다 (모바일 프로토타입 v1) */}
+          {narrow ? (
+            <button
+              type="button"
+              aria-label="전체 보기"
+              title="전체 보기"
+              onClick={fit}
+              className="flex size-x8 items-center justify-center rounded-r1_5 text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+            >
+              <IconCorner4OutwardLine aria-hidden size={16} />
+            </button>
+          ) : (
+            <span className="t4-regular w-[44px] text-center text-fg-neutral-muted tabular-nums">
+              {`${Math.round(transform.k * 100)}%`}
+            </span>
+          )}
           <button
             type="button"
             aria-label="확대"
@@ -348,14 +369,16 @@ export function Timeline({
             <IconPlusLine aria-hidden size={16} />
           </button>
         </div>
-        <ActionButton
-          variant="neutralOutline"
-          size="small"
-          className="border-stroke-neutral-weak"
-          onClick={fit}
-        >
-          전체 보기
-        </ActionButton>
+        {!narrow && (
+          <ActionButton
+            variant="neutralOutline"
+            size="small"
+            className="border-stroke-neutral-weak"
+            onClick={fit}
+          >
+            전체 보기
+          </ActionButton>
+        )}
         <ActionButton
           ref={tipButtonRef}
           variant="neutralOutline"
@@ -384,9 +407,9 @@ export function Timeline({
           <defs>
             <clipPath id="timeline-plot">
               <rect
-                x={GUTTER}
+                x={gutter}
                 y={0}
-                width={Math.max(0, width - GUTTER)}
+                width={Math.max(0, width - gutter)}
                 height={svgHeight}
               />
             </clipPath>
@@ -573,7 +596,7 @@ export function Timeline({
               className="fill-bg-layer-default"
             />
             <line
-              x1={GUTTER}
+              x1={gutter}
               x2={width}
               y1={layout.axisY + 0.5}
               y2={layout.axisY + 0.5}
@@ -632,13 +655,13 @@ export function Timeline({
             <rect
               x={0}
               y={0}
-              width={GUTTER}
+              width={gutter}
               height={layout.axisY}
               className="fill-bg-layer-default"
             />
             <line
-              x1={GUTTER - 0.5}
-              x2={GUTTER - 0.5}
+              x1={gutter - 0.5}
+              x2={gutter - 0.5}
               y1={0}
               y2={layout.axisY}
               className="stroke-stroke-neutral-subtle"
@@ -649,8 +672,9 @@ export function Timeline({
               return (
                 <g key={lane.key} role="listitem">
                   <title>{LANE_MEANING[lane.key]}</title>
+                  {/* 좁은 화면은 칸이 좁아 막대 · 글자를 왼쪽으로 붙이고 한 단계 작게 (모바일 프로토타입 v1) */}
                   <rect
-                    x={16}
+                    x={narrow ? 8 : 16}
                     y={y - 13}
                     width={4}
                     height={26}
@@ -660,16 +684,16 @@ export function Timeline({
                     }
                   />
                   <text
-                    x={28}
+                    x={narrow ? 19 : 28}
                     y={y - 2}
-                    className={`text-[0.8125rem] font-extrabold ${main ? "fill-fg-neutral" : "fill-fg-neutral-muted"}`}
+                    className={`font-extrabold ${narrow ? "text-[0.75rem]" : "text-[0.8125rem]"} ${main ? "fill-fg-neutral" : "fill-fg-neutral-muted"}`}
                   >
                     {lane.name}
                   </text>
                   <text
-                    x={28}
+                    x={narrow ? 19 : 28}
                     y={y + 15}
-                    className="fill-fg-neutral-subtle text-[0.75rem] tabular-nums"
+                    className={`fill-fg-neutral-subtle tabular-nums ${narrow ? "text-[0.6875rem]" : "text-[0.75rem]"}`}
                   >
                     {`사건 ${lane.count}`}
                   </text>

@@ -1,17 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { meQuery } from "@/api/members";
 import { HomeGreeting } from "@/components/home/HomeGreeting";
 import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
+import { type HomeView, HomeViewTabs } from "@/components/home/HomeViewTabs";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { NewIssues } from "@/components/home/NewIssues";
 import { RecommendedIssues } from "@/components/home/RecommendedIssues";
 import { SearchBox } from "@/components/home/SearchBox";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { focusSearchRequest } from "@/components/shell/useQuickSearch";
 import { usePageTitle } from "@/components/usePageTitle";
 
 // 홈 — 인사 · 검색창 · 「새로운 이슈」 · 추천 이슈 · 최신 기사 (EXPERIENCE.md Information Architecture, 프로토타입 v21).
+// 좁은 화면은 추천 이슈 · 최신 기사를 탭으로 하나씩 보인다 (모바일 프로토타입 v1).
 // 셸이 <main> 을 줄 것이라 여기서는 쓰지 않는다
 export function HomePage() {
   usePageTitle("홈");
@@ -29,6 +32,24 @@ export function HomePage() {
       navigate({ pathname, search }, { replace: true, state: null });
   }, [focusRequest, navigate, pathname, search]);
 
+  // 좁은 화면에서 고른 보기는 ?view= 에 남긴다 `[가정]`. 같은 화면에서 고르는 것이라 기록을 쌓지 않는다 (EXPERIENCE.md 이동 규칙)
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view: HomeView =
+    searchParams.get("view") === "latest" ? "latest" : "recommended";
+  const setView = (next: HomeView) =>
+    setSearchParams(
+      (params) => {
+        if (next === "latest") params.set("view", "latest");
+        else params.delete("view");
+        return params;
+      },
+      { replace: true },
+    );
+  const recommended = (
+    <RecommendedIssues member={member} pending={me.isPending} />
+  );
+
   return (
     <>
       <section
@@ -44,9 +65,22 @@ export function HomePage() {
         </div>
       </section>
       {/* 콘텐츠 화면 최대 너비 1040px (DESIGN.md Layout & Spacing) */}
-      <div className="mx-auto max-w-[1040px] px-x4 pt-x7 pb-x14 md:px-x8">
-        <RecommendedIssues member={member} pending={me.isPending} />
-        <LatestArticles />
+      <div
+        className={`mx-auto max-w-[1040px] px-x4 pb-x14 md:px-x8 ${narrow ? "" : "pt-x7"}`}
+      >
+        {narrow ? (
+          <HomeViewTabs
+            value={view}
+            onValueChange={setView}
+            recommended={recommended}
+            latest={<LatestArticles />}
+          />
+        ) : (
+          <>
+            {recommended}
+            <LatestArticles />
+          </>
+        )}
       </div>
     </>
   );

@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { ArticleDetail } from "@/api/article";
 import { BookmarkButton } from "@/components/BookmarkButton";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
 import { formatFullDateTime } from "@/lib/date";
 
@@ -33,12 +34,19 @@ const metaLine = (article: ArticleDetail) =>
 // 이슈로 아직 묶이지 않았으면 그 문구, 그 밖(사건 찾기 전 · 실패 · 사건으로 묶지 않는 기사)은 아무것도 두지 않는다
 // (EXPERIENCE.md State Patterns 「사건 연결 상태」 [가정])
 function IssueLink({ article }: { article: ArticleDetail }) {
+  // 좁은 화면은 한 줄을 꽉 채운 44px 버튼 — 엄지로 누르기 쉽게 (모바일 프로토타입 v1)
+  const narrow = useMediaQuery(NARROW_SCREEN);
   if (article.issue) {
     const to = article.event
       ? `/issues/${article.issue.id}?event=${article.event.id}`
       : `/issues/${article.issue.id}`;
     return (
-      <ActionButton asChild variant="brandSolid" size="small">
+      <ActionButton
+        asChild
+        variant="brandSolid"
+        size="small"
+        className={narrow ? "h-[44px] w-full" : undefined}
+      >
         <Link to={to}>이 기사가 속한 이슈 보기</Link>
       </ActionButton>
     );

@@ -1,9 +1,10 @@
 import { focusManager } from "@tanstack/react-query";
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { server } from "@/mocks/node";
 import { HomePage } from "@/pages/HomePage";
+import { stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 셸 없이 홈만 연다. 주소(?category=)를 보려고 라우터를 쓴다
@@ -154,4 +155,65 @@ test("「오늘의 이슈」 뒤에 장식 그림을 깐다", async () => {
   const hero = await screen.findByRole("region", { name: "오늘의 이슈" });
   const art = hero.querySelector('svg[viewBox="0 0 1200 360"]');
   expect(art?.getAttribute("aria-hidden")).toBe("true");
+});
+
+// 좁은 화면 홈 보기 탭 (모바일 프로토타입 v1)
+const homeTabs = () => screen.findByRole("tablist", { name: "홈 보기" });
+
+test("넓은 화면에는 홈 보기 탭이 없다", async () => {
+  renderHome();
+
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+  expect(screen.queryByRole("tablist", { name: "홈 보기" })).toBeNull();
+});
+
+test("좁은 화면에서는 「추천 이슈 / 최신 기사」 탭으로 한 번에 한 부분만 보인다", async () => {
+  stubScreen("narrow");
+  renderHome();
+
+  const tabs = await homeTabs();
+  expect(
+    within(tabs)
+      .getAllByRole("tab")
+      // SEED Tabs 는 안 고른 탭에 aria-selected 를 두지 않는다
+      .map((tab) => [
+        tab.textContent,
+        tab.getAttribute("aria-selected") === "true",
+      ]),
+  ).toEqual([
+    ["추천 이슈", true],
+    ["최신 기사", false],
+  ]);
+  expect(
+    await screen.findByRole("heading", { level: 2, name: /추천 이슈/ }),
+  ).toBeDefined();
+  expect(screen.queryByRole("list", { name: "최신 기사" })).toBeNull();
+});
+
+test("좁은 화면에서 최신 기사 탭을 고르면 기록을 쌓지 않고 ?view=latest 로 바꾼다", async () => {
+  stubScreen("narrow");
+  const { router } = renderHome();
+
+  fireEvent.click(
+    within(await homeTabs()).getByRole("tab", { name: "최신 기사" }),
+  );
+
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+  expect(
+    screen.queryByRole("heading", { level: 2, name: /추천 이슈/ }),
+  ).toBeNull();
+  expect(router.state.location.search).toBe("?view=latest");
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+test("좁은 화면에서 ?view=latest 로 열면 최신 기사 탭을 고른 채 연다", async () => {
+  stubScreen("narrow");
+  renderHome("/home?view=latest");
+
+  expect(
+    within(await homeTabs())
+      .getByRole("tab", { name: "최신 기사" })
+      .getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
 });
