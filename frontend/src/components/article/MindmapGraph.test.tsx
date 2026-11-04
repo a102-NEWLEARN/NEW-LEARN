@@ -1,7 +1,8 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
+import { stubScreen } from "@/test/media";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -220,4 +221,40 @@ test("가운데 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 �
 
   const title = screen.getByText("한빛반도체 텍사스 공장");
   expect(title.closest('[aria-hidden="true"]')).not.toBeNull();
+});
+
+// 폰 폭(393 × 600)으로 잰다 — jsdom 은 크기를 못 재서 어림값을 쓴다
+function phoneSize() {
+  const width = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockReturnValue(393);
+  const height = vi
+    .spyOn(HTMLElement.prototype, "clientHeight", "get")
+    .mockReturnValue(600);
+  return () => {
+    width.mockRestore();
+    height.mockRestore();
+  };
+}
+
+test("좁은 화면에서는 전체에 맞추되 72% 아래로 줄이지 않는다 — 글자가 읽히게 (모바일 v1)", async () => {
+  stubScreen("narrow");
+  const restore = phoneSize();
+  try {
+    renderGraph();
+    await waitFor(() => expect(zoomLevel()).toBeGreaterThanOrEqual(72));
+    expect(zoomLevel()).toBeLessThanOrEqual(100);
+  } finally {
+    restore();
+  }
+});
+
+test("넓은 화면 규칙으로 폰 폭에 맞추면 72% 보다 작아진다 — 좁은 화면만 배율을 묶는다", async () => {
+  const restore = phoneSize();
+  try {
+    renderGraph();
+    await waitFor(() => expect(zoomLevel()).toBeLessThan(72));
+  } finally {
+    restore();
+  }
 });

@@ -193,3 +193,34 @@ test("관심 이슈를 받다가 세션이 끝났으면(401) 로그인 화면으
   await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
   expect(router.state.location.search).toBe("?next=/me");
 });
+
+// 이름 아래 머리 줄 — 모바일 v1 · v21 MyPageScreen (Jira 163). 관심 분야는 저장된 것(A17), 관심 이슈는 A25, 북마크는 A22 의 개수
+test("이름 아래에 관심 분야 · 관심 이슈 · 북마크 개수를 보인다", async () => {
+  await openMyPage();
+
+  expect(
+    await within(screen.getByRole("main")).findByText(
+      "관심 분야 2개 · 관심 이슈 2개 · 북마크 3개",
+    ),
+  ).toBeDefined();
+});
+
+test("개수 하나라도 못 받으면 머리 줄을 그리지 않는다", async () => {
+  server.use(
+    http.get("/api/v1/members/me/bookmarks", () =>
+      apiProblem(
+        500,
+        "INTERNAL_ERROR",
+        "서버 오류",
+        "/api/v1/members/me/bookmarks",
+      ),
+    ),
+  );
+  await openMyPage();
+  // 관심 이슈 목록이 그려질 때까지 기다린 뒤에도 줄이 없다
+  await within(screen.getByRole("main")).findByRole("link", {
+    name: /한빛반도체 미국 공장 건설/,
+  });
+
+  expect(screen.queryByText(/관심 분야 \d+개/)).toBeNull();
+});

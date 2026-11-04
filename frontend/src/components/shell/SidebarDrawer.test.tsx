@@ -168,3 +168,20 @@ test("Ctrl+\\ 로 서랍을 연다", async () => {
 
   expect(await screen.findByRole("dialog", { name: "메뉴" })).toBeDefined();
 });
+
+// 모바일 v1 — 서랍 머리는 큰 「메뉴」 제목 대신 로고 · 닫기다. 서랍 이름 「메뉴」는 화면 읽기에 남는다 (Jira 163)
+test("서랍 머리의 로고를 누르면 홈으로 가며 서랍이 닫힌다", async () => {
+  const { router } = renderRoute("/issues/12");
+
+  await openMenu();
+  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  expect(within(drawer).getByText("메뉴").classList.contains("sr-only")).toBe(
+    true,
+  );
+  fireEvent.click(
+    within(drawer).getByRole("link", { name: "NEW:LEARN 홈으로" }),
+  );
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(router.state.location.pathname).toBe("/home");
+});
