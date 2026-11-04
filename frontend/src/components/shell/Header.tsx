@@ -1,10 +1,12 @@
 import {
+  IconBookmarkFill,
   IconBookmarkLine,
   IconHorizline3VerticalLine,
+  IconPersonFill,
   IconPersonLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { PrefixIcon } from "@seed-design/react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { Logo } from "@/components/Logo";
 
@@ -20,10 +22,15 @@ type HeaderProps = {
 // 셸 헤더 — 스크롤해도 위에 붙어 있다 (EXPERIENCE.md 앱 셸).
 // 높이 60px · 로고 26px 는 프로토타입 v21 값이다 (DESIGN.md 헤더 로고 20–32px).
 // 좁은 화면에서는 메뉴 버튼을 두고, 오른쪽 버튼은 글자를 숨긴 40px 아이콘 버튼이 된다.
-// 이름은 스크린 리더에 남는다 (EXPERIENCE.md Responsive & Platform · Accessibility Floor)
+// 이름은 스크린 리더에 남는다 (EXPERIENCE.md Responsive & Platform · Accessibility Floor).
+// 지금 화면의 버튼은 브랜드 옅은 바탕 · Fill 아이콘으로 칠하고 aria-current 로 알린다 (모바일 v1 · v21 TopNav, DESIGN.md 아이콘)
 export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
+  const { pathname } = useLocation();
+  const atBookmarks = pathname === "/bookmarks";
+  const atMyPage = pathname === "/me";
   const label = narrow ? "sr-only" : undefined;
-  const iconButton = narrow ? "size-x10 px-0" : undefined;
+  // SEED ghost 버튼은 글자 · 아이콘 색을 --seed-box-color 로 칠한다
+  const iconButton = `aria-[current=page]:bg-bg-brand-weak aria-[current=page]:[--seed-box-color:var(--seed-color-fg-brand-contrast)] ${narrow ? "size-x10 px-0" : ""}`;
 
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak bg-bg-layer-default px-x4">
@@ -53,8 +60,10 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
           size="small"
           className={iconButton}
         >
-          <Link to="/bookmarks">
-            <PrefixIcon svg={<IconBookmarkLine />} />
+          <Link to="/bookmarks" aria-current={atBookmarks ? "page" : undefined}>
+            <PrefixIcon
+              svg={atBookmarks ? <IconBookmarkFill /> : <IconBookmarkLine />}
+            />
             <span className={label}>나의 뉴스함</span>
           </Link>
         </ActionButton>
@@ -65,8 +74,10 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
           size="small"
           className={iconButton}
         >
-          <Link to="/me">
-            <PrefixIcon svg={<IconPersonLine />} />
+          <Link to="/me" aria-current={atMyPage ? "page" : undefined}>
+            <PrefixIcon
+              svg={atMyPage ? <IconPersonFill /> : <IconPersonLine />}
+            />
             <span className={label}>마이페이지</span>
           </Link>
         </ActionButton>

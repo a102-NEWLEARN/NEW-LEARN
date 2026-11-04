@@ -117,6 +117,13 @@ function CategoryNode({
           className={`shrink-0 text-fg-neutral-muted transition-transform duration-200 motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
         />
         <span className="truncate">{category.name}</span>
+        {/* A1 이슈 수 — 눈으로 보는 보조라 화면 읽기에서 빼서 버튼 이름은 분야 이름 그대로다 (모바일 v1 · v21 Sidebar) */}
+        <span
+          aria-hidden
+          className="t1-medium ml-auto shrink-0 text-fg-neutral-muted tabular-nums"
+        >
+          {category.issueCount}
+        </span>
       </button>
       {open && (
         <div id={issuesId}>

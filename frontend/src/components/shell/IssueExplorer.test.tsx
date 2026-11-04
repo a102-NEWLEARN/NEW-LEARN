@@ -36,6 +36,7 @@ function Address() {
   return <output aria-label="주소">{`${type} ${pathname}${search}`}</output>;
 }
 
+// A1 분야는 이름 뒤에 이슈 수(issueCount)가 붙는다 (Jira 163)
 test("A1 분야 뒤에 준비 중인 분야 두 개를 붙인다", async () => {
   renderWithProviders(<Explorer />);
 
@@ -44,11 +45,11 @@ test("A1 분야 뒤에 준비 중인 분야 두 개를 붙인다", async () => {
     .getAllByRole("button")
     .map((button) => button.textContent);
   expect(names).toEqual([
-    "정치",
-    "사회",
-    "경제",
-    "국제",
-    "IT·과학",
+    "정치2",
+    "사회2",
+    "경제4",
+    "국제1",
+    "IT·과학2",
     "스포츠준비 중",
     "문화/연예준비 중",
   ]);
