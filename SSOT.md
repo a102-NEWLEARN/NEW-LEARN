@@ -152,6 +152,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 백엔드 테스트는 로컬에서는 Testcontainers로 DB · Redis를 띄우고, CI는 잡 Pod에 Docker가 없어서 services로 잡 옆에 띄운 DB · Redis에 붙는다(`NEWLEARN_TEST_TESTCONTAINERS=false`). 이미지는 compose와 같은 태그
   - 캐시: 잡 Pod마다 관리 서버 디스크 폴더(`/var/lib/newlearn/ci-cache`, `infra/k8s/bootstrap/ci-cache-pv.yaml`)를 `/ci-cache`로 붙이고 npm · uv · Gradle이 캐시 폴더로 바로 쓴다. GitLab `cache:`는 잡마다 다시 압축해 캐시 없음보다 느렸다(10절). infra는 캐시를 쓰면 더 느려 뺐다
     - 모든 브랜치가 같은 캐시를 쓴다. npm · uv는 잠금 파일의 해시로 내용을 검사하지만 Gradle은 검사하지 않는다 — 같은 팀 저장소라 받아들였다(2026-10-20)
+  - Git LFS 파일은 잡에서 받지 않는다(`GIT_LFS_SKIP_SMUDGE`, 2026-11-04 사용자, Jira S15P31A102-164) — `data/` 의 기사 SQLite 를 읽는 잡이 없는데, 관리 서버 러너는 잡마다 새로 클론해서 잡마다 그 파일을 내려받았다(잰 값 10절). 잡 안에서 그 파일은 가리킴 파일이다. 사람 PC 의 pull 은 그대로 받는다. 파일이 필요한 잡이 생기면 그 잡만 덮어쓴다(`.gitlab-ci.yml` 주석)
   - 노트북 러너: 인프라 담당 노트북의 Docker Desktop 안에 러너를 컨테이너로 둔다(`infra/laptop-runner/`, 2026-10-20 사용자 허락). 켜져 있을 때만 EC2 러너에 더해지는 「큰 러너」다 — 잡 하나 CPU 4 · 메모리 4g, 동시 2, 잡 시간 상한 20분. 노트북이 꺼져도 CI 는 EC2 만으로 돈다
     - 권한 없는 컨테이너, 호스트 폴더를 잡에 붙이지 않음, Docker 엔진 연결은 러너 컨테이너에만. 잡마다 네트워크를 만든다(`FF_NETWORK_PER_BUILD`) — Docker 29 는 예전 컨테이너 연결을 만들지 않아 services 별칭이 안 풀렸다. 캐시는 노트북 Docker 볼륨에 따로 쌓인다. 어느 러너가 잡을 받을지는 고를 수 없다(먼저 비는 쪽)
   - 시간 목표(여신보좌관 실측보다 짧게): MR 파이프라인 중앙값 5분 · p90 10분, 기다림 p90 2분, backend 잡 중앙값 7분
