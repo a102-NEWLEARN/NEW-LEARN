@@ -4,7 +4,7 @@ Jira S15P31A102-170. 2026-11-04 사용자 승인.
 
 ## 무엇을 / 왜
 
-운영 `category_mapping` 에 NEWSDATA 행이 0개라, 운영 기사(먼저 넣은 10/21 ~ 11/3 포함 79,337건)와 매일 들어올 기사의 대표 분야(`category_code`)가 모두 빈다 — 분야 탭(A7 `?category=`) · 기사의 분야 이름 · 이슈 분야(`issue_category`) · A1 분야별 기사 수에 안 나온다(`docs/data-model.md` 5절 미정 7번, `SSOT.md` 8절, BE 몫). 대응 행을 넣고 지금 기사의 대표 분야를 다시 계산하며(MR 1), 분야가 둘인 기사(8,074건)는 분야 탭에서 두 탭 모두에 나오게 한다(MR 2).
+운영 `category_mapping` 에 NEWSDATA 행이 0개라, 운영 기사(먼저 넣은 10/21 ~ 11/3 포함 79,337건)와 매일 들어올 기사의 대표 분야(`category_code`)가 모두 빈다 — 분야 탭(A7 `?category=`) · 기사의 분야 이름 · 이슈 분야(`issue_category`) · A1 분야별 기사 수에 안 나온다(`docs/data-model.md` 5절 미정 7번, `SSOT.md` 8절, BE 몫). 대응 행을 넣고 지금 기사의 대표 분야를 다시 계산한다(MR 1). ~~분야가 둘인 기사(8,074건)는 분야 탭에서 두 탭 모두에 나오게 한다(MR 2)~~ — **MR 2 는 취소**(아래 「MR 2 취소」).
 
 사용자 결정(2026-11-04 대화):
 - 분야가 둘이면 **분야 탭에는 둘 다**, 기사에 보이는 분야 이름 · 이슈 분야는 **대표 하나**(`docs/mvp-overview.md` 2-2 「기사에는 대표 카테고리를 부여한다」를 지킴)
@@ -36,7 +36,7 @@ Jira S15P31A102-170. 2026-11-04 사용자 승인.
 3. 색인은 만들지 않는다 — `article` 에는 기본 키 · url 말고 색인이 없어 `OR` 질의가 어차피 표 전체를 읽는다(A7 전체도 지금 그렇다). 반영 뒤 응답 시간을 잰다
 4. `issue_category` 는 다시 계산하지 않는다 — 이슈가 생길 때 API 가 채운다(`IssueCategoryRepository.fillMostCommon`). 운영 이슈 수는 반영 전에 확인
 
-### MR 2 — 분야 탭은 붙은 분야 모두
+### MR 2 — 분야 탭은 붙은 분야 모두 (취소 — 아래 「MR 2 취소」)
 
 - **A7 최신 기사 `?category=`**: 「공개 기사이고, 대표 분야가 그 분야이거나 원본 분류 중 하나가 그 분야에 대응되는 기사」. 서비스가 `category_mapping` 에서 그 분야의 NEWSDATA 원본 값 목록을 읽고, 리포지토리는 **HQL** `a.releasedAt is not null and (a.category.code = :cat or array_intersects(a.sourceCategories, :values))` 에 지금처럼 `@EntityGraph(press, category)` · Pageable 속성 정렬 · 자동 세는 질의를 쓴다(스펙 F01-F11 AC-6 「항목마다 추가 SQL 없음」 유지). 목록이 비면 배열 조건 없이 대표 분야만. `:values` 를 `List` · `String[]` 중 무엇으로 넘길지는 시험으로 정한다
 - **A1 분야별 기사 수(`articleCount`)도 같은 규칙** — 탭 숫자와 탭 목록 수가 같게(`category/CategoryQueryRepository.articleCounts`). 화면은 아직 이 값을 안 보인다
@@ -66,8 +66,8 @@ MR 2
 ## 작업 순서
 
 - [x] 계획 커밋 · Jira 새 티켓(S15P31A102-170, BE, 스토리 포인트 3, 공동 담당 강하린 · 김주우 · `pair`)
-- [ ] MR 1: 마이그레이션 시험 먼저(빨강) → V11 → 되돌리면 실패, `EventReactsToSchemaTest` · `CoreMappingTest` · B2 시험 → 문서 → reviewer 조수 → 백엔드 게이트 → MR → backend → dev → 배포 태그 MR(`deploy/app`) 머지는 사람 → 운영 확인(아래) → 분야 브랜치 맞추기
-- [ ] MR 2: 분야 탭 · A1 시험 먼저 → 리포지토리 · 서비스 → 되돌리면 실패 → 문서 → reviewer → 게이트 → MR → backend → dev → 배포 → 운영 확인
+- [x] MR 1: 마이그레이션 시험 먼저(빨강) → V11 → 되돌리면 실패, `EventReactsToSchemaTest` · `CoreMappingTest` · B2 시험 → 문서 → reviewer 조수 → 백엔드 게이트 → MR → backend → dev(!667 → !668, dev `2defc238`) → 배포 태그 MR(`deploy/app`) 머지는 사람 → 운영 확인(아래) → 분야 브랜치 맞추기
+- [x] ~~MR 2: 분야 탭 · A1 시험 먼저 → 리포지토리 · 서비스 → 되돌리면 실패 → 문서 → reviewer → 게이트 → MR → backend → dev → 배포 → 운영 확인~~ — 취소(구현 · 시험까지 했으나 올리지 않음)
 - [ ] SSOT 10절 · Jira · 알림 — FE(분야 탭이 차고 한 기사가 두 탭, 기사 줄은 대표 이름), AI 덤프 담당(운영 판 V11 — 견본 덤프 11/9 ~ 11/10 전에, 로컬 dev backend 를 V11 로)
 - 머지 · 배포는 매일 10:00 ~ 10:30 을 피한다 — 새 Pod 가 V11 을 도는 동안 옛 Pod(대응 행 0개)가 B2 로 넣은 기사는 대표가 비고, V11 다시 계산의 스냅숏에도 안 잡혀 빈 채로 남는다(UPDATE 는 행 잠금이라 B2 의 INSERT 를 막지는 않는다)
 
@@ -123,3 +123,16 @@ MR 2
 - 스펙 F01 AC-8 에 새 시험 이름, 운영 확인을 행 수 → `값:분야:priority` 목록 대조 · 「대표가 빈데 채울 수 있는 기사 0」으로
 - 10시를 피하는 까닭을 바로잡음 — 잠금이 아니라 옛 Pod 와의 경합
 - `docs/mvp-overview.md` 38줄 「원본 분류를 5개에 맞추는 방법은 실제 데이터를 확인한 뒤」는 PM 확인 문서라 이 MR 에서 고치지 않고 PM 에 알린다
+
+## MR 2 취소 (2026-11-04 저녁, 사용자 결정)
+
+- 분야 탭(A7 `?category=`) · A1 기사 수는 **대표 분야 하나 기준 그대로** 둔다 — 「대표 분야로 하는 게 맞는 것 같아, 둘 다 조회보다」(사용자). 분야가 둘인 기사(8,074건)는 대표 분야 탭에만 나온다. 위 「사용자 결정」의 「분야 탭에는 둘 다」를 뒤집은 것
+- 그 전에 드러난 것(구현 · 시험 · 리뷰까지 함, 올리지 않음):
+  - 계획의 HQL `array_intersects` 는 이 판(Hibernate 7.4.5)에서 `String[]` 인자와 배열 함수가 원소를 `varchar[]` 로 형변환해 `text[]` 칸과 연산자가 맞지 않았다(`text[] && character varying[]`). 질의 안에서 대응 행을 `exists` 로 보고 `function('array_position', …) > 0`(Hibernate 7 은 못 찾으면 0)으로 하면 됐다
+  - A1 을 같은 규칙으로 세면 운영 흉내에서 1.3 ~ 1.6초(분야 · 기사 쌍마다 서브쿼리), 분야별 배열을 한 번 만든 조인도 0.15초(JIT 이 켜지면 0.5초 — 5행 `category` 표에 통계가 없어 비용을 크게 잡음). 지금 A1(대표 분야만)은 0.08초
+- 남는 것: MR 1(V11 대응 행 · 다시 계산)만. 대표는 구체적인 것 먼저(국제 → IT·과학 → 정치 → 경제 → 사회) 그대로
+
+## 반영 뒤 (2026-11-04 18시)
+
+- 배포 태그 MR !669 머지(사용자 지시) → Flyway V11 성공(7.4초) · 새 backend 정상. 운영 확인 다섯(판 · 대응 행 목록 · 대표 분포 · 채울 수 있는데 빈 기사 0 · API 수)이 모두 맞음 — 숫자는 `SSOT.md` 10절
+- 남은 것: FE · AI 알림. 분야 탭이 표 전체를 읽어 0.2 ~ 0.4초 — 색인(`category_code`, `published_at`)은 필요해지면 따로
