@@ -6,7 +6,7 @@ import { PrefixIcon } from "@seed-design/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ActionButton } from "seed-design/ui/action-button";
 import { addBookmark, removeBookmark, setBookmarked } from "@/api/bookmarks";
-import { ApiError } from "@/api/error";
+import { isSessionExpired } from "@/api/error";
 import { meQuery } from "@/api/members";
 import type { ArticleSummary } from "@/api/types";
 import { useSnackbar } from "@/components/useSnackbar";
@@ -45,11 +45,8 @@ export function BookmarkButton({
       );
     },
     onError: (cause) => {
-      // 세션이 끝났다 — 손님으로 바꾸면 가드(RequireMember)가 로그인 화면으로 보내고, 로그인하면 이 화면으로 돌아온다
-      if (cause instanceof ApiError && cause.status === 401) {
-        queryClient.setQueryData(meQuery.queryKey, null);
-        return;
-      }
+      // 세션이 끝났다 — QueryClient 가 손님으로 바꿔 로그인 화면으로 보낸다(query-client.ts). 로그인하면 이 화면으로 돌아온다
+      if (isSessionExpired(cause)) return;
       snackbar.show(FAILED);
     },
   });
