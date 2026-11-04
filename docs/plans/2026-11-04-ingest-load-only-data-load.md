@@ -123,7 +123,7 @@ MR 2 — 덤프 가이드라인 (Jira 152, MR 1 다음)
 - [x] 시험 먼저: 넣기만 · timeframe · 날짜 거르기 · archive · 쉬기 · `article_id` 중복 · 질의 검사 · 천장 · 중간 실패 — 지금 코드에서 빨간 것 확인(시험 83 중 실패 41 · 오류 27)
 - [x] 스크립트 고치기 → 시험 초록, 고친 것을 하나씩 되돌려 해당 시험이 단언에서 빨개지는지 — 13가지 모두 빨강(처음엔 「상한을 범위 밖보다 먼저」가 초록이라 시험 기사 순서를 고침), 7d027bd
 - [x] CronJob · 경보(시험 25시간 먼저 빨강 → 규칙) · `kubectl kustomize` · `set env --local` 시험 — 옛 규칙에서 실패 넷, 손 실행 두 벌 env 를 스크립트 설정 검사에 넣어 통과, 7276d02
-- [ ] 문서(`ingest.md` · `api-internal.md` · `SSOT.md`) → infra 게이트 → reviewer 조수 MR 리뷰 → MR → infra → dev(11시 뒤) → backend · ai 맞추기
+- [x] 문서(`ingest.md` · `api-internal.md` · `SSOT.md`) → infra 게이트 → reviewer 조수 MR 리뷰 → MR → infra → dev — !608(infra `e651eec4`, 08:46) → !609(dev `f7d8f673`, 08:50). **사용자 결정(08:45): 11시 뒤가 아니라 10시 전에 반영해 오늘 10:00 예약이 11/3 을 넣게 함** — 손 실행 넣기만 대신 받기만 한 번만. backend · ai 맞추기는 MR 2 뒤에 한 번
 - [ ] 사이트 확인(Argo CD `ingest` Synced, CronJob `suspend=false` · 다음 예약 11-05 10:00) → 사용자 손 실행: 11/3 받기만 1번 → 11/3 넣기만 → 로그 `수집 결과`
 - [ ] MR 2 가이드라인 → reviewer 조수 → MR → infra → dev → 맞추기, Jira 152 다시 열고 설명 고침
 - [ ] Jira 156 댓글(넣기만 켬 · 남은 것), `/feature-done`, zoo_docs 기록
@@ -188,3 +188,13 @@ MR 2 — 덤프 가이드라인 (Jira 152, MR 1 다음)
 | `ingest.md` | — | 팀장 기록의 「전날 기사 수」는 `kept`(`fetched` 는 36시간 창 전체), 10시를 피하는 까닭을 확인 안 한 만큼만, `pubDates.min` 이 범위 첫날 0시보다 이르면 빠진 것 없음, 첫 구간 받기만에서 `to_date` 가 그날 끝까지 오는지, 설정 표에 `BACKEND_URL` | |
 
 고친 둘(401 · 403 · 날짜만 끝)을 되돌리면 새 시험이 단언에서 실패한다(변이 15가지 모두 빨강). 손 실행 archive 명령은 kustomize 결과 Job 에 이어 붙여 `activeDeadlineSeconds: 7200` · `backoffLimit: 0` 을 확인했다.
+
+## 가이드라인 리뷰에서 바뀐 것 (reviewer 조수 2026-11-04, 「고쳐야 함」 4 · 선택 반영 — `infra/server/data-load.md`)
+
+| 무엇 | 전 | 지금 | 근거 |
+|---|---|---|---|
+| 되돌리기 | 분석 표 비우기 · 새 기사 지우기 · 옛 값 | B1 을 켠 뒤라면 적재 시각 뒤 공개된 기사의 `released_at` 도 비우고 큐 메시지 정리. 되돌릴 수 없는 것에 시험 기사 1 ~ 3, 남는 것에 언론사 행 | B1 뒤 공개된 기사는 목록에 남고 마인드맵 404, B1 다시 걸면 409 |
+| pg_dump | `docker compose exec -T … > 파일` | 컨테이너 안 `-f /tmp/…` 뒤 `docker compose cp`, `.env` 의 `$POSTGRES_USER` · `$POSTGRES_DB` | Windows PowerShell 의 `>` 가 바이너리를 망가뜨릴 수 있음 |
+| 판 검사 | `COPY` 가 실패하면 판이 다름 | 목록표 Flyway 판 = 운영 판, `COPY` 칸 목록 = `information_schema.columns` | 칸이 적은 낡은 덤프는 `COPY` 가 통과하고 빠진 칸이 조용히 빔 |
+| 공개 기사 | 규칙 없음 | `released_at` 이 찬 기사는 마인드맵 · EXTRACT `SUCCEEDED` 가 꼭 있음(규칙 · 검사) | 없으면 A9 404 |
+| 선택 반영 | — | 로컬 B2 · B1 주소와 키, 만드는 쪽 스스로 검사, `press_mapping` 대응 확인, 맞춘 기사 제목 · 본문 같음, match_event · issue 그룹도 넘기기, 서버 안이면 Redis 도 따로, `load_undo` 는 스키마, 시험 기사 지우기 전 북마크 행 수, 사건에 묶인 기사도 공개, 스케줄러 조건은 코드로, `psql -X` | |
