@@ -7,7 +7,9 @@ kind: CronJob
 metadata:
   name: news-ingest
 spec:
-  suspend: false
+  # 2026-11-04 09:17 멈춤 — 받기만 한 번에 34시간 창 totalResults 25,961(하루 약 1만 8천 건, 팀장 어림 7,000 의 2.6배). 조건 없이는
+  # 요청 상한 250 에서 그날 0 ~ 10시 기사가 먼저 먹어 전날은 저녁 몇 시간만 들어온다. 고르는 조건(INGEST_QUERY)을 받은 뒤 다시 false 로(Jira 156)
+  suspend: true
   # 시각을 바꾸면 infra/k8s/alerts/rules.yaml 의 NewlearnIngestMissing(예약 25시간 기준)도 같이 고친다
   # 시작 마감이 1시간이라 10:00 ~ 11:00 에 머지 · 동기화되면 그 자리에서 한 번 돈다
   schedule: "0 10 * * *"
