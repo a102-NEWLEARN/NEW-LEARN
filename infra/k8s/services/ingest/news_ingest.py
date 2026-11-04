@@ -7,6 +7,8 @@ CronJob news-ingest(옆의 news-ingest.yaml)가 ConfigMap 으로 얹어 돌린�
 - INGEST_MODE=fetch-only — NewsData 요청 하나만 보내고 받은 수 · 거른 수 · 처음 몇 건의 B2 요청 모양을 찍는다(B2 · B1 안 부름)
 - INGEST_MODE=load-only — 걸러 남은 기사를 발행 순서대로 B2 로 넣기만 한다(B1 안 부름 — AI 결과 덤프가 들어갈 때까지)
 - INGEST_MODE=full — B2 로 넣고, 돌려받은 id 로 B1 을 부른다
+- INGEST_SOURCE=file — NewsData 대신 표준 입력의 B2 요청 모양 JSONL(infra/server/sqlite_to_b2.py 가 만든 지난 기사)을 한 줄씩 B2 로.
+  load-only 에서만, NewsData 설정은 있어도 무시한다. INGEST_FILE_LINES(기대 줄 수)와 다르면 실패 — ingest.md 「지난 기사 파일로 넣기」(Jira 169)
 - 무엇을 받나: INGEST_SOURCE(latest · archive) · INGEST_TIMEFRAME · INGEST_ARCHIVE_FROM/TO · INGEST_QUERY(고르는 조건),
   INGEST_DAYS(발행 시각의 KST 날짜로 거르기) · INGEST_REQUEST_INTERVAL(요청 사이 쉬기). 뜻과 값은 ingest.md 「설정」
 - 상한: INGEST_MAX_ARTICLES(B2 로 보낼 기사) · INGEST_MAX_REQUESTS(NewsData 요청)
@@ -52,6 +54,11 @@ REPORTER_MAX = 200  # B2 의 reporter 상한
 MAX_ARTICLES_CEILING = 20000
 MAX_REQUESTS_CEILING = 500
 INTERVAL_CEILING = 60
+# INGEST_SOURCE=file — 지난 기사 파일. 줄마다 B2 요청 본문 하나(docs/api-internal.md 2절), 이 칸이 비면 B2 를 부르지 않고 못 읽은 줄로 센다
+FILE_SOURCE = "file"
+FILE_REQUIRED = ("url", "title", "body", "pressSourceId", "pressName", "publishedAt")
+FILE_PROGRESS_LINES = 5000  # 이만큼마다 진행 줄 — 8만 줄이면 30 ~ 60분이라 멈췄는지 보게
+FILE_LINES_CEILING = 1_000_000
 SAMPLE_COUNT = 3
 TIMEOUT_SECONDS = 20
 BODY_LOG_CHARS = 300  # 로그에 남길 응답 본문 길이 — 키를 가린 뒤 자른다
@@ -229,8 +236,10 @@ def load_config(environ, now):
     if mode not in MODES:
         raise ConfigError(f"INGEST_MODE 는 {' · '.join(MODES)} 중 하나여야 한다 (지금: {mode!r})")
     source = environ.get("INGEST_SOURCE", "").strip() or "latest"
+    if source == FILE_SOURCE:
+        return load_file_config(environ, mode)
     if source not in SOURCES:
-        raise ConfigError(f"INGEST_SOURCE 는 {' · '.join(SOURCES)} 중 하나여야 한다 (지금: {source!r})")
+        raise ConfigError(f"INGEST_SOURCE 는 {' · '.join([*SOURCES, FILE_SOURCE])} 중 하나여야 한다 (지금: {source!r})")
     config = {
         "mode": mode,
         "source": source,
@@ -250,10 +259,31 @@ def load_config(environ, now):
     if not config["newsdata_key"]:
         raise ConfigError("NEWSDATA_API_KEY 가 없다 — 봉인 Secret newsdata-api (infra/server/seal-secrets.sh newsdata)")
     if mode != "fetch-only":
-        if not config["batch_key"]:
-            raise ConfigError("INTERNAL_BATCH_KEY 가 없다 — Secret internal-api")
-        if not re.fullmatch(r"https?://[^\s/]+", config["backend"]):
-            raise ConfigError(f"BACKEND_URL 은 http(s)://<호스트> 모양이어야 한다 (지금: {config['backend']!r})")
+        check_backend(config)
+    return config
+
+
+def check_backend(config):
+    if not config["batch_key"]:
+        raise ConfigError("INTERNAL_BATCH_KEY 가 없다 — Secret internal-api")
+    if not re.fullmatch(r"https?://[^\s/]+", config["backend"]):
+        raise ConfigError(f"BACKEND_URL 은 http(s)://<호스트> 모양이어야 한다 (지금: {config['backend']!r})")
+
+
+def load_file_config(environ, mode):
+    """INGEST_SOURCE=file — CronJob 틀에서 INGEST_SOURCE 만 바꿔 돌리므로 NewsData 설정(키 · 쿼리 · 기간 · 상한)은 있어도 무시한다"""
+    if mode != "load-only":
+        raise ConfigError(f"INGEST_SOURCE=file 은 INGEST_MODE=load-only 에서만 쓴다 (지금: {mode!r})")
+    raw_lines = environ.get("INGEST_FILE_LINES", "").strip()
+    config = {
+        "mode": mode,
+        "source": FILE_SOURCE,
+        "newsdata_key": "",
+        "batch_key": environ.get("INTERNAL_BATCH_KEY", "").strip(),
+        "backend": environ.get("BACKEND_URL", "").strip().rstrip("/"),
+        "expected_lines": _bounded_int(environ, "INGEST_FILE_LINES", 1, FILE_LINES_CEILING) if raw_lines else None,
+    }
+    check_backend(config)
     return config
 
 
@@ -520,13 +550,73 @@ class Run:
         self.log(record)
 
 
-def run(environ, send, log, now, sleep):
+def file_line(raw):
+    """표준 입력 한 줄 → B2 요청 본문. UTF-8 · JSON 객체가 아니거나 필수 칸이 비면 None"""
+    try:
+        article = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(article, dict):
+        return None
+    for key in FILE_REQUIRED:
+        value = article.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return None
+    return article
+
+
+def run_file(job, stdin):
+    """표준 입력을 한 줄씩 B2 로 — 통째로 읽지 않는다(8만 줄 · 약 270MB). 같은 URL 은 B2 가 200 이라 다시 돌려도 된다"""
+    lines = bad = 0
+    code = None
+    try:
+        for raw in stdin:
+            lines += 1
+            article = file_line(raw)
+            if article is None:
+                bad += 1
+                job.log({"msg": "못 읽은 줄", "line": lines})
+            else:
+                job.load(article)
+            if lines % FILE_PROGRESS_LINES == 0:
+                job.log({"msg": "진행", "lines": lines, "badLines": bad, "b2": dict(job.b2)})
+    except AuthError as err:
+        job.log({"msg": "출입증 오류 — 멈춘다", "error": str(err)})
+        code = 2
+    except BackendDown as err:
+        job.log({"msg": "backend 연결 실패 — 멈춘다", "error": str(err)})
+        code = 1
+    expected = job.config["expected_lines"]
+    if code is None:
+        if expected is not None and expected != lines:
+            # 덜 올라간 파일 · 다른 파일 · 끊긴 스트림 — 끝까지 읽어도 다 넣은 것이 아니다
+            job.log({"msg": "줄 수가 다르다", "expected": expected, "lines": lines})
+            code = 1
+        elif lines == 0 or bad or job.b2["rejected"] or job.b2["failed"]:
+            code = 1
+        else:
+            code = 0
+    job.log({
+        "msg": "수집 결과",
+        "mode": job.config["mode"],
+        "source": FILE_SOURCE,
+        "lines": lines,
+        "badLines": bad,
+        "expectedLines": expected,
+        "b2": dict(job.b2),
+    })
+    return code
+
+
+def run(environ, send, log, now, sleep, stdin=None):
     try:
         config = load_config(environ, now)
     except ConfigError as err:
         log({"msg": "설정 오류", "error": str(err)})
         return 2
     job = Run(config, send, log, sleep)
+    if config["source"] == FILE_SOURCE:
+        return run_file(job, stdin if stdin is not None else sys.stdin.buffer)
     try:
         kept = job.fetch()
     except AuthError as err:
@@ -588,8 +678,9 @@ def urllib_send(method, url, headers, body):
         return err.code, err.read()
 
 
-def main(environ, send, out, now=None, sleep=None):
-    """now: 「지금」(INGEST_DAYS=yesterday 를 셀 때, 비우면 시계), sleep: 요청 사이 쉬기(비우면 time.sleep) — 시험이 바꿔 넣는다"""
+def main(environ, send, out, now=None, sleep=None, stdin=None):
+    """now: 「지금」(INGEST_DAYS=yesterday 를 셀 때, 비우면 시계), sleep: 요청 사이 쉬기(비우면 time.sleep),
+    stdin: INGEST_SOURCE=file 이 읽을 줄들(비우면 sys.stdin.buffer) — 시험이 바꿔 넣는다"""
     keys = [environ.get("NEWSDATA_API_KEY", "").strip(), environ.get("INTERNAL_BATCH_KEY", "").strip()]
     # 로그는 JSON 으로 적은 뒤 가린다 — JSON 이 글자를 바꿔 적는 키도 가리게 그 모양도 같이
     secrets = keys + [json.dumps(k)[1:-1] for k in keys]
@@ -599,7 +690,7 @@ def main(environ, send, out, now=None, sleep=None):
         out.flush()
 
     try:
-        return run(environ, send, log, now or datetime.now(KST), sleep or time.sleep)
+        return run(environ, send, log, now or datetime.now(KST), sleep or time.sleep, stdin)
     except Exception:  # 예상 못 한 오류도 키를 가린 채 남기고 실패로 끝낸다
         log({"msg": "예상 못 한 오류", "traceback": traceback.format_exc()})
         return 1

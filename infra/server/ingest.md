@@ -23,7 +23,7 @@ flowchart LR
 | env | 매일 값 | 받는 값 | 뜻 |
 |---|---|---|---|
 | `INGEST_MODE` | `load-only` | `fetch-only` · `load-only` · `full` | `fetch-only` 는 NewsData 요청 하나만 보내고 받은 수 · 견본을 찍는다(B2 · B1 안 부름). `load-only` 는 B2 만. `full` 은 B2 뒤 B1 |
-| `INGEST_SOURCE` | `latest` | `latest`(비우면) · `archive` | latest 는 요청마다 1크레딧 · 최근 48시간까지, archive 는 5크레딧 · 지난 날짜(NewsData 「API credit usage」 문서) |
+| `INGEST_SOURCE` | `latest` | `latest`(비우면) · `archive` · `file` | latest 는 요청마다 1크레딧 · 최근 48시간까지, archive 는 5크레딧 · 지난 날짜(NewsData 「API credit usage」 문서). `file` 은 NewsData 대신 표준 입력의 B2 요청 모양 JSONL — `load-only` 에서만, 아래 NewsData 설정(키 · timeframe · days · query · 상한)은 있어도 무시한다(아래 「지난 기사 파일로 넣기」) |
 | `INGEST_TIMEFRAME` | `36` | `1` ~ `48`(시간) · `1m` ~ `2880m`(분) · 비움 | latest 의 창. archive 와 같이 주면 종료 2 |
 | `INGEST_DAYS` | `yesterday` | 비움 · `yesterday` · `2026-11-03` · `2026-10-29..2026-11-02` | `pubDate`(UTC)를 KST 날짜로 바꿔 이 날짜만 넣는다. `yesterday` 는 실행 시각(KST)의 전날. 비우면 거르지 않는다 |
 | `INGEST_ARCHIVE_FROM` · `INGEST_ARCHIVE_TO` | 없음 | `YYYY-MM-DD` · `YYYY-MM-DD HH:MM:SS` | archive 의 `from_date` · `to_date` 에 그대로 실린다(둘 다, 처음 ≤ 끝). latest 에 주면 종료 2 |
@@ -31,6 +31,7 @@ flowchart LR
 | `INGEST_REQUEST_INTERVAL` | 없음(0) | `0` ~ `60` 초 | NewsData 요청 사이 쉬기. 유료 요금제 한도가 15분에 1,800크레딧이라 archive 는 3(15분에 많아야 300번 × 5 = 1,500) |
 | `INGEST_MAX_REQUESTS` | `500` | `1` ~ `500` | 한 번 실행의 NewsData 요청 = latest 크레딧 상한 |
 | `INGEST_MAX_ARTICLES` | `20000` | `1` ~ `20000` | B2 로 보낼 기사 상한 |
+| `INGEST_FILE_LINES` | 없음 | 비움 · `1` ~ `1000000` | `file` 일 때 기대 줄 수. 읽은 줄과 다르면 끝까지 넣고 종료 1(덜 올라간 파일 · 다른 파일 · 끊긴 스트림) |
 | `BACKEND_URL` | `http://backend.app.svc:8080` | `http(s)://<호스트>` | B2 · B1 을 부를 곳(load-only · full) |
 
 - 같은 실행 안의 중복은 링크와 NewsData `article_id` 로 거르고, 실행 사이 중복은 B2 가 URL 로 막는다(200)
@@ -90,9 +91,105 @@ kubectl -n app logs job/<이름> | tail -3
 - 다 봤으면 지운다 — `kubectl -n app delete job <이름>`
 - 손 실행도 CronJob 의 「마지막 성공 시각」을 바꾼다. 경보는 예약 시각과 견줘 여기에 속지 않는다(아래 「경보가 오면」)
 
+## 지난 기사 파일로 넣기 (`INGEST_SOURCE=file`, Jira 169)
+
+AI 팀원이 받아 둔 10/21 ~ 11/3 최종 기사(`data/newsdata_2026-10-21_2026-11-03.sqlite`, 표는 `data/README.md`)를 B2 로 넣은 길이다. 덤프 적재 때까지 화면에 보이게 한 임시 공개는 `SSOT.md` 9절, 덤프 적재 때 마인드맵 없는 기사를 내리는 단계는 `data-load.md` 6절에 있다. 계획 `docs/plans/2026-11-04-preload-1021-1103-articles.md`.
+
+- 값 변환은 `infra/server/sqlite_to_b2.py` 한 곳(규칙은 그 파일 머리말). AI 팀도 같은 출력 파일(같은 sha256)을 로컬 B2 로 넣는다
+- 보내기는 CronJob 틀로 띄운 Job 안에서 `kubectl exec -i … < 파일` — 이미지 · 이름표 · Secret 이 매일 수집과 같고 배치 키가 클러스터 밖으로 나가지 않는다. 결과는 exec 의 표준 출력이라 `kubectl logs` · Loki 에 남지 않는다 — 서버의 로그 파일이 기록이다
+- 같은 URL 은 B2 가 200 이라(위 「설정」 아래) 끊기면 같은 명령을 다시 돌린다
+- 그날 10시 예약 Job 이 끝난 뒤 시작한다 — 손 Job 은 CronJob 의 동시 실행 막기(`Forbid`)에 세어지지 않는 것으로 본다(위 「매일 실행」 끝 줄처럼 클러스터에서 확인하지는 않았다)
+
+**1. 넣기 전 백업** (EC2) — `db-backup.md` 「확인 · 손으로 돌리기」의 손 백업 한 번. 끝에 남긴 파일 이름 · 크기를 적어 둔다
+
+**2. 변환 · 올리기** (관리자 PC, LFS 파일을 받은 본 클론의 저장소 맨 위 — worktree 에는 가리킴 파일만 있다) — SQLite sha256 이 `data/README.md` 값과 같은지 먼저 본다(PowerShell `Get-FileHash data/newsdata_2026-10-21_2026-11-03.sqlite`). 출력 폴더(`C:/tmp/preload`)는 미리 만들고, 출력 파일은 스크립트가 직접 쓴다(PowerShell 의 `>` 를 쓰지 않는다)
+
+```bash
+python -I infra/server/sqlite_to_b2.py data/newsdata_2026-10-21_2026-11-03.sqlite C:/tmp/preload/articles-1021-1103.jsonl
+```
+
+```bash
+scp C:/tmp/preload/articles-1021-1103.jsonl newlearn:
+```
+
+- 변환이 찍은 `lines` · `sha256` 을 적어 둔다. EC2 에서 `sha256sum articles-1021-1103.jsonl` · `wc -l articles-1021-1103.jsonl` 이 같아야 한다
+
+**3. Job 띄우기** (EC2) — ConfigMap 에 file 모드가 들어갔는지(1 이 나와야) 보고, Job 은 `sleep` 으로 띄운다. 이름에 글자가 섞여 「매일 실행」의 `news-ingest-[0-9]+$` 에 안 걸린다
+
+```bash
+kubectl -n app get configmap news-ingest -o jsonpath='{.data.news_ingest\.py}' | grep -c 'FILE_SOURCE = "file"'
+```
+
+```bash
+kubectl -n app create job --from=cronjob/news-ingest news-ingest-preload --dry-run=client -o yaml | kubectl set env --local -f - INGEST_SOURCE=file -o yaml | kubectl patch --local -f - --type json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/command","value":["sleep","infinity"]}]' -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0,"activeDeadlineSeconds":10800}}' -o yaml | kubectl -n app create -f -
+```
+
+```bash
+kubectl -n app wait --for=condition=Ready pod -l job-name=news-ingest-preload --timeout=120s && kubectl -n app get job news-ingest-preload -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}{" "}{end}{"\n"}'
+```
+
+- env 는 이름만 찍는다(값은 찍지 않는다). `INGEST_MODE` · `INGEST_SOURCE` · `INTERNAL_BATCH_KEY` · `BACKEND_URL` 이 있어야 한다. 아래 exec 도 `INGEST_SOURCE=file` 을 한 번 더 준다 — Job 을 다시 띄우다 `set env` 를 빠뜨려도 latest 로 돌지 않게
+- 시간 상한(3시간)이 되면 Pod 가 끝나 exec 도 같이 죽는다. 상한에 잘린 Job 은 실패로 남아 같은 이름으로 다시 만들려면 먼저 지운다
+
+넣기 전 숫자를 적어 둔다 — 이 조건의 기사 수는 0 이어야 한다(아니면 같은 링크가 이미 있어 아래 수가 79,335 와 달라진다)
+
+```bash
+kubectl -n data exec postgres-0 -- psql -X -q -U newlearn -d newlearn -At -c "select count(*) from article where source = 'NEWSDATA' and created_at >= '2026-11-04 00:00+09' and published_at < '2026-11-04 00:00+09'" -c "select count(*) from analysis_job" -c "select count(*) from press" -c "select pg_size_pretty(pg_database_size('newlearn'))"
+```
+
+**4. 카나리 100건** (EC2) — 시각 · 걸린 시간을 먼저 본다
+
+```bash
+head -n 100 articles-1021-1103.jsonl > articles-canary.jsonl && time kubectl -n app exec -i -c ingest job/news-ingest-preload -- env INGEST_SOURCE=file INGEST_FILE_LINES=100 python -I -B -u /opt/ingest/news_ingest.py < articles-canary.jsonl > canary.log; echo "exit=$?"; tail -1 canary.log
+```
+
+```bash
+head -n 1 articles-canary.jsonl | grep -o '"publishedAt":"[^"]*"'; tail -n 1 articles-canary.jsonl | grep -o '"publishedAt":"[^"]*"'; kubectl -n data exec postgres-0 -- psql -X -q -U newlearn -d newlearn -At -c "select count(*), min(id), max(id), to_char(min(published_at) at time zone 'Asia/Seoul', 'YYYY-MM-DD\"T\"HH24:MI:SS'), to_char(max(published_at) at time zone 'Asia/Seoul', 'YYYY-MM-DD\"T\"HH24:MI:SS') from article where source = 'NEWSDATA' and created_at >= '2026-11-04 00:00+09' and published_at < '2026-11-04 00:00+09'"
+```
+
+- `exit=0`, 결과 줄 `lines` 100 · `badLines` 0 · `b2.created` 100. DB 의 수 · 최소 · 최대 시각이 파일의 첫 줄 · 끝 줄 `publishedAt`(`+09:00` 앞)과 같아야 한다 — 9시간 어긋나면 그 100건(위 `min(id)` ~ `max(id)`)만 지우고(아래 「되돌리기」) 변환을 고친다
+- 걸린 시간 × 793 이 전체 어림이다. 2시간 반을 넘으면 시간 상한(3시간)에 걸리니 전체로 가지 말고 멈춘다
+
+**5. 전체** (EC2) — `nohup` 이라 관리자 PC 가 끊겨도 이어진다. 앞 100건은 `existing` 으로 센다
+
+```bash
+nohup sh -c 'kubectl -n app exec -i -c ingest job/news-ingest-preload -- env INGEST_SOURCE=file INGEST_FILE_LINES=79335 python -I -B -u /opt/ingest/news_ingest.py < articles-1021-1103.jsonl; echo "exit=$?"' > preload.log 2>&1 &
+```
+
+- 지켜보기: `tail -2 preload.log` — 5,000줄마다 `진행` 줄. 사이트 health 도 본다
+- 끝 표시: `exit=` 줄이 생긴다(`grep '"msg": "수집 결과"' preload.log | tail -1; tail -1 preload.log`). 성공이면 `exit=0` 과 결과 줄 `lines` 79,335 · `badLines` 0 · `b2.created + b2.existing` 79,335 · `rejected` · `failed` 0. 실패면 kubectl 이 `command terminated with exit code N` 을 결과 줄 뒤에 찍는다. 첫 줄은 `nohup: ignoring input` 이다
+
+**6. 번호 범위 · 확인** (EC2) — 넣은 기사의 id 최소 · 최대 · 수를 적어 둔다. 공개 · 되돌리기는 이 범위로 한다
+
+```bash
+kubectl -n data exec postgres-0 -- psql -X -q -U newlearn -d newlearn -At -c "select min(id), max(id), count(*) from article where source = 'NEWSDATA' and created_at >= '2026-11-04 00:00+09' and published_at < '2026-11-04 00:00+09'" -c "select count(*) from analysis_job" -c "select pg_size_pretty(pg_database_size('newlearn'))"
+```
+
+- 수 79,335. 분석 작업 행 수는 3의 「넣기 전」과 같아야 한다 — 작업 행이 없으면 큐 메시지도 생기지 않는다(GMS 를 안 부름). DB 크기를 넣기 전과 견준다
+
+**7. 임시 공개** (EC2) — `<최소>` · `<최대>` 는 6의 값. `UPDATE 79335` 가 나와야 한다
+
+```bash
+kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -v ON_ERROR_STOP=1 -c "update article set released_at = now() where id between <최소> and <최대> and released_at is null and published_at < '2026-11-04 00:00+09'"
+```
+
+- 공개만으로는 분석이 걸리지 않는다 — 스케줄러는 작업 행 · 마인드맵이 있는 기사만 본다. 그 기사에 B1 을 부르면 409 다
+- 확인: `curl -fsS 'https://newlearn.io.kr/api/v1/articles?size=1'` 의 `totalElements` 가 늘어난 수만큼, 넣은 기사의 A8 기사 상세는 200 · A9 기사 마인드맵은 404 `MINDMAP_NOT_FOUND`
+
+**8. 치우기** (EC2) — Job 을 바로 지운다. 손 Job 이 성공으로 끝나면 CronJob 마지막 성공 시각이 바뀌어 경보 ①이 가려질 수 있다. 서버의 기사 파일도 지운다(로그 파일은 결과를 옮겨 적은 뒤)
+
+```bash
+kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl articles-canary.jsonl
+```
+
+**되돌리기**
+
+- 임시 공개만: `update article set released_at = null where id between <최소> and <최대> and not exists (select 1 from article_mindmap m where m.article_id = article.id)`
+- 넣은 기사까지(덤프 적재 **전에만**): 먼저 `select count(*) from bookmark where article_id between <최소> and <최대>` 로 같이 지워질 북마크 수를 본 뒤 `delete from article where id between <최소> and <최대>`. 관심 이슈는 이슈를 가리켜 영향 없다. 새로 생긴 언론사 행은 남는다(가리키는 기사가 없으면 안 보인다). 또는 1의 백업 되살리기(`db-backup.md` 「사고 때 되살리기」). 덤프 적재 뒤에는 분석 행이 붙어 지우기가 외래 키에 걸린다 — `data-load.md` 7절
+
 ## 로그 읽기
 
-줄마다 JSON 하나다. 키는 모두 `***` 로 가려 찍는다. Grafana › Explore › Loki 에서는 `{namespace="app", container="ingest"} | json`.
+줄마다 JSON 하나다. 키는 모두 `***` 로 가려 찍는다. Grafana › Explore › Loki 에서는 `{namespace="app", container="ingest"} | json`(`file` 은 exec 로 돌려 Loki 에 없다 — 서버 로그 파일).
 
 | `msg` | 뜻 |
 |---|---|
@@ -107,6 +204,7 @@ kubectl -n app logs job/<이름> | tail -3
 | `NewsData 출입증 오류 — 받은 데까지 넣고 멈춘다` | 둘째 요청부터 401 · 403(구독 · 크레딧이 끝났을 수 있다) — 받은 쪽은 넣고 종료 2 |
 | `설정 오류` | env 가 틀림(위 「설정」) — 종료 2 |
 | `예상 못 한 오류` | 스크립트가 못 다룬 오류의 traceback(키는 가림) — 종료 1 |
+| `진행` · `못 읽은 줄` · `줄 수가 다르다` | `file` 만 — 5,000줄마다 읽은 줄 · `b2`, UTF-8 · JSON 객체가 아니거나 필수 칸(`url` · `title` · `body` · `pressSourceId` · `pressName` · `publishedAt`)이 빈 줄의 번호(B2 를 안 부름), `INGEST_FILE_LINES` 와 읽은 줄이 다름 |
 | `수집 결과` | 실행 한 번의 요약 — 아래 표 |
 
 `수집 결과` 의 칸
@@ -121,11 +219,12 @@ kubectl -n app logs job/<이름> | tail -3
 | `stoppedBy` | `end` 끝까지 받음 · `past_range` 오래된 순으로 받다 범위를 지나 멈춤(정상) · `max_requests` · `max_articles` 상한(다음 쪽이 남음 — 받기만은 늘 요청 1이라 정상) · `newsdata_error` 중간 실패 · `newsdata_auth` 중간에 키를 안 받음 |
 | `b2` (load-only · full) | `created` 새로 넣음(201) · `existing` 이미 있음(200) · `rejected` 입력 오류(400) · `failed` 그 밖 |
 | `b1` (full) | `released` 걸었음(202) · `already` 이미 걸림(409) · `failed` 끝내 실패 · `retried` 실행 끝에 한 번 더 건 수 |
+| `lines` · `badLines` · `expectedLines` (`file`) | 읽은 줄 · 못 읽은 줄 · `INGEST_FILE_LINES`. `file` 의 결과 줄에는 이 셋과 `mode` · `source` · `b2` 만 있다 |
 
 | 종료 코드 | 뜻 | Job |
 |---|---|---|
-| 0 | 끝까지 돌았다 — 기사 몇 건의 실패는 `수집 결과` 에 세어 둠 | 성공 |
-| 1 | NewsData 요청 실패(받은 데까지는 넣음), backend 연결이 이어서 실패, 또는 보낼 기사가 있었는데 하나도 못 감(load-only 는 B2 201 · 200, full 은 B1 202 · 409 가 「감」) | 한 번 다시 시도(처음부터) |
+| 0 | 끝까지 돌았다 — 기사 몇 건의 실패는 `수집 결과` 에 세어 둠. `file` 은 못 읽은 줄 · 거절 · 실패 0 이고 줄 수가 맞을 때만 | 성공 |
+| 1 | NewsData 요청 실패(받은 데까지는 넣음), backend 연결이 이어서 실패, 또는 보낼 기사가 있었는데 하나도 못 감(load-only 는 B2 201 · 200, full 은 B1 202 · 409 가 「감」). `file` 은 못 읽은 줄 · 거절 · 실패가 하나라도 있거나 줄 수가 다름 · 빈 파일 | 한 번 다시 시도(처음부터) |
 | 2 | 다시 해도 같다 — 설정, NewsData · backend 의 401 · 403(NewsData 는 받은 데까지 넣음), 요청 · 기사 상한(빠진 구간) | 다시 시도 없이 실패 |
 
 ## 15분 모드로 바꾸기 (11-16 뒤, Jira 156)
