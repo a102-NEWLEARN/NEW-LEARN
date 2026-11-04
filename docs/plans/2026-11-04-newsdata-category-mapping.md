@@ -69,7 +69,7 @@ MR 2
 - [ ] MR 1: 마이그레이션 시험 먼저(빨강) → V11 → 되돌리면 실패, `EventReactsToSchemaTest` · `CoreMappingTest` · B2 시험 → 문서 → reviewer 조수 → 백엔드 게이트 → MR → backend → dev → 배포 태그 MR(`deploy/app`) 머지는 사람 → 운영 확인(아래) → 분야 브랜치 맞추기
 - [ ] MR 2: 분야 탭 · A1 시험 먼저 → 리포지토리 · 서비스 → 되돌리면 실패 → 문서 → reviewer → 게이트 → MR → backend → dev → 배포 → 운영 확인
 - [ ] SSOT 10절 · Jira · 알림 — FE(분야 탭이 차고 한 기사가 두 탭, 기사 줄은 대표 이름), AI 덤프 담당(운영 판 V11 — 견본 덤프 11/9 ~ 11/10 전에, 로컬 dev backend 를 V11 로)
-- 머지 · 배포는 매일 10:00 ~ 10:30 을 피한다(V11 이 커밋까지 `article` 쓰기를 막는다 — 1초 안팎)
+- 머지 · 배포는 매일 10:00 ~ 10:30 을 피한다 — 새 Pod 가 V11 을 도는 동안 옛 Pod(대응 행 0개)가 B2 로 넣은 기사는 대표가 비고, V11 다시 계산의 스냅숏에도 안 잡혀 빈 채로 남는다(UPDATE 는 행 잠금이라 B2 의 INSERT 를 막지는 않는다)
 
 구현은 파일마다 무엇을 왜 바꾸는지 설명하며 간다(사용자 BE 학습 방식).
 
@@ -94,7 +94,7 @@ MR 2
 ## 어떻게 검증하나
 
 - 백엔드 게이트: `./gradlew spotlessCheck` · `./gradlew compileJava compileTestJava`(Error Prone · NullAway) · `./gradlew test`(Testcontainers) 통과. 새 시험은 고친 곳을 되돌리면 실패
-- MR 1 운영 반영 뒤(읽기 SQL): `flyway_schema_history` 최신 11, `category_mapping` NEWSDATA 18행, `id <= 79337` 기사의 대표 분포 = 위 실측(빔 1,172 안팎), 반영 뒤 들어온 기사(11-05 10시 수집)에 대표가 차는지
+- MR 1 운영 반영 뒤(읽기 SQL): `flyway_schema_history` 최신 11, `category_mapping` NEWSDATA 행이 `값:분야:priority` 목록으로 V11 과 같음(`freshSchemaHasAllNewsDataCategories` 와 같은 대조), `id <= 79337` 기사의 대표 분포 = 위 실측(빔 1,172 안팎), **「대표가 비었는데 원본 값이 모두 표에 있고 분야가 찬 값이 하나라도 있는 NewsData 기사」 0**(경합 · SQL 과 Java 어긋남을 바로 잡음), 반영 뒤 들어온 기사(11-05 10시 수집)에 대표가 차는지
 - MR 2 운영 반영 뒤(`curl`): A7 `?category=<분야>&size=1` 의 `totalElements` = 공개 기사 기준으로 반영 직전에 다시 잰 탭 수, 분야가 둘인 기사 하나가 두 탭에 다 나옴, A8 `category` 는 대표 하나, A1 `articleCount` = 탭 수, 분야 탭 · A1 응답 시간
 
 ## 되돌리는 법
@@ -115,3 +115,11 @@ MR 2
 - 덤프 쪽에 V11 알림, 리스크 문구(칸 대조와 무관), MR 을 둘로(V11 이 먼저 나가도 「분야가 빔」이 풀림)
 - V11 은 계산값이 비지 않을 때만 쓰기, 마이그레이션 시험 경우 더함, 공유 시험 자료에 기사를 더하지 않음, 원본 값 목록은 `source = NEWSDATA` · 비면 배열 조건 뺌, FE 알림에 기사 줄 대표 이름
 - 다시 계산 시간을 운영 읽기 SELECT 로 잼(1.04초)
+
+## MR 1 리뷰에서 바뀐 것 (reviewer 조수 2026-11-04, 「고쳐야 함」 1 · 선택 반영)
+
+- `InterestIssueSchemaTest` 의 판 목록에 11 — 새 DB 의 Flyway 이력을 `containsExactly` 로 본다(V10 때도 같은 줄을 고침). 계획 「바꿀 파일」에 없던 시험 파일 하나
+- `docs/data-model.md` 미정 7번은 5절 규칙대로 지우고 데이터셋 행 이야기는 17번으로, 2절 · `data-load.md` 는 반영 전 시제로
+- 스펙 F01 AC-8 에 새 시험 이름, 운영 확인을 행 수 → `값:분야:priority` 목록 대조 · 「대표가 빈데 채울 수 있는 기사 0」으로
+- 10시를 피하는 까닭을 바로잡음 — 잠금이 아니라 옛 Pod 와의 경합
+- `docs/mvp-overview.md` 38줄 「원본 분류를 5개에 맞추는 방법은 실제 데이터를 확인한 뒤」는 PM 확인 문서라 이 MR 에서 고치지 않고 PM 에 알린다
