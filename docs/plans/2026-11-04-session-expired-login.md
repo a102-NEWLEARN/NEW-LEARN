@@ -19,10 +19,10 @@ EXPERIENCE 이동 규칙에는 「세션이 끝나 401 `UNAUTHORIZED` 를 받으
 
 ## 작업 순서
 
-- [ ] 실패하는 시험 먼저 — query-client · 나의 뉴스함 · 마이페이지 401 (단언에서 빨간지 본다)
-- [ ] `isSessionExpired` · 전역 `onError` · 시험 도우미 — 위 시험 초록
-- [ ] 버튼 세 개의 중복 처리 정리 — 기존 401 시험(`BookmarkButton` · `InterestButton` · `InterestSettings`) 그대로 초록
-- [ ] EXPERIENCE 한 줄
+- [x] 실패하는 시험 먼저 — query-client · 나의 뉴스함 · 마이페이지 401 (단언에서 빨간지 본다)
+- [x] `isSessionExpired` · 전역 `onError` · 시험 도우미 — 위 시험 초록
+- [x] 버튼 세 개의 중복 처리 정리 — 기존 401 시험(`BookmarkButton` · `InterestButton` · `InterestSettings`) 그대로 초록
+- [x] EXPERIENCE 한 줄
 
 ## 안 바꿀 것
 
@@ -46,3 +46,8 @@ EXPERIENCE 이동 규칙에는 「세션이 끝나 401 `UNAUTHORIZED` 를 받으
 ## 되돌리는 법
 
 MR 을 revert 한다. 버튼 세 개는 원래 각자 처리하던 코드로 돌아가고, 목록 401 은 다시 「불러오지 못했어요」가 뜬다. 데이터 · 배포와 상관없다.
+
+## 한 뒤에 (2026-11-04)
+
+- 계획대로 했다. 시험 630개(Node 24 · 26), 새 시험 7개 — 전역 처리만 되돌리면 새 시험 4개와 버튼 세 개의 기존 401 시험 3개가 단언에서 빨개진다. `LOGIN_FAILED` · 403 · 500 을 그대로 두는 3개는 지킴 시험이다
+- 화면에서는 401 을 못 만들었다 — 가짜 API(`mocks/session.ts`)는 A17 · A16 만 로그인 상태를 보고, A22 · A25 는 늘 회원 응답이다. 로그인 · 나의 뉴스함 · 마이페이지가 전처럼 뜨고 콘솔 오류가 없는 것만 봤다
