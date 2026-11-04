@@ -4,5 +4,10 @@
 !.env.example
 *.pem
 .claude/settings.local.json
+# Git LFS 가 훅 폴더(core.hooksPath = .claude/hooks)에 스스로 만드는 훅 — 넓게(.claude/hooks/*) 막으면 추적하는 훅까지 가려진다
+.claude/hooks/post-checkout
+.claude/hooks/post-commit
+.claude/hooks/post-merge
+.claude/hooks/pre-push
 infra/terraform/terraform.tfvars
 infra/terraform/*.auto.tfvars
