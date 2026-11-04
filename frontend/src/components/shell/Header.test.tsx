@@ -51,3 +51,28 @@ test("로고를 누르면 셸에 알린다 (본문을 맨 위로 올리게)", ()
 
   expect(clicked).toBe(1);
 });
+
+// 지금 화면의 버튼을 눌린 모양으로 알린다 — 모바일 v1 · v21 TopNav (Jira 163)
+test.each([
+  ["/bookmarks", "나의 뉴스함", "마이페이지"],
+  ["/me", "마이페이지", "나의 뉴스함"],
+])("%s 에서는 %s 버튼만 지금 화면이다", (route, current, other) => {
+  renderWithProviders(<Header narrow onLogoClick={noop} />, { route });
+
+  expect(
+    screen.getByRole("link", { name: current }).getAttribute("aria-current"),
+  ).toBe("page");
+  expect(
+    screen.getByRole("link", { name: other }).getAttribute("aria-current"),
+  ).toBeNull();
+});
+
+test("홈에서는 어느 버튼도 지금 화면이 아니다", () => {
+  renderWithProviders(<Header onLogoClick={noop} />, { route: "/home" });
+
+  for (const name of ["나의 뉴스함", "마이페이지"]) {
+    expect(
+      screen.getByRole("link", { name }).getAttribute("aria-current"),
+    ).toBeNull();
+  }
+});
