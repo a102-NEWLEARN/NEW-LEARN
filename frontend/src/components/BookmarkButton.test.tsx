@@ -54,14 +54,18 @@ const state = (articleId: number, bookmarked: boolean): BookmarkState => ({
 // 기사 마인드맵 머리의 글자형 버튼. 보내는 동안에는 SEED 가 진행 표시를 넣어 이름이 바뀐다
 const textButton = () => screen.findByRole("button", { name: /북마크/ });
 
-test("기사 머리 — 담은 기사면 「북마크됨」, 아니면 「북마크」로 뜬다", async () => {
-  const saved = renderRoute("/articles/403");
+// 기사 화면을 두 번 그리던 한 테스트를 둘로 나눴다 — 전체 테스트를 함께 돌리면 두 번이 5초 한도를 나눠 쓰다 넘쳤다 (2026-11-04)
+test("기사 머리 — 담은 기사면 「북마크됨」으로 뜬다", async () => {
+  renderRoute("/articles/403");
+
   const on = await textButton();
   expect(on.textContent).toBe("북마크됨");
   expect(on.getAttribute("aria-pressed")).toBe("true");
-  saved.unmount();
+});
 
+test("기사 머리 — 담지 않은 기사면 「북마크」로 뜬다", async () => {
   renderRoute("/articles/401");
+
   const off = await textButton();
   expect(off.textContent).toBe("북마크");
   expect(off.getAttribute("aria-pressed")).toBe("false");
