@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { meQuery } from "@/api/members";
 import { HomeGreeting } from "@/components/home/HomeGreeting";
+import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
 import { type HomeView, HomeViewTabs } from "@/components/home/HomeViewTabs";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { NewIssues } from "@/components/home/NewIssues";
@@ -53,9 +54,11 @@ export function HomePage() {
     <>
       <section
         aria-label="오늘의 이슈"
-        className="border-b border-stroke-neutral-subtle"
+        className="relative border-b border-stroke-neutral-subtle"
       >
-        <div className="mx-auto max-w-[780px] px-x4 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
+        {/* 뒤에 까는 마인드맵 모양 배경. 섹션은 자르지 않는다 — 검색 목록이 섹션 밖으로 내려온다 */}
+        <HomeHeroBackground />
+        <div className="relative mx-auto max-w-[780px] px-x4 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
           <HomeGreeting member={member} pending={me.isPending} />
           <SearchBox focusRequest={focusRequest} />
           <NewIssues />
