@@ -176,6 +176,24 @@ test("보내는 동안 다시 눌러도 한 번만 보낸다", async () => {
   expect(calls.count).toBe(1);
 });
 
+// 마이페이지의 관심 이슈 목록(A25)이 401 이어도 로그인 화면으로 (Jira 165)
+test("관심 이슈를 받다가 세션이 끝났으면(401) 로그인 화면으로 보낸다", async () => {
+  server.use(
+    http.get("/api/v1/members/me/interest-issues", () =>
+      apiProblem(
+        401,
+        "UNAUTHORIZED",
+        "UNAUTHORIZED",
+        "/api/v1/members/me/interest-issues",
+      ),
+    ),
+  );
+  const { router } = renderRoute("/me");
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+  expect(router.state.location.search).toBe("?next=/me");
+});
+
 // 이름 아래 머리 줄 — 모바일 v1 · v21 MyPageScreen (Jira 163). 관심 분야는 저장된 것(A17), 관심 이슈는 A25, 북마크는 A22 의 개수
 test("이름 아래에 관심 분야 · 관심 이슈 · 북마크 개수를 보인다", async () => {
   await openMyPage();
