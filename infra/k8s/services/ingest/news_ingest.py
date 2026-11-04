@@ -42,8 +42,9 @@ QUERY_KEYS = frozenset({
     "prioritydomain", "q", "qInTitle", "qInMeta", "removeduplicate", "sort",
 })
 QUERY_MAX_CHARS = 1000
-# 배치가 미리 거르는 분류 — 2026-11-03 인프라 담당 결정(docs/api-internal.md 2절)
-SKIP_CATEGORIES = frozenset({"entertainment", "sports"})
+# 배치가 미리 거르는 분류 — INGEST_QUERY 의 excludecategory 와 같은 다섯(팀장 2026-11-04, 처음 2026-11-03 은 연예 · 스포츠 둘).
+# 쿼리가 이미 빼지만 쿼리를 바꿔도 같은 기준이 남게 한 번 더 거른다
+SKIP_CATEGORIES = frozenset({"sports", "entertainment", "lifestyle", "food", "tourism"})
 PUB_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 KST = timezone(timedelta(hours=9))  # 서머타임이 없어 고정 오프셋 — slim 이미지에 시간대 자료가 없어도 된다
 REPORTER_MAX = 200  # B2 의 reporter 상한
@@ -58,8 +59,9 @@ BODY_LOG_CHARS = 300  # 로그에 남길 응답 본문 길이 — 키를 가린 
 # 기사를 다 기다리면 Job 시간 상한에 잘려 결과 줄이 안 남는다
 BACKEND_DOWN_AFTER = 3
 MODES = ("fetch-only", "load-only", "full")
-# 거르는 순서 — 범위 밖(10시 실행의 그날 0 ~ 10시) 기사가 기사 상한을 먹지 않게 out_of_range 가 over_limit 보다 앞이다
-SKIP_REASONS = ("bad_item", "no_body", "category", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit")
+# 거르는 순서 — 범위 밖(10시 실행의 그날 0 ~ 10시) 기사가 기사 상한을 먹지 않게 out_of_range 가 over_limit 보다 앞이다.
+# marked_duplicate 는 NewsData 가 duplicate=true 로 표시한 기사(팀원 수집과 같게), duplicate 는 같은 실행 안에서 링크 · article_id 가 겹친 기사
+SKIP_REASONS = ("bad_item", "no_body", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit")
 # 다음 쪽이 남았는데 이 까닭으로 멈추면 빠진 구간이 있다 — 상한이면 받은 데까지 넣고 종료 2
 CAPPED = ("max_requests", "max_articles")
 CONNECTION_ERRORS = (OSError, http.client.HTTPException)  # urllib.error.URLError · 끊김 · 시간 초과는 OSError
@@ -97,6 +99,8 @@ def skip_reason(item):
     categories = item.get("category")
     if isinstance(categories, list) and SKIP_CATEGORIES.intersection(c for c in categories if isinstance(c, str)):
         return "category"
+    if item.get("duplicate") is True:
+        return "marked_duplicate"
     if item.get("pubDateTZ") != "UTC":
         return "timezone"
     try:
@@ -303,12 +307,26 @@ class Run:
         # 모양이 고정이라 글자 순서 = 시각 순서
         self.pub_dates = [min(self.pub_dates[0], pub), max(self.pub_dates[1], pub)] if self.pub_dates else [pub, pub]
 
+    def kst_day(self, item):
+        return (datetime.strptime(item["pubDate"], PUB_DATE_FORMAT) + timedelta(hours=9)).date()
+
     def out_of_range(self, item):
         days = self.config["days"]
-        if days is None:
-            return False
-        kst_day = (datetime.strptime(item["pubDate"], PUB_DATE_FORMAT) + timedelta(hours=9)).date()
-        return not days[0] <= kst_day <= days[1]
+        return days is not None and not days[0] <= self.kst_day(item) <= days[1]
+
+    def usable_day(self, item):
+        """시각을 믿을 수 있는 기사(UTC · 모양이 맞음)의 KST 날짜. 아니면 None — 오래된 순 멈춤에서 위치로 쓰지 않는다"""
+        pub = item.get("pubDate")
+        if item.get("pubDateTZ") != "UTC" or not isinstance(pub, str):
+            return None
+        try:
+            return (datetime.strptime(pub, PUB_DATE_FORMAT) + timedelta(hours=9)).date()
+        except ValueError:
+            return None
+
+    def ascending(self):
+        """오래된 순(sort=pubdateasc)이고 날짜 범위가 있으면 범위를 지난 쪽에서 멈출 수 있다"""
+        return self.config["days"] is not None and ("sort", "pubdateasc") in self.config["query"]
 
     def fetch(self):
         """NewsData 를 상한까지 불러 걸러 남은 기사를 B2 요청 모양으로, 받은 순서대로 돌려준다
@@ -318,6 +336,7 @@ class Run:
         config = self.config
         limit = 1 if config["mode"] == "fetch-only" else config["max_requests"]
         kept, links, article_ids, next_page = [], set(), set(), None
+        ascending = self.ascending()
         while True:
             if self.requests >= limit:
                 self.stopped_by = "max_requests"
@@ -349,6 +368,8 @@ class Run:
                 first = data["results"][0]
                 fields = sorted(first) if isinstance(first, dict) else type(first).__name__
                 self.log({"msg": "받은 칸", "totalResults": data.get("totalResults"), "fields": fields})
+            # 오래된 순일 때 이 쪽의 시각을 믿을 수 있는 기사가 모두 범위 뒤인지 — 한 건만 뒤면 멈추지 않는다(정렬이 조금 어긋나도 어제 기사를 잃지 않게)
+            seen_day, all_past = False, True
             for item in data["results"]:
                 self.fetched += 1
                 if not isinstance(item, dict) or not isinstance(item.get("link"), str):
@@ -357,6 +378,11 @@ class Run:
                 self.note_pub_date(item)
                 article_id = item.get("article_id") if isinstance(item.get("article_id"), str) else None
                 reason = skip_reason(item)
+                if ascending:
+                    day = self.usable_day(item)
+                    if day is not None:
+                        seen_day = True
+                        all_past = all_past and day > config["days"][1]
                 if reason is None and self.out_of_range(item):
                     reason = "out_of_range"
                 if reason is None and (item["link"] in links or article_id in article_ids):
@@ -372,8 +398,13 @@ class Run:
                 # 원본은 버리고 B2 요청 모양만 들고 있는다 — 하루 1만 건 안팎이라 메모리를 덜 쓴다
                 kept.append(to_article(item))
             next_page = data.get("nextPage")
+            # 상한이 먼저다 — 상한에 걸린 범위 안 기사가 있으면 범위를 지났어도 빠진 구간이라 종료 2(경보)
             if self.skipped["over_limit"] or (next_page and len(kept) >= config["max_articles"]):
                 self.stopped_by = "max_articles"
+                break
+            if ascending and seen_day and all_past:
+                # 오래된 순이라 이 뒤 쪽은 모두 범위 뒤(그날 기사)다 — 하루 약 330 → 240요청(팀장 어림)
+                self.stopped_by = "past_range"
                 break
             if not next_page:
                 self.stopped_by = "end"
