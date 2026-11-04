@@ -43,7 +43,7 @@ default:
 
 # 모든 잡에 합쳐지는 변수 — default: 는 variables 를 받지 않아 여기에 둔다
 variables:
-  # Git LFS 파일은 받지 않고 가리킴 파일로 둔다. 까닭은 SSOT.md 6절 「저장소·CI」 (Jira S15P31A102-164)
+  # Git LFS 파일은 받지 않고 가리킴 파일로 둔다. 까닭은 SSOT.md 6절 「CI 파이프라인」 (Jira S15P31A102-164)
   # 파일 내용이 필요한 잡이 생기면 그 잡의 variables 에서만 "false" 로 덮어쓴다
   GIT_LFS_SKIP_SMUDGE: "true"
 

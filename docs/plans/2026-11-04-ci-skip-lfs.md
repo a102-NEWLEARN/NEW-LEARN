@@ -15,13 +15,13 @@
 
 ## 바꿀 파일
 
-- `.gitlab-ci.yml` — `default:` 뒤에 최상위 `variables:` 를 새로 두고 `GIT_LFS_SKIP_SMUDGE: "true"`(GitLab 문서 「Skip Git LFS objects」 — 러너가 `git lfs pull` 을 건너뛰고 LFS 파일은 가리킴 파일로 둠, 값은 문서 예시 그대로). `default:` 는 `variables` 를 받지 않아 최상위가 맞고, 잡 변수와 이름이 겹치지 않아 잡 10개 모두에 합쳐진다. 주석에는 덮어쓰는 법(파일이 필요한 잡에서만 `"false"`)과 「까닭은 SSOT 6절」만 둔다
+- `.gitlab-ci.yml` — `default:` 뒤에 최상위 `variables:` 를 새로 두고 `GIT_LFS_SKIP_SMUDGE: "true"`(GitLab 문서 「Skip Git LFS objects」 — 러너가 `git lfs pull` 을 건너뛰고 LFS 파일은 가리킴 파일로 둠, 값은 문서 예시 그대로). `default:` 는 `variables` 를 받지 않아 최상위가 맞고, 잡 변수와 이름이 겹치지 않아 잡 10개 모두에 합쳐진다. 주석에는 덮어쓰는 법(파일이 필요한 잡에서만 `"false"`)과 「까닭은 SSOT 6절 「CI 파이프라인」」만 둔다
   - `data/` 를 읽는 곳 확인(11-04, 계획 리뷰 포함): 굽기 컨텍스트는 `$CI_PROJECT_DIR/$AREA`(backend · frontend · ai), `deploy_mr.py` 는 GitLab API 만, 영역 게이트는 CI 에서 시크릿 스캔을 건너뛰고 문서 크기 검사는 `.md` 만, 하네스 시험은 임시 저장소에 지정 파일만 복사, 코드 어디에도 sqlite 를 안 씀
   - 시크릿 스캔 `secret-scan.sh --all`(w0:rules)은 추적 파일 전부를 읽어 `data/*.sqlite` 도 읽는다. 지금은 `grep -I` 가 이진 파일로 보고 건너뛰고, 바꾼 뒤에는 가리킴 파일 세 줄이라 어느 규칙에도 안 걸린다. `--range` 는 이력의 가리킴 파일을 읽어 그대로다 — 결과가 바뀌지 않는다
 - `.gitignore` · `.claude/stack.md` 8절 — Git LFS 가 훅 폴더(`core.hooksPath` = `.claude/hooks`)에 스스로 만드는 `post-checkout` · `post-commit` · `post-merge` · `pre-push` 넷을 이름 그대로 적는다(`.claude/hooks/*` 처럼 넓히면 추적하는 훅까지 가려짐). 팀 규칙대로 두 곳에 같이(`.gitignore` 1줄 · stack.md 8절)
   - 커밋하면 안 되는 까닭: 그 훅은 `git-lfs` 가 없으면 `exit 2` 다. Git for Windows 에는 git-lfs 가 들어 있지만, git-lfs 가 없는 리눅스 클론(SSOT 7절의 WSL2 클론 같은)에서는 `pre-push` 가 push 를 막는다. 추적하는 훅과 이름이 겹치지 않고 `install.sh` · `upgrade.sh` 도 그 이름을 쓰지 않는다
 - `SSOT.md`
-  - 6절 「저장소·CI」 아래에 정한 것과 까닭 한 줄 — CI 잡은 Git LFS 파일을 받지 않는다(원본 `.gitlab-ci.yml`)
+  - 6절 「CI 파이프라인」 아래에 정한 것과 까닭 한 줄 — CI 잡은 Git LFS 파일을 받지 않는다(원본 `.gitlab-ci.yml`)
   - 10절에 전후 체크아웃 시간 한 줄(위 표의 전 값 + 이 MR 파이프라인으로 잰 뒤 값). 숫자는 10절에만
 - `docs/plans/2026-11-04-ci-skip-lfs.md` — 이 계획
 
