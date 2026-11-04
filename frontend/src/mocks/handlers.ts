@@ -547,6 +547,14 @@ const looseArticles: ArticleSummary[] = [
     "국산 거대 언어 모델 AI 공개 시연",
     "국내 기업이 직접 만든 거대 언어 모델을 처음 공개 시연했다",
   ),
+  // 마인드맵 · 용어사전 시연용 — 어려운 경제 용어가 많은 기사. 최신 기사 맨 앞에 오게 가장 늦은 시각으로 둔다 (Jira 166)
+  looseArticle(
+    409,
+    "economy",
+    "2026-10-24T07:30:00+09:00",
+    "한은, 양적긴축 속도 조절 시사… 역레포·통화스와프로 유동성 방어",
+    "신용스프레드가 벌어지고 단기자금시장이 경색되자 한국은행이 대차대조표 축소 속도를 늦추고, 역레포 매각과 외화 유동성 공급 수단을 함께 점검하기로 했다",
+  ),
 ];
 
 type ArticleEntry = {
@@ -634,25 +642,54 @@ const mindmap11901: MindmapBranch[] = [
   branch("OUTLOOK", "2028년 양산 목표는 그대로라고 밝혔다"),
 ];
 
+// A9 — 409(어려운 기사)는 가지마다 잎을 여럿 두고 경제 용어를 많이 넣었다. 마인드맵 · 용어사전 시연용 (Jira 166)
+const mindmap409: MindmapBranch[] = [
+  branch(
+    "CORE",
+    "한국은행이 보유 국채의 만기 재투자 축소 폭을 줄여 양적긴축(QT) 속도를 늦추겠다고 시사했다",
+    "단기자금시장 경색에 대비해 역레포 매각 규모를 늘리고 미 연준과의 통화스와프 한도를 다시 점검한다",
+    "기준금리는 동결하되 지급준비율 조정 가능성은 열어 뒀다",
+  ),
+  branch(
+    "CAUSE",
+    "회사채·CP 신용스프레드가 벌어지며 기업의 디레버리징 압력이 커졌다",
+    "장단기 금리 역전이 길어져 경기 침체 신호로 읽혔다",
+    "경상수지 흑자 폭이 줄어 외화 유동성 완충력이 약해졌다",
+  ),
+  branch(
+    "REACTION",
+    "채권시장: 꼬리 위험(테일 리스크)이 줄었다며 국고채 금리가 하락",
+    "일부 전문가: 유동성 공급이 기대 인플레이션을 자극해 스태그플레이션 우려를 키울 수 있다는 지적",
+    "외환당국: 환헤지 수요가 몰리면 외환스와프 시장이 한쪽으로 쏠릴 수 있다며 경계",
+  ),
+  branch(
+    "OUTLOOK",
+    "다음 통화정책방향 회의에서 대차대조표 정상화 경로를 구체적으로 내놓을 전망이다",
+    "연준의 통화정책 전환(피벗) 시점에 따라 원/달러 환율 변동성이 다시 커질 수 있다",
+  ),
+];
+
+// A9 — 가지를 미리 지어 둔 기사
+const fixedMindmaps: Record<number, MindmapBranch[]> = {
+  11901: mindmap11901,
+  409: mindmap409,
+};
+
 // A9 — 나머지 기사는 지어낸 문장으로 가지를 채운다. 내용 있는 가지만 오는 경우를 만들려고
 // id 가 3의 배수면 원인·배경, 짝수면 반응 가지를 뺀다
 function mindmapOf({ id, title, summary, publishedAt }: ArticleSummary) {
   const branches =
-    id === 11901
-      ? mindmap11901
-      : [
-          branch("CORE", summary ?? title),
-          id % 3 === 0
-            ? null
-            : branch("CAUSE", "앞서 나온 결정이 이번 일로 이어졌다"),
-          id % 2 === 0
-            ? null
-            : branch(
-                "REACTION",
-                "관계자들은 결과를 지켜보겠다는 반응을 보였다",
-              ),
-          branch("OUTLOOK", "후속 조치가 이어질 전망이다"),
-        ].filter((item) => item !== null);
+    fixedMindmaps[id] ??
+    [
+      branch("CORE", summary ?? title),
+      id % 3 === 0
+        ? null
+        : branch("CAUSE", "앞서 나온 결정이 이번 일로 이어졌다"),
+      id % 2 === 0
+        ? null
+        : branch("REACTION", "관계자들은 결과를 지켜보겠다는 반응을 보였다"),
+      branch("OUTLOOK", "후속 조치가 이어질 전망이다"),
+    ].filter((item) => item !== null);
   return {
     articleId: id,
     schemaVersion: "mindmap-v1",
