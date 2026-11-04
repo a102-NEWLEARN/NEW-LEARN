@@ -285,21 +285,22 @@ class CoreMappingTest {
     // ④ 복합 키
 
     // 카테고리 칸이 빈 대응 행은 「일부러 무시하는 원본 값」이다(NewsData 의 top 처럼 주제가 아닌 값)
+    // 진짜 NewsData 값(business · top)은 V11 이 이미 넣어 두어, 여기서는 시험 전용 값으로 「넣기」를 본다(Jira 170)
     @Test
     void categoryMappingMayLeaveCategoryEmpty() {
         Category economy = categoryRepository.findById("economy").orElseThrow();
+        categoryMappingRepository.save(new CategoryMapping(
+                new CategoryMappingId(MappingSource.NEWSDATA, "core-test-business"), economy, (short) 1));
         categoryMappingRepository.save(
-                new CategoryMapping(new CategoryMappingId(MappingSource.NEWSDATA, "business"), economy, (short) 1));
-        categoryMappingRepository.save(
-                new CategoryMapping(new CategoryMappingId(MappingSource.NEWSDATA, "top"), null, (short) 99));
+                new CategoryMapping(new CategoryMappingId(MappingSource.NEWSDATA, "core-test-top"), null, (short) 99));
         em.flush();
         em.clear();
 
         CategoryMapping business = categoryMappingRepository
-                .findById(new CategoryMappingId(MappingSource.NEWSDATA, "business"))
+                .findById(new CategoryMappingId(MappingSource.NEWSDATA, "core-test-business"))
                 .orElseThrow();
         CategoryMapping top = categoryMappingRepository
-                .findById(new CategoryMappingId(MappingSource.NEWSDATA, "top"))
+                .findById(new CategoryMappingId(MappingSource.NEWSDATA, "core-test-top"))
                 .orElseThrow();
 
         assertThat(business.getCategory().getCode()).isEqualTo("economy");
