@@ -239,7 +239,7 @@ def load_config(environ, now):
     if source == FILE_SOURCE:
         return load_file_config(environ, mode)
     if source not in SOURCES:
-        raise ConfigError(f"INGEST_SOURCE 는 {' · '.join(SOURCES)} 중 하나여야 한다 (지금: {source!r})")
+        raise ConfigError(f"INGEST_SOURCE 는 {' · '.join([*SOURCES, FILE_SOURCE])} 중 하나여야 한다 (지금: {source!r})")
     config = {
         "mode": mode,
         "source": source,
