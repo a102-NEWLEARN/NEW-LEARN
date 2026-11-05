@@ -71,6 +71,9 @@ const BRANCH_LINE_BEFORE = 100;
 const LEAF_LINE_AFTER = 100;
 const LEAF_AFTER = 180;
 const LEAF_GAP = 30;
+// 잎이 많아도 다 나오기까지 1초가 안 걸리게 — 여섯째 잎부터는 다섯째와 같이 나온다
+const LEAF_STAGGER_MAX = 5;
+const leafAt = (j: number) => Math.min(j, LEAF_STAGGER_MAX) * LEAF_GAP;
 // 마우스를 올린 노드는 1.12배 — 작은 움직임이라 200ms
 const HOVER_SCALE =
   "transition-[scale] duration-[var(--seed-duration-d4)] ease-[var(--seed-timing-function-enter-expressive)]";
@@ -150,8 +153,20 @@ export function MindmapGraph({
   const [focusType, setFocusType] = useState<BranchType | null>(null);
   const [selectedLeaf, setSelectedLeaf] = useState<string | null>(null);
   const [ringKey, setRingKey] = useState<string | null>(null);
-  const [hover, setHover] = useState<Hover>(null);
+  const [pointerHover, setHover] = useState<Hover>(null);
   const keyboardInput = useKeyboardInput();
+  // 가지를 포커스한 동안에는 그 가지 안의 호버만 친다 — 흐린 가지에 마우스를 올려 포커스한 가지까지 흐려지지 않게
+  const hover =
+    pointerHover && (focusType === null || pointerHover.type === focusType)
+      ? pointerHover
+      : null;
+  // 키보드로 포커스한 노드의 가지 — 가지 포커스로 흐리지 않는다. 키보드 포커스는 늘 보인다 (EXPERIENCE.md Accessibility Floor)
+  const ringBranch =
+    ringKey === null
+      ? null
+      : ringKey.startsWith("branch-")
+        ? (ringKey.slice("branch-".length) as BranchType)
+        : branchOfLeaf(ringKey);
 
   // 범례에서 가지를 끄면 그 가지에 걸린 포커스 · 강조 · 호버를 푼다 — 다시 켜도 되살리지 않는다.
   // 숨긴 노드에서는 마우스가 떠났다는 알림(pointerleave)이 오지 않아서 호버도 여기서 푼다
@@ -161,7 +176,7 @@ export function MindmapGraph({
     if (focusType && hidden.has(focusType)) setFocusType(null);
     if (selectedLeaf && hidden.has(branchOfLeaf(selectedLeaf)))
       setSelectedLeaf(null);
-    if (hover && hidden.has(hover.type)) setHover(null);
+    if (pointerHover && hidden.has(pointerHover.type)) setHover(null);
   }
 
   // 마우스 · 펜을 올린 노드. 터치는 누르면 마우스 흉내가 와서 강조와 겹쳐 흐려진 채 남으므로 받지 않는다
@@ -343,9 +358,11 @@ export function MindmapGraph({
     press();
   };
   // 키보드로 받은 포커스에만 테두리를 띄우고 화면 안으로 옮긴다
+  // 키보드로 옮기면 마우스 호버는 놓는다 — 마우스가 머문 노드 때문에 키보드로 간 노드가 흐려지지 않게
   const onNodeFocus = (key: string, x: number, y: number) => {
     if (!keyboardInput.current) return;
     setRingKey(key);
+    setHover(null);
     keepInView(x, y);
   };
 
@@ -354,7 +371,7 @@ export function MindmapGraph({
     const info = BRANCHES[type];
     const { tone } = info;
     const focused = focusType === type;
-    const dimmed = focusType !== null && !focused;
+    const dimmed = focusType !== null && !focused && ringBranch !== type;
     const labelX = -side * (BRANCH_RADIUS + BRANCH_LABEL_GAP);
     const labelAnchor = side === 1 ? "end" : "start";
     const branchKey = `branch-${type}`;
@@ -399,7 +416,7 @@ export function MindmapGraph({
               strokeWidth={2}
               data-faded={!leafOn || undefined}
               opacity={leafOn ? 1 : HOVER_FADED_OPACITY}
-              style={enterAt(at + LEAF_LINE_AFTER + j * LEAF_GAP)}
+              style={enterAt(at + LEAF_LINE_AFTER + leafAt(j))}
               className={lineClass(
                 (hover !== null && leafOn) || selectedLeaf === leaf.key,
               )}
@@ -515,7 +532,7 @@ export function MindmapGraph({
               {labeled && cut && <title>{leaf.text}</title>}
               <g
                 className={POP_IN}
-                style={enterAt(at + LEAF_AFTER + j * LEAF_GAP)}
+                style={enterAt(at + LEAF_AFTER + leafAt(j))}
               >
                 <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
                 {/* 잎 글도 누르는 면이다 — 줄 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}

@@ -225,6 +225,49 @@ test("열 때 머리 줄 → 가지 열 차례로 나온다 — 열 안에서는
   );
 });
 
+test("번호 원이 나온 뒤 다음 가지로 잇는 선이 자란다 — 마지막 가지에는 선이 없다", () => {
+  renderFlow();
+  const grows = (question: string) =>
+    [
+      ...step(question).querySelectorAll(
+        '[class*="newlearn-grow-x"], [class*="newlearn-grow-y"]',
+      ),
+    ].map((line) => enterDelay(line));
+
+  // 가로(넓은 자리) · 세로(좁은 자리) 선 하나씩. 어느 쪽이 보일지는 자리 폭이 정한다
+  const lines = grows("무슨 일이?");
+  expect(lines).toHaveLength(2);
+  lines.forEach((at) =>
+    expect(at).toBeGreaterThan(enterDelay(circle("무슨 일이?", 1))),
+  );
+  expect(grows("앞으로는?")).toEqual([]);
+});
+
+test("잎 카드는 누르는 동안 살짝 줄어든다 — 누르는 면이 하나인 카드라서다", () => {
+  renderFlow();
+
+  expect(card("첫 해 생산 목표를 밝혔다").getAttribute("class")).toContain(
+    "motion-safe:active:scale-",
+  );
+});
+
+test("잎이 많아도 1초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
+  const many = Array.from({ length: 12 }, (_, i) => `잎 ${i + 1}`);
+  renderFlow([
+    branch("CORE", "가"),
+    branch("CAUSE", "나"),
+    branch("REACTION", "다"),
+    branch("OUTLOOK", ...many),
+  ]);
+
+  const last = Math.max(
+    ...[...document.querySelectorAll<HTMLElement>("[style]")]
+      .map(enterDelay)
+      .filter((at) => !Number.isNaN(at)),
+  );
+  expect(last + 300).toBeLessThanOrEqual(1000);
+});
+
 test("강조한 잎의 원이 한 번 튄다 — 다른 잎은 그대로다", () => {
   renderFlow();
   const first = "첫 해 생산 목표를 밝혔다";

@@ -17,6 +17,8 @@ const COLUMN_AT = (index: number) => 100 + index * 90;
 const QUESTION_AFTER = 40;
 const CARD_AFTER = 80;
 const CARD_GAP = 50;
+// 잎이 많아도 다 나오기까지 1초가 안 걸리게 — 다섯째 카드부터는 넷째와 같이 나온다
+const CARD_STAGGER_MAX = 4;
 const LINE_AFTER = 140;
 // 선이 다 자란(300ms) 즈음 화살표가 나타난다
 const ARROW_AFTER = LINE_AFTER + 240;
@@ -139,7 +141,11 @@ export function FlowView({ title, branches }: FlowViewProps) {
                         outlook={type === "OUTLOOK"}
                         on={on}
                         dimmed={selected !== null && !on}
-                        enterDelay={at + CARD_AFTER + itemIndex * CARD_GAP}
+                        enterDelay={
+                          at +
+                          CARD_AFTER +
+                          Math.min(itemIndex, CARD_STAGGER_MAX) * CARD_GAP
+                        }
                         onPress={() => setSelected(on ? null : key)}
                       />
                     );

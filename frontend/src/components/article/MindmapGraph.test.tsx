@@ -305,6 +305,73 @@ test("잎에 마우스를 올리면 가운데에서 그 잎까지의 길만 또�
   expect(strokeOf(firstLeafLine)).toContain("stroke-mindmap-core-line");
 });
 
+test("마우스를 올린 노드는 커지고, 잎이면 글이 진해진다", () => {
+  renderGraph();
+  const scaled = (node: Element) =>
+    node.querySelector('[class*="motion-safe:scale-[1.12]"]');
+  const text = (name: string) =>
+    leaf(name).querySelector("text")!.getAttribute("class");
+
+  fireEvent.pointerEnter(coreBranch(), MOUSE);
+  expect(scaled(coreBranch())).not.toBeNull();
+  expect(scaled(causeBranch())).toBeNull();
+
+  fireEvent.pointerLeave(coreBranch(), MOUSE);
+  fireEvent.pointerEnter(leaf("첫 해 생산 목표를 밝혔다"), MOUSE);
+  expect(scaled(leaf("첫 해 생산 목표를 밝혔다"))).not.toBeNull();
+  expect(text("첫 해 생산 목표를 밝혔다")).not.toContain(
+    "fill-fg-neutral-muted",
+  );
+  expect(text("한빛반도체가 텍사스 공장 착공식을 열었다")).toContain(
+    "fill-fg-neutral-muted",
+  );
+});
+
+test("가지를 포커스한 동안 흐린 가지에 마우스를 올려도 포커스한 가지를 흐리지 않는다 — 포커스한 가지 안에서는 호버가 돈다", () => {
+  renderGraph();
+  fireEvent.click(coreBranch());
+
+  fireEvent.pointerEnter(causeBranch(), MOUSE);
+  expect(faded(coreBranch())).toBeNull();
+  expect(faded(leaf("첫 해 생산 목표를 밝혔다"))).toBeNull();
+
+  fireEvent.pointerLeave(causeBranch(), MOUSE);
+  fireEvent.pointerEnter(leaf("첫 해 생산 목표를 밝혔다"), MOUSE);
+  expect(faded(leaf("한빛반도체가 텍사스 공장 착공식을 열었다"))).toBe("true");
+});
+
+test("키보드로 옮긴 노드는 흐리지 않는다 — 키보드 포커스는 늘 보인다", () => {
+  renderGraph();
+  fireEvent.click(coreBranch());
+  fireEvent.pointerEnter(coreBranch(), MOUSE);
+
+  fireEvent.keyDown(window, { key: "Tab" });
+  fireEvent.focus(causeBranch());
+
+  // 가지 포커스로 흐린 가지도, 마우스 호버로 흐린 노드도 키보드 포커스를 받으면 또렷하다
+  expect(branchGroup("CAUSE").getAttribute("data-dimmed")).toBeNull();
+  expect(faded(causeBranch())).toBeNull();
+  fireEvent.blur(causeBranch());
+  expect(branchGroup("CAUSE").getAttribute("data-dimmed")).toBe("true");
+});
+
+test("잎이 많아도 1초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
+  const many = Array.from({ length: 12 }, (_, i) => `잎 ${i + 1}`);
+  renderGraph([
+    branch("CORE", "가"),
+    branch("CAUSE", "나"),
+    branch("REACTION", "다"),
+    branch("OUTLOOK", ...many),
+  ]);
+
+  const last = Math.max(
+    ...[...document.querySelectorAll<SVGElement>("[style]")]
+      .map(enterDelay)
+      .filter((at) => !Number.isNaN(at)),
+  );
+  expect(last + 300).toBeLessThanOrEqual(1000);
+});
+
 test("손가락으로 누를 때는 흐리지 않는다 — 터치는 누르면 마우스 흉내가 와서 강조와 겹친다", () => {
   renderGraph();
 
