@@ -124,9 +124,9 @@ MR 2 — 덤프 가이드라인 (Jira 152, MR 1 다음)
 - [x] 스크립트 고치기 → 시험 초록, 고친 것을 하나씩 되돌려 해당 시험이 단언에서 빨개지는지 — 13가지 모두 빨강(처음엔 「상한을 범위 밖보다 먼저」가 초록이라 시험 기사 순서를 고침), 7d027bd
 - [x] CronJob · 경보(시험 25시간 먼저 빨강 → 규칙) · `kubectl kustomize` · `set env --local` 시험 — 옛 규칙에서 실패 넷, 손 실행 두 벌 env 를 스크립트 설정 검사에 넣어 통과, 7276d02
 - [x] 문서(`ingest.md` · `api-internal.md` · `SSOT.md`) → infra 게이트 → reviewer 조수 MR 리뷰 → MR → infra → dev — !608(infra `e651eec4`, 08:46) → !609(dev `f7d8f673`, 08:50). **사용자 결정(08:45): 11시 뒤가 아니라 10시 전에 반영해 오늘 10:00 예약이 11/3 을 넣게 함** — 손 실행 넣기만 대신 받기만 한 번만. backend · ai 맞추기는 MR 2 뒤에 한 번
-- [ ] 사이트 확인(Argo CD `ingest` Synced, CronJob `suspend=false` · 다음 예약 11-05 10:00) → 사용자 손 실행: 11/3 받기만 1번 → 11/3 넣기만 → 로그 `수집 결과`
-- [ ] MR 2 가이드라인 → reviewer 조수 → MR → infra → dev → 맞추기, Jira 152 다시 열고 설명 고침
-- [ ] Jira 156 댓글(넣기만 켬 · 남은 것), `/feature-done`, zoo_docs 기록
+- [x] 사이트 확인(Argo CD `ingest` Synced, CronJob `suspend=false` · 다음 예약 11-05 10:00) → 사용자 손 실행: 11/3 받기만 1번 → 11/3 넣기만 → 로그 `수집 결과` — 계획과 달라진 점: 11/3 · archive 는 팀원이 받기로 해 넣기만 손 실행은 안 함(받기만 셋으로 양 · 정렬 확인, 결정은 SSOT 10절), 첫 정시 실행 11-05 10:00 종료 0
+- [x] MR 2 가이드라인 → reviewer 조수 → MR → infra → dev → 맞추기, Jira 152 다시 열고 설명 고침 — !610 → !611, 맞추기 !612 · !613
+- [x] Jira 156 댓글(넣기만 켬 · 남은 것), `/feature-done`, zoo_docs 기록 — 11-05 첫 실행 뒤, Jira 156 은 B1 · 15분 모드가 남아 열어 둠
 
 ## 안 바꿀 것
 
