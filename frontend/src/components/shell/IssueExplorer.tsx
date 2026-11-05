@@ -10,6 +10,7 @@ import {
 } from "@/api/categories";
 import { type IssueSummary, issuesQuery } from "@/api/issues";
 import { timelineQuery } from "@/api/timeline";
+import { InterestButton } from "@/components/issue/InterestButton";
 import { QueryState } from "@/components/state/QueryState";
 import { useUpcomingCategory } from "@/components/useSnackbar";
 import { formatTimelineDates } from "@/lib/date";
@@ -167,13 +168,23 @@ function CategoryIssues({ category }: { category: Category }) {
                   const current = pathname === to;
                   return (
                     <li key={issue.id}>
-                      <Link
-                        to={to}
-                        aria-current={current ? "page" : undefined}
-                        className="t3-regular block truncate rounded-r1 px-x2 py-x1_5 text-fg-neutral-muted hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:t3-bold aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-neutral"
-                      >
-                        {issue.title}
-                      </Link>
+                      {/* 이슈 링크와 별은 나란한 두 버튼이다 — 링크 안에 버튼을 넣지 않는다. 별 자리만큼 링크 글자를 비운다 (v21). 위치 클래스(right-x…)는 SEED 테마에 없어 px 로 준다 */}
+                      <div className="group/row relative">
+                        <Link
+                          to={to}
+                          aria-current={current ? "page" : undefined}
+                          className="t3-regular block truncate rounded-r1 py-x1_5 pr-x8 pl-x2 text-fg-neutral-muted hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:t3-bold aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-neutral"
+                        >
+                          {issue.title}
+                        </Link>
+                        <InterestButton
+                          issueId={issue.id}
+                          interested={issue.interested}
+                          size="small"
+                          issueTitle={issue.title}
+                          className="absolute top-1/2 right-[2px] -translate-y-1/2"
+                        />
+                      </div>
                       {current && <IssueEvents issue={issue} />}
                     </li>
                   );

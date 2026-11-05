@@ -1,0 +1,80 @@
+<!doctype html>
+<!-- 서비스 워커(sw.js)가 화면 주소를 받지 못할 때 주는 안내 (Jira S15P31A102-176).
+     CSP 가 인라인 스크립트를 막아서 스크립트 없이 쓴다. 글꼴 · 색은 앱 파일 없이도 보이게 여기 둔다 — 값은 src/newlearn-theme.css 의 --nl-brand-* 와 같다 -->
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>연결되지 않았어요 · NEW:LEARN</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #ffffff;
+        color: #222b30;
+        font-family:
+          "Pretendard Variable",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Apple SD Gothic Neo",
+          "Malgun Gothic",
+          sans-serif;
+        text-align: center;
+      }
+      main {
+        max-width: 320px;
+      }
+      img {
+        width: 56px;
+        height: auto;
+      }
+      h1 {
+        margin: 20px 0 8px;
+        font-size: 20px;
+        line-height: 1.4;
+      }
+      p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.6;
+        color: #66717a;
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        margin-top: 24px;
+        padding: 0 20px;
+        border-radius: 10px;
+        background: #087f72;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      a:focus-visible {
+        outline: 2px solid #222b30;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/favicon.svg" alt="NEW:LEARN" />
+      <h1>인터넷에 연결되지 않았어요</h1>
+      <p>연결을 확인한 뒤 다시 열어 주세요.</p>
+      <a href="/home">다시 시도</a>
+    </main>
+  </body>
+</html>

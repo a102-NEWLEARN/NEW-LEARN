@@ -88,16 +88,17 @@ public class ArticleIngestService {
     private Inserted insert(ArticleIngestRequest request) {
         ChosenPress press = press(request.pressSourceId(), request.pressName());
         List<String> sourceCategories = request.sourceCategoriesOrEmpty();
+        String title = ArticleTitleCleaner.clean(request.title());
         Article article = new Article(
                 ArticleSource.NEWSDATA,
                 request.url(),
                 press.press(),
-                request.title(),
+                title,
                 request.body(),
                 request.publishedAt().toInstant(),
                 sourceCategories);
         article.fillSourceDetails(
-                request.reporterOrNull(), representative(sourceCategories, request.title()), request.sourceTags());
+                request.reporterOrNull(), representative(sourceCategories, title), request.sourceTags());
         return new Inserted(articles.saveAndFlush(article).getId(), press.created());
     }
 

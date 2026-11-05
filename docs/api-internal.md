@@ -72,7 +72,7 @@ flowchart LR
 | `url` | string | 예 | `http://` · `https://` 로 시작하고 그 뒤에 주소가 한 글자 이상 있다. 경로는 보지 않는다(퍼센트 인코딩 안 된 한글도 받는다). 2048자까지. 받은 그대로 둔다 — 정규화하지 않는다 | `link` | `article.url` |
 | `pressSourceId` | string | 예 | 100자까지 | `source_id` | 언론사를 고르는 대응 키(`press_mapping.source_value`). 처음 보는 언론사면 `press.code` |
 | `pressName` | string | 예 | 100자까지. 언론사를 처음 등록할 때만 쓴다 — 있는 언론사의 이름은 바꾸지 않는다 | `source_name` | 처음이면 `press.name` |
-| `title` | string | 예 | 300자까지 | `title` | `article.title` |
+| `title` | string | 예 | 300자까지 | `title` | `article.title`. HTML 조각(`quot;` · `hellip;` 등)은 글자로 되돌려 저장한다(`data-model.md` article) |
 | `reporter` | string | 아니오 | 200자까지. 빈 값은 없는 것으로 둔다 | `creator[]` — 잇는 법은 배치가 정한다 | `article.reporter` |
 | `body` | string | 예 | 공백만은 안 된다. 10만 자까지 | `content` | `article.body` |
 | `publishedAt` | string(시각) | 예 | 오프셋이 있어야 한다(`docs/api.md` 1절 「시간」). `pubDate` 는 시간대가 없어 배치가 `pubDateTZ`(UTC)를 붙여 `2026-11-02T23:15:46Z` 로 보낸다 | `pubDate` + `pubDateTZ` | `article.published_at` |

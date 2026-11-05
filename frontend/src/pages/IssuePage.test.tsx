@@ -565,3 +565,26 @@ test("사이드바에서 사건을 누르면 패널이 열리고 포커스가 �
   });
   await waitFor(() => expect(document.activeElement).toBe(heading));
 });
+
+test("좁은 화면에서는 이슈 흐름을 세로 타임라인으로 둔다 — 넓은 화면은 가로 지도다", async () => {
+  stubScreen("narrow");
+  renderRoute("/issues/12");
+
+  expect(
+    await screen.findByRole("heading", { level: 3, name: "2026년 8월" }),
+  ).toBeDefined();
+  expect(await node(/착공식/)).toBeDefined();
+  expect(document.querySelector('svg[aria-label="사건 타임라인"]')).toBeNull();
+});
+
+test("넓은 화면은 가로 지도다", async () => {
+  renderRoute("/issues/12");
+
+  await node(/착공식/);
+  expect(
+    document.querySelector('svg[aria-label="사건 타임라인"]'),
+  ).not.toBeNull();
+  expect(
+    screen.queryByRole("heading", { level: 3, name: "2026년 8월" }),
+  ).toBeNull();
+});

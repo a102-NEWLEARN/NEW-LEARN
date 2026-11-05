@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { createQueryClient } from "@/api/query-client";
 import { AppProviders } from "@/providers";
+import { registerServiceWorker } from "@/pwa/registerServiceWorker";
 import { routes } from "@/routes";
 import "@/style.css";
 
@@ -42,3 +43,6 @@ void enableMocking().then(() => {
     </StrictMode>,
   );
 });
+
+// 폰 홈 화면에 설치한 앱이 쓰는 서비스 워커 — 운영 빌드에서만 (src/pwa/registerServiceWorker.ts)
+registerServiceWorker();

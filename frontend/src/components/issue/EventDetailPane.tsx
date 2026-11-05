@@ -93,7 +93,7 @@ export function EventDetailPane({
                 <IconXmarkLine aria-hidden />
               </BottomSheet.CloseButton>
               {/* 시트에서는 SEED Body 가 스크롤한다 */}
-              <BottomSheet.Body ref={scrollRef}>
+              <BottomSheet.Body ref={scrollRef} className="px-x5">
                 <div className="pb-x10">{panel}</div>
               </BottomSheet.Body>
             </BottomSheet.Content>

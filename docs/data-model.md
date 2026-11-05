@@ -240,7 +240,7 @@ erDiagram
 | `source` | text | 예 | 어느 소스에서 왔나. `SSAFY_2025H1` · `SSAFY_2024H1` · `SSAFY_2024H2` · `NEWSDATA` (SSOT 5절) |
 | `url` | text | 예 · 고유 | 원문 링크. 데이터셋에 기사 ID 가 없어서 고유 키로 쓴다(addendum). 같은 링크를 두 번 넣지 않는다. 받은 그대로 두고 정규화(끝 `/` · 쿼리)하지 않는다(2026-11-03, Jira 153) |
 | `press_code` | text | 예 · 외래 키 | 언론사(`press`). 모든 기사 화면에 보인다(PRD FR-2) |
-| `title` | text | 예 | 기사 제목. 마인드맵 · 흐름지도 가운데에도 쓴다 |
+| `title` | text | 예 | 기사 제목. 마인드맵 · 흐름지도 가운데에도 쓴다. NewsData 제목의 HTML 조각은 글자로 되돌려 저장한다 — 표의 정본은 `ArticleTitleCleaner.java`, 이미 들어온 제목은 `V13__article_title_html_fragments.sql` 이 고친다(Jira S15P31A102-178) |
 | `reporter` | text | 아니오 | 기자명. 없는 기사가 있다 |
 | `body` | text | 예 | 본문 전체(데이터셋 `article`). 문단은 줄바꿈. 분석 · 근거 대조에 쓰고 API 로는 내보내지 않는다(Q3 · Q28) |
 | `published_at` | timestamptz | 예 | 발행 시각(데이터셋 `published`, `2023-07-12 15:53`). 시간대가 없어 한국 시간으로 읽자고 제안한다(addendum 에 없는 가정). 사건 발생 시점과 다른 값이다 |

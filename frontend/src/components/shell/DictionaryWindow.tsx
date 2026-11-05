@@ -207,7 +207,7 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
           message.kind === "question" ? (
             <p
               key={message.id}
-              className="t4-bold max-w-[80%] self-end rounded-[16px_16px_4px_16px] bg-bg-brand-weak px-x3_5 py-x2 break-keep wrap-break-word text-fg-neutral"
+              className="t4-bold max-w-[80%] self-end rounded-[16px_16px_4px_16px] bg-bg-brand-weak px-x3_5 py-x2 text-fg-neutral"
             >
               {message.text}
             </p>
@@ -264,7 +264,7 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
 // 사전 쪽 말풍선
 function Bubble({ children }: { children: ReactNode }) {
   return (
-    <div className="t4-regular max-w-[88%] self-start rounded-[16px_16px_16px_4px] bg-bg-neutral-weak px-x3_5 py-x2_5 break-keep wrap-break-word text-fg-neutral">
+    <div className="t4-regular max-w-[88%] self-start rounded-[16px_16px_16px_4px] bg-bg-neutral-weak px-x3_5 py-x2_5 text-fg-neutral">
       {children}
     </div>
   );
