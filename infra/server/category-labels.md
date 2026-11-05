@@ -1,12 +1,12 @@
 # 기사 분야 라벨 — 제목을 읽어 분야를 정하고 운영에 넣는다
 
-**기사의 대표 분야는 제목을 읽은 라벨이 정한다. B2 기사 적재가 NewsData 값으로 고른 값은 라벨이 오기 전까지의 첫 값이다(Jira S15P31A102-177).** 스포츠 · 문화/연예로 나온 기사와 제목이 깨진 기사는 `released_at` 을 비워 화면에서 뺀다.
+**기사의 대표 분야는 제목을 읽은 라벨이 정한다. B2 기사 적재가 NewsData 값으로 고른 값은 라벨이 오기 전까지의 첫 값이다(Jira S15P31A102-177).** 스포츠 · 문화/연예로 나온 기사와 제목이 깨진 기사 · 잘못된 본문 기사는 `released_at` 을 비워 화면에서 뺀다.
 
 정한 것 · 까닭 · 기대값은 계획 `docs/plans/2026-11-05-article-category-labels.md`, 왜 NewsData 값으로 안 되는지는 `SSOT.md` 9절.
 
 ```mermaid
 flowchart LR
-  L["라벨 파일<br/>URL · 코드"] -->|"load + merge"| T[("운영 라벨 표<br/>category_label.article_label")]
+  L["라벨 파일<br/>URL · 코드"] -->|"load + relabel + merge"| T[("운영 라벨 표<br/>category_label.article_label")]
   T -->|"apply"| A[("article<br/>category_code · released_at")]
   D["AI 덤프 적재"] -->|"두 칸을 덮음"| A
   T -.->|"적재 안에서 이슈 분야 전에 apply 다시"| A
@@ -15,9 +15,10 @@ flowchart LR
 | 파일 | 하는 일 |
 |---|---|
 | `category-labels-load.sql` | 스키마 · 표 · 임시 표를 만들고 라벨 파일을 받는다. 마지막 문장이 `COPY` 다 |
+| `category-labels-relabel.sql` | 이미 라벨 있는 URL 의 지금 값(라벨 · 분야 · 공개 시각)을 합치기 전에 `relabel_before` 에 남긴다 |
 | `category-labels-merge.sql` | 줄 수 · 겹침을 단언하고 라벨 표에 합친다. 처음 보는 URL 만 옛 값을 저장한다 |
 | `category-labels-apply.sql` | **코드 → 분야 대응의 단일 자리.** `article` 갱신 · 숨김, 이슈 분야 다시 계산, 수 출력. 숨기기만 하고 공개는 하지 않는다 |
-| `category-labels-undo.sql` | 그 실행이 처음 넣은 기사를 옛 값으로 돌린다 |
+| `category-labels-undo.sql` | 그 실행이 처음 넣은 기사를 옛 값으로 돌린다. 이미 라벨 있던 기사는 6절 SQL 로 돌린다 |
 
 ## 1. 라벨 만들기
 
@@ -54,6 +55,7 @@ flowchart LR
 
 - 조수가 줄을 빠뜨리거나 같은 번호를 두 번 쓰는 일이 있다(2026-11-05 실제로 있었다). 합치기 전에 번호를 입력과 대조한다
 - 제목에 U+00C0 ~ U+024F 글자가 6자 이상이면 인코딩이 깨진 제목이다. 조수의 값 대신 코드 `X` 로 덮는다
+- 다른 기사 본문을 달고 온 기사(잘못된 본문 기사)도 코드 `X` 다. 수집 배치가 거르기 전에 들어온 것을 규칙으로 뽑아 눈으로 고른다(2026-11-05 Jira S15P31A102-183, 96건). 제목은 읽지 않는다 — 분석에 쓸 수 없어 분야가 뜻이 없다
 - 운영에 넣을 라벨 파일은 줄마다 `URL<탭>코드`, 줄바꿈은 LF, 끝 줄에도 줄바꿈이 있다. URL 에 역슬래시 · 탭이 없는지 본다(`COPY` 텍스트 형식)
 - 라벨 파일은 저장소 밖에 두고 올리지 않는다. 넣은 값은 운영 라벨 표에 남고 매일 백업에 같이 들어간다
 
@@ -62,20 +64,21 @@ flowchart LR
 수집 배치(10:00 ~ 10:30)와 겹치지 않을 때, 사용자가 한 줄씩 돌린다. 이슈 분야를 지우고 다시 넣어서 ISSUE 결과 저장과 겹치면 한쪽이 실패할 수 있다 — `apply` 쪽이면 통째로 되돌아가니 다시 돌린다. 관리자 PC 의 저장소 맨 위에서 파일을 보낸다.
 
 ```bash
-scp infra/server/category-labels-load.sql infra/server/category-labels-merge.sql infra/server/category-labels-apply.sql infra/server/category-labels-undo.sql newlearn:infra/server/
+scp infra/server/category-labels-load.sql infra/server/category-labels-relabel.sql infra/server/category-labels-merge.sql infra/server/category-labels-apply.sql infra/server/category-labels-undo.sql newlearn:infra/server/
 ```
 
 ```bash
 scp <라벨 파일 전체 경로> newlearn:labels.tsv
 ```
 
-서버 셸에서 먼저 백업(`infra/server/db-backup.md` 수동 실행)을 뜨고, **끝이 `rollback;` 인 실행으로 수를 본다.** `expected` 는 라벨 파일 줄 수(`wc -l labels.tsv`), `run` 은 이번 실행 이름이다. **실행마다 새 이름을 쓴다** — 같은 이름이면 되돌릴 때 첫 실행과 묶인다.
+서버 셸에서 먼저 백업(`infra/server/db-backup.md` 수동 실행)을 뜨고, **끝이 `rollback;` 인 실행으로 수를 본다.** `expected` 는 라벨 파일 줄 수(`wc -l labels.tsv`), `run` 은 이번 실행 이름이다. **실행마다 새 이름을 쓴다** — 같은 이름이면 되돌릴 때 앞 실행과 묶여서, `relabel` 이 이미 쓴 이름을 보면 멈춘다. `rollback` 으로 끝낸 실행은 남지 않아 같은 이름을 그대로 쓴다.
 
 ```bash
-{ echo 'begin;'; cat infra/server/category-labels-load.sql labels.tsv; printf '\\.\n'; cat infra/server/category-labels-merge.sql infra/server/category-labels-apply.sql; echo 'rollback;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -v expected=79335 -v run=first -U newlearn -d newlearn
+{ echo 'begin;'; cat infra/server/category-labels-load.sql labels.tsv; printf '\\.\n'; cat infra/server/category-labels-relabel.sql infra/server/category-labels-merge.sql infra/server/category-labels-apply.sql; echo 'rollback;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -v expected=<줄 수> -v run=<실행 이름> -U newlearn -d newlearn
 ```
 
-- 끝 표시: 마지막 줄이 `ROLLBACK`, 그 앞에 공개 분야별 수 · 라벨별 수 · 공개 합 · 숨겨진 북마크 · 기사가 모두 숨겨진 사건
+- 끝 표시: 마지막 줄이 `ROLLBACK`, 그 앞에 옛 값 남긴 수 · 공개 분야별 수 · 라벨별 수 · 공개 합 · 숨겨진 북마크 · 기사가 모두 숨겨진 사건
+- `apply` 는 한 트랜잭션에 한 번만 부른다. 두 번 부르면 임시 표 `label_code` 가 겹쳐 멈춘다
 - `begin;` 이 없으면 `rollback` 이 경고만 내고 앞 문장이 이미 커밋된다. 위 모양을 고치지 않는다
 - 줄 수가 틀리거나 파일이 없으면 `ERROR` 와 종료 3 으로 멈추고 아무것도 안 남는다
 
@@ -85,7 +88,9 @@ scp <라벨 파일 전체 경로> newlearn:labels.tsv
 rm labels.tsv
 ```
 
-같은 라벨을 다시 돌리면 `UPDATE 0` 이다. 라벨을 고쳐 다시 넣어도 옛 값과 `run` 은 처음 그대로다.
+**라벨을 다시 넣을 때도 같은 절차다** — 고칠 줄만 담은 라벨 파일을 새 실행 이름으로 넣는다. 합치기는 이미 있는 URL 의 `label` 만 덮고 옛 값과 `run` 은 처음 그대로 둔다. 그래서 `undo` 로는 첫 실행 전으로만 돌아가고, 바로 전 값은 `relabel` 이 `relabel_before` 표에 남긴 것으로 돌린다(6절). 처음 넣는 URL 만 있으면 0건이다.
+
+같은 값을 다시 넣으면 `UPDATE 0` 이다.
 
 ## 3. 언제 돌리나
 
@@ -103,7 +108,8 @@ rm labels.tsv
 - **B1 분석 투입** — 숨긴 기사에 작업 행이 없으면 409 가 아니라 202 다. GMS 를 부르고 EXTRACT 결과를 저장할 때 다시 공개된다(`ArticleReleaseService.java`, `Article.java` `markReleased`). 지난 기사에 B1 을 걸 때는 날짜 범위를 꼭 건다(`data-load.md` 8절)
 - **대응 표로 다시 계산** — `category_mapping` 으로 `category_code` 를 다시 계산하면 라벨이 덮인다
 - **임시 공개 SQL 다시 돌리기** — `ingest.md` 「지난 기사 파일로 넣기」 7번은 `released_at` 이 빈 기사를 공개하므로 숨긴 기사도 걸린다
-- 어느 쪽이든 `apply` 를 다시 돌리면 라벨대로 돌아온다. 끝이 `commit;` 인 트랜잭션 안에서 부른다
+- **원본 라벨 파일 다시 넣기** — 합치기가 `label` 을 덮어 `X` 가 풀린다. 그 자리에서 공개되지는 않지만, 덤프 적재 · B1 이 공개해도 `apply` 가 더는 숨기지 않는다. 그래서 `X` 를 넣으면 원본 라벨 파일의 그 줄도 `X` 로 덮어 둔다. 아래 `apply` 로는 돌아오지 않는다 — `X` 파일을 다시 넣는다
+- 라벨이 그대로인 앞의 셋은 `apply` 를 다시 돌리면 라벨대로 돌아온다. 끝이 `commit;` 인 트랜잭션 안에서 부른다
 
 ```bash
 { echo 'begin;'; cat infra/server/category-labels-apply.sql; echo 'commit;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
@@ -113,16 +119,44 @@ rm labels.tsv
 
 ## 6. 되돌리기
 
-**덤프 적재 전** — 옛 `category_code` · `released_at` 으로 돌리고 스키마를 지운다.
+되돌리는 단위는 실행이다. 어떤 실행이 있는지 새 것부터 본다. 첫 실행의 운영 이름은 `first` 다. `relabel_before` 표가 없으면 다시 넣은 적이 없는 것이니 이 쿼리와 아래 SQL 대신 `undo` 만 쓴다.
 
 ```bash
-{ echo 'begin;'; cat infra/server/category-labels-undo.sql; echo 'commit;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -v run=first -U newlearn -d newlearn
+kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -c "select run, min(at) as 시각, count(*) filter (where kind = 'new') as 처음_넣음, count(*) filter (where kind = 'old') as 옛_값_남김 from (select run, labeled_at as at, 'new' as kind from category_label.article_label union all select run, saved_at, 'old' from category_label.relabel_before) r group by run order by 시각 desc"
 ```
+
+**실행 하나만, 덤프 적재 전** — 마지막 실행부터 돌린다. 덤프 뒤에는 아래 「덤프 적재 뒤」를 따른다. 이미 라벨 있던 기사는 `relabel_before` 로, 처음 넣은 기사는 `undo` 로 돌린다. 끝을 `rollback;` 으로 먼저 돌려 수를 보고 `commit;` 으로 바꾼다. `run` 은 되돌릴 실행 이름이다.
+
+```bash
+{ echo 'begin;'; cat <<'SQL'
+update public.article a
+set category_code = b.category_code,
+    released_at   = b.released_at
+from category_label.relabel_before b
+where b.url = a.url
+  and b.run = :'run';
+
+update category_label.article_label l
+set label      = b.old_label,
+    labeled_at = now()
+from category_label.relabel_before b
+where b.url = l.url
+  and b.run = :'run';
+
+delete from category_label.relabel_before
+where run = :'run';
+SQL
+cat infra/server/category-labels-undo.sql; echo 'rollback;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -v run=<실행 이름> -U newlearn -d newlearn
+```
+
+끝낸 뒤 이슈 분야가 낡으니 5절의 `apply` 를 따로 한 번 돌린다. 공개는 바로 위 SQL 이 돌려 놓은 그대로다 — `apply` 는 숨기기만 한다.
+
+**덤프 적재 전, 라벨 전부** — 실행을 모두 위 명령으로, 새 것부터 되돌리고 스키마를 지운다. 새 것부터인 까닭은 `relabel_before` 의 값이 앞 실행의 라벨 상태라서다 — `first` 를 먼저 돌리면 그 값이 첫 실행 전 값을 덮는다. 잘못된 본문으로 숨긴 기사 중 이미 라벨 있던 30건(Jira 183)은 `first` 전 값으로 돌아가 **다시 공개된다.** 그대로 둘 수 없으면 `X` 라벨 파일을 새로 넣는다.
 
 ```bash
 kubectl -n data exec postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn -c "drop schema category_label cascade"
 ```
 
-**덤프 적재 뒤** — `data-load.md` 7절 → 위 되돌리기(`run=first`) → 스키마 지우기 순서를 지킨다. 스키마를 먼저 지우면 숨긴 기사의 옛 값이 백업에만 남는다. 7절 뒤에는 첫 실행만 되돌린다 — 덤프 뒤 실행의 옛 값은 덤프가 준 값이라, 되돌리면 마인드맵이 지워진 기사가 다시 공개된다. 7절은 라벨 반영 뒤 상태로 돌아간다(`load_undo` 의 옛 값이 그때 값). **덤프는 두고 라벨만 되돌리기는 지원하지 않는다.** 라벨을 바꾸려면 새 라벨 파일을 넣는다. 덤프 뒤에 넣은 실행만 되돌렸다면 이슈 분야가 낡으니 `apply` 를 한 번 더 돌린다.
+**덤프 적재 뒤** — `data-load.md` 7절 → 위 되돌리기(덤프 전 실행 모두, 새 것부터) → 스키마 지우기 순서를 지킨다. 스키마를 먼저 지우면 숨긴 기사의 옛 값이 백업에만 남는다. 7절 뒤에는 덤프 전 실행만 되돌린다 — 덤프 뒤 실행의 옛 값은 덤프가 준 값이라, 되돌리면 마인드맵이 지워진 기사가 다시 공개된다. 7절은 라벨 반영 뒤 상태로 돌아간다(`load_undo` 의 옛 값이 그때 값). 덤프 뒤에 넣은 `X` 는 7절이 모르니 다시 공개된다 — 그대로 두려면 `apply` 를 돌린다. **덤프는 두고 라벨만 되돌리기는 지원하지 않는다.** 라벨을 바꾸려면 새 라벨 파일을 넣는다. 덤프 뒤에 넣은 실행만 되돌렸다면 이슈 분야가 낡으니 `apply` 를 한 번 더 돌린다.
 
-잘못 숨긴 기사 하나를 되살리는 길은 없다 — `apply` 는 공개를 하지 않는다. 라벨 표에 있는 옛 `released_at` 을 보고 손 SQL 로 채우고, 라벨 코드도 고친다.
+잘못 숨긴 기사 하나를 되살리는 길은 없다 — `apply` 는 공개를 하지 않는다. 라벨 표(이미 라벨 있던 기사는 `relabel_before`)에 있는 옛 `released_at` 을 보고 손 SQL 로 채우고, 라벨 코드도 고친다.
