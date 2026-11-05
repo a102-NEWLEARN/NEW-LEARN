@@ -79,3 +79,26 @@ test("불러오지 못하면 그 자리에 안내와 다시 시도를 둔다", a
 
   expect(await screen.findByRole("list", { name: "담은 기사" })).toBeDefined();
 });
+
+// 세션이 끝났으면 「불러오지 못했어요」 대신 로그인 화면으로 — 로그인하면 이 화면으로 돌아온다 (Jira 165)
+test("목록을 받다가 세션이 끝났으면(401) 로그인 화면으로 보낸다", async () => {
+  server.use(
+    http.get("/api/v1/members/me/bookmarks", () =>
+      HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "UNAUTHORIZED",
+          status: 401,
+          detail: "UNAUTHORIZED",
+          instance: "/api/v1/members/me/bookmarks",
+          code: "UNAUTHORIZED",
+        },
+        { status: 401 },
+      ),
+    ),
+  );
+  const { router } = renderRoute("/bookmarks");
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+  expect(router.state.location.search).toBe("?next=/bookmarks");
+});

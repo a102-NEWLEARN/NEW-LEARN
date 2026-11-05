@@ -81,3 +81,15 @@ export function isNetworkError(error: unknown): boolean {
   const cause = error instanceof ApiError ? error.cause : error;
   return axios.isAxiosError(cause) && !cause.response;
 }
+
+/**
+ * 세션이 끝났나 — 로그인이 필요한 API(A18 · A20 ~ A25)가 준 401 `UNAUTHORIZED` (docs/api.md 2절).
+ * 같은 401 이라도 로그인 화면의 `LOGIN_FAILED`(A15)는 아니다. A16 로그아웃 · A17 내 정보의 401 은 auth.ts · members.ts 가 먼저 삼킨다
+ */
+export function isSessionExpired(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 401 &&
+    error.code !== "LOGIN_FAILED"
+  );
+}

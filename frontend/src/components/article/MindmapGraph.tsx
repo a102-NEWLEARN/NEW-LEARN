@@ -41,6 +41,7 @@ import {
   ROOT_RING,
 } from "@/components/article/mindmapLayout";
 import { useElementSize } from "@/components/issue/useElementSize";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -51,6 +52,8 @@ const ZOOM_IN = 1.25;
 // 화면에 맞추기는 여백 24 · 1.15배까지, 가지 포커스는 여백 64 · 1.7배까지 (프로토타입 v21)
 const FIT_ALL = { padding: 24, max: 1.15 };
 const FIT_BRANCH = { padding: 64, max: 1.7 };
+// 좁은 화면에서 전체에 맞출 때의 배율 범위 — 다 넣으려고 줄이면 글자를 못 읽는다 (모바일 프로토타입 v1)
+const NARROW_FIT = { min: 0.72, max: 1 };
 // 잴 수 없을 때(jsdom) 쓰는 그래프 자리 크기
 const FALLBACK_SIZE = { width: 960, height: 560 };
 // 키보드로 옮긴 노드가 가장자리에서 이만큼 안쪽에 있어야 보인다고 친다
@@ -142,15 +145,18 @@ export function MindmapGraph({
       setSelectedLeaf(null);
   }
 
-  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 포커스. 그린 뒤 옮겨 둔다
+  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 포커스 · 좁은 화면인지. 그린 뒤 옮겨 둔다
+  const narrow = useMediaQuery(NARROW_SCREEN);
   const sizeRef = useRef<Size>({ width, height });
   const layoutRef = useRef(layout);
   const focusRef = useRef(focusType);
+  const narrowRef = useRef(narrow);
   useLayoutEffect(() => {
     sizeRef.current = { width, height };
     layoutRef.current = layout;
     focusRef.current = focusType;
-  }, [width, height, layout, focusType]);
+    narrowRef.current = narrow;
+  }, [width, height, layout, focusType, narrow]);
 
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown>>(null);
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
@@ -215,16 +221,19 @@ export function MindmapGraph({
           if (targetScale.current === next) targetScale.current = null;
         });
   };
-  // 전체나 그 가지가 다 들어오게 맞춘다
-  const fitTo = (type: BranchType | null, duration = 300) =>
-    apply(
-      fitTransform(
-        boundsOf(layoutRef.current, type ?? undefined),
-        sizeRef.current,
-        type ? FIT_BRANCH : FIT_ALL,
-      ),
-      duration,
+  // 전체나 그 가지가 다 들어오게 맞춘다.
+  // 좁은 화면의 전체는 배율을 NARROW_FIT 으로 묶고 가운데 기사 제목(원점)을 화면 가운데에 둔다 — 다 안 들어올 수 있다
+  const fitTo = (type: BranchType | null, duration = 300) => {
+    const fitted = fitTransform(
+      boundsOf(layoutRef.current, type ?? undefined),
+      sizeRef.current,
+      type ? FIT_BRANCH : FIT_ALL,
     );
+    if (type || !narrowRef.current) return apply(fitted, duration);
+    const k = Math.min(NARROW_FIT.max, Math.max(NARROW_FIT.min, fitted.k));
+    const { width: w, height: h } = sizeRef.current;
+    apply(zoomIdentity.translate(w / 2, h / 2).scale(k), duration);
+  };
 
   // 처음 그릴 때와 그래프 자리 크기가 바뀔 때 — 지금 보는 것(전체 · 포커스한 가지)에 다시 맞춘다
   useLayoutEffect(() => {

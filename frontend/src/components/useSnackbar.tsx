@@ -27,7 +27,7 @@ export function useSnackbar() {
 }
 
 // 곧 제공 항목(P2 · 미정 기능 자리)의 onClick. 비활성으로 두지 않고 누르면 안내한다.
-// 헤더 · 사이드바 · 이슈 헤더마다 모양이 달라 버튼은 쓰는 곳이 만든다
+// 쓰는 곳마다 모양이 달라 버튼은 쓰는 곳이 만든다 (EXPERIENCE.md Component Patterns 「곧 제공 항목」)
 export function useComingSoon() {
   const snackbar = useSnackbar();
 
