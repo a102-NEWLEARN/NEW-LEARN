@@ -62,13 +62,15 @@ export function MindmapView({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle px-x4 py-x2_5 md:px-x8">
+    // 좁은 화면은 화면 전체가 스크롤해서 높이가 정해지지 않는다 — 위에 붙은 보기 탭 아래 남은 높이(앱 헤더 60 · 탭 44)를 채운다
+    <div className="flex min-h-0 flex-1 flex-col max-md:h-[calc(100dvh-104px)] max-md:flex-none">
+      {/* 좁은 화면은 범례를 한 줄로 두고 가로로 민다 — 두 줄로 꺾이면 그래프 자리를 먹는다. 오른쪽 끝을 흐려 더 있다는 것을 보인다 */}
+      <div className="flex items-center gap-x2 overflow-x-auto border-b border-stroke-neutral-subtle px-x5 py-x2_5 [scrollbar-width:none] max-md:[mask-image:linear-gradient(to_right,#000_calc(100%-32px),transparent)] md:flex-wrap md:overflow-visible md:px-x8">
         <div
           ref={legendRef}
           role="group"
           aria-label="가지 보기"
-          className="flex flex-wrap items-center gap-x2"
+          className="flex shrink-0 items-center gap-x2 md:flex-wrap"
         >
           {branches.map(({ type }) => {
             const { name, tone } = BRANCHES[type];
@@ -96,7 +98,7 @@ export function MindmapView({
           })}
           {/* 전망 가지의 잎은 점선 — 기사가 다룬 사실이 아니라 앞으로의 전망 · 해석이다 */}
           {outlookShown && (
-            <span className="t3-regular flex items-center gap-x1_5 pl-x1 text-fg-neutral-muted">
+            <span className="t3-regular flex items-center gap-x1_5 pl-x1 whitespace-nowrap text-fg-neutral-muted">
               <svg aria-hidden width={14} height={14} viewBox="0 0 14 14">
                 <circle
                   cx={7}
@@ -116,7 +118,7 @@ export function MindmapView({
           <button
             type="button"
             onClick={showAll}
-            className="t4-medium h-x8 rounded-r2 px-x2 text-fg-brand hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+            className="t4-medium h-x8 shrink-0 rounded-r2 px-x2 whitespace-nowrap text-fg-brand hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
           >
             모두 보기
           </button>

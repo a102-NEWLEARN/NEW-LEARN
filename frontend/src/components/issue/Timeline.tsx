@@ -2,8 +2,6 @@ import {
   IconCorner4OutwardLine,
   IconMinusLine,
   IconPlusLine,
-  IconQuestionmarkCircleLine,
-  IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon";
 import {
   select,
@@ -22,7 +20,7 @@ import {
   useState,
 } from "react";
 import { ActionButton } from "seed-design/ui/action-button";
-import type { TimelineEvent, TimelineLane } from "@/api/timeline";
+import type { TimelineEvent } from "@/api/timeline";
 import {
   GUTTER,
   layoutTimeline,
@@ -31,6 +29,11 @@ import {
   RIGHT_ROOM,
   type PlacedEvent,
 } from "@/components/issue/timelineLayout";
+import {
+  LANE_MEANING,
+  LANE_NAME,
+  useTimelineTip,
+} from "@/components/issue/TimelineTip";
 import { useElementSize } from "@/components/issue/useElementSize";
 import {
   DRAW,
@@ -54,15 +57,6 @@ const ZOOM_IN = 1.25;
 const FALLBACK_SIZE = { width: 1000, height: 520 };
 // 오른쪽 끝에서 라벨이 들어갈 자리. 고른 · 포커스한 사건이 여기 걸치면 화면 안으로 옮긴다
 const LABEL_ROOM = 210;
-
-const LANE_NAME: Record<TimelineLane, string> = {
-  MAIN: "메인 흐름",
-  SUB: "서브 흐름",
-};
-const LANE_MEANING: Record<TimelineLane, string> = {
-  MAIN: "상황을 바꾸는 행위(발생 · 결정 · 발표 · 결과 · 공식 조치)",
-  SUB: "다른 사건에 대한 반응 · 평가 · 여론(논평 · 성명 · 여론조사)",
-};
 
 // 열 때 나오는 차례(ms) — 레인 이름이 먼저 나오고, 메인 흐름 선이 첫 메인 사건에서 마지막 메인 사건까지 같은 빠르기로
 // 뻗으며 선 끝이 지나는 자리의 사건이 튀어나온다. 서브 흐름 사건은 그 자리를 선이 지나간 뒤 조금 늦게, 라벨은 사건 뒤에.
@@ -159,34 +153,11 @@ export function Timeline({
   const [focusId, setFocusId] = useState<number | null>(null);
   // 키보드로 받은 포커스에만 테두리 · 툴팁을 띄운다
   const keyboardInput = useKeyboardInput();
-  const [tipOpen, setTipOpen] = useState(false);
-  const tipButtonRef = useRef<HTMLButtonElement>(null);
-  const tipCloseRef = useRef<HTMLButtonElement>(null);
-  const tipRef = useRef<HTMLDivElement>(null);
-  // TIP 을 닫으면 포커스를 연 버튼으로 돌린다 (EXPERIENCE.md Accessibility Floor)
-  const closeTip = () => {
-    setTipOpen(false);
-    tipButtonRef.current?.focus();
-  };
-  // 열면 포커스를 창 안으로. 열려 있는 동안 누른 Esc 는 이 창을 닫는다. 다만 서랍처럼 다른 창(dialog) 안에서 누른
-  // Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
-  useEffect(() => {
-    if (!tipOpen) return;
-    tipCloseRef.current?.focus();
-    const onKeyDown = (key: globalThis.KeyboardEvent) => {
-      if (key.key !== "Escape" || key.isComposing) return;
-      const layer = (key.target as Element | null)?.closest?.(
-        '[role="dialog"]',
-      );
-      if (layer && layer !== tipRef.current) return;
-      key.preventDefault();
-      setTipOpen(false);
-      tipButtonRef.current?.focus();
-    };
-    // 캡처 단계 — 오른쪽 사건 패널(이슈 화면의 버블 단계 Esc)보다 먼저 TIP 을 닫고 preventDefault 로 알린다
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [tipOpen]);
+  // TIP — 레인 뜻 · 「추정」 뜻. 창은 타임라인 오른쪽 위에 띄운다
+  const tip = useTimelineTip({
+    panelClassName: "absolute top-[12px] right-[12px] z-20 w-[300px]",
+    howTo: "휠이나 끌기로 옮기고, 사건을 누르면 그 사건을 골라요.",
+  });
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
   const screenX = (x: number) => transform.applyX(gutter + x);
@@ -361,7 +332,7 @@ export function Timeline({
       aria-labelledby="timeline-title"
       className="flex min-h-0 flex-1 flex-col"
     >
-      <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x4 py-x2_5">
+      <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x5 py-x2_5 md:px-x4">
         <div className="mr-auto flex flex-wrap items-baseline gap-x2_5">
           <h2 id="timeline-title" className="t6-bold text-fg-neutral">
             이슈 흐름
@@ -420,17 +391,7 @@ export function Timeline({
             전체 보기
           </ActionButton>
         )}
-        <ActionButton
-          ref={tipButtonRef}
-          variant="neutralOutline"
-          size="small"
-          className="border-stroke-neutral-weak"
-          aria-expanded={tipOpen}
-          onClick={() => (tipOpen ? closeTip() : setTipOpen(true))}
-        >
-          <IconQuestionmarkCircleLine aria-hidden size={16} />
-          TIP
-        </ActionButton>
+        {tip.button}
       </div>
       <div
         ref={wrapRef}
@@ -804,57 +765,7 @@ export function Timeline({
             </p>
           </div>
         )}
-        {tipOpen && (
-          <div
-            ref={tipRef}
-            role="dialog"
-            aria-label="타임라인 TIP"
-            className="absolute top-[12px] right-[12px] z-20 w-[300px] rounded-r4 border border-stroke-neutral-weak bg-bg-layer-floating p-x4 shadow-s3"
-          >
-            <div className="flex items-center">
-              <p className="t5-bold flex items-center gap-x1_5 text-fg-neutral">
-                <IconQuestionmarkCircleLine
-                  aria-hidden
-                  size={16}
-                  className="text-fg-brand"
-                />
-                타임라인 TIP
-              </p>
-              <button
-                type="button"
-                ref={tipCloseRef}
-                aria-label="TIP 닫기"
-                onClick={closeTip}
-                className="ml-auto flex size-x7 items-center justify-center rounded-r2 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
-              >
-                <IconXmarkLine aria-hidden size={16} />
-              </button>
-            </div>
-            <p className="t3-bold mt-x3 text-fg-neutral">레인 뜻</p>
-            <ul className="t3-regular mt-x1_5 flex flex-col gap-x1_5 text-fg-neutral-muted">
-              {(["MAIN", "SUB"] as const).map((key) => (
-                <li key={key}>
-                  <b className="font-semibold text-fg-neutral">
-                    {LANE_NAME[key]}
-                  </b>{" "}
-                  — {LANE_MEANING[key]}
-                </li>
-              ))}
-            </ul>
-            <p className="t3-bold mt-x3 text-fg-neutral">사건 표시</p>
-            <ul className="t3-regular mt-x1_5 flex flex-col gap-x1_5 text-fg-neutral-muted">
-              <li>
-                날짜 뒤 「추정」은 발생 시점을 첫 기사가 나온 때로 채운
-                사건이에요.
-              </li>
-              <li>
-                기사 수는 숫자로만 보여 줘요. 위치나 크기로 중요도를 나타내지
-                않아요.
-              </li>
-              <li>휠이나 끌기로 옮기고, 사건을 누르면 그 사건을 골라요.</li>
-            </ul>
-          </div>
-        )}
+        {tip.panel}
       </div>
     </section>
   );

@@ -77,13 +77,16 @@ export function FlowView({ title, branches }: FlowViewProps) {
       role="group"
       aria-label="기사 흐름지도"
       onClick={releaseOnEmpty}
-      className="@container min-h-0 flex-1 overflow-y-auto"
+      // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다
+      className="@container min-h-0 flex-1 overflow-y-auto max-md:overflow-visible"
     >
-      <div className="mx-auto w-full max-w-[860px] px-x4 pt-x7 pb-x16 md:px-x8 @min-[1024px]:max-w-[1280px]">
-        {/* 머리 줄 — 바로 위 h1 과 같은 글이라 낭독에서 뺀다 (마인드맵 보기의 가운데 원과 같다) */}
+      {/* 좁은 화면 — 좌우 20px, 맨 아래 96px 를 남겨 마지막 카드가 용어사전 버튼에 가리지 않게 */}
+      <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 @min-[1024px]:max-w-[1280px]">
+        {/* 머리 줄 — 바로 위 h1 과 같은 글이라 낭독에서 뺀다 (마인드맵 보기의 가운데 원과 같다).
+            자리가 좁으면(640px 미만) h1 이 바로 위에 보여서 같은 제목을 또 두지 않는다 */}
         <div
           aria-hidden
-          className={`flex items-center gap-x3_5 ${RISE}`}
+          className={`flex items-center gap-x3_5 @max-[640px]:hidden ${RISE}`}
           style={enterAt(0)}
         >
           {/* 기사 핵심 점 — 튀어나온 뒤 3초마다 파문이 번진다 (마인드맵 보기의 가운데 원과 같다) */}
@@ -102,7 +105,7 @@ export function FlowView({ title, branches }: FlowViewProps) {
             <span className="t7-bold text-fg-neutral">{title}</span>
           </span>
         </div>
-        <ol className="mt-x7 grid gap-y-x8 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7">
+        <ol className="mt-x7 grid gap-y-x10 @max-[640px]:mt-0 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7">
           {branches.map(({ type, items }, index) => {
             const { name, question, tone } = BRANCHES[type];
             const last = index === branches.length - 1;
@@ -114,13 +117,13 @@ export function FlowView({ title, branches }: FlowViewProps) {
                 key={type}
                 className="relative grid grid-cols-[30px_minmax(0,1fr)] gap-x-x4 gap-y-x3 @min-[1024px]:flex @min-[1024px]:flex-col @min-[1024px]:gap-x2_5"
               >
-                {/* 세로 — 번호 원 아래에서 다음 번호 원 4px 앞까지 (가지 사이 간격 32px).
+                {/* 세로 — 번호 원 아래에서 다음 번호 원 4px 앞까지 (가지 사이 간격 40px).
                     위에서 아래로 자라고 그 끝을 따라 가지색 점이 달려간다 */}
                 {!last && (
                   <>
                     <span
                       aria-hidden
-                      className={`absolute top-[34px] bottom-[-28px] left-[14px] border-l-2 border-stroke-neutral-weak @min-[1024px]:hidden ${GROW_Y}`}
+                      className={`absolute top-[34px] bottom-[-36px] left-[14px] border-l-2 border-stroke-neutral-weak @min-[1024px]:hidden ${GROW_Y}`}
                       style={enterAt(at + LINE_AFTER)}
                     />
                     <span
@@ -128,7 +131,7 @@ export function FlowView({ title, branches }: FlowViewProps) {
                       className={`absolute left-[11px] size-[8px] rounded-full @min-[1024px]:hidden ${tone.dot} ${TRAVEL_Y}`}
                       style={travel(
                         "34px",
-                        "calc(100% + 20px)",
+                        "calc(100% + 28px)",
                         at + LINE_AFTER,
                       )}
                     />
@@ -166,7 +169,7 @@ export function FlowView({ title, branches }: FlowViewProps) {
                 <div
                   role="group"
                   aria-labelledby={`${headId}-q ${headId}-n`}
-                  className="col-start-2 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x2_5 @min-[1024px]:grid-cols-1"
+                  className="col-start-2 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x3 @min-[1024px]:grid-cols-1"
                 >
                   {items.map(({ text }, itemIndex) => {
                     const key = leafKey(type, itemIndex);

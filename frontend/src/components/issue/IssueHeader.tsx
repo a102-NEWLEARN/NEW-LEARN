@@ -53,7 +53,7 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   }, [summary, more]);
 
   return (
-    <header className="px-x4 pt-x5 pb-x4 md:px-x8">
+    <header className="px-x5 pt-x6 pb-x5 md:px-x8 md:pt-x5 md:pb-x4">
       {issue ? (
         <p
           className={`t2-regular text-fg-neutral-subtle tabular-nums ${RISE}`}

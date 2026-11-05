@@ -46,7 +46,7 @@ function IssueLink({ article }: { article: ArticleDetail }) {
         asChild
         variant="brandSolid"
         size="small"
-        className={narrow ? "h-[44px] w-full" : undefined}
+        className={narrow ? "col-span-2 h-[44px] w-full" : undefined}
       >
         <Link to={to}>이 기사가 속한 이슈 보기</Link>
       </ActionButton>
@@ -59,7 +59,9 @@ function IssueLink({ article }: { article: ArticleDetail }) {
         ? "아직 이슈로 묶이지 않았어요"
         : null;
   return (
-    message && <p className="t3-regular text-fg-neutral-muted">{message}</p>
+    message && (
+      <p className="t3-regular col-span-2 text-fg-neutral-muted">{message}</p>
+    )
   );
 }
 
@@ -76,7 +78,8 @@ export function ArticleHeader({
   const failed = !article && query.isError;
 
   return (
-    <header className="flex flex-wrap items-end gap-x3 px-x4 pt-x5 pb-x4 md:px-x8">
+    // 좁은 화면은 좌우 20px · 위아래를 넓히고 제목 묶음과 버튼 사이를 20px 띄운다 (DESIGN.md Layout & Spacing)
+    <header className="flex flex-wrap items-end gap-x3 gap-y-x5 px-x5 pt-x6 pb-x5 md:gap-y-x3 md:px-x8 md:pt-x5 md:pb-x4">
       <div className="min-w-[260px] flex-1">
         {article ? (
           <p
@@ -139,15 +142,20 @@ export function ArticleHeader({
       </div>
       {article && (
         <div
-          className={`flex flex-wrap items-center gap-x2 ${RISE}`}
+          // 좁은 화면 — 북마크 · 원문 보기를 반씩 나눈 44px 두 칸, 그 아래 이슈 보기 한 줄 (엄지로 누르기 쉽게)
+          className={`grid w-full grid-cols-2 gap-x2 md:flex md:w-auto md:flex-wrap md:items-center ${RISE}`}
           style={enterAt(HEADER_AT.actions)}
         >
-          <BookmarkButton article={article} variant="text" />
+          <BookmarkButton
+            article={article}
+            variant="text"
+            className="max-md:h-[44px] max-md:w-full"
+          />
           <ActionButton
             asChild
             variant="neutralOutline"
             size="small"
-            className="border-stroke-neutral-weak"
+            className="border-stroke-neutral-weak max-md:h-[44px] max-md:w-full"
           >
             <a href={article.url} target="_blank" rel="noopener noreferrer">
               원문 보기
