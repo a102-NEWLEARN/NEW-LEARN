@@ -428,7 +428,7 @@ class Limits(unittest.TestCase):
         self.assertEqual([json.loads(c[3])["url"] for c in net.b2_calls()], [item(4)["link"]])
         self.assertEqual(
             summary(lines)["skipped"],
-            {"bad_item": 0, "no_body": 1, "category": 1, "marked_duplicate": 0, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0},
+            {"bad_item": 0, "no_body": 1, "category": 1, "marked_duplicate": 0, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0, "wrong_body": 0},
         )
 
 
@@ -1220,6 +1220,205 @@ class FileSource(unittest.TestCase):
         code = news_ingest.main(env(INGEST_MODE="load-only"), net, out, now=NOW, stdin=Untouched(b""))
         self.assertEqual(code, 0)
         self.assertEqual(len(net.b2_calls()), 1)
+
+
+# ── 다른 기사 본문을 달고 온 기사 (Jira S15P31A102-183) ─ NewsData content 가 짧은 기사에 다른 기사 묶음 · 안내문을 준다
+
+
+def filler(chars, text="오늘 날씨는 맑고 바람이 조금 분다. "):
+    """제목 낱말이 안 나오는 본문 — 정확히 chars 글자"""
+    return (text * (chars // len(text) + 1))[:chars]
+
+
+def urls_sent(net):
+    return [json.loads(c[3])["url"] for c in net.b2_calls()]
+
+
+class WrongBodySameBody(unittest.TestCase):
+    """(a) 한 번 수집 안에서 같은 언론사 · 같은 본문을 제목이 다른 기사 3건 이상이 쓰면 모두 뺀다"""
+
+    def fetch(self, items):
+        net = FakeNet([page(items)])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        return net, summary(lines)
+
+    def test_three_titles_all_dropped(self):
+        body = filler(600)
+        items = [item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2, 3)] + [item(4)]
+        net, result = self.fetch(items)
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        self.assertEqual(result["skipped"]["wrong_body"], 3)
+        self.assertEqual(result["kept"], 1)
+
+    def test_two_titles_kept(self):
+        # 같은 기사에 제목만 달리 단 정상 기사가 있다
+        body = filler(600)
+        net, result = self.fetch([item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2)])
+        self.assertEqual(len(net.b2_calls()), 2)
+        self.assertEqual(result["skipped"]["wrong_body"], 0)
+
+    def test_same_title_three_times_kept(self):
+        # 제목이 같으면 같은 기사가 URL 만 다른 것이다
+        body = filler(600)
+        net, result = self.fetch([item(n, title="가람시 소식", content=body) for n in (1, 2, 3)])
+        self.assertEqual(len(net.b2_calls()), 3)
+        self.assertEqual(result["skipped"]["wrong_body"], 0)
+
+    def test_short_body_kept_at_499_dropped_at_500(self):
+        short = "가" * 499
+        net, _ = self.fetch([item(n, title=f"가람시 소식 {n}", content=short) for n in (1, 2, 3)])
+        self.assertEqual(len(net.b2_calls()), 3)
+        enough = "가" * 500
+        net, _ = self.fetch([item(n, title=f"가람시 소식 {n}", content=enough) for n in (1, 2, 3)])
+        self.assertEqual(net.b2_calls(), [])
+
+    def test_other_press_not_grouped(self):
+        body = filler(600)
+        items = [item(n, title=f"가람시 소식 {n}", content=body, source_id=f"press_{n}") for n in (1, 2, 3)]
+        net, _ = self.fetch(items)
+        self.assertEqual(len(net.b2_calls()), 3)
+
+    def test_spaces_around_body_do_not_matter(self):
+        body = filler(600)
+        items = [
+            item(1, title="가람시 소식 1", content=" " + body),
+            item(2, title="가람시 소식 2", content=body + "\n"),
+            item(3, title="가람시 소식 3", content=body),
+        ]
+        net, _ = self.fetch(items)
+        self.assertEqual(net.b2_calls(), [])
+
+    def test_title_words_do_not_save_it(self):
+        # 묶음의 1등을 남기지 않는다 — 흔한 낱말이 긴 본문에 우연히 있어도 다른 기사 본문이다
+        body = filler(600) + " 가람시 소식"
+        items = [item(n, title="가람시 소식" if n == 1 else f"다른 제목 {n}", content=body) for n in (1, 2, 3)]
+        net, result = self.fetch(items)
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual(result["skipped"]["wrong_body"], 3)
+
+
+class WrongBodyLongBrief(unittest.TestCase):
+    """(b) 단신 제목 + 본문 5,000자 이상 + 제목 낱말 비율 50% 이하"""
+
+    def sent(self, title, content):
+        net = FakeNet([page([item(1, title=title, content=content)])])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        return len(net.b2_calls()), summary(lines)["skipped"]["wrong_body"]
+
+    def test_brief_title_long_body_no_title_words_dropped(self):
+        for title in ("[부고] 김가람씨 별세", "[부음] 김가람씨", "[인사] 가람시청", "[포토] 가을 은행나무길", "[사진] 가을 은행나무길",
+                      "[속보] 가람시 화재", "[그래픽] 가람시 예산", "[영상] 가람시 축제", "[만평] 가람시", " [속보] 앞에 공백"):
+            with self.subTest(title=title):
+                self.assertEqual(self.sent(title, filler(5000)), (0, 1))
+
+    def test_brief_word_anywhere_in_title_dropped(self):
+        for title in ("김가람(가람일보 부장)씨 부친상", "김가람씨 모친상", "김가람씨 빙부상", "김가람씨 빙모상", "김가람씨 시모상", "김가람씨 장인상",
+                      "[국민만평-김가람 화백] 11월 5일"):
+            with self.subTest(title=title):
+                self.assertEqual(self.sent(title, filler(5000)), (0, 1))
+
+    def test_body_shorter_than_5000_kept(self):
+        self.assertEqual(self.sent("[부고] 김가람씨 별세", filler(4999)), (1, 0))
+
+    def test_exactly_half_of_title_words_dropped(self):
+        self.assertEqual(self.sent("[속보] 가람시 화재", filler(5000) + " 가람시"), (0, 1))
+
+    def test_more_than_half_of_title_words_kept(self):
+        # 진짜 긴 부고 · 속보
+        self.assertEqual(self.sent("[속보] 가람시 화재 진압", filler(5000) + " 가람시 화재"), (1, 0))
+
+    def test_not_brief_title_kept(self):
+        # 제목을 멋대로 단 사설 · 칼럼은 비율이 낮아도 남는다
+        self.assertEqual(self.sent("가을이 오면 생각나는 것들", filler(9000)), (1, 0))
+
+    def test_tag_after_title_kept(self):
+        # 제목 뒤에 붙은 태그는 단신이 아니다 — 인터뷰 · 사진 기사
+        self.assertEqual(self.sent("가을 은행나무길 인터뷰 [영상]", filler(7000)), (1, 0))
+        self.assertEqual(self.sent("가을 은행나무길 수달 [포토]", filler(7000)), (1, 0))
+
+    def test_title_without_words_counts_as_full_share(self):
+        self.assertEqual(self.sent("[속보] !!", filler(5000)), (1, 0))
+
+
+class WrongBodyFlow(unittest.TestCase):
+    def same_body(self, *numbers):
+        body = filler(600)
+        return [item(n, title=f"가람시 소식 {n}", content=body) for n in numbers]
+
+    def test_log_line_has_url_and_rule_but_no_body(self):
+        marker = "이문장은로그에나오면안된다"
+        body = marker + filler(600)
+        items = [item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2, 3)]
+        items.append(item(4, title="[부고] 김가람씨 별세", content=marker + filler(5000, "다른 문장을 이어 붙인다. ")))
+        net = FakeNet([page(items)])
+        _, lines, text = run(env(INGEST_MODE="load-only"), net)
+        dropped = [line for line in lines if line.get("msg") == "본문 불일치로 뺌"]
+        self.assertEqual({d["url"] for d in dropped}, {item(n)["link"] for n in (1, 2, 3, 4)})
+        self.assertEqual({d["url"]: d["rule"] for d in dropped}[item(1)["link"]], "same_body")
+        self.assertEqual({d["url"]: d["rule"] for d in dropped}[item(4)["link"]], "long_brief")
+        first = next(d for d in dropped if d["url"] == item(1)["link"])
+        self.assertEqual(first["title"], "가람시 소식 1")
+        self.assertEqual(first["sameBodyTitles"], 3)
+        self.assertEqual(first["bodyChars"], len(body))
+        self.assertNotIn(marker, text)
+
+    def test_fetched_equals_kept_plus_skipped(self):
+        items = self.same_body(1, 2, 3) + [item(4), item(5, content=None), item(6, category=["sports"])]
+        net = FakeNet([page(items)])
+        _, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        result = summary(lines)
+        self.assertEqual(result["fetched"], result["kept"] + sum(result["skipped"].values()))
+        self.assertEqual((result["fetched"], result["kept"], result["skipped"]["wrong_body"]), (6, 1, 3))
+
+    def test_full_mode_never_releases_dropped(self):
+        net = FakeNet([page(self.same_body(1, 2, 3) + [item(4)])])
+        code, _, _ = run(env(), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        self.assertEqual(len(net.b1_calls()), 1)
+
+    def test_fetch_only_counts_too(self):
+        net = FakeNet([page(self.same_body(1, 2, 3) + [item(4)])])
+        code, lines, _ = run(env(INGEST_MODE="fetch-only"), net)
+        self.assertEqual(code, 0)
+        result = summary(lines)
+        self.assertEqual((result["kept"], result["skipped"]["wrong_body"]), (1, 3))
+
+    def test_all_dropped_exits_0(self):
+        net = FakeNet([page(self.same_body(1, 2, 3))])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual(summary(lines)["kept"], 0)
+
+    def test_title_not_text_goes_to_b2_as_is(self):
+        # 여기서 예외가 나면 전체 앞이라 하루치가 0건이 된다. 지금처럼 그 한 건만 B2 가 판단한다
+        body = filler(6000)
+        for title in (None, 123, ["가람시"]):
+            with self.subTest(title=title):
+                net = FakeNet([page([item(1, title=title, content=body)])])
+                code, _, _ = run(env(INGEST_MODE="load-only"), net)
+                self.assertEqual(code, 0)
+                self.assertEqual([json.loads(c[3])["title"] for c in net.b2_calls()], [title])
+
+    def test_press_not_text_is_not_grouped(self):
+        body = filler(600)
+        items = [item(n, title=f"가람시 소식 {n}", content=body, source_id=["garam_kr"]) for n in (1, 2, 3)]
+        net = FakeNet([page(items)])
+        code, _, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.b2_calls()), 3)
+
+    def test_file_source_not_filtered(self):
+        # 사람이 고른 목록을 넣는 길이다
+        body = filler(6000)
+        rows = [b2_line(n, title=f"[부고] 김가람 {n}", body=body) for n in (1, 2, 3)]
+        net = FakeNet()
+        code, _, _ = run_file(daily_env(INGEST_MAX_ARTICLES="5"), net, jsonl(*rows))
+        self.assertEqual(code, 0)
+        self.assertEqual(len(net.b2_calls()), 3)
 
 
 if __name__ == "__main__":
