@@ -112,7 +112,7 @@ export function AppShell() {
           <Outlet context={shell} />
         </main>
       </div>
-      <DictionaryWindow inset={rightPanelWidth} />
+      <DictionaryWindow inset={rightPanelWidth} scrollRef={mainRef} />
     </div>
   );
 }

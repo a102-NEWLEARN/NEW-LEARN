@@ -53,9 +53,11 @@ export function HomeViewTabs({
       size="medium"
     >
       <div ref={anchorRef} aria-hidden />
+      {/* 붙은 줄은 화면 끝까지 닿는다 — 홈 좌우 여백(20px)만큼 바깥으로. SEED 테마는 음수 간격 클래스(-mx-x5)를
+          만들지 않아 px 로 쓴다. 전에는 줄이 끝까지 안 닿아 밑으로 지나가는 카드가 양옆 틈으로 비쳤다 */}
       <div
         ref={barRef}
-        className="sticky top-0 z-[1] -mx-x5 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)]"
+        className="sticky top-0 z-[1] -mx-[20px] bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)]"
       >
         <TabsList
           aria-label="홈 보기"

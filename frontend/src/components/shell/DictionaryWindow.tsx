@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   type FormEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useId,
@@ -15,6 +16,7 @@ import {
 } from "react";
 import { type DictionaryItem, dictionaryQuery } from "@/api/dictionary";
 import { ApiError } from "@/api/error";
+import { useHideOnScroll } from "@/components/shell/useHideOnScroll";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
 
@@ -57,18 +59,28 @@ const headword = (word: string) =>
 type DictionaryWindowProps = {
   /** 오른쪽에 붙은 패널의 폭(px). 그만큼 왼쪽으로 비킨다 (EXPERIENCE.md 앱 셸 「용어사전 버튼」) */
   inset?: number;
+  /** 본문 스크롤 칸(셸의 <main>). 좁은 화면에서 이 칸을 내려 읽는 동안 버튼이 숨는다 */
+  scrollRef?: RefObject<HTMLElement | null>;
 };
+
+const NO_SCROLL: RefObject<HTMLElement | null> = { current: null };
 
 // 용어사전 버튼과 창 — F13 용어사전 (EXPERIENCE.md Component Patterns 「용어사전 창」, 프로토타입 v21 GlossaryChat).
 // 모달이 아니라서 창을 연 채로 본문을 본다. 대화는 셸이 떠 있는 동안만 남고 어디에도 저장하지 않는다.
 // 버튼 · 창은 본문 위, SEED 시트 · 모달 · 서랍(z-index 2) 아래에 뜬다 — 셸의 <main> 이 isolate 라 본문의 z-index 가 새지 않는다
-export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
+export function DictionaryWindow({
+  inset = 0,
+  scrollRef = NO_SCROLL,
+}: DictionaryWindowProps) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [busy, setBusy] = useState(false);
   const queryClient = useQueryClient();
   const narrow = useMediaQuery(NARROW_SCREEN);
+  // 좁은 화면에서 내려 읽는 동안 숨는다 — 목록 행 오른쪽 북마크 · 원문 보기를 덮었다 (2026-11-05 UI 점검).
+  // 위로 올리거나 끝에 닿으면 나오고, 키보드로 오면(focus-visible) 숨은 채로도 나온다
+  const tucked = useHideOnScroll(scrollRef, narrow);
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -144,7 +156,7 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
   const right = narrow ? NARROW_BUTTON.right : EDGE + inset;
   // 사건 패널과 같은 곡선 · 시간으로 비킨다. 동작 줄이기를 켜면 바로 옮긴다 (EXPERIENCE.md Interaction Primitives 「모션」)
   const shift =
-    "motion-safe:[transition:right_300ms_var(--seed-timing-function-enter),background-color_150ms,scale_150ms]";
+    "motion-safe:[transition:right_300ms_var(--seed-timing-function-enter),background-color_150ms,scale_150ms,translate_200ms_var(--seed-timing-function-enter),opacity_200ms]";
 
   if (!open)
     return (
@@ -153,9 +165,10 @@ export function DictionaryWindow({ inset = 0 }: DictionaryWindowProps) {
         type="button"
         aria-label="용어 사전 열기"
         aria-haspopup="dialog"
+        data-tucked={tucked || undefined}
         onClick={() => setOpen(true)}
         style={{ right, bottom: narrow ? NARROW_BUTTON.bottom : EDGE }}
-        className={`t5-bold fixed z-[1] inline-flex items-center rounded-full bg-bg-brand-solid text-palette-static-white shadow-s3 hover:bg-bg-brand-solid-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:scale-[0.96] ${narrow ? "size-[52px] justify-center" : "h-[48px] gap-x2 pr-[18px] pl-x4"} ${shift}`}
+        className={`t5-bold fixed z-[1] inline-flex items-center rounded-full bg-bg-brand-solid text-palette-static-white shadow-s3 hover:bg-bg-brand-solid-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:scale-[0.96] ${narrow ? "size-[52px] justify-center" : "h-[48px] gap-x2 pr-[18px] pl-x4"} ${tucked ? "pointer-events-none translate-y-[88px] opacity-0 focus-visible:pointer-events-auto focus-visible:translate-y-0 focus-visible:opacity-100" : ""} ${shift}`}
       >
         <IconBookOpenLine aria-hidden size={narrow ? 22 : 18} />
         {/* 좁은 화면은 아이콘만 둔다. 이름은 aria-label 그대로 */}

@@ -24,8 +24,9 @@ type InterestChipsProps = {
   ref?: Ref<HTMLDivElement>;
 };
 
+// 좁은 화면 좌우 12px — 14px 이면 393 폭 마이페이지 카드에서 관심 분야 칩이 2px 모자라 세 줄로 꺾였다
 const CHIP =
-  "t4-medium inline-flex h-[40px] items-center gap-x1 rounded-r2 border px-x3_5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring";
+  "t4-medium inline-flex h-[40px] items-center gap-x1 rounded-r2 border px-x3 transition-colors md:px-x3_5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring";
 
 /** 고를 수 있는 칩 모양 — 고른 것 · 안 고른 것. 가입의 사용 목적 칩도 같은 모양을 쓴다 */
 export function chipClassName(on: boolean) {
@@ -120,7 +121,8 @@ export function InterestChips({
                 onClick={() => notifyUpcoming(category.name)}
                 className={`${CHIP} border-stroke-neutral-weak text-fg-disabled`}
               >
-                {`${category.name} · 준비 중`}
+                {/* 분야 탭(CategoryTabs)처럼 이름 뒤 작은 「준비 중」 — 칩이 짧아져 좁은 화면에서 줄을 덜 먹는다 */}
+                {category.name} <span className="t1-medium">준비 중</span>
               </button>
             ))}
           </div>

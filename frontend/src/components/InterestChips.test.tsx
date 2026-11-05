@@ -48,8 +48,8 @@ test("A1 분야를 칩으로 두고 준비 중 분야를 끝에 붙인다", asyn
     "경제",
     "국제",
     "IT·과학",
-    "스포츠 · 준비 중",
-    "문화/연예 · 준비 중",
+    "스포츠 준비 중",
+    "문화/연예 준비 중",
   ]);
   expect(chip("정치").getAttribute("aria-pressed")).toBe("false");
 });
@@ -83,7 +83,7 @@ test("마지막 남은 칩은 풀리지 않고 onKeepOne 을 부른다", async (
 test("준비 중 분야는 고르지 않고 안내한다", async () => {
   renderWithProviders(<Harness />);
   const upcoming = await screen.findByRole("button", {
-    name: "스포츠 · 준비 중",
+    name: "스포츠 준비 중",
   });
 
   expect(upcoming.getAttribute("aria-disabled")).toBe("true");

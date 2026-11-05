@@ -38,13 +38,14 @@ export function NewIssues() {
               </span>
               <ul
                 aria-labelledby={labelId}
-                className="flex flex-wrap items-center justify-center gap-x-x2_5 gap-y-x1"
+                className="flex flex-wrap items-center justify-center gap-x-x3 gap-y-x1"
               >
-                {/* 이슈 사이에 가운데 점 — 장식이라 글자로 넣지 않는다 */}
+                {/* 이슈마다 앞에 4px 민트 점(이슈 카드 「최근 사건」 노드와 같은 그래픽) — 장식이라 글자로 넣지 않는다.
+                    전에는 이슈 사이 가운데 점이라 줄이 꺾이면 둘째 줄이 점으로 시작했다 */}
                 {items.map((issue) => (
                   <li
                     key={issue.id}
-                    className="flex items-center gap-x2_5 before:size-[2px] before:rounded-full before:bg-fg-neutral-subtle before:content-[''] first:before:hidden"
+                    className="flex items-center gap-x1 before:size-[4px] before:shrink-0 before:rounded-[1px] before:bg-bg-brand-accent before:content-['']"
                   >
                     {/* 누르는 높이 27px — 줄 18 + 위아래 4 + 밑줄 1. 24px 아래로 내리지 않는다 (EXPERIENCE.md Accessibility Floor) */}
                     <Link
