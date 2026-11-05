@@ -580,12 +580,18 @@ export function Timeline({
                       />
                     )}
                   </g>
-                  {/* 라벨은 사건이 나온 뒤 떠오른다 — 자리를 잡는 transform 과 움직임을 다른 묶음에 둔다 */}
-                  <g
-                    transform={`translate(${label.dx},${label.dy})`}
-                    className="pointer-events-none"
-                  >
+                  {/* 라벨은 사건이 나온 뒤 떠오른다 — 자리를 잡는 transform 과 움직임을 다른 묶음에 둔다.
+                      라벨도 누르는 영역이다 — 전에는 노드 둘레만 눌려 제목 · 날짜를 눌러도 사건이 안 열렸다 (2026-11-05 UI 점검) */}
+                  <g transform={`translate(${label.dx},${label.dy})`}>
                     <g className={RISE} style={enterAt(enter + LABEL_AFTER)}>
+                      {/* 글자 사이 빈 곳도 받게 라벨 칸 전체를 투명하게 덮는다 */}
+                      <rect
+                        x={-4}
+                        y={-3}
+                        width={label.width + 8}
+                        height={36}
+                        className="fill-transparent"
+                      />
                       {label.below && (
                         <rect
                           x={-4}
