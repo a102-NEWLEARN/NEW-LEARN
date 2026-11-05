@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -382,8 +383,14 @@ def test_repeated_reaction_speaker_is_warned_not_merged():
 # ---------------------------------------------------------------- 프롬프트
 
 
+def test_prompt_is_the_confirmed_v413_text():
+    # 실험에서 확인한 문자열 그대로여야 한다(한 글자라도 바꾸면 PROMPT_VERSION 을 올리고 다시 확인한다)
+    assert PROMPT_VERSION == "extract-v4.13-mindmap"
+    digest = hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()
+    assert digest == "082bcd8183303a0c6b627ab281a1683f4f582ae669c811e137952d50fa54560d"
+
+
 def test_prompt_carries_confirmed_rules():
-    assert PROMPT_VERSION == "extract-v4.12-mindmap"
     for phrase in (
         "① 먼저 null 인 기사인지 본다",  # 판단 순서: null 기사 → 중심 완료 행위 → 시점
         "단순 모집 · 행사 · 이벤트 · 출시 · 공연",  # 예고 · 안내 기사는 null
@@ -391,10 +398,25 @@ def test_prompt_carries_confirmed_rules():
         "장 마감",
         "출처 기관의 발표로 바꾸지 않는다",
         "CORE 한 잎에 보존한다",
-        "한 주체 한 잎",
+        "한 주체는 반드시 한 잎",
         "이미 보도했어도 된다",
         "발생 · 신고 접수 · 발표 · 보도 시점을 구분",
         "취재 · 확인 서술",
+        # v4.13(판정기준 v9)
+        "부고 안내 단신 · [인사] 명단",  # 3-3
+        "증권사 · 애널리스트 종목 · 업종 리포트",  # 3-1 ③
+        "대담 · 토론 정리",  # 3-3 종합 기사
+        "첫 문장 우선은 ① 을 통과한 뒤에만",  # 2-0 순서
+        "첫 두 문장(앵커",  # 2-1 규칙 C
+        "제목을 보조 단서로 쓴다",  # 2-3
+        "발언자 · 발언일로 대신하지 않는다",  # 2-4 주체 · 시점은 행위 기준
+        "행위자가 원문에 없으면 채우지 않는다",
+        "단순 전달만으로 REACTION 잎을 만들지 않는다",
+        "같은 기관 · 기간 · 지표의 공개 행위",  # 2-5 예외
+        "사고 · 사망 발생과 그에 따른 신고 · 수사 착수",
+        "밝힌 날이라, 주체가 같아도 행위 시점으로 쓰지 않는다",
     ):
-        assert phrase in SYSTEM_PROMPT
+        assert phrase in SYSTEM_PROMPT, phrase
     assert "★" not in SYSTEM_PROMPT.split("[예시")[1]
+    # v4.12 의 "종목 하락 = 대표" 예시는 v9 3-3 과 반대라 바뀌어야 한다
+    assert 'primaryCoreIndex: 0 · eventTimeText: "20일 장중"' not in SYSTEM_PROMPT
