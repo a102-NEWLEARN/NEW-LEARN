@@ -71,7 +71,7 @@ scp infra/server/category-labels-load.sql infra/server/category-labels-relabel.s
 scp <라벨 파일 전체 경로> newlearn:labels.tsv
 ```
 
-서버 셸에서 먼저 백업(`infra/server/db-backup.md` 수동 실행)을 뜨고, **끝이 `rollback;` 인 실행으로 수를 본다.** `expected` 는 라벨 파일 줄 수(`wc -l labels.tsv`), `run` 은 이번 실행 이름이다. **실행마다 새 이름을 쓴다** — 같은 이름이면 되돌릴 때 첫 실행과 묶인다.
+서버 셸에서 먼저 백업(`infra/server/db-backup.md` 수동 실행)을 뜨고, **끝이 `rollback;` 인 실행으로 수를 본다.** `expected` 는 라벨 파일 줄 수(`wc -l labels.tsv`), `run` 은 이번 실행 이름이다. **실행마다 새 이름을 쓴다** — 같은 이름이면 되돌릴 때 앞 실행과 묶여서, `relabel` 이 이미 쓴 이름을 보면 멈춘다. `rollback` 으로 끝낸 실행은 남지 않아 같은 이름을 그대로 쓴다.
 
 ```bash
 { echo 'begin;'; cat infra/server/category-labels-load.sql labels.tsv; printf '\\.\n'; cat infra/server/category-labels-relabel.sql infra/server/category-labels-merge.sql infra/server/category-labels-apply.sql; echo 'rollback;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -v expected=<줄 수> -v run=<실행 이름> -U newlearn -d newlearn
@@ -90,7 +90,7 @@ rm labels.tsv
 
 **라벨을 다시 넣을 때도 같은 절차다** — 고칠 줄만 담은 라벨 파일을 새 실행 이름으로 넣는다. 합치기는 이미 있는 URL 의 `label` 만 덮고 옛 값과 `run` 은 처음 그대로 둔다. 그래서 `undo` 로는 첫 실행 전으로만 돌아가고, 바로 전 값은 `relabel` 이 `relabel_before` 표에 남긴 것으로 돌린다(6절). 처음 넣는 URL 만 있으면 0건이다.
 
-같은 값을 다시 넣으면 `UPDATE 0` 이다. 실행 이름을 다시 쓰면 `relabel` 이 기본 키에서 멈춘다.
+같은 값을 다시 넣으면 `UPDATE 0` 이다.
 
 ## 3. 언제 돌리나
 
@@ -119,13 +119,13 @@ rm labels.tsv
 
 ## 6. 되돌리기
 
-되돌리는 단위는 실행이다. 어떤 실행이 있는지 먼저 본다.
+되돌리는 단위는 실행이다. 어떤 실행이 있는지 새 것부터 본다. 첫 실행의 운영 이름은 `first` 다. `relabel_before` 표가 없으면 다시 넣은 적이 없는 것이니 이 쿼리와 아래 SQL 대신 `undo` 만 쓴다.
 
 ```bash
-kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -c "select run, count(*) as 처음_넣음 from category_label.article_label group by 1" -c "select run, count(*) as 옛_값_남김 from category_label.relabel_before group by 1"
+kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -c "select run, min(at) as 시각, count(*) filter (where kind = 'new') as 처음_넣음, count(*) filter (where kind = 'old') as 옛_값_남김 from (select run, labeled_at as at, 'new' as kind from category_label.article_label union all select run, saved_at, 'old' from category_label.relabel_before) r group by run order by 시각 desc"
 ```
 
-**실행 하나만** — 마지막 실행부터 돌린다. 이미 라벨 있던 기사는 `relabel_before` 로, 처음 넣은 기사는 `undo` 로 돌린다. 끝을 `rollback;` 으로 먼저 돌려 수를 보고 `commit;` 으로 바꾼다. `run` 은 되돌릴 실행 이름이다.
+**실행 하나만, 덤프 적재 전** — 마지막 실행부터 돌린다. 덤프 뒤에는 아래 「덤프 적재 뒤」를 따른다. 이미 라벨 있던 기사는 `relabel_before` 로, 처음 넣은 기사는 `undo` 로 돌린다. 끝을 `rollback;` 으로 먼저 돌려 수를 보고 `commit;` 으로 바꾼다. `run` 은 되돌릴 실행 이름이다.
 
 ```bash
 { echo 'begin;'; cat <<'SQL'
@@ -157,6 +157,6 @@ cat infra/server/category-labels-undo.sql; echo 'rollback;'; } | kubectl -n data
 kubectl -n data exec postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn -c "drop schema category_label cascade"
 ```
 
-**덤프 적재 뒤** — `data-load.md` 7절 → 위 되돌리기(덤프 전 실행 모두, 새 것부터) → 스키마 지우기 순서를 지킨다. 스키마를 먼저 지우면 숨긴 기사의 옛 값이 백업에만 남는다. 7절 뒤에는 덤프 전 실행만 되돌린다 — 덤프 뒤 실행의 옛 값은 덤프가 준 값이라, 되돌리면 마인드맵이 지워진 기사가 다시 공개된다. 7절은 라벨 반영 뒤 상태로 돌아간다(`load_undo` 의 옛 값이 그때 값). **덤프는 두고 라벨만 되돌리기는 지원하지 않는다.** 라벨을 바꾸려면 새 라벨 파일을 넣는다. 덤프 뒤에 넣은 실행만 되돌렸다면 이슈 분야가 낡으니 `apply` 를 한 번 더 돌린다.
+**덤프 적재 뒤** — `data-load.md` 7절 → 위 되돌리기(덤프 전 실행 모두, 새 것부터) → 스키마 지우기 순서를 지킨다. 스키마를 먼저 지우면 숨긴 기사의 옛 값이 백업에만 남는다. 7절 뒤에는 덤프 전 실행만 되돌린다 — 덤프 뒤 실행의 옛 값은 덤프가 준 값이라, 되돌리면 마인드맵이 지워진 기사가 다시 공개된다. 7절은 라벨 반영 뒤 상태로 돌아간다(`load_undo` 의 옛 값이 그때 값). 덤프 뒤에 넣은 `X` 는 7절이 모르니 다시 공개된다 — 그대로 두려면 `apply` 를 돌린다. **덤프는 두고 라벨만 되돌리기는 지원하지 않는다.** 라벨을 바꾸려면 새 라벨 파일을 넣는다. 덤프 뒤에 넣은 실행만 되돌렸다면 이슈 분야가 낡으니 `apply` 를 한 번 더 돌린다.
 
 잘못 숨긴 기사 하나를 되살리는 길은 없다 — `apply` 는 공개를 하지 않는다. 라벨 표(이미 라벨 있던 기사는 `relabel_before`)에 있는 옛 `released_at` 을 보고 손 SQL 로 채우고, 라벨 코드도 고친다.

@@ -9,9 +9,22 @@ create table if not exists category_label.relabel_before (
     category_code text,
     released_at   timestamptz,
     saved_at      timestamptz not null default now(),
-    -- 실행 이름을 다시 쓰면 여기서 멈춘다. 덮으면 이미 바뀐 값이 옛 값이 된다
     primary key (run, url)
 );
+
+-- 실행 이름을 다시 쓰면 멈춘다. 같은 이름이면 되돌릴 때 앞 실행과 묶인다 — first 를 다시 쓰면 그 실행만 떼어 되돌릴 수 없다
+select set_config('category_label.run', :'run', true);
+
+do $$
+declare
+    this_run text := current_setting('category_label.run');
+begin
+    if exists (select 1 from category_label.article_label where run = this_run)
+       or exists (select 1 from category_label.relabel_before where run = this_run) then
+        raise exception '이미 쓴 실행 이름이다: %', this_run;
+    end if;
+end
+$$;
 
 insert into category_label.relabel_before (run, url, old_label, category_code, released_at)
 select :'run', l.url, l.label, a.category_code, a.released_at
