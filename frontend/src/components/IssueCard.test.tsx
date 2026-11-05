@@ -111,3 +111,16 @@ test("개수가 0이면 「0개」로 쓰지 않고 그 항목을 뺀다 (v2 Iss
   expect(link.textContent).toContain("사건 8");
   expect(link.textContent).not.toContain("기사");
 });
+
+// 관심 이슈 표시 (PRD FR-28, Jira 172)
+test("관심 이슈면 분야 옆에 「관심 이슈」를 붙인다", () => {
+  renderWithProviders(<IssueCard issue={{ ...issue, interested: true }} />);
+
+  expect(screen.getByRole("link").textContent).toContain("관심 이슈");
+});
+
+test("관심 이슈가 아니면 「관심 이슈」를 붙이지 않는다", () => {
+  renderWithProviders(<IssueCard issue={issue} />);
+
+  expect(screen.getByRole("link").textContent).not.toContain("관심 이슈");
+});

@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { useState } from "react";
 import { useLocation, useNavigationType } from "react-router";
@@ -286,4 +286,79 @@ test("사건을 못 불러오면 그 자리에 다시 시도를 둔다", async (
   fireEvent.click(await category("경제"));
 
   expect(await screen.findByText("사건을 불러오지 못했어요")).toBeDefined();
+});
+
+// 이슈 줄 별 (docs/api-screen.md A23 · 프로토타입 v21 PinButton, Jira 172). 가짜 회원은 12 · 21번 이슈를 저장해 두었다
+const starOf = (issueTitle: string) =>
+  screen.findByRole("button", { name: `${issueTitle} 관심 이슈로 저장` });
+
+test("이슈 줄마다 관심 이슈 별을 두고, 저장한 이슈는 눌린 채다", async () => {
+  renderWithProviders(<Explorer />);
+
+  fireEvent.click(await category("경제"));
+
+  expect(
+    (await starOf("한빛반도체 미국 공장 건설")).getAttribute("aria-pressed"),
+  ).toBe("true");
+  expect(
+    (await starOf("기준금리 동결 행진")).getAttribute("aria-pressed"),
+  ).toBe("false");
+});
+
+test("별을 누르면 A23 으로 저장하고 받아 둔 목록의 별도 바꾼다", async () => {
+  const calls: string[] = [];
+  server.use(
+    http.put("/api/v1/members/me/interest-issues/:issueId", ({ params }) => {
+      calls.push(`PUT ${String(params.issueId)}`);
+      return HttpResponse.json({
+        issueId: Number(params.issueId),
+        interested: true,
+        interestedAt: "2026-11-05T10:00:00+09:00",
+      });
+    }),
+  );
+  const { queryClient } = renderWithProviders(<Explorer />);
+  fireEvent.click(await category("경제"));
+
+  fireEvent.click(await starOf("기준금리 동결 행진"));
+
+  expect(await screen.findByText("관심 이슈로 저장했어요")).toBeDefined();
+  expect(calls).toEqual(["PUT 13"]);
+  // 가짜 A2 는 저장을 기억하지 않는다 — 다시 받지 않고 받아 둔 응답을 고쳐야 눌린 채로 남는다
+  await waitFor(async () =>
+    expect(
+      (await starOf("기준금리 동결 행진")).getAttribute("aria-pressed"),
+    ).toBe("true"),
+  );
+  const cached = queryClient.getQueriesData<{ items: IssueSummary[] }>({
+    queryKey: ["issues"],
+  });
+  expect(
+    cached
+      .flatMap(([, page]) => page?.items ?? [])
+      .find((item) => item.id === 13)?.interested,
+  ).toBe(true);
+});
+
+test("저장한 이슈의 별을 누르면 A24 로 뺀다", async () => {
+  server.use(
+    http.delete("/api/v1/members/me/interest-issues/:issueId", ({ params }) =>
+      HttpResponse.json({
+        issueId: Number(params.issueId),
+        interested: false,
+        interestedAt: null,
+      }),
+    ),
+  );
+  renderWithProviders(<Explorer />);
+  fireEvent.click(await category("경제"));
+
+  fireEvent.click(await starOf("한빛반도체 미국 공장 건설"));
+
+  expect(await screen.findByText("관심 이슈에서 뺐어요")).toBeDefined();
+  await waitFor(async () =>
+    expect(
+      (await starOf("한빛반도체 미국 공장 건설")).getAttribute("aria-pressed"),
+    ).toBe("false"),
+  );
 });
