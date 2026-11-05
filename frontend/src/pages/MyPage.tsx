@@ -8,6 +8,7 @@ import { interestIssuesQuery } from "@/api/interestIssues";
 import { meQuery } from "@/api/members";
 import { InterestIssues } from "@/components/mypage/InterestIssues";
 import { InterestSettings } from "@/components/mypage/InterestSettings";
+import { MyPageSection } from "@/components/mypage/MyPageSection";
 import { errorDescription } from "@/components/state/ErrorState";
 import { QueryState } from "@/components/state/QueryState";
 import { usePageTitle } from "@/components/usePageTitle";
@@ -73,58 +74,46 @@ export function MyPage() {
           )}
         </div>
       </div>
-      {/* 관심 이슈 · 관심 분야 · 개인정보 · 로그아웃 — 관심 이슈 밑부터 섹션마다 위에 줄을 긋는다 */}
-      <div className="mt-x5 border-t border-stroke-neutral-weak">
+      {/* 관심 이슈 · 관심 분야 · 개인정보는 카드마다(MyPageSection), 로그아웃은 맨 아래 버튼 */}
+      <div className="mt-x6 flex flex-col gap-x3">
         <InterestIssues />
         {member && <InterestSettings member={member} />}
-        <section
-          aria-labelledby="mypage-info"
-          className="border-t border-stroke-neutral-weak py-x5"
-        >
-          <h2 id="mypage-info" className="t5-bold text-fg-neutral">
-            개인정보
-          </h2>
-          <div className="mt-x3">
-            <QueryState
-              query={me}
-              loadingLabel="내 정보 불러오는 중"
-              skeleton={
-                <Skeleton radius="8" width="x40" height="lineHeight.t4" />
-              }
-              errorTitle="내 정보를 불러오지 못했어요"
-            >
-              {(data) =>
-                data && (
-                  // 이름 · 아이디는 바꿀 수 없다 (EXPERIENCE.md IA 마이페이지 행)
-                  <dl>
-                    {[
-                      ["이름", data.name],
-                      ["아이디", data.loginId],
-                    ].map(([term, value]) => (
-                      <div
-                        key={term}
-                        className="flex items-center gap-x3 border-stroke-neutral-weak py-x3 not-first:border-t"
-                      >
-                        <dt className="t3-regular w-[72px] shrink-0 text-fg-neutral-muted">
-                          {term}
-                        </dt>
-                        <dd className="t4-regular min-w-0 flex-1 truncate text-fg-neutral">
-                          {value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                )
-              }
-            </QueryState>
-          </div>
-        </section>
-        <section className="border-t border-stroke-neutral-weak py-x5">
-          {/* 버튼 안쪽 여백만큼 바깥으로 당겨 글자를 위 칸 줄에 맞춘다 (프로토타입 v21) */}
+        <MyPageSection title="개인정보">
+          <QueryState
+            query={me}
+            loadingLabel="내 정보 불러오는 중"
+            skeleton={
+              <Skeleton radius="8" width="x40" height="lineHeight.t4" />
+            }
+            errorTitle="내 정보를 불러오지 못했어요"
+          >
+            {(data) =>
+              data && (
+                // 이름 · 아이디는 바꿀 수 없다 (EXPERIENCE.md IA 마이페이지 행). 행 사이는 카드 안 구분선
+                <dl className="divide-y divide-stroke-neutral-subtle">
+                  {[
+                    ["이름", data.name],
+                    ["아이디", data.loginId],
+                  ].map(([term, value]) => (
+                    <div key={term} className="flex items-center gap-x3 py-x3">
+                      <dt className="t3-regular w-[72px] shrink-0 text-fg-neutral-muted">
+                        {term}
+                      </dt>
+                      <dd className="t4-regular min-w-0 flex-1 truncate text-fg-neutral">
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )
+            }
+          </QueryState>
+        </MyPageSection>
+        <section className="mt-x3">
+          {/* 보조 버튼 모양(DESIGN.md Components). 회색 글자만이면 제목처럼 보였다 (2026-11-05 UI 점검) */}
           <ActionButton
-            variant="ghost"
-            color="fg.neutralMuted"
-            bleedX="asPadding"
+            variant="neutralOutline"
+            className="w-full md:w-auto"
             loading={mutation.isPending}
             aria-busy={mutation.isPending || undefined}
             onClick={handleLogout}

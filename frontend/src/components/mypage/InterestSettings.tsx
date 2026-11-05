@@ -5,6 +5,7 @@ import { ActionButton } from "seed-design/ui/action-button";
 import { ApiError, isSessionExpired } from "@/api/error";
 import { changeCategories, type Member, meQuery } from "@/api/members";
 import { InterestChips } from "@/components/InterestChips";
+import { MyPageSection } from "@/components/mypage/MyPageSection";
 import { errorDescription } from "@/components/state/ErrorState";
 import { useSnackbar } from "@/components/useSnackbar";
 
@@ -68,16 +69,11 @@ export function InterestSettings({ member }: { member: Member }) {
   }
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="border-t border-stroke-neutral-weak py-x5"
+    <MyPageSection
+      title="관심 분야"
+      description="홈 추천 탭에 고른 분야가 나와요."
+      headingId={headingId}
     >
-      <h2 id={headingId} className="t5-bold text-fg-neutral">
-        관심 분야
-      </h2>
-      <p className="t3-regular mt-x1 mb-x3 text-fg-neutral-muted">
-        홈 추천 탭에 고른 분야가 나와요.
-      </p>
       <InterestChips
         ref={chipsRef}
         labelledBy={headingId}
@@ -90,16 +86,22 @@ export function InterestSettings({ member }: { member: Member }) {
         onKeepOne={() => setError(KEEP_ONE)}
         error={error ?? undefined}
       />
-      <div className="mt-x5 flex flex-wrap items-center justify-end gap-x2">
-        {/* 좁은 화면에서는 안내가 한 줄을 다 쓰고 버튼이 그 아래 오른쪽에 모인다 */}
+      <div className="mt-x5 flex flex-wrap items-center gap-x2">
+        {/* *홈으로* 는 저장하지 않는다 — 저장해야 반영된다. 좁은 화면에서는 안내가 한 줄을 다 쓰고
+            두 버튼이 그 아래를 반씩 나눈다. 넓은 화면은 안내 왼쪽 · 버튼 오른쪽 */}
         <p className="t3-regular w-full text-fg-neutral-muted md:mr-auto md:w-auto">
-          고른 관심 분야는 홈 추천에 바로 반영돼요.
+          저장하면 홈 추천에 바로 반영돼요.
         </p>
-        <ActionButton asChild variant="ghost">
+        <ActionButton
+          asChild
+          variant="neutralOutline"
+          className="flex-1 md:flex-none"
+        >
           <Link to="/home">홈으로</Link>
         </ActionButton>
         <ActionButton
           variant="brandSolid"
+          className="flex-1 md:flex-none"
           loading={mutation.isPending}
           aria-busy={mutation.isPending || undefined}
           onClick={save}
@@ -115,6 +117,6 @@ export function InterestSettings({ member }: { member: Member }) {
           {failure}
         </p>
       )}
-    </section>
+    </MyPageSection>
   );
 }

@@ -75,7 +75,7 @@ test("안내와 함께 지금 관심 분야를 고른 칩으로 시작한다", a
   expect(chip(section, "IT·과학").getAttribute("aria-pressed")).toBe("true");
   expect(chip(section, "정치").getAttribute("aria-pressed")).toBe("false");
   expect(
-    within(section).getByText("고른 관심 분야는 홈 추천에 바로 반영돼요."),
+    within(section).getByText("저장하면 홈 추천에 바로 반영돼요."),
   ).toBeDefined();
 });
 
