@@ -201,7 +201,7 @@ function Centered({ children }: { children: ReactNode }) {
 function TimelineSkeleton() {
   return (
     <LoadingState label="타임라인 불러오는 중">
-      <div className="flex flex-col gap-x6 px-x4 py-x3 md:px-x8">
+      <div className="flex flex-col gap-x6 px-x5 py-x3 md:px-x8">
         <Skeleton
           radius="8"
           width="full"

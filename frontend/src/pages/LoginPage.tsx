@@ -109,7 +109,7 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg-layer-default">
-      <header className="flex h-[60px] shrink-0 items-center px-x4 md:px-x8">
+      <header className="flex h-[60px] shrink-0 items-center px-x5 md:px-x8">
         <Logo height={26} />
         <Link
           to="/"
@@ -124,7 +124,7 @@ export function LoginPage() {
           noValidate
           aria-labelledby="login-title"
           onSubmit={handleSubmit}
-          className="mx-auto flex max-w-[400px] flex-col gap-x5 px-x4 pt-x10 pb-x14 md:pt-x16"
+          className="mx-auto flex max-w-[400px] flex-col gap-x5 px-x5 pt-x10 pb-x14 md:pt-x16"
         >
           <div className="mb-x2">
             <h1 id="login-title" className="screen-title text-fg-neutral">

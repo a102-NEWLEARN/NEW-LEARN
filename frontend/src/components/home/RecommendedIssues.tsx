@@ -127,31 +127,34 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
 
   return (
     <section aria-labelledby={headingId}>
-      <div className="flex items-end justify-between gap-x3">
-        <div>
-          <h2 id={headingId} className="t7-bold text-fg-neutral">
-            {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
-          </h2>
-          <p className="t4-regular mt-x1 text-fg-neutral-muted">
-            여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
-            {hasInterests && (
-              <>
-                {" "}
-                <IconStarFill
-                  aria-hidden
-                  size={12}
-                  className="inline align-baseline text-fg-brand"
-                />
-                <span className="sr-only">별표</span>는 관심 분야예요.
-              </>
-            )}
-          </p>
-        </div>
+      {/* 제목 · 설명 | 관심사 편집. 좁은 화면은 제목이 한 줄을 다 쓰고 그 아래에 설명 | 버튼 —
+          버튼이 제목 옆을 차지하면 360px 에서 제목이 두 줄로 꺾인다. 읽는 순서는 제목 → 설명 → 버튼 그대로다 */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x3">
+        <h2
+          id={headingId}
+          className="t7-bold col-span-2 row-start-1 text-fg-neutral md:col-span-1"
+        >
+          {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
+        </h2>
+        <p className="t4-regular col-start-1 row-start-2 mt-x1 text-fg-neutral-muted">
+          여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
+          {hasInterests && (
+            <>
+              {" "}
+              <IconStarFill
+                aria-hidden
+                size={12}
+                className="inline align-baseline text-fg-brand"
+              />
+              <span className="sr-only">별표</span>는 관심 분야예요.
+            </>
+          )}
+        </p>
         <ActionButton
           asChild
           variant="ghost"
           size="small"
-          className="-mr-x2 shrink-0"
+          className="col-start-2 row-start-2 -mr-x2 shrink-0 self-end md:row-span-2 md:row-start-1"
         >
           <Link to="/me">
             관심사 편집

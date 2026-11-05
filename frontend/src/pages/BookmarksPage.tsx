@@ -12,7 +12,7 @@ export function BookmarksPage() {
   const bookmarks = useQuery(bookmarksQuery);
 
   return (
-    <div className="mx-auto max-w-[760px] px-x4 pt-x9 pb-x16 md:px-x6">
+    <div className="mx-auto max-w-[760px] px-x5 pt-x9 pb-[96px] md:px-x6 md:pb-x16">
       {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell) */}
       <h1 tabIndex={-1} className="t8-bold text-fg-neutral outline-none">
         나의 뉴스함

@@ -97,7 +97,7 @@ function ArticleView({ articleId }: { articleId: number }) {
         size="medium"
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="flex items-center gap-x3 px-x4 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] md:px-x8">
+        <div className="flex items-center gap-x3 px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] md:px-x8">
           <TabsList
             aria-label="보기"
             className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none"
@@ -230,7 +230,7 @@ function MindmapBody({
 
 function Centered({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-1 items-center justify-center px-x4">
+    <div className="flex flex-1 items-center justify-center px-x5">
       {children}
     </div>
   );
@@ -259,7 +259,7 @@ function FlowSkeleton() {
   return (
     <LoadingState label="마인드맵 불러오는 중">
       <div className="@container">
-        <div className="mx-auto w-full max-w-[860px] px-x4 pt-x7 md:px-x8 @min-[1024px]:max-w-[1280px]">
+        <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 md:px-x8 md:pt-x7 @min-[1024px]:max-w-[1280px]">
           <Skeleton
             radius="8"
             width="full"
