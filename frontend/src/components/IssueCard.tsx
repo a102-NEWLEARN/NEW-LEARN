@@ -32,18 +32,21 @@ export function IssueCard({ issue }: IssueCardProps) {
       <span className="t6-bold line-clamp-2 text-fg-neutral">
         {issue.title}
       </span>
-      <span className="grid grid-cols-[8px_1fr] gap-x-x2 gap-y-x0_5">
-        <span
-          aria-hidden
-          className="row-span-2 mt-[5px] size-x2 rounded-[2px] bg-bg-brand-accent"
-        />
-        <span className="t2-medium text-fg-neutral-muted">
-          최근 사건 · {formatEventDate(lastEvent.occurredAt)}
+      {/* 사건이 0개인 이슈는 최근 사건이 없다 (docs/api-screen.md A2) */}
+      {lastEvent && (
+        <span className="grid grid-cols-[8px_1fr] gap-x-x2 gap-y-x0_5">
+          <span
+            aria-hidden
+            className="row-span-2 mt-[5px] size-x2 rounded-[2px] bg-bg-brand-accent"
+          />
+          <span className="t2-medium text-fg-neutral-muted">
+            최근 사건 · {formatEventDate(lastEvent.occurredAt)}
+          </span>
+          <span className="line-clamp-2 text-[0.875rem] leading-[1.25rem] text-fg-neutral">
+            {lastEvent.title}
+          </span>
         </span>
-        <span className="line-clamp-2 text-[0.875rem] leading-[1.25rem] text-fg-neutral">
-          {lastEvent.title}
-        </span>
-      </span>
+      )}
       {counts.length > 0 && (
         <span className="t3-regular mt-auto flex gap-x4 border-t border-stroke-neutral-subtle pt-x3 text-fg-neutral-muted">
           {counts.map(({ label, value, Icon }) => (

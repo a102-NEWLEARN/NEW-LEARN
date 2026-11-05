@@ -1,4 +1,3 @@
-import { QueryClient } from "@tanstack/react-query";
 import { render, type RenderOptions } from "@testing-library/react";
 import type { ReactElement } from "react";
 import {
@@ -7,6 +6,7 @@ import {
   type RouteObject,
   RouterProvider,
 } from "react-router";
+import { createQueryClient } from "@/api/query-client";
 import { AppProviders } from "@/providers";
 import { routes } from "@/routes";
 
@@ -15,9 +15,11 @@ type Options = Omit<RenderOptions, "wrapper"> & {
   route?: string;
 };
 
-// 테스트마다 새 QueryClient. 실패해도 다시 부르지 않는다
+// 테스트마다 새 QueryClient. 앱과 같은 전역 처리(세션이 끝난 401)를 거치고, 실패해도 다시 부르지 않는다
 function createTestQueryClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = createQueryClient();
+  client.setDefaultOptions({ queries: { retry: false } });
+  return client;
 }
 
 // 화면 테스트용 render — 앱과 같은 provider(src/providers.tsx)와 주소를 가진 라우터로 감싼다

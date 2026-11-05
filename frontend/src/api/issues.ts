@@ -11,10 +11,17 @@ export type IssueSummary = {
   eventCount: number;
   articleCount: number;
   publisherCount: number;
-  firstEventAt: string;
-  lastEventAt: string;
+  /** 기간. 사건이 0개인 이슈면 null (정상 생성은 사건 3개부터라 드물다) */
+  firstEventAt: string | null;
+  lastEventAt: string | null;
   createdAt: string;
-  lastEvent: { id: number; title: string; label: string; occurredAt: string };
+  /** 카드의 「최근 사건」. 사건이 0개인 이슈면 null */
+  lastEvent: {
+    id: number;
+    title: string;
+    label: string;
+    occurredAt: string;
+  } | null;
   /** 로그인한 회원이 관심 이슈로 저장했나 — 별을 채울지. 손님이면 false */
   interested: boolean;
 };

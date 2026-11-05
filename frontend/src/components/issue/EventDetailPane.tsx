@@ -1,6 +1,7 @@
 import { IconXmarkLine } from "@karrotmarket/react-monochrome-icon";
 import { BottomSheet } from "@seed-design/react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { EventPanel } from "@/components/issue/EventPanel";
 import { useElementSize } from "@/components/issue/useElementSize";
 import { useShell } from "@/components/shell/useShell";
@@ -69,6 +70,8 @@ export function EventDetailPane({
     />
   );
 
+  // 시트는 본문(<main>) 밖 body 에 그린다 — 본문은 isolate 라 안에서 그리면 시트의 z-index 가 본문 안에서만 통해,
+  // 본문 밖에 떠 있는 용어사전 버튼이 딤 위로 올라와 관련 기사를 가린다 (EXPERIENCE.md 앱 셸 「용어사전 버튼」)
   if (narrow)
     return (
       <BottomSheet.Root
@@ -77,23 +80,26 @@ export function EventDetailPane({
           if (!open) onClose();
         }}
       >
-        <BottomSheet.Positioner>
-          <BottomSheet.Backdrop />
-          <BottomSheet.Content style={{ height: "85dvh" }}>
-            <BottomSheet.Header>
-              <BottomSheet.Title className="sr-only">
-                사건 상세
-              </BottomSheet.Title>
-            </BottomSheet.Header>
-            <BottomSheet.CloseButton aria-label="상세 패널 닫기">
-              <IconXmarkLine aria-hidden />
-            </BottomSheet.CloseButton>
-            {/* 시트에서는 SEED Body 가 스크롤한다 */}
-            <BottomSheet.Body ref={scrollRef}>
-              <div className="pb-x10">{panel}</div>
-            </BottomSheet.Body>
-          </BottomSheet.Content>
-        </BottomSheet.Positioner>
+        {createPortal(
+          <BottomSheet.Positioner>
+            <BottomSheet.Backdrop />
+            <BottomSheet.Content style={{ height: "85dvh" }}>
+              <BottomSheet.Header>
+                <BottomSheet.Title className="sr-only">
+                  사건 상세
+                </BottomSheet.Title>
+              </BottomSheet.Header>
+              <BottomSheet.CloseButton aria-label="상세 패널 닫기">
+                <IconXmarkLine aria-hidden />
+              </BottomSheet.CloseButton>
+              {/* 시트에서는 SEED Body 가 스크롤한다 */}
+              <BottomSheet.Body ref={scrollRef}>
+                <div className="pb-x10">{panel}</div>
+              </BottomSheet.Body>
+            </BottomSheet.Content>
+          </BottomSheet.Positioner>,
+          document.body,
+        )}
       </BottomSheet.Root>
     );
 

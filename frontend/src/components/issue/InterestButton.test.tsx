@@ -59,15 +59,19 @@ async function openIssue(issueId: number) {
   return { ...rendered, star };
 }
 
-test("저장한 이슈면 별이 눌린 채, 아니면 눌리지 않은 채로 뜬다", async () => {
-  const saved = await openIssue(12);
-  expect(saved.star.getAttribute("aria-pressed")).toBe("true");
-  expect(saved.star.getAttribute("title")).toBe("관심 이슈에서 빼기");
-  saved.unmount();
+// 이슈 화면을 두 번 그리던 한 테스트를 둘로 나눴다 — 전체 테스트를 함께 돌리면 두 번이 5초 한도를 나눠 쓰다 넘칠 뻔했다 (2026-11-04)
+test("저장한 이슈면 별이 눌린 채로 뜬다", async () => {
+  const { star } = await openIssue(12);
 
-  const other = await openIssue(13);
-  expect(other.star.getAttribute("aria-pressed")).toBe("false");
-  expect(other.star.getAttribute("title")).toBe("관심 이슈로 저장");
+  expect(star.getAttribute("aria-pressed")).toBe("true");
+  expect(star.getAttribute("title")).toBe("관심 이슈에서 빼기");
+});
+
+test("저장하지 않은 이슈면 별이 눌리지 않은 채로 뜬다", async () => {
+  const { star } = await openIssue(13);
+
+  expect(star.getAttribute("aria-pressed")).toBe("false");
+  expect(star.getAttribute("title")).toBe("관심 이슈로 저장");
 });
 
 test("누르면 A23 으로 저장하고 응답대로 별을 채우고 알린다", async () => {

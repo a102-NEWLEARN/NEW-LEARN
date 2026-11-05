@@ -63,3 +63,27 @@ test("요약이 길어도 잘리지 않으면 더보기를 두지 않는다", as
     restore();
   }
 });
+
+test("요약에 AI 생성 표시를 붙인다 — 요약이 두 줄로 잘려도 보이게 요약 문단 밖에 둔다", async () => {
+  withSummary("텍사스 공장 투자를 늘리고 착공했다");
+  const restore = stubClamped(true);
+  try {
+    renderWithProviders(<Header />);
+
+    const summary = await screen.findByText(
+      "텍사스 공장 투자를 늘리고 착공했다",
+    );
+    const badge = screen.getByText("AI 생성");
+    expect(summary.contains(badge)).toBe(false);
+  } finally {
+    restore();
+  }
+});
+
+test("요약이 없으면 AI 생성 표시도 두지 않는다", async () => {
+  withSummary("");
+  renderWithProviders(<Header />);
+
+  await screen.findByRole("heading", { level: 1 });
+  expect(screen.queryByText("AI 생성")).toBeNull();
+});

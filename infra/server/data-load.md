@@ -60,7 +60,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 
 ### 만드는 길
 
-- DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — V11(NewsData 분야 대응 행, Jira 170)이 운영에 반영된 뒤로는 V11. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
+- DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — V12(해외 정치 제목 규칙, Jira 171)가 운영에 반영된 뒤로는 V12. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
 - 기사는 2절 목록(11/4 부터)과 10/21 ~ 11/3 JSONL(2절)을 로컬 B2(`POST http://localhost:8080/internal/v1/articles`, 머리 `X-Internal-Key` = 로컬 `.env` 의 `INTERNAL_BATCH_KEY`)로 넣는다. 분석은 로컬 B1(`POST /internal/v1/articles/{id}/release`, 같은 키)으로 걸고 — 이때 작업 행이 생긴다 — 결과는 AI 워커가 **W1 으로** 로컬 backend 에 보내 저장한다. 그래야 마인드맵 `content` 모양(A9 가 이 모양으로 읽는다), 작업 행, `article_event.linked_at`, 이슈가 운영 코드와 같은 모양이 된다. SQL 로 직접 넣은 표가 있으면 무엇을 어떻게 넣었는지 목록표에 적는다
 - SQLite 칸을 B2 칸으로 바꾸는 규칙은 `infra/server/sqlite_to_b2.py` 한 곳(머리말)에 있다 — SQLite 를 따로 바꿔 넣으면 운영 기사와 값이 달라 적재가 멈출 수 있다
 - 덤프를 뜨기 전에 5절 검사 가운데 「작업 행」 · 「판정 걸 기사」 · 「공개 기사」 · 「사건에 묶인 기사」를 자기 DB 에 돌려 모두 0 인지 본다 — 견본이 오가는 횟수가 준다
@@ -92,7 +92,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 | `article.url` | 운영 기사면 **운영 URL 과 글자까지 같다**(2절 목록 그대로, 정규화하지 않음) — 맞추는 열쇠다 | 같은 기사가 둘이 된다(새 기사로 들어감) |
 | `article.published_at` | NewsData `pubDate`(시간대 없음, `pubDateTZ` UTC)를 **UTC 로 읽은 시각**. `2026-11-03 01:02:03` 이면 `2026-11-03 01:02:03+00` = KST 10:02:03. 2절 목록(`publishedAt` 이 `Z`)과 10/21 ~ 11/3 JSONL 을 그대로 B2 로 넣었으면 저절로 맞다 — SQLite `published` 는 KST 라 변환이 값은 그대로 두고 `+09:00` 을 붙였다(`infra/server/sqlite_to_b2.py`) | 운영 기사와 다르면 적재가 멈춘다(10/21 ~ 11/3 최종 기사도 운영 기사다). 운영에 없는 기사는 견줄 짝이 없어 검사가 못 잡고, 9시간 어긋나면 A7 최신 기사 정렬 · 발생 시점이 틀린다 |
 | `article.released_at` | 화면에 보일 기사는 차 있다(EXTRACT 결과를 처음 저장한 때). **찬 기사는 `article_mindmap` 행과 EXTRACT `SUCCEEDED` 행이 꼭 있다**. 사건에 묶인 기사도 차 있어야 이슈 · 사건의 기사 수에 들어간다 | 비면 화면 어디에도 없다. 찼는데 마인드맵이 없으면 목록에는 나오고 A9 마인드맵은 404 다 |
-| `article.category_code` | 공개 기사는 채운다 — 운영 값을 덮는다. 비우면 운영 값을 그대로 둔다 | 둘 다 비면 카테고리 탭 · 이슈 분야에 안 나온다 |
+| `article.category_code` | 공개 기사는 채운다 — 운영 값을 덮는다. B2 가 고른 값(제목 규칙 포함)을 그대로 두면 운영과 같다. 비우면 운영 값을 그대로 둔다 | 둘 다 비면 카테고리 탭 · 이슈 분야에 안 나온다 |
 | 운영에 없는 기사 | **로컬 B1 을 건 기사(작업 행이 있는 기사)만** 넣는다 — B2 로만 넣고 분석하지 않은 기사(SQLite 의 `extra` · 뺀 기사 등)는 운영 화면에 안 보이는 행으로만 남으니, 처음부터 넣지 않거나 덤프 전에 지운다(2026-11-04). 작업 행이 없는 기사에는 마인드맵 · 임베딩 · 기사-사건 행도 없다(SQL 로 넣었어도). 칸은 모두 운영 규칙대로 — `source` `NEWSDATA`, `press_code`, 제목 · 본문 · 발행 시각. 적재가 새 운영 번호로 넣는다 | 작업 행이 없는 기사는 적재가 넣지 않고 건너뛴 수만 알린다(덤프만 커진다). 그 기사에 딸린 행이 있으면 적재가 멈춘다 |
 | `press.code` | NewsData `source_id`(예: `newsis` · `news1_kr`). `press_mapping` 의 NEWSDATA 행은 `source_value` = `source_id`, `press_code` = 그 코드 | 같은 언론사가 둘로 세어진다 |
 | `analysis_job.status` | 모두 `SUCCEEDED`, 또는 `retry_at` 이 빈 `FAILED`. **`QUEUED` 없음**. `requested_by` 는 `BATCH` | 운영 1분 스케줄러가 다시 큐에 넣거나 다시 걸어 GMS 를 부른다. 큐에 들어간 판정 · ISSUE 작업은 운영에 소비자가 없어(ai 워커는 EXTRACT 만) 판정 줄 전체를 막는다 |

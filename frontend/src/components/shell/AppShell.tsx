@@ -97,6 +97,7 @@ export function AppShell() {
           <SidebarDrawer
             open={drawerOpen}
             onOpenChange={setDrawerOpen}
+            onLogoClick={scrollToTop}
             {...explorer}
           />
         ) : (
