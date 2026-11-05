@@ -105,7 +105,7 @@ B2 로 적재해 둔 기사에 분석을 건다. 적재할 때 `released_at` 은
 | 401 `UNAUTHORIZED` | 배치 출입증(`X-Internal-Key`)이 없거나 틀렸다. 다시 보내도 같다 — 설정을 고친다 |
 | 403 `FORBIDDEN` | 배치 출입증이 아니다(워커 키 등) |
 | 404 `ARTICLE_NOT_FOUND` | 그런 기사가 없다 |
-| 409 `ALREADY_RELEASED` | 이미 투입했다(그 기사의 분석 작업이 있다) 또는 이미 화면에 있다(`released_at` 이 있다). 배치는 건너뛴다 |
+| 409 `ALREADY_RELEASED` | 이미 투입했다(그 기사의 분석 작업이 있다) 또는 이미 화면에 있다(`released_at` 이 있다). 배치는 건너뛴다. 분야 라벨로 숨겨 `released_at` 이 빈 기사는 작업이 없으면 409 가 아니다 — 202 로 분석이 걸리고 다시 공개된다(`infra/server/category-labels.md` 5절) |
 
 - 데이터셋은 검증용이라(SSOT 5절) 서비스에 투입할지는 정하지 않았다(`data-model.md` 5절 17번)
 

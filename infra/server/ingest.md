@@ -173,7 +173,7 @@ kubectl -n data exec postgres-0 -- psql -X -q -U newlearn -d newlearn -At -c "se
 kubectl -n data exec postgres-0 -- psql -X -U newlearn -d newlearn -v ON_ERROR_STOP=1 -c "update article set released_at = now() where id between <최소> and <최대> and released_at is null and published_at < '2026-11-04 00:00+09'"
 ```
 
-- 공개만으로는 분석이 걸리지 않는다 — 스케줄러는 작업 행 · 마인드맵이 있는 기사만 본다. 그 기사에 B1 을 부르면 409 다
+- 공개만으로는 분석이 걸리지 않는다 — 스케줄러는 작업 행 · 마인드맵이 있는 기사만 본다. 그 기사에 B1 을 부르면 409 다. 그 뒤 분야 라벨로 숨긴 기사는 공개 전이라 202 로 걸리고 다시 공개된다(`category-labels.md` 5절)
 - 확인: `curl -fsS 'https://newlearn.io.kr/api/v1/articles?size=1'` 의 `totalElements` 가 늘어난 수만큼, 넣은 기사의 A8 기사 상세는 200 · A9 기사 마인드맵은 404 `MINDMAP_NOT_FOUND`
 
 **8. 치우기** (EC2) — Job 을 바로 지운다. 손 Job 이 성공으로 끝나면 CronJob 마지막 성공 시각이 바뀌어 경보 ①이 가려질 수 있다. 서버의 기사 파일도 지운다(로그 파일은 결과를 옮겨 적은 뒤)
@@ -230,6 +230,8 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 ## 15분 모드로 바꾸기 (11-16 뒤, Jira 156)
 
 MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEFRAME=30m`(앞 실행과 15분 겹침) · `INGEST_DAYS` 비움 · 상한(한 번에 몇 쪽인지 첫날 보고) · `activeDeadlineSeconds` 14분 안쪽(겹쳐 돌지 않게 — `concurrencyPolicy: Forbid` 라 길어지면 다음 실행을 건너뛴다), 그리고 `infra/k8s/alerts/rules.yaml` 의 `NewlearnIngestMissing` ①(시작 마감 + 실행 상한보다 길게) · ②(25시간 → 예: 1시간)와 그 시험. B1 을 같이 켤지는 아래 「B1 켜기」. 실시간 예산은 팀장 공지의 하루 약 200 을 넘지 않게 본다.
+
+15분 모드의 새 기사는 라벨 전까지 NewsData 값이다. 라벨은 그때그때 돌린다(`category-labels.md` 3절).
 
 ## B1 켜기 (덤프 뒤, Jira 156)
 
