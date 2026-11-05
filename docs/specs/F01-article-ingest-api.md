@@ -20,7 +20,7 @@
   — `nonHttpUrlIs400` · `realWorldLinksAreAccepted`
 - AC-7: U+0000 이 든 글자 칸 · 목록 항목은 400
   — `nulIs400`
-- AC-8: 대표 카테고리 — 원본 값이 모두 대응 표에 있으면 칸이 찬 행 중 `priority` 가 가장 작은 것(같으면 카테고리 순서), 하나라도 없으면 빈다. NewsData 실제 값은 V11 대응 행(Jira 170) — 확인: `ArticleIngestIntegrationTest.newsDataValuesFromV11PickTheMostSpecificCategory`, 마이그레이션의 다시 계산은 `CategoryMappingMigrationTest`
+- AC-8: 대표 카테고리 — 원본 값이 모두 대응 표에 있으면 칸이 찬 행 중 `priority` 가 가장 작은 것(같으면 카테고리 순서), 하나라도 없으면 빈다. NewsData 실제 값은 V11 대응 행(Jira 170) — 확인: `ArticleIngestIntegrationTest.newsDataValuesFromV11PickTheMostSpecificCategory`, 마이그레이션의 다시 계산은 `CategoryMappingMigrationTest`. 여기서 고른 값은 첫 값이고, 제목을 읽은 분야 라벨이 오면 덮인다(Jira 177, `infra/server/category-labels.md`)
   — `categoryIsChosenOnlyWhenEveryValueIsKnown`
 - AC-9: B2 는 배치 출입증으로만 연다. 워커 출입증은 403, 출입증이 없으면 401
   — `onlyTheBatchKeyCanIngest` · `SecurityRulesTest.internalKeyOpensOnlyItsOwnDoor` · `SecurityRulesTest.internalApisWithoutValidKeyAreUnauthorized` · `SecurityRulesTest.matchingKeyPassesWithoutCsrfOrSession`

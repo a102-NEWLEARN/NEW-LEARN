@@ -54,7 +54,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 - **최종 덤프는 11/13(금)에 받는다**(2026-11-04 팀 결정 — 처음 「11/14 기사까지 · 11/15 오전」에서 주말을 피해 당김). 덤프의 기사는 늦어도 11/12 분까지다 — 11/13 10:00 수집 뒤 넘기는 11/12 분 목록이 마지막이고, 실제 마감은 만드는 쪽이 목록표에 적는다. 그 뒤 기사(마감 다음 날 ~ 11/15)는 적재 · 확인 뒤 운영 B1 로 분석한다(8절)
 - 2026-11-04 일회용 DB(운영과 같은 `pgvector/pgvector:0.8.7-pg18`, 마이그레이션 V1 ~ V10)에서 확인 — KST 하루 경계(UTC 전날 15:00 들어감 · 그날 15:00 빠짐), 공개된 기사 빠짐, 따옴표 · 줄바꿈 · 역슬래시 본문이 JSON 으로 그대로
 - `pressSourceId` 는 운영 `press.code` 다. B2 가 처음 보는 언론사를 `source_id` 로 등록해 두 값이 같다. 사람이 다르게 묶은 대응이 없는지 뽑기 전에 본다 — `select source_value, press_code from press_mapping where source = 'NEWSDATA' and source_value <> press_code` 가 11-02 시험 기사 SQL 이 넣은 표기 대응 셋(`뉴시스` · `Mbn` · `연합뉴스tv`, 같은 언론사)뿐이어야 한다. 목록의 `pressSourceId` 는 `press_code` 를 그대로 쓰므로 이 셋은 영향이 없다
-- 11/4(KST) 기사부터는 수집 배치가 넣는다. 10/21 ~ 11/3 최종 기사는 팀원이 NewsData 로 받아 저장소에 둔 `data/newsdata_2026-10-21_2026-11-03.sqlite`(Git LFS, 표 · sha256 은 `data/README.md`)에서 인프라가 운영에 먼저 넣는다(Jira 169, `ingest.md` 「지난 기사 파일로 넣기」). 덤프 적재 때까지 임시로 공개해 두므로(`SSOT.md` 9절) 이 목록(넣기만 기사만)에는 나오지 않는다 — 만드는 쪽은 그 넣기에 쓴 JSONL(변환 `infra/server/sqlite_to_b2.py` 의 출력, 인프라가 줄 수 · sha256 과 함께 넘김)을 로컬 B2 로 넣는다. 그러면 운영 기사와 값이 같아 적재가 URL 로 맞춘다
+- 11/4(KST) 기사부터는 수집 배치가 넣는다. 10/21 ~ 11/3 최종 기사는 팀원이 NewsData 로 받아 저장소에 둔 `data/newsdata_2026-10-21_2026-11-03.sqlite`(Git LFS, 표 · sha256 은 `data/README.md`)에서 인프라가 운영에 먼저 넣는다(Jira 169, `ingest.md` 「지난 기사 파일로 넣기」). 덤프 적재 때까지 임시로 공개해 두므로(`SSOT.md` 9절) 이 목록(넣기만 기사만)에는 나오지 않는다(라벨로 숨긴 기사는 공개 전이라 10/21 ~ 11/3 날짜로 뽑으면 나온다 — 그 날짜로 뽑지 않는다, `category-labels.md`) — 만드는 쪽은 그 넣기에 쓴 JSONL(변환 `infra/server/sqlite_to_b2.py` 의 출력, 인프라가 줄 수 · sha256 과 함께 넘김)을 로컬 B2 로 넣는다. 그러면 운영 기사와 값이 같아 적재가 URL 로 맞춘다
 
 ## 3. 덤프 약속 (만드는 쪽)
 
@@ -71,7 +71,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 |---|---|
 | `press` · `press_mapping` · `article` · `article_mindmap` · `article_embedding` · `analysis_job` · `event` · `article_event` · `issue` · `issue_category` | 회원 표(`member` · `member_category` · `bookmark` · `interest_issue`), `category`(마이그레이션이 넣음), `category_mapping`(NewsData 행은 마이그레이션 V11 이 넣음 — 다른 대응이 필요하면 BE 에), `ingest_run`, `flyway_schema_history` |
 
-`issue_category` 는 넣어도 적재가 쓰지 않고, 들어간 기사 분야로 backend 와 같은 식(`IssueCategoryRepository.java` — 이슈 기사들의 `category_code` 중 가장 많은 것)으로 다시 계산한다.
+`issue_category` 는 넣어도 적재가 쓰지 않고, 들어간 기사 분야로 backend 와 같은 식(`IssueCategoryRepository.java` — 이슈 기사들의 `category_code` 중 가장 많은 것)으로 다시 계산한다. 계산은 `category-labels-apply.sql` 이 한다.
 
 ### 형식
 
@@ -92,7 +92,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 | `article.url` | 운영 기사면 **운영 URL 과 글자까지 같다**(2절 목록 그대로, 정규화하지 않음) — 맞추는 열쇠다 | 같은 기사가 둘이 된다(새 기사로 들어감) |
 | `article.published_at` | NewsData `pubDate`(시간대 없음, `pubDateTZ` UTC)를 **UTC 로 읽은 시각**. `2026-11-03 01:02:03` 이면 `2026-11-03 01:02:03+00` = KST 10:02:03. 2절 목록(`publishedAt` 이 `Z`)과 10/21 ~ 11/3 JSONL 을 그대로 B2 로 넣었으면 저절로 맞다 — SQLite `published` 는 KST 라 변환이 값은 그대로 두고 `+09:00` 을 붙였다(`infra/server/sqlite_to_b2.py`) | 운영 기사와 다르면 적재가 멈춘다(10/21 ~ 11/3 최종 기사도 운영 기사다). 운영에 없는 기사는 견줄 짝이 없어 검사가 못 잡고, 9시간 어긋나면 A7 최신 기사 정렬 · 발생 시점이 틀린다 |
 | `article.released_at` | 화면에 보일 기사는 차 있다(EXTRACT 결과를 처음 저장한 때). **찬 기사는 `article_mindmap` 행과 EXTRACT `SUCCEEDED` 행이 꼭 있다**. 사건에 묶인 기사도 차 있어야 이슈 · 사건의 기사 수에 들어간다 | 비면 화면 어디에도 없다. 찼는데 마인드맵이 없으면 목록에는 나오고 A9 마인드맵은 404 다 |
-| `article.category_code` | 공개 기사는 채운다 — 운영 값을 덮는다. B2 가 고른 값(제목 규칙 포함)을 그대로 두면 운영과 같다. 비우면 운영 값을 그대로 둔다 | 둘 다 비면 카테고리 탭 · 이슈 분야에 안 나온다 |
+| `article.category_code` | 공개 기사는 채운다 — 운영 값을 덮는다. B2 가 고른 값(제목 규칙 포함)을 그대로 두면 운영과 같다. 비우면 운영 값을 그대로 둔다. 라벨이 있는 기사는 적재 안에서 라벨로 다시 덮인다(`category-labels.md` 4절) | 둘 다 비면 카테고리 탭 · 이슈 분야에 안 나온다 |
 | 운영에 없는 기사 | **로컬 B1 을 건 기사(작업 행이 있는 기사)만** 넣는다 — B2 로만 넣고 분석하지 않은 기사(SQLite 의 `extra` · 뺀 기사 등)는 운영 화면에 안 보이는 행으로만 남으니, 처음부터 넣지 않거나 덤프 전에 지운다(2026-11-04). 작업 행이 없는 기사에는 마인드맵 · 임베딩 · 기사-사건 행도 없다(SQL 로 넣었어도). 칸은 모두 운영 규칙대로 — `source` `NEWSDATA`, `press_code`, 제목 · 본문 · 발행 시각. 적재가 새 운영 번호로 넣는다 | 작업 행이 없는 기사는 적재가 넣지 않고 건너뛴 수만 알린다(덤프만 커진다). 그 기사에 딸린 행이 있으면 적재가 멈춘다 |
 | `press.code` | NewsData `source_id`(예: `newsis` · `news1_kr`). `press_mapping` 의 NEWSDATA 행은 `source_value` = `source_id`, `press_code` = 그 코드 | 같은 언론사가 둘로 세어진다 |
 | `analysis_job.status` | 모두 `SUCCEEDED`, 또는 `retry_at` 이 빈 `FAILED`. **`QUEUED` 없음**. `requested_by` 는 `BATCH` | 운영 1분 스케줄러가 다시 큐에 넣거나 다시 걸어 GMS 를 부른다. 큐에 들어간 판정 · ISSUE 작업은 운영에 소비자가 없어(ai 워커는 EXTRACT 만) 판정 줄 전체를 막는다 |
@@ -137,19 +137,20 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 
 - 행 수 = 적재 전(시험 기사 1 ~ 3 을 지운 뒤) + 덤프(새로 넣은 기사 · 결과 — 건너뛴 기사는 빼고), 세 시퀀스(사건 · 이슈 · 작업) ≥ 최댓값
 - 3분 동안 `analysis_job` 새 행 0, 스트림 셋(`analysis.released` · `analysis.match_event` · `analysis.issue`) 길이 그대로
-- 사이트에서 A2 이슈 목록 · A3 이슈 헤더 · A4 이슈 타임라인 · A5 사건 패널 · A6 사건 관련 기사 · A7 최신 기사 · A8 기사 상세 · A9 기사 마인드맵 · A13 통합 검색이 200, 사건에 묶인 기사의 A8 `eventMatchStatus` 가 `SUCCEEDED`
+- 사이트에서 A2 이슈 목록 · A3 이슈 헤더 · A4 이슈 타임라인 · A5 사건 패널 · A6 사건 관련 기사 · A7 최신 기사 · A8 기사 상세 · A9 기사 마인드맵 · A13 통합 검색이 200, 사건에 묶인 기사의 A8 `eventMatchStatus` 가 `SUCCEEDED`. 표본은 라벨로 숨기지 않은 기사로 고른다 — 숨긴 기사의 A8 은 404 다
+- 라벨 없는 공개 기사를 한 번 돌린다(`category-labels.md` 3절). 기사가 모두 숨겨진 사건 수는 `category-labels-apply.sql` 출력에서 본다 — Jira 179 전이면 화면에 그대로 보인다
 - 적재 동안 사이트 health 실패 0
 
 ## 6. 적재 절차 (인프라)
 
-1. **R1 — 관리자 PC 일회용 DB**: `compose.yaml` 의 DB · Redis + backend 마이그레이션 → 2절 목록 · 10/21 ~ 11/3 JSONL 일부를 B2 로 넣고 10/21 ~ 11/3 분은 `released_at` 을 채워 「운영 흉내」(임시 공개까지) → 견본 덤프로 적재 SQL 을 만들고 돌림 → 덤프에 없던 임시 공개 기사가 내려갔는지 → 운영에 없는 견본 기사의 발행 시각을 원본과 대조(운영 짝이 없어 5절 검사가 못 잡는다) → 같은 덤프를 한 번 더 넣으면 통째로 실패하고 행 수 그대로인지 → backend 를 붙여 5절 API · 스케줄러. 최종 덤프로 한 번 더
+1. **R1 — 관리자 PC 일회용 DB**: `compose.yaml` 의 DB · Redis + backend 마이그레이션 → 2절 목록 · 10/21 ~ 11/3 JSONL 일부를 B2 로 넣고 10/21 ~ 11/3 분은 `released_at` 을 채워 「운영 흉내」(임시 공개까지) → 분야 라벨을 먼저 넣는다(`category-labels.md` 2절) → 견본 덤프로 적재 SQL 을 만들고 돌림 → 덤프에 없던 임시 공개 기사가 내려갔는지 → 운영에 없는 견본 기사의 발행 시각을 원본과 대조(운영 짝이 없어 5절 검사가 못 잡는다) → 같은 덤프를 한 번 더 넣으면 통째로 실패하고 행 수 그대로인지 → backend 를 붙여 5절 API · 스케줄러. 최종 덤프로 한 번 더
 2. **적재 날 고르기** — 10시 수집과 겹치지 않게(겹쳐도 같은 URL 에서 트랜잭션이 실패해 되돌아갈 뿐이지만), 손 실행 Job 이 없는지(`kubectl -n app get jobs`). 팀에 알린다
 3. **백업** — 매일 백업 잡과 S3 잡을 손으로 하나씩(`infra/server/db-backup.md`). 파일 이름 · 크기 · sha256 을 남기고 PC 에도 받아 둔다
 4. **R2 — 서버 일회용 DB**: 그 백업을 같은 Pod 의 일회용 DB 에 되살려(`db-backup.md` 「되살리기 연습」) 적재 SQL 을 그대로 돌린 뒤 지운다
 5. **적재 — 한 psql 트랜잭션**(`psql -1 -v ON_ERROR_STOP=1`)
    - 덤프를 SQL 로 풀 때 **표 데이터만** — `pg_restore -l` 목록에서 `TABLE DATA` 줄만 남겨 `pg_restore -L <목록> --data-only -f -`. 덤프 쪽 시퀀스 값을 박는 `setval` 줄이 따라오면 운영 `article_id_seq` 가 내려가 다음 B2 가 기본 키에서 500 이 된다
    - `COPY public.` → `COPY load.` 로 바꿔 임시 스키마에 담는다(`LIKE` 로 만든 표 — 외래 키 없음). 풀린 SQL 앞머리가 `search_path` 를 비우니 뒤 SQL 은 스키마 이름을 모두 붙인다
-   - 시험 기사 1 ~ 3 과 딸린 행을 지운다(URL 과, 같이 지워질 북마크 · 관심 이슈 행 수를 먼저 본다) → 5절 검사 → 언론사 · 언론사 대응(`ON CONFLICT DO NOTHING`) → 기사(운영에 없는 URL 은 작업 행이 있는 것만 새로 넣고, 맞춘 기사는 `released_at` · `category_code` 만) → 이슈 → 사건(자기 참조는 한 `INSERT … SELECT` 안이라 문장 끝에 검사돼 트리거를 끄지 않는다) → 기사-사건 · 마인드맵 · 임베딩 · 작업(기사 번호는 URL 로 바꾼 운영 번호) → 이슈 분야 다시 계산 → **임시 공개 내리기** — `released_at` 이 찼는데 `article_mindmap` 행이 없는 기사의 `released_at` 을 비운다(덤프에 없는 10/21 ~ 11/3 기사, `SSOT.md` 9절) → 세 시퀀스 `setval`. 맞춘 기사의 `released_at` 을 덤프 쪽이 비었을 때 덮을지 둘지는 R1 에서 정한다
+   - 시험 기사 1 ~ 3 과 딸린 행을 지운다(URL 과, 같이 지워질 북마크 · 관심 이슈 행 수를 먼저 본다) → 5절 검사 → 언론사 · 언론사 대응(`ON CONFLICT DO NOTHING`) → 기사(운영에 없는 URL 은 작업 행이 있는 것만 새로 넣고, 맞춘 기사는 `released_at` · `category_code` 만) → 이슈 → 사건(자기 참조는 한 `INSERT … SELECT` 안이라 문장 끝에 검사돼 트리거를 끄지 않는다) → 기사-사건 · 마인드맵 · 임베딩 · 작업(기사 번호는 URL 로 바꾼 운영 번호) → 분야 라벨 다시 적용 · 이슈 분야 다시 계산(`category-labels-apply.sql` 을 그대로 부른다, `category-labels.md` 4절) → **임시 공개 내리기** — `released_at` 이 찼는데 `article_mindmap` 행이 없는 기사의 `released_at` 을 비운다(덤프에 없는 10/21 ~ 11/3 기사, `SSOT.md` 9절) → 세 시퀀스 `setval` → 라벨이 숨김인데 공개된 기사 0 단언(적재 SQL 에 따로 둔다 — `apply` 를 빠뜨려도 커밋 전에 걸린다). 맞춘 기사의 `released_at` 을 덤프 쪽이 비었을 때 덮을지 둘지는 R1 에서 정한다
    - 되돌리기 스키마 `load_undo` 에 적재 시각 · 「새로 넣은 기사 번호」 · 「맞춘 기사의 옛 `released_at` · `category_code`」 · 「내린 기사 번호와 옛 `released_at`」을 남기고, `load` 스키마는 지운다
 6. **큐 정리** — 지운 시험 작업의 메시지가 큐에 남으면 같은 번호의 덤프 작업으로 읽힌다(메시지에 작업 번호가 들어 있다). `embed` 그룹이 안 읽은 메시지는 `XRANGE` 로 확인한 마지막 ID 로 `XGROUP SETID`, `extract` 그룹 lag · 미ACK 0. `analysis.match_event` · `analysis.issue` 는 길이를 보고, 0 이 아니면 그 그룹들도 `XGROUP SETID` 로 넘긴다 — backend 가 그룹을 `0` 위치에 만들어(`StreamGroupsInitializer.java`) 판정 · ISSUE 워커가 나중에 뜨면 처음부터 읽는다
 7. **확인 · 넘기기** — 5절 「적재 뒤」 → AI 팀장 · FE 에 결과와 함께 넘긴다. 이슈 화면이 생기면 화면 CSP 강제 상태에서 `/issues/:id` 를 한 번 본다(Jira 120 남은 확인)
@@ -157,6 +158,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 ## 7. 되돌리기
 
 - **1순위 — `load_undo` 로 SQL**(한 트랜잭션): 분석 표 일곱을 비우고, 새로 넣은 기사를 지우고, 맞춘 기사의 `released_at` · `category_code` 를 옛 값으로, 내린 기사는 옛 `released_at` 으로 다시 공개. 그 기사 · 이슈를 담은 북마크 · 관심 이슈는 같이 지워진다(`on delete cascade`) — 지우기 전에 행 수를 본다
+- 이 되돌리기는 분야 라벨을 되돌리지 않는다 — 라벨 반영 뒤 상태로 돌아간다. 라벨까지 되돌리면 `category-labels.md` 6절 순서로
 - **B1 을 켠 뒤라면** 위만으로는 모자란다 — 적재 시각 뒤에 공개된 기사는 `released_at` 이 남아 목록에는 나오고 마인드맵은 404 가 되고, B1 을 다시 걸어도 409 다. 그 기사들(`released_at` > 적재 시각)의 `released_at` 도 비우고, 지운 작업 번호의 큐 메시지를 6절처럼 넘긴다
 - **마지막 수단 — 적재 직전 백업 되살리기**(`db-backup.md` 「사고 때 되살리기」). 그 뒤 들어온 수집 기사 · 가입 · 북마크를 잃는다 — 수집 기사는 48시간 안이면 손 실행으로 다시 받는다
 - 🔴 되돌릴 수 없는 것: 적재 때 지운 시험 기사 1 ~ 3 과 그 행 · 북마크(백업에만 있다), 큐에서 건너뛴 메시지, 되돌릴 때 같이 지워지는 회원의 북마크 · 관심 이슈
@@ -166,4 +168,4 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 ## 8. 그 뒤
 
 - B1 켜기 · 하루 분석 상한 — `ingest.md` 「B1 켜기」(Jira 156)
-- 덤프 마감 뒤 운영 기사(공개 전 · 작업 없음 — 대략 11/13 ~ 11/15 분)는 적재 · 확인 뒤 운영 B1 로 분석한다(2026-11-04 팀 결정). 고를 때는 **발행 날짜 범위를 꼭 건다** — 임시 공개에서 내린 10/21 ~ 11/3 기사도 「공개 전 · 작업 없음」이라 상태만으로 고르면 그 기사들까지 GMS 로 간다. 수집 배치의 B1 은 그 실행에서 받은 기사만 거니 이 기사들은 따로 걸어야 하고, 하루 분석 상한(GMS, `SSOT.md` 8절) 안에서 AI 팀에 미리 알린 뒤 건다 — 거는 법은 Jira 156
+- 덤프 마감 뒤 운영 기사(공개 전 · 작업 없음 — 대략 11/13 ~ 11/15 분)는 적재 · 확인 뒤 운영 B1 로 분석한다(2026-11-04 팀 결정). 고를 때는 **발행 날짜 범위를 꼭 건다** — 임시 공개에서 내린 10/21 ~ 11/3 기사도 「공개 전 · 작업 없음」이라 상태만으로 고르면 그 기사들까지 GMS 로 간다. 라벨로 숨긴 기사도 같은 상태라 걸면 다시 공개된다(`category-labels.md` 5절). 수집 배치의 B1 은 그 실행에서 받은 기사만 거니 이 기사들은 따로 걸어야 하고, 하루 분석 상한(GMS, `SSOT.md` 8절) 안에서 AI 팀에 미리 알린 뒤 건다 — 거는 법은 Jira 156
