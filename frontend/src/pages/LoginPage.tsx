@@ -126,7 +126,7 @@ export function LoginPage() {
           onSubmit={handleSubmit}
           className="mx-auto flex max-w-[400px] flex-col gap-x5 px-x4 pt-x10 pb-x14 md:pt-x16"
         >
-          <div className="mb-x2 break-keep">
+          <div className="mb-x2">
             <h1 id="login-title" className="screen-title text-fg-neutral">
               로그인
             </h1>
