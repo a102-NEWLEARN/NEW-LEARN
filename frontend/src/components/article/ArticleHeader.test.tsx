@@ -6,6 +6,7 @@ import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
 import { server } from "@/mocks/node";
 import { stubScreen } from "@/test/media";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const ARTICLE: ArticleDetail = {
@@ -174,4 +175,22 @@ test("넓은 화면에서는 이슈 보기 버튼이 글자 폭만큼이다", as
 
   const link = screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" });
   expect(link.className).not.toContain("w-full");
+});
+
+test("기사를 받으면 분야 · 제목 · 정보 · 버튼이 차례로 떠오른다 — 움직임은 동작 줄이기를 켜면 빠진다", async () => {
+  answer({});
+  renderWithProviders(<Header />);
+
+  const heading = await title();
+  const order = [
+    screen.getByText("경제 · 한빛반도체 미국 공장 건설"),
+    heading.firstElementChild!,
+    screen.getByText("바른신문 · 2026.10.06 14:30 · 김민정 기자"),
+    screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" })
+      .parentElement!,
+  ].map(enterDelay);
+
+  expect(order.some(Number.isNaN)).toBe(false);
+  order.slice(1).forEach((at, i) => expect(at).toBeGreaterThan(order[i]));
+  expectMotionSafe();
 });

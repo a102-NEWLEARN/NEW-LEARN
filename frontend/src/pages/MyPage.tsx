@@ -52,7 +52,7 @@ export function MyPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[760px] px-x4 pt-x9 pb-x16 md:px-x6">
+    <div className="mx-auto max-w-[760px] px-x5 pt-x9 pb-[96px] md:px-x6 md:pb-x16">
       <div className="flex items-center gap-x3_5">
         {member && (
           <span
