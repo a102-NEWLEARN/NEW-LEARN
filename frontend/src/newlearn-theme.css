@@ -215,3 +215,60 @@ body {
     opacity: 0;
   }
 }
+
+/* 기사 마인드맵 두 보기의 등장 · 강조 (프로토타입 v21 im-node-in · im-draw · im-rise · im-pop-once).
+   쓰는 곳과 길이는 components/article/motion.ts. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+
+/* 노드 · 번호 원이 제자리에서 작게 시작해 튀어나온다 */
+@keyframes newlearn-pop-in {
+  from {
+    transform: scale(0.35);
+    opacity: 0;
+  }
+}
+
+/* 선이 시작점에서 끝점으로 뻗는다 — 선에 pathLength 1 을 줘서 길이와 상관없이 1 만큼 민다 */
+@keyframes newlearn-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 짧게 떠오른다 — 카드처럼 촘촘한 것은 랜딩(24px)보다 덜 움직인다 */
+@keyframes newlearn-rise-short {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+
+/* 잇는 선이 가로로 · 세로로 자란다 */
+@keyframes newlearn-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes newlearn-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes newlearn-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 강조한 잎 원이 한 번 튄다 */
+@keyframes newlearn-pop-once {
+  45% {
+    transform: scale(1.22);
+  }
+}

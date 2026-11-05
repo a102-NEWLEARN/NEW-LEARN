@@ -2,6 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { FlowView } from "@/components/article/FlowView";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -181,6 +182,66 @@ test.each([
   press();
 
   expect(pressed("첫 해 생산 목표를 밝혔다")).toBe("true");
+});
+
+// 가지 번호 원 · 질문과 이름 묶음 · 잎 원
+const circle = (question: string, n: number) =>
+  within(step(question)).getByText(String(n));
+const questionBlock = (question: string) =>
+  screen.getByRole("heading", { level: 2, name: question }).parentElement!;
+const mark = (name: string | RegExp) =>
+  card(name).querySelector("[data-leaf-mark]")!;
+
+test("열 때 머리 줄 → 가지 열 차례로 나온다 — 열 안에서는 번호 원 → 질문 → 잎 카드 차례다 (프로토타입 v21)", () => {
+  renderFlow();
+  const header = screen.getByText("기사 핵심").closest("[aria-hidden]")!;
+  const questions = [
+    "무슨 일이?",
+    "왜 일어났나?",
+    "누가 뭐라고 했나?",
+    "앞으로는?",
+  ];
+
+  for (const element of [
+    header,
+    circle("무슨 일이?", 1),
+    questionBlock("무슨 일이?"),
+    card("첫 해 생산 목표를 밝혔다"),
+  ])
+    expect(element.getAttribute("class")).toMatch(/motion-safe:animate-\[/);
+  // 가지 열은 A9 순서로, 머리 줄 뒤에
+  const circles = questions.map((question, i) =>
+    enterDelay(circle(question, i + 1)),
+  );
+  expect(enterDelay(header)).toBeLessThan(circles[0]);
+  circles.slice(1).forEach((at, i) => expect(at).toBeGreaterThan(circles[i]));
+  // 한 열 안에서는 번호 원 → 질문 → 잎 카드(잎 순서대로)
+  expect(enterDelay(questionBlock("무슨 일이?"))).toBeGreaterThan(circles[0]);
+  expect(
+    enterDelay(card("한빛반도체가 텍사스 공장 착공식을 열었다")),
+  ).toBeGreaterThan(enterDelay(questionBlock("무슨 일이?")));
+  expect(enterDelay(card("첫 해 생산 목표를 밝혔다"))).toBeGreaterThan(
+    enterDelay(card("한빛반도체가 텍사스 공장 착공식을 열었다")),
+  );
+});
+
+test("강조한 잎의 원이 한 번 튄다 — 다른 잎은 그대로다", () => {
+  renderFlow();
+  const first = "첫 해 생산 목표를 밝혔다";
+  const second = "업계는 인력 수급을 걱정했다";
+
+  expect(mark(first).getAttribute("class")).not.toContain("newlearn-pop-once");
+  fireEvent.click(card(first));
+
+  expect(mark(first).getAttribute("class")).toContain("newlearn-pop-once");
+  expect(mark(second).getAttribute("class")).not.toContain("newlearn-pop-once");
+});
+
+test("움직임은 동작 줄이기를 켜면 빠진다 — 애니메이션 · 크기 변화 클래스는 모두 motion-safe 다", () => {
+  renderFlow();
+  fireEvent.click(card("첫 해 생산 목표를 밝혔다"));
+
+  expectMotionSafe();
 });
 
 test("머리 줄의 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 과 같은 글이다", () => {
