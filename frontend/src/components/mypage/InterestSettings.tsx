@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { ApiError, isSessionExpired } from "@/api/error";
 import { changeCategories, type Member, meQuery } from "@/api/members";
@@ -21,9 +20,9 @@ function categoryError(error: unknown) {
   );
 }
 
-// 마이페이지 관심 분야 — 지금 관심 분야를 고른 칩으로 시작해 고치고 *저장하고 홈으로* 로 A18 에 보낸다
-// (EXPERIENCE.md IA 마이페이지 행, 프로토타입 v21 MyPageScreen). *홈으로* 는 저장하지 않는다.
-// v21 은 저장 줄을 화면 아래에 붙여 두지만 좁은 화면에서 용어사전 버튼이 덮어서 섹션 안에 둔다 [가정]
+// 마이페이지 관심 분야 — 지금 관심 분야를 고른 칩으로 시작해 고치고 제목 오른쪽 *저장* 으로 A18 에 보낸다.
+// 저장하면 알림만 띄우고 마이페이지에 남는다 (EXPERIENCE.md IA 마이페이지 행). v21 은 화면 아래 저장 줄
+// (*홈으로* · *저장하고 홈으로*)이었지만 카드 가운데 버튼 줄이 어수선했다 (2026-11-05 사용자)
 export function InterestSettings({ member }: { member: Member }) {
   const headingId = useId();
   const [codes, setCodes] = useState(() =>
@@ -32,7 +31,6 @@ export function InterestSettings({ member }: { member: Member }) {
   const [error, setError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
 
@@ -41,7 +39,6 @@ export function InterestSettings({ member }: { member: Member }) {
     onSuccess: (updated) => {
       queryClient.setQueryData(meQuery.queryKey, updated);
       snackbar.show("관심사를 저장했어요", "positive");
-      navigate("/home");
     },
     onError: (cause) => {
       // 세션이 끝났다 — QueryClient 가 손님으로 바꿔 로그인 화면으로 보낸다(query-client.ts). 로그인하면 여기로 돌아온다
@@ -73,6 +70,17 @@ export function InterestSettings({ member }: { member: Member }) {
       title="관심 분야"
       description="홈 추천 탭에 고른 분야가 나와요."
       headingId={headingId}
+      action={
+        <ActionButton
+          variant="brandSolid"
+          size="small"
+          loading={mutation.isPending}
+          aria-busy={mutation.isPending || undefined}
+          onClick={save}
+        >
+          저장
+        </ActionButton>
+      }
     >
       <InterestChips
         ref={chipsRef}
@@ -86,29 +94,6 @@ export function InterestSettings({ member }: { member: Member }) {
         onKeepOne={() => setError(KEEP_ONE)}
         error={error ?? undefined}
       />
-      <div className="mt-x5 flex flex-wrap items-center gap-x2">
-        {/* *홈으로* 는 저장하지 않는다 — 저장해야 반영된다. 좁은 화면에서는 안내가 한 줄을 다 쓰고
-            두 버튼이 그 아래를 반씩 나눈다. 넓은 화면은 안내 왼쪽 · 버튼 오른쪽 */}
-        <p className="t3-regular w-full text-fg-neutral-muted md:mr-auto md:w-auto">
-          저장하면 홈 추천에 바로 반영돼요.
-        </p>
-        <ActionButton
-          asChild
-          variant="neutralOutline"
-          className="flex-1 md:flex-none"
-        >
-          <Link to="/home">홈으로</Link>
-        </ActionButton>
-        <ActionButton
-          variant="brandSolid"
-          className="flex-1 md:flex-none"
-          loading={mutation.isPending}
-          aria-busy={mutation.isPending || undefined}
-          onClick={save}
-        >
-          저장하고 홈으로
-        </ActionButton>
-      </div>
       {failure && (
         <p
           role="alert"

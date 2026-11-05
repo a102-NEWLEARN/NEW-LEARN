@@ -59,6 +59,28 @@ test("셸 안에 이름 · 아이디와 로그아웃 버튼을 띄운다", async
   expect(document.title).toContain("마이페이지");
 });
 
+test("섹션은 개인정보 → 관심 분야 → 관심 이슈 차례이고, 로그아웃은 이름 줄에 있다", async () => {
+  await openMyPage();
+  const main = screen.getByRole("main");
+  await within(main).findByRole("region", { name: "관심 분야" });
+
+  expect(
+    within(main)
+      .getAllByRole("region")
+      .map((region) => region.getAttribute("aria-labelledby"))
+      .map((id) => document.getElementById(id ?? "")?.textContent),
+  ).toEqual(["개인정보", "관심 분야", "관심 이슈"]);
+  // 로그아웃은 맨 아래가 아니라 이름 · 개수 줄 오른쪽 — 섹션 안에 없다 (2026-11-05 사용자)
+  for (const region of within(main).getAllByRole("region"))
+    expect(
+      within(region).queryByRole("button", { name: /로그아웃/ }),
+    ).toBeNull();
+  const heading = within(main).getByRole("heading", { level: 1 });
+  expect(heading.closest("[data-profile]")?.contains(logoutButton())).toBe(
+    true,
+  );
+});
+
 test("헤더의 마이페이지를 누르면 마이페이지로 간다", async () => {
   const { router } = renderRoute("/home");
 

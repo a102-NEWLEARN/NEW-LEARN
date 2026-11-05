@@ -30,6 +30,7 @@ import { useShell } from "@/components/shell/useShell";
 import { usePageTitle } from "@/components/usePageTitle";
 import { formatPeriod } from "@/lib/date";
 import { toId } from "@/lib/id";
+import { metaLine } from "@/lib/meta";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 const NOT_FOUND_TITLE = "이슈를 찾을 수 없어요";
@@ -193,21 +194,16 @@ function IssueView({ issueId }: { issueId: number }) {
 }
 
 // 「2026.08.04 ~ 10.09 · 사건 8 · 기사 31」 — 사건이 없으면 기간 없이, 개수가 0이면 그 항목을 뺀다.
-// 항목 안과 점 앞은 줄바꿈 없는 칸이다 — 좁은 화면에서 「기사 / 12」처럼 숫자만 넘어가거나 줄이 「·」로 시작하지 않게
+// 좁은 화면에서 점 뒤에서만 꺾인다 (metaLine)
 function summaryOf(issue: IssueDetail) {
-  return [
+  return metaLine([
     issue.firstEventAt &&
       issue.lastEventAt &&
       formatPeriod(issue.firstEventAt, issue.lastEventAt),
     issue.eventCount > 0 && `사건 ${issue.eventCount}`,
     issue.articleCount > 0 && `기사 ${issue.articleCount}`,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .map((part) => part.replaceAll(" ", NBSP))
-    .join(`${NBSP}· `);
+  ]);
 }
-
-const NBSP = "\u00a0";
 
 function Centered({ children }: { children: ReactNode }) {
   return (

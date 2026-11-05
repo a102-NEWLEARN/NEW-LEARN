@@ -5,6 +5,8 @@ type MyPageSectionProps = {
   description?: string;
   /** 제목 id — 안의 묶음이 제목으로 이름을 받을 때 바깥에서 준다 (관심 분야 칩) */
   headingId?: string;
+  /** 제목 줄 오른쪽 버튼 — 관심 분야 *저장* */
+  action?: ReactNode;
   children: ReactNode;
 };
 
@@ -15,6 +17,7 @@ export function MyPageSection({
   title,
   description,
   headingId,
+  action,
   children,
 }: MyPageSectionProps) {
   const ownId = useId();
@@ -24,9 +27,12 @@ export function MyPageSection({
       aria-labelledby={id}
       className="rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default p-x4 md:p-x6"
     >
-      <h2 id={id} className="t5-bold text-fg-neutral">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between gap-x3">
+        <h2 id={id} className="t5-bold text-fg-neutral">
+          {title}
+        </h2>
+        {action}
+      </div>
       {description && (
         <p className="t3-regular mt-x1 text-fg-neutral-muted">{description}</p>
       )}
