@@ -284,6 +284,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 170 | NewsData 원본 분류 → 카테고리 대응 행 | 2026-11-04 — 마이그레이션 V11(`data-model.md` 2절 category_mapping). B2 대표 카테고리가 차고, 이미 들어온 기사도 다시 계산. A1 · A7 은 대표 카테고리 기준 그대로 |
 | 171 | 해외 정치 기사 → 국제 | 2026-11-05 — B2 기사 적재 제목 규칙 · 마이그레이션 V12(`data-model.md` 2절 category_mapping). API 모양은 그대로, A1 분야별 기사 수 · A7 최신 기사는 대표 카테고리 기준 그대로 |
 | 177 | 분야 라벨 · 스포츠 / 문화·연예 숨김 | 2026-11-05 — 대표 카테고리를 제목을 읽은 라벨이 덮고, 숨긴 기사는 공개 전과 같다(`infra/server/category-labels.md`). API 모양은 그대로, A1 분야별 기사 수 · A7 최신 기사 값이 바뀐다 |
+| 178 | 제목의 HTML 조각 고치기 | 2026-11-05 — B2 기사 적재 · 마이그레이션 V13(`data-model.md` article). API 모양은 그대로, 제목 값이 바뀐다 |
 | 30 | 작업 큐 · W1 공통 봉투 · 작업 상태 · 재처리 | 2026-10-26 구현(`docs/specs/F03-F07-analysis-job-queue.md`) |
 | 35 | W1 `EMBED` · `MATCH_EVENT` 결과 저장, 후보 사건 찾기 | 2026-10-27 구현(`docs/specs/F06-event-match.md`) |
 | 40 | W1 `ISSUE` 결과 저장, ISSUE 고르기 · 후보 (제안) | 2026-10-29 계약(제안)대로 구현 · 사이트 반영(`docs/specs/F07-issue-assign.md`). AI 가 모양을 바꾸면 다시 고친다 |
