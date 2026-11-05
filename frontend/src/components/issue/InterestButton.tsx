@@ -83,9 +83,10 @@ export function InterestButton({
       className={`flex shrink-0 items-center justify-center hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
         small ? "size-x7 rounded-r1" : "size-x10 rounded-r2"
       } ${interested ? "text-fg-brand" : "text-fg-neutral-subtle"} ${
-        // 저장하지 않은 작은 별은 줄(group/row)에 마우스를 올리거나 별에 포커스할 때만 — 터치 화면에서는 늘 보인다 (v21 .im-pin)
+        // 저장하지 않은 작은 별은 줄(group/row)에 마우스를 올리거나 별에 포커스할 때만 (v21 .im-pin).
+        // 손가락으로도 누를 수 있는 기기(터치 노트북 · 트랙패드 단 태블릿 포함)면 늘 보인다 — 숨은 별을 손가락이 잘못 누르지 않게
         small && !interested
-          ? "pointer-fine:opacity-0 pointer-fine:group-hover/row:opacity-100 pointer-fine:focus-visible:opacity-100"
+          ? "pointer-fine:opacity-0 pointer-fine:group-hover/row:opacity-100 pointer-fine:focus-visible:opacity-100 any-pointer-coarse:opacity-100"
           : ""
       } ${className}`}
     >
