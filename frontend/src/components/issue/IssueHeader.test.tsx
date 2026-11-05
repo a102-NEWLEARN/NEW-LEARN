@@ -5,6 +5,7 @@ import { expect, test, vi } from "vitest";
 import { issueQuery } from "@/api/issue";
 import { IssueHeader } from "@/components/issue/IssueHeader";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 function Header() {
@@ -86,4 +87,21 @@ test("요약이 없으면 AI 생성 표시도 두지 않는다", async () => {
 
   await screen.findByRole("heading", { level: 1 });
   expect(screen.queryByText("AI 생성")).toBeNull();
+});
+
+test("이슈를 받으면 분야 · 제목 · 요약이 차례로 떠오른다 — 움직임은 동작 줄이기를 켜면 빠진다", async () => {
+  withSummary("텍사스 공장 투자를 늘리고 착공했다");
+  renderWithProviders(<Header />);
+
+  const heading = await screen.findByRole("heading", { level: 1 });
+  await screen.findByText("텍사스 공장 투자를 늘리고 착공했다");
+  const order = [
+    screen.getByRole("banner").firstElementChild!,
+    heading.firstElementChild!,
+    screen.getByText("텍사스 공장 투자를 늘리고 착공했다").parentElement!,
+  ].map(enterDelay);
+
+  expect(order.some(Number.isNaN)).toBe(false);
+  order.slice(1).forEach((at, i) => expect(at).toBeGreaterThan(order[i]));
+  expectMotionSafe();
 });

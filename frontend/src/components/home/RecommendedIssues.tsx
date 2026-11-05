@@ -7,8 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { Link, useSearchParams } from "react-router";
 import { type Category, categoriesQuery } from "@/api/categories";
-import { issuesQuery } from "@/api/issues";
+import { interestIssuesQuery } from "@/api/interestIssues";
+import { type IssueSummary, issuesQuery } from "@/api/issues";
 import type { Member } from "@/api/members";
+import type { Page } from "@/api/types";
 import { type CategoryTab, CategoryTabs } from "@/components/CategoryTabs";
 import { IssueCard } from "@/components/IssueCard";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -24,6 +26,24 @@ type RecommendedIssuesProps = {
   /** A17 을 아직 받는 중. 탭 순서가 정해지지 않아 그동안 자리만 둔다 */
   pending: boolean;
 };
+
+// 그 분야의 관심 이슈를 먼저, 그다음 A2 순서(마지막 사건 최신순)에서 겹치지 않는 것 (PRD FR-28 · 프로토타입 v21 rank, Jira 172).
+// 관심 이슈끼리도 마지막 사건 최신순이고 사건이 없는 이슈는 뒤다. A2 앞 3개 밖의 관심 이슈도 앞에 오도록 A25 에서 고른다.
+// 그 분야 이슈가 모자라도 다른 관심 분야 이슈로 채우지 않는다 — v21 이 채우기를 껐다(fill = [])
+function pickRecommended(
+  category: string,
+  interests: readonly IssueSummary[],
+  latest: readonly IssueSummary[],
+) {
+  const starred = interests
+    .filter((issue) => issue.categories.some((item) => item.code === category))
+    .sort((a, b) => (b.lastEventAt ?? "").localeCompare(a.lastEventAt ?? ""));
+  const starredIds = new Set(starred.map((issue) => issue.id));
+  return [
+    ...starred,
+    ...latest.filter((issue) => !starredIds.has(issue.id)),
+  ].slice(0, ISSUES_PER_TAB);
+}
 
 // 관심 분야(별) → 나머지 분야. 둘 다 A1 순서다. 준비 중 분야는 CategoryTabs 가 끝에 붙인다
 // (EXPERIENCE.md Component Patterns 「분야 탭」)
@@ -57,6 +77,17 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
     ...issuesQuery({ category: selected, size: ISSUES_PER_TAB }),
     enabled: !pending && selected !== undefined,
   });
+  // 회원의 관심 이슈(A25) — 그 분야 것을 앞에 둔다. 손님은 관심 이슈가 없어 부르지 않는다
+  const interests = useQuery({
+    ...interestIssuesQuery,
+    enabled: !pending && member !== null,
+  });
+  // A25 를 받는 동안은 카드 자리만 둔다 — A2 순서로 그렸다가 눈앞에서 바뀌지 않게. 실패하면 A2 순서 그대로 둔다
+  const waitingInterests = member !== null && interests.isPending;
+  const pick = (page: Page<IssueSummary>) =>
+    selected === undefined
+      ? page.items
+      : pickRecommended(selected, interests.data ?? [], page.items);
 
   const selectCategory = (code: string) =>
     setSearchParams(
@@ -96,31 +127,34 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
 
   return (
     <section aria-labelledby={headingId}>
-      <div className="flex items-end justify-between gap-x3">
-        <div>
-          <h2 id={headingId} className="t7-bold text-fg-neutral">
-            {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
-          </h2>
-          <p className="t4-regular mt-x1 text-fg-neutral-muted">
-            여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
-            {hasInterests && (
-              <>
-                {" "}
-                <IconStarFill
-                  aria-hidden
-                  size={12}
-                  className="inline align-baseline text-fg-brand"
-                />
-                <span className="sr-only">별표</span>는 관심 분야예요.
-              </>
-            )}
-          </p>
-        </div>
+      {/* 제목 · 설명 | 관심사 편집. 좁은 화면은 제목이 한 줄을 다 쓰고 그 아래에 설명 | 버튼 —
+          버튼이 제목 옆을 차지하면 360px 에서 제목이 두 줄로 꺾인다. 읽는 순서는 제목 → 설명 → 버튼 그대로다 */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x3">
+        <h2
+          id={headingId}
+          className="t7-bold col-span-2 row-start-1 text-fg-neutral md:col-span-1"
+        >
+          {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
+        </h2>
+        <p className="t4-regular col-start-1 row-start-2 mt-x1 text-fg-neutral-muted">
+          여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
+          {hasInterests && (
+            <>
+              {" "}
+              <IconStarFill
+                aria-hidden
+                size={12}
+                className="inline align-baseline text-fg-brand"
+              />
+              <span className="sr-only">별표</span>는 관심 분야예요.
+            </>
+          )}
+        </p>
         <ActionButton
           asChild
           variant="ghost"
           size="small"
-          className="-mr-x2 shrink-0"
+          className="col-start-2 row-start-2 -mr-x2 shrink-0 self-end md:row-span-2 md:row-start-1"
         >
           <Link to="/me">
             관심사 편집
@@ -143,26 +177,32 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                 value={selected}
                 onValueChange={selectCategory}
               >
-                <QueryState
-                  query={issues}
-                  loadingLabel="추천 이슈 불러오는 중"
-                  skeleton={<CardsSkeleton />}
-                  errorTitle="추천 이슈를 불러오지 못했어요"
-                  empty={{
-                    when: (page) => page.items.length === 0,
-                    message: "이 분야의 이슈가 아직 없어요",
-                  }}
-                >
-                  {(page) => (
-                    <ul className="mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4">
-                      {page.items.map((issue) => (
-                        <li key={issue.id}>
-                          <IssueCard issue={issue} />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </QueryState>
+                {waitingInterests ? (
+                  <LoadingState label="추천 이슈 불러오는 중">
+                    <CardsSkeleton />
+                  </LoadingState>
+                ) : (
+                  <QueryState
+                    query={issues}
+                    loadingLabel="추천 이슈 불러오는 중"
+                    skeleton={<CardsSkeleton />}
+                    errorTitle="추천 이슈를 불러오지 못했어요"
+                    empty={{
+                      when: (page) => pick(page).length === 0,
+                      message: "이 분야의 이슈가 아직 없어요",
+                    }}
+                  >
+                    {(page) => (
+                      <ul className="mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4">
+                        {pick(page).map((issue) => (
+                          <li key={issue.id}>
+                            <IssueCard issue={issue} />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </QueryState>
+                )}
               </CategoryTabs>
             )
           }

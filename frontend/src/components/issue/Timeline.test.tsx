@@ -10,6 +10,7 @@ import { expect, test, vi } from "vitest";
 import { fetchTimeline } from "@/api/timeline";
 import { Timeline } from "@/components/issue/Timeline";
 import { stubScreen } from "@/test/media";
+import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 
 // 12번 이슈의 가짜 사건 8개 — 메인 5 · 서브 3, 같은 시각 사건과 「추정」 사건이 있다 (src/mocks/handlers.ts)
 async function renderTimeline(selectedId: number | null = null) {
@@ -393,4 +394,118 @@ test("넓은 화면에서는 레인 이름 칸 140px · 확대 % · 글자 「�
     "전체 보기",
   );
   expect(zoomLevel()).toBeGreaterThan(0);
+});
+
+// 사건이 튀어나오는 묶음 · 라벨이 떠오르는 묶음 · 노드 가로 자리
+const popOf = (button: Element) =>
+  button.querySelector('[class*="newlearn-spring-in"]')!;
+const labelOf = (button: Element) =>
+  button.querySelector('[class*="newlearn-rise-short"]')!;
+const xOf = (button: Element) =>
+  Number(/translate\(([-\d.]+),/.exec(button.getAttribute("transform")!)![1]);
+const laneNodes = (lane: "메인" | "서브") =>
+  screen
+    .getAllByRole("button", { name: new RegExp(`${lane} 흐름`) })
+    .sort((a, b) => xOf(a) - xOf(b));
+
+test("열 때 메인 흐름 선이 왼쪽에서 오른쪽으로 뻗고, 선 끝이 지나는 자리의 사건이 차례로 튀어나온다 — 같은 시각 사건은 함께", async () => {
+  await renderTimeline();
+  const mains = laneNodes("메인");
+  const delays = mains.map((button) => enterDelay(popOf(button)));
+
+  mains.slice(1).forEach((button, i) => {
+    if (xOf(button) > xOf(mains[i]))
+      expect(delays[i + 1]).toBeGreaterThan(delays[i]);
+    else expect(delays[i + 1]).toBe(delays[i]);
+  });
+  // 라벨은 그 사건 뒤에 떠오른다
+  mains.forEach((button) =>
+    expect(enterDelay(labelOf(button))).toBeGreaterThan(
+      enterDelay(popOf(button)),
+    ),
+  );
+  // 레인 선은 첫 메인 사건이 나올 때 뻗기 시작해 마지막 메인 사건이 나올 때 다 뻗는다
+  const rail = document.querySelector<SVGLineElement>("[data-rail]")!;
+  expect(rail.getAttribute("pathLength")).toBe("1");
+  expect(enterDelay(rail)).toBe(delays[0]);
+  expect(
+    enterDelay(rail) + Number.parseFloat(rail.style.animationDuration),
+  ).toBe(delays.at(-1));
+});
+
+test("서브 흐름 사건은 그 자리를 메인 흐름 선이 지나간 뒤에 나온다 — 레인 이름은 그보다 먼저다", async () => {
+  await renderTimeline();
+  const mains = laneNodes("메인");
+
+  for (const sub of laneNodes("서브")) {
+    const passed = mains
+      .filter((main) => xOf(main) <= xOf(sub))
+      .map((main) => enterDelay(popOf(main)));
+    if (passed.length)
+      expect(enterDelay(popOf(sub))).toBeGreaterThan(Math.max(...passed));
+  }
+  const lanes = within(screen.getByRole("list", { name: "레인" })).getAllByRole(
+    "listitem",
+  );
+  lanes.forEach((lane) => {
+    const first = lane.querySelector('[class*="motion-safe:animate-"]')!;
+    expect(enterDelay(first)).toBeLessThan(enterDelay(popOf(mains[0])));
+  });
+});
+
+test("사건이 많아도 2초 안에 다 나온다 — 선이 뻗는 길이에 상한이 있다", async () => {
+  const { events } = await fetchTimeline(12);
+  const many = Array.from({ length: 40 }, (_, i) => ({
+    ...events[i % events.length],
+    id: 1000 + i,
+    occurredAt: new Date(Date.UTC(2026, 0, 1) + i * 86_400_000).toISOString(),
+  }));
+  render(
+    <Timeline
+      events={many}
+      selectedId={null}
+      onSelect={vi.fn()}
+      onDeselect={vi.fn()}
+    />,
+  );
+
+  expect(lastEnterEnd()).toBeGreaterThan(0);
+  expect(lastEnterEnd()).toBeLessThanOrEqual(2000);
+});
+
+test("고른 사건에는 파문이 번지고 시간축 날짜 표시가 튀어나온다", async () => {
+  await renderTimeline(119);
+
+  expect(
+    node(/착공식/).querySelector('[class*="newlearn-ripple"]'),
+  ).not.toBeNull();
+  expect(
+    node(/공식 발표/).querySelector('[class*="newlearn-ripple"]'),
+  ).toBeNull();
+  expect(
+    screen
+      .getByTestId("selected-date")
+      .closest('[class*="newlearn-spring-in"]'),
+  ).not.toBeNull();
+});
+
+test("마우스를 올린 사건은 커지고, 툴팁은 떠오르며 나타난다", async () => {
+  await renderTimeline();
+  const scaled = (button: Element) =>
+    button.querySelector('[class*="motion-safe:scale-[1.15]"]');
+
+  fireEvent.mouseEnter(node(/착공식/));
+
+  expect(scaled(node(/착공식/))).not.toBeNull();
+  expect(scaled(node(/공식 발표/))).toBeNull();
+  expect(screen.getByRole("tooltip").getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-/,
+  );
+});
+
+test("움직임은 동작 줄이기를 켜면 빠진다 — 애니메이션 · 크기 변화 클래스는 모두 motion-safe 다", async () => {
+  await renderTimeline(119);
+  fireEvent.mouseEnter(node(/공식 발표/));
+
+  expectMotionSafe();
 });

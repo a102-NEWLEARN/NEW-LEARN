@@ -58,7 +58,7 @@ export function HomePage() {
       >
         {/* 뒤에 까는 마인드맵 모양 배경. 섹션은 자르지 않는다 — 검색 목록이 섹션 밖으로 내려온다 */}
         <HomeHeroBackground />
-        <div className="relative mx-auto max-w-[780px] px-x4 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
+        <div className="relative mx-auto max-w-[780px] px-x5 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
           <HomeGreeting member={member} pending={me.isPending} />
           <SearchBox focusRequest={focusRequest} />
           <NewIssues />
@@ -66,7 +66,7 @@ export function HomePage() {
       </section>
       {/* 콘텐츠 화면 최대 너비 1040px (DESIGN.md Layout & Spacing) */}
       <div
-        className={`mx-auto max-w-[1040px] px-x4 pb-x14 md:px-x8 ${narrow ? "" : "pt-x7"}`}
+        className={`mx-auto max-w-[1040px] px-x5 pb-[96px] md:px-x8 md:pb-x14 ${narrow ? "" : "pt-x7"}`}
       >
         {narrow ? (
           <HomeViewTabs

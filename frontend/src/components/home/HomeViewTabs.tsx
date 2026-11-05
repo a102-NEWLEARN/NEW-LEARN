@@ -55,7 +55,7 @@ export function HomeViewTabs({
       <div ref={anchorRef} aria-hidden />
       <div
         ref={barRef}
-        className="sticky top-0 z-[1] -mx-x4 bg-bg-layer-default px-x4 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)]"
+        className="sticky top-0 z-[1] -mx-x5 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)]"
       >
         <TabsList
           aria-label="홈 보기"

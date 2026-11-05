@@ -21,6 +21,7 @@ import { EVENT_ARTICLES_SIZE, eventArticlesQuery } from "@/api/eventArticles";
 import type { ArticleSummary, EventRef, Page } from "@/api/types";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleRow } from "@/components/ArticleRow";
+import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -33,6 +34,19 @@ type EventPanelProps = {
   /** 패널을 열 때 화면이 포커스를 옮길 제목(h2). 데이터를 기다리지 않고 첫 렌더에 그린다 */
   headingRef?: Ref<HTMLHeadingElement>;
 };
+
+// 사건을 열거나 바꾸면 이 차례(ms)로 떠오른다 — 속한 이슈 → 제목 → 날짜 → 요약 → 관련 기사(한 줄씩 50ms).
+// 사건이 바뀌면 그 묶음을 새로 그려 다시 떠오르게 한다. 이전 · 다음 버튼은 포커스를 지키려고 새로 그리지 않는다
+const PANEL_AT = {
+  issue: 0,
+  title: 60,
+  dates: 120,
+  summary: 180,
+  related: 240,
+};
+const ROW_AFTER = 300;
+const ROW_GAP = 50;
+const ROW_STAGGER_MAX = 4;
 
 const isEventNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "EVENT_NOT_FOUND";
@@ -81,7 +95,13 @@ export function EventPanel({
     >
       <div>
         {detail?.issue && (
-          <p className="t3-bold truncate text-fg-brand">{detail.issue.title}</p>
+          <p
+            key={detail.id}
+            className={`t3-bold truncate text-fg-brand ${RISE}`}
+            style={enterAt(PANEL_AT.issue)}
+          >
+            {detail.issue.title}
+          </p>
         )}
         <h2
           ref={headingRef}
@@ -89,7 +109,14 @@ export function EventPanel({
           className="t8-bold mt-x1_5 pr-x10 text-fg-neutral outline-none"
         >
           {detail ? (
-            detail.title
+            // 제목 글만 새로 그린다 — h2 는 패널을 열 때 포커스를 받는 자리라 그대로 둔다
+            <span
+              key={detail.id}
+              className={`block ${RISE}`}
+              style={enterAt(PANEL_AT.title)}
+            >
+              {detail.title}
+            </span>
           ) : notFound ? (
             "사건을 찾을 수 없어요"
           ) : event.isError ? (
@@ -122,7 +149,11 @@ export function EventPanel({
           </p>
         )}
         {detail && (
-          <div className="mt-x3 flex flex-wrap gap-x1_5">
+          <div
+            key={detail.id}
+            className={`mt-x3 flex flex-wrap gap-x1_5 ${RISE}`}
+            style={enterAt(PANEL_AT.dates)}
+          >
             <DateChip icon={<IconCalendarLine aria-hidden size={14} />}>
               <span>사건 발생</span>{" "}
               <b className="font-semibold text-fg-neutral">
@@ -143,7 +174,12 @@ export function EventPanel({
       </div>
 
       {detail?.summary && (
-        <section aria-label="요약" className={CARD}>
+        <section
+          key={detail.id}
+          aria-label="요약"
+          className={`${CARD} ${RISE}`}
+          style={enterAt(PANEL_AT.summary)}
+        >
           <div className="flex items-center gap-x2">
             <p className="t4-bold text-fg-neutral">요약</p>
             <span className="ml-auto">
@@ -252,8 +288,16 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
           aria-label="관련 기사"
           className="mt-x1 divide-y divide-stroke-neutral-subtle"
         >
-          {items.map((article) => (
-            <ArticleRow key={article.id} article={article} />
+          {/* 한 줄씩 떠오른다 — *더 보기* 로 붙인 쪽도 그 쪽 첫 줄부터 다시 센다 */}
+          {items.map((article, index) => (
+            <ArticleRow
+              key={article.id}
+              article={article}
+              enterDelay={
+                ROW_AFTER +
+                Math.min(index % EVENT_ARTICLES_SIZE, ROW_STAGGER_MAX) * ROW_GAP
+              }
+            />
           ))}
         </ul>
       );
@@ -278,7 +322,11 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
   }
 
   return (
-    <section aria-label="관련 기사" className={`${CARD} px-x3 pb-x3`}>
+    <section
+      aria-label="관련 기사"
+      className={`${CARD} px-x3 pb-x3 ${RISE}`}
+      style={enterAt(PANEL_AT.related)}
+    >
       <div className="flex items-center gap-x2 px-x2">
         <p className="t4-bold text-fg-neutral">관련 기사</p>
         {!pending && (
