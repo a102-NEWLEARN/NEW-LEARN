@@ -1,6 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test } from "vitest";
+import type { InterestIssueItem } from "@/api/interestIssues";
 import type { IssueSummary } from "@/api/issues";
 import type { Member } from "@/api/members";
 import type { Page } from "@/api/types";
@@ -26,6 +27,44 @@ function renderSection(path = "/home", who: Member | null = member) {
       element: <RecommendedIssues member={who} pending={false} />,
     },
   ]);
+}
+
+// A25 를 몇 번 불렀나
+function countInterestCalls() {
+  const calls: string[] = [];
+  const count = ({ request }: { request: Request }) => {
+    if (new URL(request.url).pathname === "/api/v1/members/me/interest-issues")
+      calls.push(request.method);
+  };
+  server.events.on("request:start", count);
+  onTestFinished(() => {
+    server.events.removeListener("request:start", count);
+  });
+  return calls;
+}
+
+// A25 항목 — 경제 이슈. 순서에 쓰는 마지막 사건 시각만 다르게 준다
+function interestItem(id: number, lastEventAt: string): InterestIssueItem {
+  return {
+    id,
+    title: `관심 이슈 ${id}`,
+    summary: null,
+    categories: [{ code: "economy", name: "경제" }],
+    eventCount: 3,
+    articleCount: 9,
+    publisherCount: 3,
+    firstEventAt: "2025-09-02T09:00:00+09:00",
+    lastEventAt,
+    createdAt: "2025-09-02T09:00:00+09:00",
+    lastEvent: {
+      id: id * 10,
+      title: "최근 사건",
+      label: "최근",
+      occurredAt: lastEventAt,
+    },
+    interested: true,
+    interestedAt: "2026-10-27T08:30:00+09:00",
+  };
 }
 
 const tabNames = () => screen.getAllByRole("tab").map((tab) => tab.textContent);
@@ -63,11 +102,12 @@ test("회원이면 관심 분야 탭을 앞에 두고 맨 앞 관심 분야를 �
     "국제",
   ]);
   expect(selectedTab()?.textContent).toBe("경제, 관심 분야");
-  // 경제 이슈 중 마지막 사건 최신순 3개
-  expect(await cardHrefs()).toEqual(["/issues/15", "/issues/13", "/issues/12"]);
+  // 가짜 회원의 관심 이슈 12(경제) 를 먼저, 그다음 경제 이슈를 마지막 사건 최신순으로. 관심 이슈 21 은 정치라 빠진다
+  expect(await cardHrefs()).toEqual(["/issues/12", "/issues/15", "/issues/13"]);
 });
 
 test("손님이면 A1 순서대로 두고 별 안내를 빼고 첫 분야를 고른다", async () => {
+  const interestCalls = countInterestCalls();
   renderSection("/home", null);
 
   expect(
@@ -77,6 +117,8 @@ test("손님이면 A1 순서대로 두고 별 안내를 빼고 첫 분야를 고
   await screen.findByRole("tablist", { name: "분야" });
   expect(tabNames()).toEqual(["정치", "사회", "경제", "국제", "IT·과학"]);
   expect(await cardHrefs()).toEqual(["/issues/21", "/issues/22"]);
+  // 손님은 관심 이슈가 없다 — A25 를 부르지 않는다
+  expect(interestCalls).toHaveLength(0);
 });
 
 test("탭을 바꾸면 기록을 쌓지 않고 ?category= 와 카드가 바뀐다", async () => {
@@ -118,6 +160,10 @@ test("분야에 이슈가 없으면 빈 문구를 둔다", async () => {
         totalPages: 0,
       } satisfies Page<IssueSummary>),
     ),
+    // 이슈가 없으면 관심 이슈도 없다
+    http.get("/api/v1/members/me/interest-issues", () =>
+      HttpResponse.json({ items: [] }),
+    ),
   );
   renderSection();
 
@@ -138,7 +184,49 @@ test("추천 이슈만 못 불러오면 탭은 두고 그 자리에 다시 시�
   expect(screen.getByRole("tablist", { name: "분야" })).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
 
+  expect(await cardHrefs()).toEqual(["/issues/12", "/issues/15", "/issues/13"]);
+});
+
+// 관심 이슈 먼저 (PRD FR-28 · 프로토타입 v21, Jira 172)
+
+test("A2 앞 3개 밖의 관심 이슈도 앞에 두고, 관심 이슈끼리는 마지막 사건 최신순이다", async () => {
+  server.use(
+    http.get("/api/v1/members/me/interest-issues", () =>
+      HttpResponse.json({
+        items: [
+          // 저장한 순서와 상관없이 마지막 사건이 최근인 14 가 앞이다
+          interestItem(12, "2026-09-01T09:00:00+09:00"),
+          interestItem(14, "2026-10-01T09:00:00+09:00"),
+        ],
+      }),
+    ),
+  );
+  renderSection();
+
+  // A2 경제 앞 3개는 15 · 13 · 12 — 14 는 그 밖이지만 관심 이슈라 맨 앞
+  expect(await cardHrefs()).toEqual(["/issues/14", "/issues/12", "/issues/15"]);
+});
+
+test("관심 이슈를 못 불러오면 A2 순서 그대로 보인다", async () => {
+  server.use(
+    http.get("/api/v1/members/me/interest-issues", () =>
+      HttpResponse.json(null, { status: 500 }),
+    ),
+  );
+  renderSection();
+
   expect(await cardHrefs()).toEqual(["/issues/15", "/issues/13", "/issues/12"]);
+  expect(screen.queryByText("추천 이슈를 불러오지 못했어요")).toBeNull();
+});
+
+test("관심 이슈 카드에는 「관심 이슈」 표시가 붙는다", async () => {
+  renderSection();
+
+  await cardHrefs();
+  const first = within(await screen.findByRole("tabpanel"))
+    .getAllByRole("link")
+    .at(0);
+  expect(first?.textContent).toContain("관심 이슈");
 });
 
 test("A17 을 받는 동안에는 제목도 탭도 그리지 않고 자리만 둔다", () => {

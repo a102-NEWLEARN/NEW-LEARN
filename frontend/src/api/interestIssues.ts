@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { IssueSummary } from "@/api/issues";
 import type { ItemList } from "@/api/types";
@@ -53,3 +53,46 @@ export const interestIssuesQuery = queryOptions({
   queryKey: ["members", "me", "interest-issues"],
   queryFn: fetchInterestIssues,
 });
+
+// 받아 둔 응답 하나에서 이 이슈의 interested 를 바꾼다. 이슈 머리(A3)는 그 자체, 이슈 목록(A2)은 items 안에 있다.
+// 모양이 다른 응답(타임라인 등)은 그대로 둔다
+function patchIssue(
+  value: unknown,
+  issueId: number,
+  interested: boolean,
+): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  const record = value as Record<string, unknown>;
+  if (record.id === issueId && typeof record.interested === "boolean") {
+    return record.interested === interested ? value : { ...record, interested };
+  }
+  const list: unknown = record.items;
+  if (Array.isArray(list)) {
+    const items = list.map((item: unknown) =>
+      patchIssue(item, issueId, interested),
+    );
+    return items.some((item, index) => item !== list[index])
+      ? { ...record, items }
+      : value;
+  }
+  return value;
+}
+
+/**
+ * 별을 누른 뒤 받아 둔 이슈 응답 — 이슈 머리(A3) · 이슈 목록(A2: 홈 추천 · 사이드바) — 에서 이 이슈의 interested 를
+ * 응답대로 바꾼다. 다시 받지 않는다. 관심 이슈 목록(A25)은 들고 나는 이슈가 달라져서 새로 받게 한다 (북마크의 setBookmarked 와 같은 꼴)
+ */
+export function setInterested(
+  queryClient: QueryClient,
+  issueId: number,
+  interested: boolean,
+) {
+  for (const queryKey of [["issue", issueId], ["issues"]]) {
+    queryClient.setQueriesData({ queryKey }, (data: unknown) =>
+      patchIssue(data, issueId, interested),
+    );
+  }
+  void queryClient.invalidateQueries({
+    queryKey: interestIssuesQuery.queryKey,
+  });
+}
