@@ -15,13 +15,13 @@ async function openSection() {
   return { ...rendered, section };
 }
 
-test("마이페이지 맨 앞 섹션으로 저장한 이슈를 저장한 순서대로 보인다", async () => {
+test("마이페이지 맨 끝 섹션(개인정보 · 관심 분야 다음)으로 저장한 이슈를 저장한 순서대로 보인다", async () => {
   const { section } = await openSection();
 
   const headings = within(screen.getByRole("main"))
     .getAllByRole("heading", { level: 2 })
     .map((heading) => heading.textContent);
-  expect(headings.slice(0, 2)).toEqual(["관심 이슈", "관심 분야"]);
+  expect(headings).toEqual(["개인정보", "관심 분야", "관심 이슈"]);
   expect(within(section).getByText("별표로 저장한 이슈예요.")).toBeDefined();
 
   const list = await within(section).findByRole("list", { name: "관심 이슈" });

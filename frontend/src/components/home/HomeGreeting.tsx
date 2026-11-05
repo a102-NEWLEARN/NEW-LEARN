@@ -37,14 +37,15 @@ export function HomeGreeting({ member, pending }: HomeGreetingProps) {
             : today}
         </p>
       )}
-      {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell) */}
+      {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell).
+          제목 · 부제는 줄 길이를 고르게 꺾는다 — 좁은 화면에서 「보세요.」 한 단어만 다음 줄로 넘어갔다 */}
       <h1
         tabIndex={-1}
-        className="t10-bold md:t13-bold mt-x2_5 text-fg-neutral outline-none"
+        className="t10-bold md:t13-bold mt-x2_5 text-balance text-fg-neutral outline-none"
       >
         오늘의 이슈를 탐색해 보세요
       </h1>
-      <p className="t5-regular mt-x2_5 text-fg-neutral-muted">
+      <p className="t5-regular mt-x2_5 text-balance text-fg-neutral-muted">
         검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.
       </p>
     </>
