@@ -365,6 +365,7 @@ SEED 컴포넌트(Action Button · Tabs · Chip · Dialog · Side Panel · Snack
 | 곁가지 | 10px 빈 사각, 2px `palette-gray-600` 테두리, 16px 들여씀. 메인 선에서 2px 점선 `palette-gray-500` 으로 갈라지고 제목이 한 단계 작다 |
 | 선택 | 16px `bg-brand-solid` 사각(모서리 4px) + 4px `bg-brand-weak` 링, 본문 배경 `bg-brand-weak` |
 | CONFLICT | 빈 사각에 2px `palette-carrot-800` 테두리 |
+| 호버 · 고를 때 | 마우스를 올린 노드는 1.15배. 고르면 둘레에 2px `bg-brand-solid` 사각 고리가 2.6배로 번지며 사라진다 (움직임은 EXPERIENCE.md 「모션」) |
 
 **기사 마인드맵 두 보기** — F04 기사 마인드맵 생성. 같은 A9 응답을 두 모양으로 그린다. 가지 색은 Colors 「기사 마인드맵 가지 4색」, 동작은 EXPERIENCE.md 보기 탭에 있다. 프로토타입 v21 `MindmapGraph` · `MindmapFlowMap` 을 따랐다 (2026-10-30, S15P31A102-58).
 
