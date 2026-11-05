@@ -288,7 +288,7 @@ export function SignupPage() {
       <section className="bg-bg-brand-solid">
         <div
           key={step}
-          className="mx-auto max-w-[640px] px-x4 pt-x12 pb-x10 break-keep motion-safe:animate-[newlearn-rise_300ms_var(--seed-timing-function-enter)_both] md:pt-x16 md:pb-x14"
+          className="mx-auto max-w-[640px] px-x4 pt-x12 pb-x10 motion-safe:animate-[newlearn-rise_300ms_var(--seed-timing-function-enter)_both] md:pt-x16 md:pb-x14"
         >
           <p className="t5-bold text-bg-accent-lime tabular-nums">
             {String(step + 1).padStart(2, "0")}.

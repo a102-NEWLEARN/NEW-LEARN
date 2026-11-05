@@ -54,7 +54,7 @@ export function GreetingIntro({
           : ""
       }`}
     >
-      <div className="mx-auto w-full max-w-[1040px] px-x4 break-keep md:px-x8">
+      <div className="mx-auto w-full max-w-[1040px] px-x4 md:px-x8">
         <div className="animate-[newlearn-greeting-text_1800ms_var(--seed-timing-function-easing)_both]">
           <p className="t5-bold text-bg-accent-lime">{eyebrow}</p>
           <p className="t12-bold md:t14-bold mt-x3 text-palette-static-white">

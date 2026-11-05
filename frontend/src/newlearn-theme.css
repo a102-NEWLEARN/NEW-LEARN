@@ -139,6 +139,17 @@ body {
   font-family: var(--seed-font-family);
   color: var(--seed-color-fg-neutral);
   background: var(--seed-color-bg-layer-default);
+  /* 한글은 단어 중간에서 줄을 바꾸지 않는다 — 좁은 화면에서 「외/환당국」처럼 끊기지 않게.
+     띄어쓰기 없이 칸보다 긴 말(주소 · 영문)은 칸을 넘지 않게 그 안에서 끊는다 (DESIGN.md Typography, Jira S15P31A102-175) */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* SEED 아래 시트 · 옆 패널 본문은 글자 단위로 끊는다(word-break: break-all, recipes/bottom-sheet.css · side-panel.css).
+   우리가 쓰는 두 가지(사건 시트, 서랍)를 위 body 규칙처럼 단어 단위로 되돌린다 (Jira S15P31A102-175) */
+.seed-bottom-sheet__content,
+.seed-side-panel__content {
+  word-break: keep-all;
 }
 
 /* 오른쪽 사건 패널이 열릴 때 — 300ms enter 곡선으로 오른쪽에서 밀려 들어온다 (EXPERIENCE.md Interaction Primitives 「모션」).

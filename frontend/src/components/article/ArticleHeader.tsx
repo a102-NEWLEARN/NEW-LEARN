@@ -85,7 +85,7 @@ export function ArticleHeader({
           tabIndex={-1}
           onFocus={() => onTitleFocusChange?.(true)}
           onBlur={() => onTitleFocusChange?.(false)}
-          className="t9-bold md:t10-bold mt-x1_5 break-keep text-fg-neutral outline-none"
+          className="t9-bold md:t10-bold mt-x1_5 text-fg-neutral outline-none"
         >
           {article ? (
             article.title
