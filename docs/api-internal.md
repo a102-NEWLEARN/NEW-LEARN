@@ -75,7 +75,7 @@ flowchart LR
 | `reporter` | string | 아니오 | 200자까지. 빈 값은 없는 것으로 둔다 | `creator[]` — 잇는 법은 배치가 정한다 | `article.reporter` |
 | `body` | string | 예 | 공백만은 안 된다. 10만 자까지 | `content` | `article.body` |
 | `publishedAt` | string(시각) | 예 | 오프셋이 있어야 한다(`docs/api.md` 1절 「시간」). `pubDate` 는 시간대가 없어 배치가 `pubDateTZ`(UTC)를 붙여 `2026-11-02T23:15:46Z` 로 보낸다 | `pubDate` + `pubDateTZ` | `article.published_at` |
-| `sourceCategories` | string[] | 아니오 | 20개 · 항목마다 100자까지, 빈 항목은 안 된다. 없으면 빈 목록 | `category[]` | `article.source_categories`. 대표 카테고리는 `category_mapping` 으로 고른다(`data-model.md` 2절) |
+| `sourceCategories` | string[] | 아니오 | 20개 · 항목마다 100자까지, 빈 항목은 안 된다. 없으면 빈 목록 | `category[]` | `article.source_categories`. 대표 카테고리는 `category_mapping` 으로 고르고, 정치로 고른 기사는 제목으로 해외 정치를 가려 국제로 옮긴다(`data-model.md` 2절) |
 | `sourceTags` | string[] | 아니오 | 같은 규칙. 없으면 비운다 | `ai_tag[]` | `article.source_tags` |
 
 - 글자 칸 · 목록 항목에 U+0000 이 있으면 400 이다(PostgreSQL 이 글자로 받지 못한다). 길이 · 개수 상한은 우리 제안이다 — 2026-11-03 응답 50건의 최댓값은 제목 57자 · 링크 197자 · 본문 7,157자였다

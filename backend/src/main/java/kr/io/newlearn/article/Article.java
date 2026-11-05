@@ -85,7 +85,7 @@ public class Article {
         this.sourceCategories = new ArrayList<>(sourceCategories);
     }
 
-    // 적재할 때 원본에서 온 선택 칸을 채운다 — 기자명 · 대표 카테고리(category_mapping 으로 고름) · 태그(NewsData ai_tag) (Jira 153)
+    // 적재할 때 원본에서 온 선택 칸을 채운다 — 기자명 · 대표 카테고리(category_mapping 으로 고르고 제목 규칙을 봄) · 태그(NewsData ai_tag) (Jira 153)
     public void fillSourceDetails(
             @Nullable String reporter, @Nullable Category category, @Nullable List<String> sourceTags) {
         this.reporter = reporter;

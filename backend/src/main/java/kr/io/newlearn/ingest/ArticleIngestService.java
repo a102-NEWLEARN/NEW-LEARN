@@ -13,6 +13,7 @@ import kr.io.newlearn.category.Category;
 import kr.io.newlearn.category.CategoryMapping;
 import kr.io.newlearn.category.CategoryMappingId;
 import kr.io.newlearn.category.CategoryMappingRepository;
+import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.common.MappingSource;
 import kr.io.newlearn.ingest.dto.ArticleIngestRequest;
 import kr.io.newlearn.ingest.dto.ArticleIngestResponse;
@@ -37,11 +38,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ArticleIngestService {
 
     private static final Logger log = LoggerFactory.getLogger(ArticleIngestService.class);
+    private static final String POLITICS = "politics";
+    private static final String WORLD = "world";
 
     private final ArticleRepository articles;
     private final PressRepository presses;
     private final PressMappingRepository pressMappings;
     private final CategoryMappingRepository categoryMappings;
+    private final CategoryRepository categories;
     private final TransactionTemplate transaction;
 
     public ArticleIngestService(
@@ -49,11 +53,13 @@ public class ArticleIngestService {
             PressRepository presses,
             PressMappingRepository pressMappings,
             CategoryMappingRepository categoryMappings,
+            CategoryRepository categories,
             PlatformTransactionManager transactions) {
         this.articles = articles;
         this.presses = presses;
         this.pressMappings = pressMappings;
         this.categoryMappings = categoryMappings;
+        this.categories = categories;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -90,7 +96,8 @@ public class ArticleIngestService {
                 request.body(),
                 request.publishedAt().toInstant(),
                 sourceCategories);
-        article.fillSourceDetails(request.reporterOrNull(), category(sourceCategories), request.sourceTags());
+        article.fillSourceDetails(
+                request.reporterOrNull(), representative(sourceCategories, request.title()), request.sourceTags());
         return new Inserted(articles.saveAndFlush(article).getId(), press.created());
     }
 
@@ -111,6 +118,15 @@ public class ArticleIngestService {
 
     // 넣은 기사 id 와, 이번에 언론사를 처음 등록했는지(커밋 뒤 로그용)
     private record Inserted(long articleId, boolean newPress) {}
+
+    // 대응 표가 고른 대표. 정치로 골랐는데 제목이 해외 정치면 국제로 옮긴다 — NewsData 분류로는 나눌 수 없어서다(Jira 171)
+    private @Nullable Category representative(List<String> sourceCategories, String title) {
+        Category chosen = category(sourceCategories);
+        if (chosen != null && POLITICS.equals(chosen.getCode()) && ForeignPoliticsTitleRule.matches(title)) {
+            return categories.getReferenceById(WORLD);
+        }
+        return chosen;
+    }
 
     // 원본 값이 모두 대응 표에 있으면 칸이 찬 행 중 priority 가 가장 작은 것(같으면 카테고리 순서). 표에 없는 값이 하나라도 있으면
     // 비우고 로그를 남긴다 — 아직 아무도 대응을 정하지 않은 값이라, 행을 더한 뒤 source_categories 로 다시 계산한다 (data-model.md 2절)
