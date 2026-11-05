@@ -1,22 +1,17 @@
 import { Skeleton } from "@seed-design/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
-import { ActionButton } from "seed-design/ui/action-button";
-import { logout } from "@/api/auth";
+import { useQuery } from "@tanstack/react-query";
 import { bookmarksQuery } from "@/api/bookmarks";
 import { interestIssuesQuery } from "@/api/interestIssues";
 import { meQuery } from "@/api/members";
 import { InterestIssues } from "@/components/mypage/InterestIssues";
 import { InterestSettings } from "@/components/mypage/InterestSettings";
 import { MyPageSection } from "@/components/mypage/MyPageSection";
-import { errorDescription } from "@/components/state/ErrorState";
 import { QueryState } from "@/components/state/QueryState";
 import { usePageTitle } from "@/components/usePageTitle";
-import { useSnackbar } from "@/components/useSnackbar";
 import { metaLine } from "@/lib/meta";
 
-// 마이페이지 — 이름 · 아이디 보기, 관심 분야 바꾸기, 관심 이슈와 로그아웃
-// (EXPERIENCE.md Information Architecture, 프로토타입 v21 MyPageScreen)
+// 마이페이지 — 이름 · 아이디 보기, 관심 분야 바꾸기, 관심 이슈
+// (EXPERIENCE.md Information Architecture, 프로토타입 v21 MyPageScreen). 로그아웃은 헤더 프로필 메뉴에 있다(ProfileMenu)
 export function MyPage() {
   usePageTitle("마이페이지");
   const me = useQuery(meQuery);
@@ -27,42 +22,17 @@ export function MyPage() {
   // 셋 다 받았을 때만 그린다. 받는 중이거나 하나라도 실패하면 줄을 두지 않는다 — 아래 섹션이 각자 실패를 알린다
   const counts =
     member && interestIssues.data && bookmarks.data
-      ? // 오른쪽 로그아웃 때문에 좁으면 꺾인다 — 점 뒤에서만 (metaLine)
+      ? // 좁으면 꺾인다 — 점 뒤에서만 (metaLine)
         metaLine([
           `관심 분야 ${member.categories.length}개`,
           `관심 이슈 ${interestIssues.data.length}개`,
           `북마크 ${bookmarks.data.length}개`,
         ])
       : null;
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const snackbar = useSnackbar();
-
-  // 로그아웃하면 손님이 처음 서는 랜딩으로 간다. 손님은 셸 안 화면에 남을 수 없다(RequireMember).
-  // 세션이 이미 끊긴 401 도 로그아웃이다(logout). 실패하면 아래에 안내를 띄우고 이 화면에 남는다
-  const mutation = useMutation({
-    mutationFn: logout,
-    onSuccess: () => {
-      navigate("/", { replace: true });
-      // 이전 회원이 받아 둔 응답을 모두 버린다 — 기사 · 이슈 응답의 bookmarked · interested 가 회원 기준이다.
-      // 그다음 내 정보만 손님(null)으로 둔다. 순서를 바꾸면 null 도 지워져 랜딩이 A17 을 다시 부른다
-      queryClient.removeQueries();
-      queryClient.setQueryData(meQuery.queryKey, null);
-      snackbar.show("로그아웃했어요", "positive");
-    },
-  });
-
-  function handleLogout() {
-    // SEED 버튼은 로딩 중에도 눌린다. 두 번 보내지 않는다
-    if (mutation.isPending) return;
-    mutation.mutate();
-  }
-
   return (
     <div className="mx-auto max-w-[760px] px-x5 pt-x9 pb-[96px] md:px-x6 md:pb-x16">
-      {/* 이름 줄 — 아바타 · 이름 · 개수, 오른쪽에 로그아웃. 계정 동작이라 계정 줄에 둔다.
-          맨 아래 따로 두면 버튼이 엉뚱한 데 떠 보였다 (2026-11-05 사용자) */}
-      <div data-profile className="flex items-center gap-x3_5">
+      {/* 이름 줄 — 아바타 · 이름 · 개수 */}
+      <div className="flex items-center gap-x3_5">
         {member && (
           <span
             aria-hidden
@@ -81,26 +51,7 @@ export function MyPage() {
             <p className="t3-regular text-fg-neutral-muted">{counts}</p>
           )}
         </div>
-        {/* 보조 버튼 모양(DESIGN.md Components) */}
-        <ActionButton
-          variant="neutralOutline"
-          size="small"
-          className="shrink-0"
-          loading={mutation.isPending}
-          aria-busy={mutation.isPending || undefined}
-          onClick={handleLogout}
-        >
-          로그아웃
-        </ActionButton>
       </div>
-      {mutation.isError && (
-        <p
-          role="alert"
-          className="t4-medium mt-x3 rounded-r2 bg-bg-critical-weak px-x4 py-x3 text-fg-critical-contrast"
-        >
-          {errorDescription(mutation.error)}
-        </p>
-      )}
       {/* 개인정보 → 관심 분야 → 관심 이슈 — 카드마다(MyPageSection). 관심 분야 저장은 그 카드 제목 오른쪽 */}
       <div className="mt-x6 flex flex-col gap-x3">
         <MyPageSection title="개인정보">
