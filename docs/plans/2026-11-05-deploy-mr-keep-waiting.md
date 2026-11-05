@@ -1,6 +1,4 @@
-# 배포 태그 MR 이 대기 중인 다른 영역 태그를 지우지 않게 — 열린 MR 브랜치에서 이어 받기 (Jira 새 티켓)
-
-> 승인 뒤 `docs/plans/2026-11-05-deploy-mr-keep-waiting.md` 로 옮겨 커밋한다
+# 배포 태그 MR 이 대기 중인 다른 영역 태그를 지우지 않게 — 열린 MR 브랜치에서 이어 받기 (Jira S15P31A102-174)
 
 ## 무엇을 / 왜
 
@@ -42,8 +40,8 @@
 
 ## 작업 순서
 
-- [ ] Jira 티켓(`[INFRA]` · 라벨 `infra` `newlearn-mvp` · 스토리 포인트 1 · 담당 사용자) → 브랜치 `fix/infra/S15P31A102-<번호>-deploy-mr-keep-waiting` ← `origin/infra` → 계획 커밋
-- [ ] 시험 쓰기 → 고치기 전 코드에서 빨강 확인 → 코드 → 초록 → 되돌림 확인 → `/verify` → 커밋(게이트 infra)
+- [x] Jira 티켓(`[INFRA]` · 라벨 `infra` `newlearn-mvp` · 스토리 포인트 1 · 담당 사용자) → 브랜치 `fix/infra/S15P31A102-174-deploy-mr-keep-waiting` ← `origin/infra` → 계획 커밋
+- [x] 시험 쓰기 → 고치기 전 코드에서 빨강 확인 → 코드 → 초록 → 되돌림 확인 → `/verify` → 커밋(게이트 infra) — 고치기 전 8개가 단언에서 실패, 고친 뒤 25개 통과, 조각 10개를 복사본에서 되돌리면 각각 해당 시험이 실패, !677 을 실제 커밋 이력으로 재생해 두 태그 다 남음
 - [ ] SSOT 6절 → 커밋 → push · MR(→ `infra`) → reviewer 조수. **머지는 사용자 확인 뒤**
 
 ## 안 바꿀 것
