@@ -249,7 +249,7 @@ MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEF
 
 1. `kubectl -n app get jobs` · `kubectl -n app logs job/<이름> | tail -3` 으로 마지막 실행의 종료 코드와 `수집 결과` 를 본다
 2. 종료 1 — `NewsData 실패` 면 응답 `status` 와 본문(크레딧 · 15분 한도). `NewsData 연결 실패` 면 바깥으로 나가는 길(DNS · 인터넷). `backend 연결 실패 — 멈춘다` 나 하나도 못 감이면 backend 상태(`kubectl -n app get pod`, health)와 들어오는 길 정책(`kubectl -n app get cnp backend-ingress`)
-3. 종료 2 — `상한에 닿아 멈춤` 이면 `stoppedBy` · `pubDates` 로 빠진 구간을 본다. 오래된 순(`sort=pubdateasc`)으로 받으니 상한에 닿으면 끝쪽이 빠진다 — `pubDates.max` 가 범위 마지막 날 24시(KST — UTC 로는 그날 15:00)를 넘었으면 범위 안은 다 받은 것이고, 아니면 `pubDates.max` 뒤가 빠진 것이다(쿼리에 그 정렬이 없으면 최신부터라 반대로 `pubDates.min` 을 본다). 빠졌으면 48시간 안이면 「손 실행」 latest 로(상한을 올려), 지났으면 archive 로 그 구간만 다시 받는다. 자주 닿으면 매일 상한이나 고르는 조건을 MR 로. `설정 오류` 면 env · Secret(`kubectl -n app get secret newsdata-api internal-api`). `출입증 오류` 가 NewsData 면 키(구독이 끝났는지 포함 — 「키 바꾸기」), backend 면 배치 키가 backend 와 같은 Secret 인지
+3. 종료 2 — `상한에 닿아 멈춤` 이면 `stoppedBy` · `pubDates` 로 빠진 구간을 본다. 오래된 순(`sort=pubdateasc`)으로 받으니 상한에 닿으면 끝쪽이 빠진다 — `skipped.over_limit` 이 0 이고 `pubDates.max` 가 범위 마지막 날 24시(KST — UTC 로는 그날 15:00)를 넘었으면 범위 안은 다 받은 것이고, 아니면 빠진 것이 있다 — `pubDates.max` 뒤와, `over_limit` 이 있으면 상한에 닿은 그 쪽의 뒷부분까지(쿼리에 그 정렬이 없으면 최신부터라 반대로 `pubDates.min` 을 본다). 빠졌으면 48시간 안이면 「손 실행」 latest 로(상한을 올려), 지났으면 archive 로 그 구간만 다시 받는다. 자주 닿으면 매일 상한이나 고르는 조건을 MR 로. `설정 오류` 면 env · Secret(`kubectl -n app get secret newsdata-api internal-api`). `출입증 오류` 가 NewsData 면 키(구독이 끝났는지 포함 — 「키 바꾸기」), backend 면 배치 키가 backend 와 같은 Secret 인지
 4. 하루치를 놓쳤으면(두 번 다 실패) 같은 날 안에 손 실행 latest 로 다시 받는다. latest 는 48시간까지라 그 뒤는 archive(5배)
 5. Job 이 아예 없으면 예약이 안 생긴 것 — `kubectl -n app describe cronjob news-ingest` 의 이벤트(시작 마감을 넘김 등)
 6. 오래 멈췄다 다시 켜면 첫 예약 실행 전까지 ②가 울릴 수 있다 — 첫 예약이 성공하면 저절로 풀린다
