@@ -4,6 +4,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { ArticleDetail } from "@/api/article";
+import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
@@ -62,6 +63,9 @@ function IssueLink({ article }: { article: ArticleDetail }) {
   );
 }
 
+// 기사를 받으면 분야 · 제목 · 정보 · 버튼이 이 차례(ms)로 떠오른다 (components/motion/screenMotion.ts)
+const HEADER_AT = { path: 0, title: 70, meta: 140, actions: 210 };
+
 // 기사 헤더 — 분야 · 이슈, 제목, 언론사 · 일시 · 기자, 북마크 · 원문 보기 · 이슈 보기 (프로토타입 v21 MindmapScreen).
 // h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
 export function ArticleHeader({
@@ -75,7 +79,10 @@ export function ArticleHeader({
     <header className="flex flex-wrap items-end gap-x3 px-x4 pt-x5 pb-x4 md:px-x8">
       <div className="min-w-[260px] flex-1">
         {article ? (
-          <p className="t2-regular truncate text-fg-neutral-subtle">
+          <p
+            className={`t2-regular truncate text-fg-neutral-subtle ${RISE}`}
+            style={enterAt(HEADER_AT.path)}
+          >
             {pathLine(article)}
           </p>
         ) : (
@@ -88,7 +95,10 @@ export function ArticleHeader({
           className="t9-bold md:t10-bold mt-x1_5 text-fg-neutral outline-none"
         >
           {article ? (
-            article.title
+            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다
+            <span className={`block ${RISE}`} style={enterAt(HEADER_AT.title)}>
+              {article.title}
+            </span>
           ) : failed ? (
             "기사를 불러오지 못했어요"
           ) : (
@@ -104,7 +114,10 @@ export function ArticleHeader({
           )}
         </h1>
         {article && (
-          <p className="t3-regular mt-x2 text-fg-neutral-muted tabular-nums">
+          <p
+            className={`t3-regular mt-x2 text-fg-neutral-muted tabular-nums ${RISE}`}
+            style={enterAt(HEADER_AT.meta)}
+          >
             {metaLine(article)}
           </p>
         )}
@@ -125,7 +138,10 @@ export function ArticleHeader({
         )}
       </div>
       {article && (
-        <div className="flex flex-wrap items-center gap-x2">
+        <div
+          className={`flex flex-wrap items-center gap-x2 ${RISE}`}
+          style={enterAt(HEADER_AT.actions)}
+        >
           <BookmarkButton article={article} variant="text" />
           <ActionButton
             asChild

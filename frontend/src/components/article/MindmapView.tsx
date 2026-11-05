@@ -73,13 +73,14 @@ export function MindmapView({
           {branches.map(({ type }) => {
             const { name, tone } = BRANCHES[type];
             const shown = !hidden.has(type);
+            // 누르는 동안 살짝 줄어든다 — 색 전환과 같은 150ms (EXPERIENCE.md 「호버 · 눌림」)
             return (
               <button
                 key={type}
                 type="button"
                 aria-pressed={shown}
                 onClick={() => toggle(type)}
-                className={`t4-medium flex h-x8 items-center gap-x1_5 rounded-r2 border px-x3 focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
+                className={`t4-medium flex h-x8 items-center gap-x1_5 rounded-r2 border px-x3 transition-[color,background-color,border-color,scale] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-stroke-focus-ring motion-safe:active:scale-[0.97] ${
                   shown
                     ? tone.chip
                     : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-muted"

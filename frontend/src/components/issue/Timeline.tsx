@@ -32,6 +32,16 @@ import {
   type PlacedEvent,
 } from "@/components/issue/timelineLayout";
 import { useElementSize } from "@/components/issue/useElementSize";
+import {
+  DRAW,
+  enterAt,
+  FADE_IN,
+  GROW_Y,
+  HOVER_SPRING,
+  RIPPLE_ONCE,
+  RISE,
+  SPRING_IN,
+} from "@/components/motion/screenMotion";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -53,6 +63,18 @@ const LANE_MEANING: Record<TimelineLane, string> = {
   MAIN: "상황을 바꾸는 행위(발생 · 결정 · 발표 · 결과 · 공식 조치)",
   SUB: "다른 사건에 대한 반응 · 평가 · 여론(논평 · 성명 · 여론조사)",
 };
+
+// 열 때 나오는 차례(ms) — 레인 이름이 먼저 나오고, 메인 흐름 선이 첫 메인 사건에서 마지막 메인 사건까지 같은 빠르기로
+// 뻗으며 선 끝이 지나는 자리의 사건이 튀어나온다. 서브 흐름 사건은 그 자리를 선이 지나간 뒤 조금 늦게, 라벨은 사건 뒤에.
+// 선이 뻗는 시간은 사건 수만큼 늘되 1초에서 멈춘다 — 다 나오기까지 2초가 안 걸리게 (프로토타입 v21 LaneTimeline 을 키웠다)
+const SWEEP_START = 220;
+const SWEEP_PER_EVENT = 140;
+const SWEEP_MAX = 1000;
+const SUB_AFTER = 100;
+const LABEL_AFTER = 120;
+// 레인 이름 막대 · 글자
+const LANE_BAR_AT = 0;
+const LANE_TEXT_AT = 80;
 
 // 노드 반지름 — 메인 흐름이 한 단계 크다 (DESIGN.md 타임라인 노드)
 const radiusOf = (event: PlacedEvent) => (event.lane === "MAIN" ? 10 : 8);
@@ -305,6 +327,25 @@ export function Timeline({
     };
   };
 
+  // 사건이 나오는 때 — 메인 흐름 처음 ~ 끝 사이에서 몇째 자리인지로 정한다. 배치가 폭에 맞춰 늘어나도 그 비율은 같아서
+  // 차례가 바뀌지 않는다. 확대 · 이동은 배치를 바꾸지 않는다
+  const sweep = useMemo(() => {
+    const mains = layout.events.filter((event) => event.lane === "MAIN");
+    const span = mains.length > 1 ? mains : layout.events;
+    const x0 = Math.min(...span.map((event) => event.x));
+    const x1 = Math.max(...span.map((event) => event.x));
+    const duration = Math.min(
+      SWEEP_MAX,
+      SWEEP_PER_EVENT * layout.events.length,
+    );
+    const at = (x: number) =>
+      SWEEP_START +
+      (x1 > x0 ? Math.min(1, Math.max(0, (x - x0) / (x1 - x0))) : 0) * duration;
+    return { at, duration };
+  }, [layout]);
+  const enterOf = (event: PlacedEvent) =>
+    Math.round(sweep.at(event.x) + (event.lane === "SUB" ? SUB_AFTER : 0));
+
   const selected = layout.events.find((event) => event.id === selectedId);
   const tipEvent = layout.events.find(
     (event) => event.id === (focusId ?? hoverId),
@@ -446,18 +487,26 @@ export function Timeline({
                   y1={0}
                   y2={layout.axisY}
                   strokeDasharray="2 5"
-                  className="pointer-events-none stroke-stroke-neutral-weak"
+                  style={enterAt(Math.round(sweep.at(month.x)))}
+                  className={`pointer-events-none stroke-stroke-neutral-weak ${FADE_IN}`}
                 />
               ))}
             {/* 메인 흐름 레인 선 — 사건 사이 관계가 아니라 레인 자리다 (DESIGN.md timeline-rail) */}
             {mainXs.length > 1 && (
               <line
+                data-rail
                 x1={Math.min(...mainXs)}
                 x2={Math.max(...mainXs)}
                 y1={mainLane.top + mainLane.nodeY}
                 y2={mainLane.top + mainLane.nodeY}
+                pathLength={1}
                 strokeWidth={2}
-                className="pointer-events-none stroke-stroke-brand-weak"
+                style={{
+                  animationDelay: `${SWEEP_START}ms`,
+                  animationDuration: `${sweep.duration}ms`,
+                  animationTimingFunction: "linear",
+                }}
+                className={`pointer-events-none stroke-stroke-brand-weak ${DRAW}`}
               />
             )}
             {layout.events.map((event) => {
@@ -469,6 +518,7 @@ export function Timeline({
               const isFocused = event.id === focusId;
               const label = labelOf(event);
               const meta = joined(dateText(event), articlesText(event));
+              const enter = enterOf(event);
               return (
                 <g
                   key={event.id}
@@ -501,86 +551,110 @@ export function Timeline({
                 >
                   {/* 누르는 영역을 노드보다 넓게 */}
                   <circle r={r + 14} className="fill-transparent" />
-                  {isSelected && (
-                    <rect
-                      x={-r - 5}
-                      y={-r - 5}
-                      width={2 * r + 10}
-                      height={2 * r + 10}
-                      rx={5}
-                      className="fill-bg-brand-weak"
-                    />
-                  )}
-                  {isHovered && !isSelected && (
-                    <rect
-                      x={-r - 5}
-                      y={-r - 5}
-                      width={2 * r + 10}
-                      height={2 * r + 10}
-                      rx={5}
-                      strokeWidth={1.5}
-                      className="fill-none stroke-stroke-brand-weak"
-                    />
-                  )}
-                  <rect
-                    x={-r}
-                    y={-r}
-                    width={2 * r}
-                    height={2 * r}
-                    rx={3}
-                    strokeWidth={main ? 3 : 2}
-                    className={
-                      isSelected
-                        ? "fill-bg-brand-solid stroke-palette-static-white"
-                        : main
-                          ? "fill-bg-brand-accent stroke-palette-static-white"
-                          : "fill-palette-static-white stroke-palette-gray-600"
-                    }
-                  />
-                  {isFocused && (
-                    <rect
-                      x={-r - 7}
-                      y={-r - 7}
-                      width={2 * r + 14}
-                      height={2 * r + 14}
-                      rx={6}
-                      strokeWidth={2}
-                      className="fill-none stroke-stroke-focus-ring"
-                    />
-                  )}
+                  {/* 선 끝이 지나갈 때 튀어나온다 */}
+                  <g className={SPRING_IN} style={enterAt(enter)}>
+                    {/* 고르면 바탕이 튀어나오고 둘레에 파문이 번진다 */}
+                    {isSelected && (
+                      <>
+                        <rect
+                          x={-r}
+                          y={-r}
+                          width={2 * r}
+                          height={2 * r}
+                          rx={3}
+                          fill="none"
+                          strokeWidth={2}
+                          className={`stroke-bg-brand-solid ${RIPPLE_ONCE}`}
+                        />
+                        <rect
+                          x={-r - 5}
+                          y={-r - 5}
+                          width={2 * r + 10}
+                          height={2 * r + 10}
+                          rx={5}
+                          className={`fill-bg-brand-weak ${SPRING_IN}`}
+                        />
+                      </>
+                    )}
+                    {isHovered && !isSelected && (
+                      <rect
+                        x={-r - 5}
+                        y={-r - 5}
+                        width={2 * r + 10}
+                        height={2 * r + 10}
+                        rx={5}
+                        strokeWidth={1.5}
+                        className="fill-none stroke-stroke-brand-weak"
+                      />
+                    )}
+                    {/* 마우스를 올리면 넘치며 커진다 (프로토타입 v21 1.15배) */}
+                    <g
+                      className={`${HOVER_SPRING} ${isHovered && !isSelected ? "motion-safe:scale-[1.15]" : ""}`}
+                    >
+                      <rect
+                        x={-r}
+                        y={-r}
+                        width={2 * r}
+                        height={2 * r}
+                        rx={3}
+                        strokeWidth={main ? 3 : 2}
+                        className={`transition-[fill,stroke] duration-[var(--seed-duration-color-transition)] ${
+                          isSelected
+                            ? "fill-bg-brand-solid stroke-palette-static-white"
+                            : main
+                              ? "fill-bg-brand-accent stroke-palette-static-white"
+                              : "fill-palette-static-white stroke-palette-gray-600"
+                        }`}
+                      />
+                    </g>
+                    {isFocused && (
+                      <rect
+                        x={-r - 7}
+                        y={-r - 7}
+                        width={2 * r + 14}
+                        height={2 * r + 14}
+                        rx={6}
+                        strokeWidth={2}
+                        className="fill-none stroke-stroke-focus-ring"
+                      />
+                    )}
+                  </g>
+                  {/* 라벨은 사건이 나온 뒤 떠오른다 — 자리를 잡는 transform 과 움직임을 다른 묶음에 둔다 */}
                   <g
                     transform={`translate(${label.dx},${label.dy})`}
                     className="pointer-events-none"
                   >
-                    {label.below && (
-                      <rect
-                        x={-4}
-                        y={-3}
-                        width={label.width + 8}
-                        height={36}
-                        rx={6}
-                        className="fill-bg-layer-default opacity-95"
-                      />
-                    )}
-                    <text
-                      dominantBaseline="hanging"
-                      className={`stroke-bg-layer-default text-[0.8125rem] ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
-                      paintOrder="stroke"
-                      strokeWidth={4}
-                      strokeLinejoin="round"
-                    >
-                      {fitText(event.label, label.width, 13)}
-                    </text>
-                    <text
-                      y={17}
-                      dominantBaseline="hanging"
-                      className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.75rem] tabular-nums"
-                      paintOrder="stroke"
-                      strokeWidth={4}
-                      strokeLinejoin="round"
-                    >
-                      {label.width >= 100 ? meta : dateText(event)}
-                    </text>
+                    <g className={RISE} style={enterAt(enter + LABEL_AFTER)}>
+                      {label.below && (
+                        <rect
+                          x={-4}
+                          y={-3}
+                          width={label.width + 8}
+                          height={36}
+                          rx={6}
+                          className="fill-bg-layer-default opacity-95"
+                        />
+                      )}
+                      <text
+                        dominantBaseline="hanging"
+                        className={`stroke-bg-layer-default text-[0.8125rem] ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
+                        paintOrder="stroke"
+                        strokeWidth={4}
+                        strokeLinejoin="round"
+                      >
+                        {fitText(event.label, label.width, 13)}
+                      </text>
+                      <text
+                        y={17}
+                        dominantBaseline="hanging"
+                        className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.75rem] tabular-nums"
+                        paintOrder="stroke"
+                        strokeWidth={4}
+                        strokeLinejoin="round"
+                      >
+                        {label.width >= 100 ? meta : dateText(event)}
+                      </text>
+                    </g>
                   </g>
                 </g>
               );
@@ -614,7 +688,8 @@ export function Timeline({
                   <text
                     x={5}
                     y={18}
-                    className="fill-fg-neutral-muted text-[0.75rem] font-bold"
+                    style={enterAt(Math.round(sweep.at(month.x)))}
+                    className={`fill-fg-neutral-muted text-[0.75rem] font-bold ${FADE_IN}`}
                   >
                     {month.label}
                   </text>
@@ -622,30 +697,33 @@ export function Timeline({
               ))}
               {selected && (
                 <g
+                  key={selected.id}
                   transform={`translate(${screenX(selected.x)},${layout.axisY + 2})`}
                 >
-                  <line
-                    y1={-layout.axisY}
-                    y2={0}
-                    strokeDasharray="2 3"
-                    className="stroke-bg-brand-solid opacity-50"
-                  />
-                  <rect
-                    x={-24}
-                    y={4}
-                    width={48}
-                    height={20}
-                    rx={10}
-                    className="fill-bg-brand-solid"
-                  />
-                  <text
-                    data-testid="selected-date"
-                    y={18}
-                    textAnchor="middle"
-                    className="fill-palette-static-white text-[0.6875rem] font-bold tabular-nums"
-                  >
-                    {selected.dateLabel}
-                  </text>
+                  <g className={SPRING_IN}>
+                    <line
+                      y1={-layout.axisY}
+                      y2={0}
+                      strokeDasharray="2 3"
+                      className="stroke-bg-brand-solid opacity-50"
+                    />
+                    <rect
+                      x={-24}
+                      y={4}
+                      width={48}
+                      height={20}
+                      rx={10}
+                      className="fill-bg-brand-solid"
+                    />
+                    <text
+                      data-testid="selected-date"
+                      y={18}
+                      textAnchor="middle"
+                      className="fill-palette-static-white text-[0.6875rem] font-bold tabular-nums"
+                    >
+                      {selected.dateLabel}
+                    </text>
+                  </g>
                 </g>
               )}
             </g>
@@ -679,21 +757,24 @@ export function Timeline({
                     width={4}
                     height={26}
                     rx={2}
-                    className={
+                    style={enterAt(LANE_BAR_AT)}
+                    className={`[transform-box:fill-box] ${GROW_Y} ${
                       main ? "fill-bg-brand-accent" : "fill-palette-gray-500"
-                    }
+                    }`}
                   />
                   <text
                     x={narrow ? 19 : 28}
                     y={y - 2}
-                    className={`font-extrabold ${narrow ? "text-[0.75rem]" : "text-[0.8125rem]"} ${main ? "fill-fg-neutral" : "fill-fg-neutral-muted"}`}
+                    style={enterAt(LANE_TEXT_AT)}
+                    className={`${FADE_IN} font-extrabold ${narrow ? "text-[0.75rem]" : "text-[0.8125rem]"} ${main ? "fill-fg-neutral" : "fill-fg-neutral-muted"}`}
                   >
                     {lane.name}
                   </text>
                   <text
                     x={narrow ? 19 : 28}
                     y={y + 15}
-                    className={`fill-fg-neutral-subtle tabular-nums ${narrow ? "text-[0.6875rem]" : "text-[0.75rem]"}`}
+                    style={enterAt(LANE_TEXT_AT)}
+                    className={`${FADE_IN} fill-fg-neutral-subtle tabular-nums ${narrow ? "text-[0.6875rem]" : "text-[0.75rem]"}`}
                   >
                     {`사건 ${lane.count}`}
                   </text>
@@ -704,8 +785,9 @@ export function Timeline({
         </svg>
         {tipEvent && (
           <div
+            key={tipEvent.id}
             role="tooltip"
-            className="pointer-events-none absolute z-10 max-w-[260px] rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating px-x3 py-x2 shadow-s2"
+            className={`pointer-events-none absolute z-10 max-w-[260px] rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating px-x3 py-x2 shadow-s2 ${FADE_IN}`}
             style={{
               left: Math.min(screenX(tipEvent.x) + 16, width - 272),
               top: tipEvent.y + 18,

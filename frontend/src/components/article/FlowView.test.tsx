@@ -2,6 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { FlowView } from "@/components/article/FlowView";
+import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -181,6 +182,144 @@ test.each([
   press();
 
   expect(pressed("첫 해 생산 목표를 밝혔다")).toBe("true");
+});
+
+// 가지 번호 원 · 질문과 이름 묶음 · 잎 원
+const circle = (question: string, n: number) =>
+  within(step(question)).getByText(String(n));
+const questionBlock = (question: string) =>
+  screen.getByRole("heading", { level: 2, name: question }).parentElement!;
+const mark = (name: string | RegExp) =>
+  card(name).querySelector("[data-leaf-mark]")!;
+
+test("열 때 머리 줄 → 가지 열 차례로 나온다 — 열 안에서는 번호 원 → 질문 → 잎 카드 차례다 (프로토타입 v21)", () => {
+  renderFlow();
+  const header = screen.getByText("기사 핵심").closest("[aria-hidden]")!;
+  const questions = [
+    "무슨 일이?",
+    "왜 일어났나?",
+    "누가 뭐라고 했나?",
+    "앞으로는?",
+  ];
+
+  for (const element of [
+    header,
+    circle("무슨 일이?", 1),
+    questionBlock("무슨 일이?"),
+    card("첫 해 생산 목표를 밝혔다"),
+  ])
+    expect(element.getAttribute("class")).toMatch(/motion-safe:animate-\[/);
+  // 가지 열은 A9 순서로, 머리 줄 뒤에
+  const circles = questions.map((question, i) =>
+    enterDelay(circle(question, i + 1)),
+  );
+  expect(enterDelay(header)).toBeLessThan(circles[0]);
+  circles.slice(1).forEach((at, i) => expect(at).toBeGreaterThan(circles[i]));
+  // 한 열 안에서는 번호 원 → 질문 → 잎 카드(잎 순서대로)
+  expect(enterDelay(questionBlock("무슨 일이?"))).toBeGreaterThan(circles[0]);
+  expect(
+    enterDelay(card("한빛반도체가 텍사스 공장 착공식을 열었다")),
+  ).toBeGreaterThan(enterDelay(questionBlock("무슨 일이?")));
+  expect(enterDelay(card("첫 해 생산 목표를 밝혔다"))).toBeGreaterThan(
+    enterDelay(card("한빛반도체가 텍사스 공장 착공식을 열었다")),
+  );
+});
+
+test("번호 원이 나온 뒤 다음 가지로 잇는 선이 자란다 — 마지막 가지에는 선이 없다", () => {
+  renderFlow();
+  const grows = (question: string) =>
+    [
+      ...step(question).querySelectorAll(
+        '[class*="newlearn-grow-x"], [class*="newlearn-grow-y"]',
+      ),
+    ].map((line) => enterDelay(line));
+
+  // 가로(넓은 자리) · 세로(좁은 자리) 선 하나씩. 어느 쪽이 보일지는 자리 폭이 정한다
+  const lines = grows("무슨 일이?");
+  expect(lines).toHaveLength(2);
+  lines.forEach((at) =>
+    expect(at).toBeGreaterThan(enterDelay(circle("무슨 일이?", 1))),
+  );
+  expect(grows("앞으로는?")).toEqual([]);
+});
+
+test("잎 카드는 누르는 동안 살짝 줄어든다 — 누르는 면이 하나인 카드라서다", () => {
+  renderFlow();
+
+  expect(card("첫 해 생산 목표를 밝혔다").getAttribute("class")).toContain(
+    "motion-safe:active:scale-",
+  );
+});
+
+test("잎이 많아도 2초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
+  const many = Array.from({ length: 12 }, (_, i) => `잎 ${i + 1}`);
+  renderFlow([
+    branch("CORE", "가"),
+    branch("CAUSE", "나"),
+    branch("REACTION", "다"),
+    branch("OUTLOOK", ...many),
+  ]);
+
+  expect(lastEnterEnd()).toBeGreaterThan(0);
+  expect(lastEnterEnd()).toBeLessThanOrEqual(2000);
+});
+
+test("선이 자라는 동안 점 하나가 다음 번호로 달려간다 — 가로 · 세로 하나씩, 마지막 가지에는 없다", () => {
+  renderFlow();
+  const travels = (question: string) => [
+    ...step(question).querySelectorAll('[class*="newlearn-travel"]'),
+  ];
+
+  const dots = travels("무슨 일이?");
+  expect(dots).toHaveLength(2);
+  const line = step("무슨 일이?").querySelector('[class*="newlearn-grow-x"]')!;
+  dots.forEach((dot) => {
+    expect(enterDelay(dot)).toBe(enterDelay(line));
+    // 꾸밈이라 달리는 동안만 보인다 — 동작 줄이기면 끝까지 보이지 않는다
+    expect(dot.getAttribute("class")).toContain("opacity-0");
+  });
+  expect(travels("앞으로는?")).toEqual([]);
+});
+
+test("번호 원 · 머리 줄 점에서 파문이 번진다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
+  renderFlow();
+  const header = screen.getByText("기사 핵심").closest("[aria-hidden]")!;
+
+  for (const place of [step("무슨 일이?"), step("앞으로는?"), header]) {
+    const ripple = place.querySelector('[class*="newlearn-ripple"]');
+    expect(ripple).not.toBeNull();
+    expect(ripple!.getAttribute("class")).toContain("opacity-0");
+  }
+});
+
+test("잎 카드에 마우스를 올리면 살짝 들리고 원이 커진다", () => {
+  renderFlow();
+
+  expect(card("첫 해 생산 목표를 밝혔다").getAttribute("class")).toContain(
+    "motion-safe:hover:-translate-y-",
+  );
+  expect(mark("첫 해 생산 목표를 밝혔다").getAttribute("class")).toContain(
+    "motion-safe:group-hover:scale-",
+  );
+});
+
+test("강조한 잎의 원이 한 번 튄다 — 다른 잎은 그대로다", () => {
+  renderFlow();
+  const first = "첫 해 생산 목표를 밝혔다";
+  const second = "업계는 인력 수급을 걱정했다";
+
+  expect(mark(first).getAttribute("class")).not.toContain("newlearn-pop-once");
+  fireEvent.click(card(first));
+
+  expect(mark(first).getAttribute("class")).toContain("newlearn-pop-once");
+  expect(mark(second).getAttribute("class")).not.toContain("newlearn-pop-once");
+});
+
+test("움직임은 동작 줄이기를 켜면 빠진다 — 애니메이션 · 크기 변화 클래스는 모두 motion-safe 다", () => {
+  renderFlow();
+  fireEvent.click(card("첫 해 생산 목표를 밝혔다"));
+
+  expectMotionSafe();
 });
 
 test("머리 줄의 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 과 같은 글이다", () => {

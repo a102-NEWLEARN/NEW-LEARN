@@ -7,6 +7,7 @@ import { AiBadge } from "@/components/AiBadge";
 import { InterestButton } from "@/components/issue/InterestButton";
 import { errorDescription } from "@/components/state/ErrorState";
 import { kstYear } from "@/lib/date";
+import { enterAt, RISE } from "@/components/motion/screenMotion";
 
 type IssueHeaderProps = {
   /** A3 이슈 헤더 */
@@ -24,6 +25,9 @@ function categoryLine(issue: IssueDetail) {
     .filter(Boolean)
     .join(" · ");
 }
+
+// 이슈를 받으면 분야 → 제목 → 요약이 이 차례(ms)로 떠오른다 (components/motion/screenMotion.ts)
+const HEADER_AT = { category: 0, title: 70, summary: 140 };
 
 // 이슈 헤더 — 분야 · 연도, 제목과 관심 이슈 별, 요약 (프로토타입 v21 IssueHeader). 요약에는 AI 생성 표시를 붙인다. 관점 비교 · 알림은 아직 없다.
 // h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
@@ -51,7 +55,10 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   return (
     <header className="px-x4 pt-x5 pb-x4 md:px-x8">
       {issue ? (
-        <p className="t2-regular text-fg-neutral-subtle tabular-nums">
+        <p
+          className={`t2-regular text-fg-neutral-subtle tabular-nums ${RISE}`}
+          style={enterAt(HEADER_AT.category)}
+        >
           {categoryLine(issue)}
         </p>
       ) : (
@@ -66,7 +73,10 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           className={`t9-bold md:t11-bold min-w-0 text-fg-neutral outline-none ${issue ? "" : "flex-1"}`}
         >
           {issue ? (
-            issue.title
+            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다
+            <span className={`block ${RISE}`} style={enterAt(HEADER_AT.title)}>
+              {issue.title}
+            </span>
           ) : failed ? (
             "이슈를 불러오지 못했어요"
           ) : (
@@ -101,7 +111,10 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
         </div>
       )}
       {issue?.summary && (
-        <div className="mt-x2 max-w-[760px]">
+        <div
+          className={`mt-x2 max-w-[760px] ${RISE}`}
+          style={enterAt(HEADER_AT.summary)}
+        >
           <p
             ref={summaryRef}
             className={`t5-regular text-fg-neutral-muted ${more ? "" : "line-clamp-2"}`}
