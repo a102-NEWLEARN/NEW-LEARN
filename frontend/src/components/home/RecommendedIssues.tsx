@@ -150,11 +150,12 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
             </>
           )}
         </p>
+        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 좁은 화면 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다 */}
         <ActionButton
           asChild
           variant="ghost"
           size="small"
-          className="col-start-2 row-start-2 -mr-[8px] shrink-0 self-end md:row-span-2 md:row-start-1"
+          className="col-start-2 row-start-2 shrink-0 self-end md:row-span-2 md:row-start-1"
         >
           <Link to="/me">
             관심사 편집
