@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test } from "vitest";
 import type { InterestIssueItem } from "@/api/interestIssues";
@@ -205,6 +205,43 @@ test("A2 앞 3개 밖의 관심 이슈도 앞에 두고, 관심 이슈끼리는 
 
   // A2 경제 앞 3개는 15 · 13 · 12 — 14 는 그 밖이지만 관심 이슈라 맨 앞
   expect(await cardHrefs()).toEqual(["/issues/14", "/issues/12", "/issues/15"]);
+});
+
+test("관심 이슈를 받는 동안은 카드 자리만 두고, 받으면 관심 이슈를 앞에 두고 그린다", async () => {
+  let release: () => void = () => {};
+  server.use(
+    http.get(
+      "/api/v1/members/me/interest-issues",
+      () =>
+        new Promise<Response>((resolve) => {
+          release = () =>
+            resolve(
+              HttpResponse.json({
+                items: [interestItem(12, "2026-09-01T09:00:00+09:00")],
+              }),
+            );
+        }),
+    ),
+  );
+  const { queryClient } = renderSection();
+
+  // A2 는 먼저 왔다 — 그래도 A2 순서로 그렸다가 바꾸지 않고 자리만 둔다
+  await waitFor(() =>
+    expect(
+      queryClient
+        .getQueriesData<Page<IssueSummary>>({ queryKey: ["issues"] })
+        .some(([, page]) => page !== undefined),
+    ).toBe(true),
+  );
+  const panel = await screen.findByRole("tabpanel");
+  expect(
+    within(panel).getByRole("status", { name: "추천 이슈 불러오는 중" }),
+  ).toBeDefined();
+  expect(within(panel).queryAllByRole("link")).toHaveLength(0);
+
+  release();
+
+  expect(await cardHrefs()).toEqual(["/issues/12", "/issues/15", "/issues/13"]);
 });
 
 test("관심 이슈를 못 불러오면 A2 순서 그대로 보인다", async () => {
