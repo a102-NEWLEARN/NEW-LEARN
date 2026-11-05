@@ -217,7 +217,7 @@ body {
 }
 
 /* 기사 마인드맵 두 보기 · 기사 머리의 등장 · 호버 · 강조 (프로토타입 v21 im-node-in · im-draw · im-rise · im-pulse 를 키웠다).
-   쓰는 곳과 길이는 components/article/motion.ts. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+   쓰는 곳과 길이는 components/motion/screenMotion.ts. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
 
 /* 넘쳤다가 자리 잡으며 튀어나온다 — 가운데 원 · 흐름지도 번호 원 */
 @keyframes newlearn-spring-in {

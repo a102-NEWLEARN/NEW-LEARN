@@ -4,7 +4,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import type { ArticleDetail } from "@/api/article";
-import { enterAt, RISE } from "@/components/article/motion";
+import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
@@ -63,7 +63,7 @@ function IssueLink({ article }: { article: ArticleDetail }) {
   );
 }
 
-// 기사를 받으면 분야 · 제목 · 정보 · 버튼이 이 차례(ms)로 떠오른다 (components/article/motion.ts)
+// 기사를 받으면 분야 · 제목 · 정보 · 버튼이 이 차례(ms)로 떠오른다 (components/motion/screenMotion.ts)
 const HEADER_AT = { path: 0, title: 70, meta: 140, actions: 210 };
 
 // 기사 헤더 — 분야 · 이슈, 제목, 언론사 · 일시 · 기자, 북마크 · 원문 보기 · 이슈 보기 (프로토타입 v21 MindmapScreen).

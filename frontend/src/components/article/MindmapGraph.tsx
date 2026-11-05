@@ -54,7 +54,7 @@ import {
   RIPPLE_LOOP,
   RIPPLE_ONCE,
   SPRING_IN,
-} from "@/components/article/motion";
+} from "@/components/motion/screenMotion";
 import { useElementSize } from "@/components/issue/useElementSize";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
@@ -79,7 +79,7 @@ const DIMMED_OPACITY = 0.22;
 const HOVER_FADED_OPACITY = 0.25;
 // 열 때 나오는 차례(ms) — 가운데가 튀어나오고, 가지가 가운데에서 · 잎이 그 가지에서 날아 나온다.
 // 선은 날아가는 노드와 같은 때 · 같은 곡선으로 뻗어 선 끝이 노드를 따라간다. 가지는 A9 순서로 90ms, 잎은 50ms 간격
-// (프로토타입 v21 은 힘 시뮬레이션으로 가운데에서 퍼진다 — 여기서는 같은 모양을 정해진 길로 낸다). 길이는 components/article/motion.ts
+// (프로토타입 v21 은 힘 시뮬레이션으로 가운데에서 퍼진다 — 여기서는 같은 모양을 정해진 길로 낸다). 길이는 components/motion/screenMotion.ts
 const BRANCH_AT = (index: number) => 180 + index * 90;
 const LEAF_AFTER = 380;
 const LEAF_GAP = 50;

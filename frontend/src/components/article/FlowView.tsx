@@ -15,7 +15,7 @@ import {
   TRAVEL_X,
   TRAVEL_Y,
   travel,
-} from "@/components/article/motion";
+} from "@/components/motion/screenMotion";
 
 // 열 때 나오는 차례(ms) — 머리 줄, 그다음 가지 열이 앞(왼쪽 · 위)부터 300ms 간격으로 이야기처럼 나온다.
 // 열 안에서는 번호 원(튀어나오며 파문) → 질문 → 잎 카드(60ms 간격). 번호 원이 나오면 다음 번호로 선이 자라고
