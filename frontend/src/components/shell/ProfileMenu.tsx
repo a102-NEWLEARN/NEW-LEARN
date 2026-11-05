@@ -1,14 +1,17 @@
 import {
+  IconBracketLeftArrowRightLine,
   IconChevronDownSmallLine,
   IconPersonFill,
   IconPersonLine,
 } from "@karrotmarket/react-monochrome-icon";
 import {
   MenuContent,
+  MenuGroup,
   MenuItem,
   MenuItemLabel,
   MenuPositioner,
   MenuRoot,
+  MenuScrollArea,
   MenuTrigger,
   PrefixIcon,
   SuffixIcon,
@@ -68,33 +71,54 @@ export function ProfileMenu({
             svg={atMyPage ? <IconPersonFill /> : <IconPersonLine />}
           />
           <span className={labelClassName}>마이페이지</span>
-          {!narrow && <SuffixIcon svg={<IconChevronDownSmallLine />} />}
+          {/* 열리면 뒤집힌다 */}
+          {!narrow && (
+            <SuffixIcon
+              svg={
+                <IconChevronDownSmallLine
+                  className={`motion-safe:transition-transform motion-safe:duration-200 ${open ? "rotate-180" : ""}`}
+                />
+              }
+            />
+          )}
         </ActionButton>
       </MenuTrigger>
       <MenuPositioner>
-        <MenuContent className="min-w-[160px]">
-          <MenuItem asChild>
-            <Link to="/me" aria-current={atMyPage ? "page" : undefined}>
-              <MenuItemLabel>마이페이지</MenuItemLabel>
-            </Link>
-          </MenuItem>
-          <MenuItem
-            aria-busy={logout.pending || undefined}
-            onClick={() => {
-              keepOpen.current = true;
-              logout.run();
-            }}
-          >
-            <MenuItemLabel>로그아웃</MenuItemLabel>
-          </MenuItem>
-          {logout.error && (
-            <p
-              role="alert"
-              className="t3-medium mx-x2 mt-x1 mb-x2 max-w-[240px] rounded-r2 bg-bg-critical-weak px-x3 py-x2 text-fg-critical-contrast"
-            >
-              {logout.error}
-            </p>
-          )}
+        {/* SEED 메뉴 구조 그대로 — 스크롤 영역이 위아래 8px 를 두고, 묶음 사이에 구분선을 긋는다.
+            스크롤 영역을 빼면 호버 바탕이 메뉴 가장자리에 붙어 어색했다. 커서는 웹이라 손가락으로 */}
+        <MenuContent className="min-w-[180px]">
+          <MenuScrollArea>
+            <MenuGroup>
+              <MenuItem asChild size="small" className="cursor-pointer">
+                <Link to="/me" aria-current={atMyPage ? "page" : undefined}>
+                  <PrefixIcon svg={<IconPersonLine />} />
+                  <MenuItemLabel>마이페이지</MenuItemLabel>
+                </Link>
+              </MenuItem>
+            </MenuGroup>
+            <MenuGroup>
+              <MenuItem
+                size="small"
+                className="cursor-pointer"
+                aria-busy={logout.pending || undefined}
+                onClick={() => {
+                  keepOpen.current = true;
+                  logout.run();
+                }}
+              >
+                <PrefixIcon svg={<IconBracketLeftArrowRightLine />} />
+                <MenuItemLabel>로그아웃</MenuItemLabel>
+              </MenuItem>
+              {logout.error && (
+                <p
+                  role="alert"
+                  className="t3-medium mx-x2 mt-x1 max-w-[240px] rounded-r2 bg-bg-critical-weak px-x3 py-x2 text-fg-critical-contrast"
+                >
+                  {logout.error}
+                </p>
+              )}
+            </MenuGroup>
+          </MenuScrollArea>
         </MenuContent>
       </MenuPositioner>
     </MenuRoot>
