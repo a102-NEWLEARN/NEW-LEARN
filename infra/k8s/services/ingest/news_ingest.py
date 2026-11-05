@@ -11,7 +11,7 @@ CronJob news-ingest(옆의 news-ingest.yaml)가 ConfigMap 으로 얹어 돌린�
   load-only 에서만, NewsData 설정은 있어도 무시한다. INGEST_FILE_LINES(기대 줄 수)와 다르면 실패 — ingest.md 「지난 기사 파일로 넣기」(Jira 169)
 - 무엇을 받나: INGEST_SOURCE(latest · archive) · INGEST_TIMEFRAME · INGEST_ARCHIVE_FROM/TO · INGEST_QUERY(고르는 조건),
   INGEST_DAYS(발행 시각의 KST 날짜로 거르기) · INGEST_REQUEST_INTERVAL(요청 사이 쉬기). 뜻과 값은 ingest.md 「설정」
-- 상한: INGEST_MAX_ARTICLES(B2 로 보낼 기사) · INGEST_MAX_REQUESTS(NewsData 요청)
+- 상한: INGEST_MAX_ARTICLES(기사 — 다른 기사 본문을 빼기 전 수로 센다) · INGEST_MAX_REQUESTS(NewsData 요청)
 - 키: NEWSDATA_API_KEY(봉인 Secret newsdata-api) · INTERNAL_BATCH_KEY(internal-api 의 배치 키, load-only · full)
 
 로그는 줄마다 JSON 하나이고 키는 모두 *** 로 가린다. 끝에 {"msg": "수집 결과", …} 한 줄
@@ -71,7 +71,7 @@ MODES = ("fetch-only", "load-only", "full")
 # wrong_body 는 다 받은 뒤 기사끼리 견주어 뺀 기사(drop_wrong_bodies)
 SKIP_REASONS = ("bad_item", "no_body", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit", "wrong_body")
 # 다른 기사 본문을 달고 온 기사 — NewsData content 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음 · 안내문을 준다(Jira S15P31A102-183)
-# 문턱과 까닭은 docs/plans/2026-11-05-ingest-wrong-body.md. 11/4 수집 12,438건에 돌려 64건
+# 문턱 · 까닭 · 잰 값은 docs/plans/2026-11-05-ingest-wrong-body.md
 SAME_BODY_MIN_CHARS = 500
 SAME_BODY_MIN_TITLES = 3  # 2건은 같은 기사에 제목만 달리 단 정상 기사가 있다
 LONG_BRIEF_MIN_CHARS = 5000
@@ -747,7 +747,9 @@ def main(environ, send, out, now=None, sleep=None, stdin=None):
     secrets = keys + [json.dumps(k)[1:-1] for k in keys]
 
     def log(record):
-        out.write(redact(json.dumps(record, ensure_ascii=False), secrets) + "\n")
+        # 짝 없는 서로게이트(제목에 올 수 있다)는 stdout 이 UTF-8 strict 면 예외다 — 로그 한 줄 때문에 하루치를 잃지 않게 바꿔 적는다
+        line = redact(json.dumps(record, ensure_ascii=False), secrets).encode("utf-8", "replace").decode("utf-8")
+        out.write(line + "\n")
         out.flush()
 
     try:

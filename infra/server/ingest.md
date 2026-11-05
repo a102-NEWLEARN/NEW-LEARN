@@ -30,13 +30,14 @@ flowchart LR
 | `INGEST_QUERY` | `country=kr&language=ko&removeduplicate=1&excludecategory=sports,entertainment,lifestyle,food,tourism&sort=pubdateasc`(팀원이 10/29 ~ 11/3 을 받은 쿼리 + 오래된 순) | `키=값&키=값` | 고르는 조건(분야 · 언론사). 받는 키는 `news_ingest.py` 의 `QUERY_KEYS`(`category` · `domainurl` · `sort` 등). 키 · 쪽 · 기간 · 시간대 · 모르는 키 · 빈 값 · 겹친 키는 종료 2. Basic 은 요청 하나에 분야 · 언론사 각 5개까지(팀장 공지) |
 | `INGEST_REQUEST_INTERVAL` | 없음(0) | `0` ~ `60` 초 | NewsData 요청 사이 쉬기. 유료 요금제 한도가 15분에 1,800크레딧이라 archive 는 3(15분에 많아야 300번 × 5 = 1,500) |
 | `INGEST_MAX_REQUESTS` | `500` | `1` ~ `500` | 한 번 실행의 NewsData 요청 = latest 크레딧 상한 |
-| `INGEST_MAX_ARTICLES` | `20000` | `1` ~ `20000` | B2 로 보낼 기사 상한 |
+| `INGEST_MAX_ARTICLES` | `20000` | `1` ~ `20000` | 기사 상한(다른 기사 본문을 빼기 전 수) |
 | `INGEST_FILE_LINES` | 없음 | 비움 · `1` ~ `1000000` | `file` 일 때 기대 줄 수. 읽은 줄과 다르면 끝까지 넣고 종료 1(덜 올라간 파일 · 다른 파일 · 끊긴 스트림) |
 | `BACKEND_URL` | `http://backend.app.svc:8080` | `http(s)://<호스트>` | B2 · B1 을 부를 곳(load-only · full) |
 
 - 같은 실행 안의 중복은 링크와 NewsData `article_id` 로 거르고, 실행 사이 중복은 B2 가 URL 로 막는다(200)
 - 거르는 순서: 기사 모양 → 본문 없음 → 분야(스포츠 · 연예 · 생활 · 음식 · 여행 — 쿼리의 `excludecategory` 와 같은 다섯) → NewsData 가 `duplicate=true` 로 표시 → 시간대 → 시각 모양 → **날짜 범위 밖** → 같은 실행 안 중복 → 기사 상한. 범위 밖(10시 실행의 그날 0 ~ 10시)이 상한을 먹지 않는다
-- **다른 기사 본문을 달고 온 기사는 다 받은 뒤 뺀다**(`skipped.wrong_body`, Jira S15P31A102-183). NewsData `content` 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음이나 언론사 안내문을 준다. 본문을 되살리지 않고 그 기사를 넣지 않는다. 규칙은 둘이다 — (a) 한 번 수집 안에서 같은 언론사 · 같은 본문(앞뒤 공백 뺌, 500자 이상)을 제목이 다른 기사 3건 이상이 쓴다 (b) 단신 제목(맨 앞의 `[부고]` · `[부음]` · `[인사]` · `[포토]` · `[사진]` · `[속보]` · `[그래픽]` · `[영상]` · `[만평]`, 또는 어디든 국민만평 · 부친상 · 모친상 · 빙부상 · 빙모상 · 시모상 · 장인상) + 본문 5,000자 이상 + 제목 낱말이 본문에 나오는 비율 50% 이하. 제목 · 언론사가 글자가 아니면 판정하지 않고 B2 가 판단한다. 파일 넣기(`INGEST_SOURCE=file`)는 거르지 않는다. 잰 값 · 못 잡는 것은 계획 `docs/plans/2026-11-05-ingest-wrong-body.md`
+- **다른 기사 본문을 달고 온 기사는 다 받은 뒤 뺀다**(`skipped.wrong_body`, Jira S15P31A102-183). NewsData `content` 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음이나 언론사 안내문을 준다. 본문을 되살리지 않고 그 기사를 넣지 않는다. 규칙은 둘이다 — (a) 한 번 수집 안에서 같은 언론사 · 같은 본문(앞뒤 공백 뺌, 500자 이상)을 제목이 다른 기사 3건 이상이 쓴다 (b) 단신 제목(`news_ingest.py` 의 `BRIEF_TITLE_RE`) + 본문 5,000자 이상 + 제목 낱말이 본문에 나오는 비율 50% 이하. 제목 · 언론사가 글자가 아니면 판정하지 않고 B2 가 판단한다. 파일 넣기(`INGEST_SOURCE=file`)는 거르지 않는다. 기사 상한은 빼기 전 수로 센다. 잰 값 · 못 잡는 것은 계획 `docs/plans/2026-11-05-ingest-wrong-body.md`
+- NewsData 가 중간에 실패한 날은 받은 데까지로 판정한다. 같은 본문이 2건만 모여 들어간 뒤 다시 시도에서 3건이 모이면, `본문 불일치로 뺌` 이 찍혀도 앞서 넣은 기사는 DB 에 있다. 그날 Pod 가 둘이면 그 URL 을 DB 와 대조해 숨긴다(`category-labels.md`)
 - 쿼리에 `sort=pubdateasc`(오래된 순)가 있고 `INGEST_DAYS` 가 있으면, 시각을 믿을 수 있는 기사(UTC · 모양이 맞음)가 **쪽 전체에서 모두 범위 뒤**일 때 멈춘다(`stoppedBy: past_range`, 종료 0). 범위 뒤 기사가 한 건 끼인 쪽에서는 멈추지 않는다 — 정렬이 조금 어긋나도 어제 기사를 잃지 않게 요청 하나를 더 쓴다. 상한에 걸린 기사가 있으면 그쪽(종료 2)이 먼저다 — 그날 0 ~ 10시 쪽을 안 받아 요청이 준다(평균 약 330 → 240, 팀장 어림). 정렬은 2026-11-04 받기만으로 첫 쪽이 창 시작 바로 뒤인 것을 확인했다(`SSOT.md` 10절)
 - 다음 쪽이 남았는데 요청 · 기사 상한에 닿으면 받은 데까지 넣고 종료 2 — 빠진 구간이 있다는 뜻이고 경보 ①이 울린다(아래 「경보가 오면」)
 
@@ -51,7 +52,7 @@ flowchart LR
   ```
 
   같은 날 운영 기사 목록 JSONL 도 넘긴다(`infra/server/data-load.md` 2절)
-- 팀장이 매일 적는 항목은 `수집 결과` 한 줄에서 나온다 — 요청 `requests` · 크레딧 `credits` · 받은 수 `fetched` · 새 기사 `b2.created` · 본문 정상 `fetched` − `skipped.no_body` − `skipped.wrong_body` · 빠진 구간 `stoppedBy` 와 `pubDates`. `fetched` · `no_body` 는 범위 밖까지 받은 쪽 전체(그제 밤 · 멈추기 직전 쪽 포함)를 센다 — 「전날 기사 수」는 `kept`(날짜 범위 안 · 거른 뒤). 수집 시각은 `article.created_at`(B2 가 넣은 때)
+- 팀장이 매일 적는 항목은 `수집 결과` 한 줄에서 나온다 — 요청 `requests` · 크레딧 `credits` · 받은 수 `fetched` · 새 기사 `b2.created` · 본문 정상 `fetched` − `skipped.no_body` − `skipped.wrong_body` · 빠진 구간 `stoppedBy` 와 `pubDates`. `fetched` · `no_body` 는 범위 밖까지 받은 쪽 전체(그제 밤 · 멈추기 직전 쪽 포함)를 세고 `wrong_body` 는 날짜 범위 안 기사만 본다 — 「전날 기사 수」는 `kept`(날짜 범위 안 · 거른 뒤). 수집 시각은 `article.created_at`(B2 가 넣은 때)
 - 손 실행은 10시를 피한다 — 겹치면 둘이 같이 돌아 크레딧을 두 번 쓰거나 예약이 건너뛰어질 수 있다(손으로 만든 Job 을 CronJob 이 어떻게 세는지는 클러스터에서 확인하지 않았다)
 
 ## 손 실행 (EC2)
@@ -216,7 +217,7 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 | `mode` · `source` · `days` | 모드 · latest/archive · 넣은 KST 날짜 범위(`[첫날, 끝날]`, 거르지 않으면 `null`) |
 | `requests` · `credits` | NewsData 요청 수 · 깎인 크레딧 어림(요청 × 1, archive 는 × 5) |
 | `fetched` · `kept` | 받은 기사 수 · 걸러 남아 보낼(받기만이면 보낼 수 있는) 기사 수 |
-| `skipped` | 거른 까닭별 수 — `bad_item` 기사 모양이 아님, `no_body` 본문 없음, `category` 스포츠 · 연예 · 생활 · 음식 · 여행, `marked_duplicate` NewsData 가 `duplicate=true` 로 표시, `timezone` `pubDateTZ` 가 UTC 아님, `bad_date` 시각 모양이 다름, `out_of_range` 날짜 범위 밖, `duplicate` 같은 실행 안 같은 링크 · `article_id`, `over_limit` 기사 상한을 넘음, `wrong_body` 다른 기사 본문을 달고 옴(위 「거르는 순서」 다음 줄). 받기만은 한 쪽(50건)만 봐서 `wrong_body` 를 매일 수와 견줄 수 없다 |
+| `skipped` | 거른 까닭별 수 — `bad_item` 기사 모양이 아님, `no_body` 본문 없음, `category` 스포츠 · 연예 · 생활 · 음식 · 여행, `marked_duplicate` NewsData 가 `duplicate=true` 로 표시, `timezone` `pubDateTZ` 가 UTC 아님, `bad_date` 시각 모양이 다름, `out_of_range` 날짜 범위 밖, `duplicate` 같은 실행 안 같은 링크 · `article_id`, `over_limit` 기사 상한을 넘음, `wrong_body` 다른 기사 본문을 달고 옴(규칙은 위 「다른 기사 본문을 달고 온 기사」). 받기만은 한 쪽(50건)만 봐서 `wrong_body` 를 매일 수와 견줄 수 없다 |
 | `pubDates` | 받은 기사 `pubDate`(UTC) 의 `min` · `max` — 창 · archive 날짜가 생각대로 먹었는지 |
 | `stoppedBy` | `end` 끝까지 받음 · `past_range` 오래된 순으로 받다 범위를 지나 멈춤(정상) · `max_requests` · `max_articles` 상한(다음 쪽이 남음 — 받기만은 늘 요청 1이라 정상) · `newsdata_error` 중간 실패 · `newsdata_auth` 중간에 키를 안 받음 |
 | `b2` (load-only · full) | `created` 새로 넣음(201) · `existing` 이미 있음(200) · `rejected` 입력 오류(400) · `failed` 그 밖 |
@@ -235,7 +236,7 @@ MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEF
 
 15분 모드의 새 기사는 라벨 전까지 NewsData 값이다. 라벨은 그때그때 돌린다(`category-labels.md` 3절).
 
-15분 모드에서는 잘못된 본문 거르기의 (a) 가 덜 잡힌다 — 창이 30분이라 같은 본문 3건이 한 실행에 잘 안 모이고, 창이 겹쳐 한 실행에서 걸러진 기사가 다음 실행에서 묶음이 줄면 통과한다. 재 보지는 않았다. 켜기 전에 다시 본다.
+15분 모드에서는 잘못된 본문 거르기의 (a) 가 덜 잡힌다 — 창이 30분이라 같은 본문 3건이 한 실행에 잘 안 모이고, 창이 겹치므로 한 실행에서 걸러진 기사도 다음 실행에서 같은 본문 기사가 3건 밑으로 줄면 그대로 들어간다. 재 보지는 않았다. 켜기 전에 다시 본다.
 
 ## B1 켜기 (덤프 뒤, Jira 156)
 

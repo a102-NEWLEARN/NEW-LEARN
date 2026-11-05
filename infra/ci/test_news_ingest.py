@@ -1289,6 +1289,22 @@ class WrongBodySameBody(unittest.TestCase):
         net, _ = self.fetch(items)
         self.assertEqual(net.b2_calls(), [])
 
+    def test_spaces_do_not_reach_the_500_limit(self):
+        body = "가" * 499 + " "
+        net, _ = self.fetch([item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2, 3)])
+        self.assertEqual(len(net.b2_calls()), 3)
+
+    def test_same_body_across_pages_grouped(self):
+        # 다 받은 뒤 견준다 — 실제 실행은 300쪽 가까이 돈다
+        body = filler(600)
+        first = [item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2)]
+        last = [item(3, title="가람시 소식 3", content=body), item(4)]
+        net = FakeNet([page(first, "n1"), page(last)])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        self.assertEqual(summary(lines)["skipped"]["wrong_body"], 3)
+
     def test_title_words_do_not_save_it(self):
         # 묶음의 1등을 남기지 않는다 — 흔한 낱말이 긴 본문에 우연히 있어도 다른 기사 본문이다
         body = filler(600) + " 가람시 소식"
@@ -1340,6 +1356,11 @@ class WrongBodyLongBrief(unittest.TestCase):
 
     def test_title_without_words_counts_as_full_share(self):
         self.assertEqual(self.sent("[속보] !!", filler(5000)), (1, 0))
+        # 한 글자는 낱말로 세지 않는다
+        self.assertEqual(self.sent("[속보] 가 나 다", filler(5000)), (1, 0))
+
+    def test_spaces_do_not_reach_the_5000_limit(self):
+        self.assertEqual(self.sent("[부고] 김가람씨 별세", "가" * 4999 + " "), (1, 0))
 
 
 class WrongBodyFlow(unittest.TestCase):
@@ -1362,6 +1383,8 @@ class WrongBodyFlow(unittest.TestCase):
         self.assertEqual(first["title"], "가람시 소식 1")
         self.assertEqual(first["sameBodyTitles"], 3)
         self.assertEqual(first["bodyChars"], len(body))
+        self.assertEqual(first["pressSourceId"], "garam_kr")
+        self.assertEqual(first["titleWordShare"], 0.0)
         self.assertNotIn(marker, text)
 
     def test_fetched_equals_kept_plus_skipped(self):
@@ -1392,6 +1415,36 @@ class WrongBodyFlow(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(net.b2_calls(), [])
         self.assertEqual(summary(lines)["kept"], 0)
+
+    def test_newsdata_failing_midway_still_judges_what_came(self):
+        for failure, want in (((500, {"status": "error"}), 1), ((401, {"status": "error"}), 2)):
+            with self.subTest(failure=failure):
+                net = FakeNet([page(self.same_body(1, 2, 3) + [item(4)], "n1"), failure])
+                code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+                self.assertEqual(code, want)
+                self.assertEqual(urls_sent(net), [item(4)["link"]])
+                self.assertEqual(summary(lines)["skipped"]["wrong_body"], 3)
+
+    def test_cap_still_judges_and_exits_2(self):
+        net = FakeNet([page(self.same_body(1, 2, 3) + [item(4)], "n1")])
+        code, lines, _ = run(env(INGEST_MODE="load-only", INGEST_MAX_REQUESTS="1"), net)
+        self.assertEqual(code, 2)
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        self.assertEqual(summary(lines)["skipped"]["wrong_body"], 3)
+
+    def test_lone_surrogate_in_dropped_title_does_not_stop_the_day(self):
+        # 진짜 stdout 처럼 UTF-8 strict — StringIO 로는 이 실패가 보이지 않는다
+        body = filler(600)
+        items = [item(n, title=f"\ud83d 가람시 소식 {n}", content=body) for n in (1, 2, 3)] + [item(4)]
+        net = FakeNet([(200, json.dumps({"status": "success", "results": items, "nextPage": None}).encode())])
+        raw = io.BytesIO()
+        out = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+        code = news_ingest.main(env(INGEST_MODE="load-only"), net, out)
+        out.flush()
+        self.assertEqual(code, 0)
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        result = summary([json.loads(line) for line in raw.getvalue().decode("utf-8").splitlines()])
+        self.assertEqual(result["skipped"]["wrong_body"], 3)
 
     def test_title_not_text_goes_to_b2_as_is(self):
         # 여기서 예외가 나면 전체 앞이라 하루치가 0건이 된다. 지금처럼 그 한 건만 B2 가 판단한다
