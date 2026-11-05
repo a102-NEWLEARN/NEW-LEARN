@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
-import { ApiError } from "@/api/error";
+import { ApiError, isSessionExpired } from "@/api/error";
 import { changeCategories, type Member, meQuery } from "@/api/members";
 import { InterestChips } from "@/components/InterestChips";
 import { errorDescription } from "@/components/state/ErrorState";
@@ -43,11 +43,8 @@ export function InterestSettings({ member }: { member: Member }) {
       navigate("/home");
     },
     onError: (cause) => {
-      // 세션이 끝났다 — 손님으로 바꾸면 가드(RequireMember)가 로그인 화면으로 보내고, 로그인하면 여기로 돌아온다
-      if (cause instanceof ApiError && cause.status === 401) {
-        queryClient.setQueryData(meQuery.queryKey, null);
-        return;
-      }
+      // 세션이 끝났다 — QueryClient 가 손님으로 바꿔 로그인 화면으로 보낸다(query-client.ts). 로그인하면 여기로 돌아온다
+      if (isSessionExpired(cause)) return;
       const reason = categoryError(cause);
       if (reason) {
         setError(reason);

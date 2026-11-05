@@ -1,20 +1,45 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { meQuery } from "@/api/members";
 import { Logo } from "@/components/Logo";
+import { FollowCursor } from "@/components/motion/FollowCursor";
+import { GreetingIntro } from "@/components/motion/GreetingIntro";
 import { loginPath } from "@/lib/login-path";
+import { prefersReducedMotion } from "@/lib/motion";
+
+/** 첫 화면 글이 떠오르는 모양. 몇 번째인지에 따라 animationDelay 를 늦춘다 */
+const RISE =
+  "motion-safe:animate-[newlearn-rise_600ms_var(--seed-timing-function-enter)_both]";
 
 // 랜딩 — 셸 없이 전체 화면으로 뜬다 (EXPERIENCE.md Information Architecture).
-// 프로토타입 v21 의 상단과 첫 화면만 둔다. 소개 메뉴(주요 기능 · 근거와 신뢰 · 자주 묻는 질문)는 아직 없다
+// 프로토타입 v21 의 상단과 첫 화면만 둔다. 소개 메뉴(주요 기능 · 근거와 신뢰 · 자주 묻는 질문)는 아직 없다.
+// 열면 인사 문구가 지나간 뒤 첫 화면 글이 차례로 떠오른다 (does.kr 채용 화면 참고)
 export function LandingPage() {
   // A17 — 회원이면 홈으로 바로 간다. 손님이거나 아직 모르면 로그인 화면으로 보내고,
   // 응답 전에 누른 회원은 로그인 화면이 홈으로 돌려보낸다 (EXPERIENCE.md 이동 규칙)
   const me = useQuery(meQuery);
   const start = me.data ? "/home" : loginPath("/home");
+  const [intro, setIntro] = useState(() => !prefersReducedMotion());
+  const [revealed, setRevealed] = useState(false);
+  // 인사 막이 걷히기 시작하면 첫 화면 글을 띄운다. i 번째는 i × 120ms 늦게
+  const rise = (i: number) =>
+    revealed
+      ? { className: RISE, style: { animationDelay: `${i * 120}ms` } }
+      : {};
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg-layer-default">
+      {intro && (
+        <GreetingIntro
+          eyebrow="NEW:LEARN"
+          title="안녕하세요!"
+          onLift={() => setRevealed(true)}
+          onDone={() => setIntro(false)}
+        />
+      )}
+      <FollowCursor />
       <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak px-x4 md:px-x8">
         {/* 셸 로고처럼 누르면 맨 위로 올린다. 같은 주소라 방문 기록은 쌓이지 않는다 */}
         <Link
@@ -45,26 +70,36 @@ export function LandingPage() {
         <div className="mx-auto grid w-full max-w-[1040px] items-center gap-x10 px-x4 py-x12 md:grid-cols-2 md:px-x8 md:py-x16">
           {/* 한국어 문장이 글자 중간에서 줄이 바뀌지 않게 단어 단위로 끊는다 */}
           <div className="break-keep">
-            <p className="t4-bold text-fg-brand">뉴스를 넘어, 흐름을 읽다.</p>
-            <h1 className="t11-bold md:t14-bold mt-x3 text-fg-neutral">
-              기사는 많아도, <br />
-              이슈는 한 흐름으로.
-            </h1>
-            <p className="t5-regular mt-x4 text-fg-neutral-muted">
-              같은 사건을 다룬 기사는 하나로 묶고,{" "}
-              <br className="max-sm:hidden" />
-              시간에 따라 달라진 내용은 원문 근거와 함께 보여줘요.
-            </p>
-            <ActionButton
-              asChild
-              variant="brandSolid"
-              size="large"
-              className="mt-x8"
-            >
-              <Link to={start}>서비스 시작하기</Link>
-            </ActionButton>
+            <div {...rise(0)}>
+              <p className="t4-bold text-fg-brand">뉴스를 넘어, 흐름을 읽다.</p>
+            </div>
+            <div {...rise(1)}>
+              <h1 className="t11-bold md:t14-bold mt-x3 text-fg-neutral">
+                기사는 많아도, <br />
+                이슈는 한 흐름으로.
+              </h1>
+            </div>
+            <div {...rise(2)}>
+              <p className="t5-regular mt-x4 text-fg-neutral-muted">
+                같은 사건을 다룬 기사는 하나로 묶고,{" "}
+                <br className="max-sm:hidden" />
+                시간에 따라 달라진 내용은 원문 근거와 함께 보여줘요.
+              </p>
+            </div>
+            <div {...rise(3)}>
+              <ActionButton
+                asChild
+                variant="brandSolid"
+                size="large"
+                className="mt-x8"
+              >
+                <Link to={start}>서비스 시작하기</Link>
+              </ActionButton>
+            </div>
           </div>
-          <HeroTimeline />
+          <div {...rise(4)}>
+            <HeroTimeline />
+          </div>
         </div>
       </main>
     </div>

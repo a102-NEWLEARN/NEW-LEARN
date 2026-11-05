@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { renderRoute } from "@/test/render";
 
@@ -108,53 +108,18 @@ test("한글 입력기에서 ₩ 로 들어와도 단축키가 먹는다", async
   ).toBeDefined();
 });
 
-test("접힌 레일에서 지금 화면(홈)을 표시한다", async () => {
+// 레일에는 펼치기 · 빠른 이동만 둔다 — 홈은 헤더 로고, 나의 뉴스함은 헤더 버튼, 분야별 이슈는 펼치기와 겹친다.
+// 관심 이슈는 마이페이지에 있다 (2026-11-04 사용자 결정, Jira 167)
+test("접힌 레일에는 펼치기와 빠른 이동 두 버튼만 있다", async () => {
   renderRoute("/home");
 
-  const home = await within(sidebar()).findByRole("link", { name: "홈" });
-  expect(home.getAttribute("href")).toBe("/home");
-  expect(home.getAttribute("aria-current")).toBe("page");
-});
-
-test("분야별 이슈 아이콘을 누르면 사이드바를 편다", async () => {
-  renderRoute("/home");
-
-  fireEvent.click(
-    await within(sidebar()).findByRole("button", { name: "분야별 이슈 보기" }),
-  );
-
-  expect(within(sidebar()).getByText("이슈 탐색")).toBeDefined();
-});
-
-test("관심 이슈 — 곧 제공 안내를 띄운다", async () => {
-  renderRoute("/home");
-
-  fireEvent.click(
-    await within(sidebar()).findByRole("button", { name: "관심 이슈" }),
-  );
-
-  expect(
-    await screen.findByText("MVP 이후 제공 예정인 기능이에요"),
-  ).toBeDefined();
-});
-
-test("나의 뉴스함 — 나의 뉴스함 화면으로 가고, 그 화면이면 눌린 모양이다", async () => {
-  const { router } = renderRoute("/home");
-
-  const link = await within(sidebar()).findByRole("link", {
-    name: "나의 뉴스함",
-  });
-  expect(link.getAttribute("aria-current")).toBeNull();
-  fireEvent.click(link);
-
-  await waitFor(() =>
-    expect(router.state.location.pathname).toBe("/bookmarks"),
-  );
+  await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" });
   expect(
     within(sidebar())
-      .getByRole("link", { name: "나의 뉴스함" })
-      .getAttribute("aria-current"),
-  ).toBe("page");
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label")),
+  ).toEqual(["사이드바 펼치기", "빠른 이동"]);
+  expect(within(sidebar()).queryAllByRole("link")).toHaveLength(0);
 });
 
 // 빠른 이동 — 어느 화면에서든 홈으로 가서 검색창에 포커스한다 (EXPERIENCE.md IA 통합 검색)
@@ -187,4 +152,19 @@ test("펼친 사이드바의 빠른 이동도 홈 검색창으로 간다", async
   });
   expect(router.state.location.pathname).toBe("/home");
   expect(document.activeElement).toBe(search);
+});
+
+// 분야 이름 오른쪽에 A1 issueCount — 모바일 v1 · v21 Sidebar (Jira 163).
+// 숫자는 눈으로 보는 보조라 화면 읽기에서 빼서 분야 버튼 이름은 「경제」 그대로다
+test("펼친 사이드바의 분야 옆에 이슈 수를 보인다", async () => {
+  renderRoute("/home");
+
+  fireEvent.click(
+    await within(sidebar()).findByRole("button", { name: "사이드바 펼치기" }),
+  );
+  const economy = await within(sidebar()).findByRole("button", {
+    name: "경제",
+  });
+  const count = within(economy).getByText("4");
+  expect(count.getAttribute("aria-hidden")).toBe("true");
 });

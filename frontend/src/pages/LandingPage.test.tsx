@@ -81,3 +81,36 @@ test("로고를 누르면 랜딩에 남아 맨 위로 올라간다", async () =>
   expect(router.state.location.pathname).toBe("/");
   expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
 });
+
+test("열면 인사 문구가 뜨고, 키를 치면 걷혀 사라진다", async () => {
+  renderRoute("/");
+
+  expect(screen.getByText("안녕하세요!")).toBeDefined();
+  // 인사 막은 장식이라 그동안에도 첫 화면 제목이 읽힌다
+  expect(
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "기사는 많아도, 이슈는 한 흐름으로.",
+    }),
+  ).toBeDefined();
+
+  fireEvent.keyDown(window, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByText("안녕하세요!")).toBeNull());
+});
+
+test("동작 줄이기를 켜면 인사 없이 첫 화면을 띄운다", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(prefers-reduced-motion: reduce)",
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+  renderRoute("/");
+
+  await screen.findByRole("heading", { level: 1 });
+  expect(screen.queryByText("안녕하세요!")).toBeNull();
+});

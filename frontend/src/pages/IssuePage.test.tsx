@@ -487,7 +487,7 @@ test("사건 패널을 연 채 다른 화면으로 가면 용어사전 버튼이
   expect(dictionaryButton().style.right).toBe("24px");
 });
 
-test("좁은 화면에서는 사건 시트가 올라와도 용어사전 버튼이 비키지 않는다", async () => {
+test("좁은 화면에서는 사건 시트가 올라와도 용어사전 버튼이 비키지 않는다 — 오른쪽 16px (모바일 v1)", async () => {
   stubScreen("narrow");
   measurePanel(420);
   renderRoute("/issues/12?event=119");
@@ -497,7 +497,16 @@ test("좁은 화면에서는 사건 시트가 올라와도 용어사전 버튼�
   const button = document.querySelector<HTMLElement>(
     'button[aria-label="용어 사전 열기"]',
   );
-  expect(button?.style.right).toBe("24px");
+  expect(button?.style.right).toBe("16px");
+});
+
+test("좁은 화면 사건 시트는 본문(main) 밖에 그려 딤이 용어사전 버튼까지 덮는다", async () => {
+  stubScreen("narrow");
+  renderRoute("/issues/12?event=119");
+
+  const sheet = await screen.findByRole("dialog", { name: "사건 상세" });
+  // 본문은 isolate 라 그 안의 z-index 는 본문 밖에 떠 있는 용어사전 버튼을 넘지 못한다
+  expect(document.querySelector("main")?.contains(sheet)).toBe(false);
 });
 
 test("좁은 화면에서 넓은 화면으로 바뀌면 그때 나타난 패널 폭만큼 비킨다", async () => {
@@ -516,7 +525,8 @@ test("좁은 화면에서 넓은 화면으로 바뀌면 그때 나타난 패널 
 
   act(() => resizeScreen("narrow"));
   await screen.findByRole("dialog", { name: "사건 상세" });
-  expect(right()).toBe("24px");
+  // 좁은 화면 버튼 자리 — 모바일 v1
+  expect(right()).toBe("16px");
 
   act(() => resizeScreen("wide"));
   await panel();
@@ -536,4 +546,22 @@ test("용어사전 창과 사건 패널이 같이 열려 있으면 Esc 는 창�
 
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(router.state.location.search).toBe("");
+});
+
+test("사이드바에서 사건을 누르면 패널이 열리고 포커스가 패널 제목으로 간다", async () => {
+  renderRoute("/issues/12");
+  fireEvent.click(
+    await screen.findByRole("button", { name: "사이드바 펼치기" }),
+  );
+  const sidebar = screen.getByRole("navigation", { name: "사이드바" });
+  fireEvent.click(await within(sidebar).findByRole("button", { name: "경제" }));
+
+  // 사이드바의 사건 링크는 「날짜 키워드」다. 패널이 열리면 사이드바가 접혀 링크가 사라진다
+  fireEvent.click(await within(sidebar).findByRole("link", { name: /착공식/ }));
+
+  const heading = await within(await panel()).findByRole("heading", {
+    level: 2,
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  await waitFor(() => expect(document.activeElement).toBe(heading));
 });

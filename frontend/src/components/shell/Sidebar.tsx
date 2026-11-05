@@ -1,22 +1,14 @@
 import {
-  IconBookmarkFill,
-  IconBookmarkLine,
   IconChevronLeftLine,
   IconChevronRightLine,
-  IconGridLine,
-  IconHouseFill,
-  IconHouseLine,
   IconMagnifyingglassLine,
-  IconStarLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { type ReactNode, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router";
 import {
   IssueExplorer,
   type IssueExplorerProps,
 } from "@/components/shell/IssueExplorer";
 import { useQuickSearch } from "@/components/shell/useQuickSearch";
-import { useComingSoon } from "@/components/useSnackbar";
 
 type SidebarProps = IssueExplorerProps & {
   expanded: boolean;
@@ -24,7 +16,8 @@ type SidebarProps = IssueExplorerProps & {
 };
 
 // 사이드바 — 접으면 아이콘만 있는 64px 레일, 펴면 216px 이슈 탐색이다 (EXPERIENCE.md 앱 셸).
-// 끌어서 폭을 바꾸지 않는다. 항목과 아이콘 순서는 프로토타입 v21 을 따른다
+// 끌어서 폭을 바꾸지 않는다. 레일에는 펼치기 · 빠른 이동만 둔다 — 프로토타입 v21 레일의 홈 · 나의 뉴스함은 헤더와,
+// 분야별 이슈는 펼치기와 겹치고, 관심 이슈는 마이페이지에 있다 (2026-11-04 사용자 결정, S15P31A102-167)
 export function Sidebar({
   expanded,
   onExpandedChange,
@@ -66,7 +59,7 @@ const SHORTCUT = "Control+\\ Meta+\\";
 // 레일의 아이콘 버튼 — 누르는 영역 40px (EXPERIENCE.md Accessibility Floor).
 // 글자가 없어서 이름은 aria-label, 마우스를 올리면 title 로 보인다
 const railItemClass =
-  "flex size-x10 items-center justify-center rounded-r2 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-brand-contrast";
+  "flex size-x10 items-center justify-center rounded-r2 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring";
 
 function RailButton({
   label,
@@ -99,11 +92,7 @@ function RailButton({
 }
 
 function SidebarRail({ onExpand }: { onExpand: () => void }) {
-  const comingSoon = useComingSoon();
   const quickSearch = useQuickSearch();
-  const { pathname } = useLocation();
-  const atHome = pathname === "/home";
-  const atBookmarks = pathname === "/bookmarks";
 
   return (
     <div className="flex flex-col items-center gap-x1 py-x2_5">
@@ -120,44 +109,6 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
         label="빠른 이동"
         icon={<IconMagnifyingglassLine size={20} aria-hidden />}
         onClick={quickSearch}
-      />
-      <span aria-hidden className="my-x1 h-px w-x7 bg-stroke-neutral-weak" />
-      <Link
-        to="/home"
-        aria-label="홈"
-        title="홈"
-        aria-current={atHome ? "page" : undefined}
-        className={railItemClass}
-      >
-        {/* 선택 상태는 Fill 형 아이콘 (DESIGN.md 아이콘) */}
-        {atHome ? (
-          <IconHouseFill size={20} aria-hidden />
-        ) : (
-          <IconHouseLine size={20} aria-hidden />
-        )}
-      </Link>
-      <RailButton
-        label="관심 이슈"
-        icon={<IconStarLine size={20} aria-hidden />}
-        onClick={comingSoon}
-      />
-      <Link
-        to="/bookmarks"
-        aria-label="나의 뉴스함"
-        title="나의 뉴스함"
-        aria-current={atBookmarks ? "page" : undefined}
-        className={railItemClass}
-      >
-        {atBookmarks ? (
-          <IconBookmarkFill size={20} aria-hidden />
-        ) : (
-          <IconBookmarkLine size={20} aria-hidden />
-        )}
-      </Link>
-      <RailButton
-        label="분야별 이슈 보기"
-        icon={<IconGridLine size={20} aria-hidden />}
-        onClick={onExpand}
       />
     </div>
   );
