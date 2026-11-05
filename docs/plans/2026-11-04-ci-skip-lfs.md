@@ -30,9 +30,9 @@
 - [x] Jira 164 진행 중 → worktree `C:/tmp/wt-164`, 브랜치 `chore/infra/S15P31A102-164-ci-skip-lfs` ← `origin/infra`(이미 `data/` 가 있음 — 이 MR 파이프라인이 곧 시험). worktree 는 `GIT_LFS_SKIP_SMUDGE=1` 을 붙여 만든다(이 PC 시스템 git 설정에 LFS 필터가 있어 안 붙이면 578MB 를 다시 풀어 놓음), 계획 커밋
 - [x] `.gitlab-ci.yml` · `.gitignore` · stack.md 8절 · SSOT 6절 → 커밋 게이트 → push → MR(→ infra) — !642
 - [x] MR 파이프라인에서 확인(아래) → 잰 값으로 SSOT 10절 한 줄 커밋 → 파이프라인 다시 success — 관리 서버 1.0 ~ 1.5초 · 굽기 러너 1.5 ~ 2.5초
-- [ ] reviewer 조수(MR) → 머지 직전 원격 SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev 같은 방식 → 맞추기(infra · backend · ai, 내용 차이부터. frontend 는 FE 몫)
-- [ ] dev 에서 이미지 셋이 다시 구워지고 배포 태그 MR 이 생긴다 — 코드 차이가 없으면 닫는 것을 기본으로 사용자에게 묻는다(158 때와 같은 판단)
-- [ ] 본 폴더의 계획 초안 파일(`docs/plans/zazzy-questing-zebra.md`, 추적 안 됨) 지우기, Jira 164 댓글 · 완료, 개인 기록
+- [x] reviewer 조수(MR) → 머지 직전 원격 SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev 같은 방식 → 맞추기(infra · backend · ai, 내용 차이부터. frontend 는 FE 몫) — !642 → !647 → !648 · !649(infra 는 차이 0)
+- [x] dev 에서 이미지 셋이 다시 구워지고 배포 태그 MR 이 생긴다 — 코드 차이가 없으면 닫는 것을 기본으로 사용자에게 묻는다(158 때와 같은 판단) — !650 · !651 닫음(사용자)
+- [x] 본 폴더의 계획 초안 파일(`docs/plans/zazzy-questing-zebra.md`, 추적 안 됨) 지우기, Jira 164 댓글 · 완료, 개인 기록
 
 ## 안 바꿀 것
 

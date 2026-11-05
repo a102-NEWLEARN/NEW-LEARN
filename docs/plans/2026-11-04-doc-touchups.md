@@ -29,12 +29,12 @@ MR 번호는 GitLab API(`merge_requests?iids[]=…` 의 소스 · 대상 브랜�
 - [x] Jira 162 진행 중 → worktree `C:/tmp/wt-162`, 브랜치 `docs/infra/S15P31A102-162-doc-touchups` ← `origin/infra`, 계획 파일 커밋
 - [x] 대시보드 · stack.md · 계획 셋 고치기 → JSON 파싱 · infra 게이트(stack.md 3절) → 커밋
 - [x] 158 사후 점검 — reviewer 조수에게 !565 의 바뀐 세 파일(`.gitlab-ci.yml` · `frontend/Dockerfile` · `docs/dev-environment.md`)을 보이고, `/feature-done` 158. 빠진 것이 문서면 이 MR 에 더하고, 코드 · 설정이면 멈추고 묻는다 — 이미지 · 다이제스트 통과(레지스트리 재확인), `dev-environment.md` 한 줄만 고침
-- [ ] reviewer 조수(이 MR) → MR(→ infra) → 파이프라인 success → 머지 직전 원격 infra · dev SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev 같은 방식 → 분야 브랜치 맞추기(infra · backend · ai, 내용 차이부터. frontend 는 FE 몫)
-- [ ] 대시보드 반영 — 이 폴더는 Argo CD 앱이 아니라 손 `apply -k` 다(`infra/server/README.md` 「모니터링」 6번)
+- [x] reviewer 조수(이 MR) → MR(→ infra) → 파이프라인 success → 머지 직전 원격 infra · dev SHA · 열린 MR 을 같은 스크립트에서 읽고 머지 → infra → dev 같은 방식 → 분야 브랜치 맞추기(infra · backend · ai, 내용 차이부터. frontend 는 FE 몫)
+- [x] 대시보드 반영 — 이 폴더는 Argo CD 앱이 아니라 손 `apply -k` 다(`infra/server/README.md` 「모니터링」 6번)
   - Claude 가 머지된 origin/dev 에서 `git archive` 로 폴더만 뽑아 서버 `/tmp/ci-exporter-162` 로 보낸다
   - `kubectl diff -k` 로 대시보드 ConfigMap 하나만 바뀌는지 본다. 차이가 있으면 종료 코드 1 이 정상이다. 자동 권한 검사가 막으면 diff 도 사용자 몫으로 돌린다
   - 사용자가 EC2 에서 `kubectl apply -k /tmp/ci-exporter-162` 한 줄(파일 카드)
-- [ ] 확인(아래) → Jira 162 댓글 · 완료, 이 계획 체크, 개인 기록
+- [x] 확인(아래) → Jira 162 댓글 · 완료, 이 계획 체크, 개인 기록 — !637 → !638 → !639 ~ !641, 대시보드는 11-04 13:43 사용자 `apply -k`
 
 ## 안 바꿀 것
 
