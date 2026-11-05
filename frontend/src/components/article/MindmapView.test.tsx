@@ -6,6 +6,7 @@ import {
   INITIAL_MINDMAP_SETTINGS,
   MindmapView,
 } from "@/components/article/MindmapView";
+import { expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -208,4 +209,13 @@ test("탭 순서 — 설정 톱니와 확대 버튼이 그래프 노드보다 �
   expect(before(screen.getByRole("button", { name: "화면에 맞추기" }))).toBe(
     true,
   );
+});
+
+test("범례 칩은 누르는 동안 살짝 줄어든다 — 움직임은 동작 줄이기를 켜면 빠진다", () => {
+  renderView();
+
+  expect(chip("핵심 내용").getAttribute("class")).toContain(
+    "motion-safe:active:scale-",
+  );
+  expectMotionSafe();
 });

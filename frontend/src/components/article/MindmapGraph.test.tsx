@@ -3,6 +3,7 @@ import { expect, test, vi } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
 import { stubScreen } from "@/test/media";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -221,6 +222,147 @@ test("가운데 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 �
 
   const title = screen.getByText("한빛반도체 텍사스 공장");
   expect(title.closest('[aria-hidden="true"]')).not.toBeNull();
+});
+
+// 노드가 튀어나오는 묶음 — 노드 바로 안. 가운데 기사 제목은 화면 낭독에서 뺀 묶음 안이다
+const popIn = (node: Element) => node.querySelector(":scope > g")!;
+const rootNode = () =>
+  screen.getByText("한빛반도체 텍사스 공장").closest('[aria-hidden="true"]')!;
+const branchNode = (type: BranchType) =>
+  branchGroup(type).querySelector('[role="button"]')!;
+// 가지의 선 — 가운데에서 가지로, 그다음 가지에서 잎으로 (잎 순서)
+const lines = (type: BranchType) => [
+  ...branchGroup(type).querySelectorAll(":scope > line"),
+];
+const faded = (element: Element) => element.getAttribute("data-faded");
+const strokeOf = (element: Element) => element.getAttribute("class") ?? "";
+const mark = (name: string) => leaf(name).querySelector("[data-leaf-mark]")!;
+const MOUSE = { pointerType: "mouse" };
+
+test("열 때 가운데 → 가지 → 잎 차례로 나온다 — 선이 먼저 뻗고 노드가 튀어나온다. 가지는 A9 순서다 (프로토타입 v21)", () => {
+  renderGraph();
+  const [coreLine, firstLeafLine] = lines("CORE");
+  const first = leaf("한빛반도체가 텍사스 공장 착공식을 열었다");
+  const second = leaf("첫 해 생산 목표를 밝혔다");
+
+  for (const element of [popIn(rootNode()), popIn(coreBranch()), coreLine])
+    expect(element.getAttribute("class")).toMatch(/motion-safe:animate-\[/);
+  expect(enterDelay(popIn(rootNode()))).toBe(0);
+  expect(enterDelay(coreLine)).toBeLessThan(enterDelay(popIn(coreBranch())));
+  expect(enterDelay(popIn(coreBranch()))).toBeLessThan(
+    enterDelay(firstLeafLine),
+  );
+  expect(enterDelay(firstLeafLine)).toBeLessThan(enterDelay(popIn(first)));
+  expect(enterDelay(popIn(first))).toBeLessThan(enterDelay(popIn(second)));
+  const branchDelays = (["CORE", "CAUSE", "REACTION", "OUTLOOK"] as const).map(
+    (type) => enterDelay(popIn(branchNode(type))),
+  );
+  branchDelays
+    .slice(1)
+    .forEach((at, i) => expect(at).toBeGreaterThan(branchDelays[i]));
+  // 선은 시작점에서 끝점으로 뻗는다 — 길이와 상관없이 1 로 잰다
+  expect(coreLine.getAttribute("pathLength")).toBe("1");
+});
+
+test("가지에 마우스를 올리면 그 가지 · 잎 · 선만 또렷이 두고 나머지는 흐린다. 이어진 선은 진하게 칠한다", () => {
+  renderGraph();
+  const [coreLine, firstLeafLine] = lines("CORE");
+
+  fireEvent.pointerEnter(coreBranch(), MOUSE);
+
+  expect(faded(coreBranch())).toBeNull();
+  expect(faded(leaf("첫 해 생산 목표를 밝혔다"))).toBeNull();
+  expect(faded(coreLine)).toBeNull();
+  expect(faded(causeBranch())).toBe("true");
+  expect(faded(leaf("미국 보조금 조건을 맞추려고 착공을 앞당겼다"))).toBe(
+    "true",
+  );
+  expect(faded(lines("CAUSE")[0])).toBe("true");
+  expect(strokeOf(coreLine)).toContain("stroke-mindmap-core-stroke");
+  expect(strokeOf(firstLeafLine)).toContain("stroke-mindmap-core-stroke");
+  expect(strokeOf(lines("CAUSE")[0])).toContain("stroke-mindmap-cause-line");
+
+  fireEvent.pointerLeave(coreBranch(), MOUSE);
+  expect(faded(causeBranch())).toBeNull();
+  expect(strokeOf(coreLine)).toContain("stroke-mindmap-core-line");
+});
+
+test("잎에 마우스를 올리면 가운데에서 그 잎까지의 길만 또렷이 둔다 — 같은 가지의 다른 잎도 흐린다", () => {
+  renderGraph();
+  const [coreLine, firstLeafLine, secondLeafLine] = lines("CORE");
+
+  fireEvent.pointerEnter(leaf("첫 해 생산 목표를 밝혔다"), MOUSE);
+
+  expect(faded(leaf("첫 해 생산 목표를 밝혔다"))).toBeNull();
+  expect(faded(coreBranch())).toBeNull();
+  expect(faded(coreLine)).toBeNull();
+  expect(faded(secondLeafLine)).toBeNull();
+  expect(faded(leaf("한빛반도체가 텍사스 공장 착공식을 열었다"))).toBe("true");
+  expect(faded(firstLeafLine)).toBe("true");
+  expect(faded(causeBranch())).toBe("true");
+  expect(strokeOf(coreLine)).toContain("stroke-mindmap-core-stroke");
+  expect(strokeOf(secondLeafLine)).toContain("stroke-mindmap-core-stroke");
+  expect(strokeOf(firstLeafLine)).toContain("stroke-mindmap-core-line");
+});
+
+test("손가락으로 누를 때는 흐리지 않는다 — 터치는 누르면 마우스 흉내가 와서 강조와 겹친다", () => {
+  renderGraph();
+
+  fireEvent.pointerEnter(causeBranch(), { pointerType: "touch" });
+
+  expect(faded(coreBranch())).toBeNull();
+});
+
+test("마우스를 올린 가지를 범례로 숨기면 흐림을 푼다 — 숨긴 노드에서는 마우스가 떠났다는 알림이 오지 않는다", () => {
+  const { rerender } = renderWithProviders(
+    <MindmapGraph title="한빛반도체 텍사스 공장 착공" branches={BRANCHES} />,
+  );
+  fireEvent.pointerEnter(causeBranch(), MOUSE);
+  expect(faded(coreBranch())).toBe("true");
+
+  rerender(
+    <MindmapGraph
+      title="한빛반도체 텍사스 공장 착공"
+      branches={BRANCHES}
+      hidden={new Set(["CAUSE"])}
+    />,
+  );
+
+  expect(faded(coreBranch())).toBeNull();
+});
+
+test("강조한 잎은 원이 한 번 튀고, 가운데에서 그 잎까지 선을 진하게 칠한다", () => {
+  renderGraph();
+  const [coreLine, firstLeafLine, secondLeafLine] = lines("CORE");
+
+  fireEvent.click(leaf("첫 해 생산 목표를 밝혔다"));
+
+  expect(strokeOf(mark("첫 해 생산 목표를 밝혔다"))).toContain(
+    "newlearn-pop-once",
+  );
+  expect(
+    strokeOf(mark("한빛반도체가 텍사스 공장 착공식을 열었다")),
+  ).not.toContain("newlearn-pop-once");
+  expect(strokeOf(coreLine)).toContain("stroke-mindmap-core-stroke");
+  expect(strokeOf(secondLeafLine)).toContain("stroke-mindmap-core-stroke");
+  expect(strokeOf(firstLeafLine)).toContain("stroke-mindmap-core-line");
+});
+
+test("가지 포커스 밖은 흐리게 하고 살짝 번지게 한다 (프로토타입 v21)", () => {
+  renderGraph();
+
+  fireEvent.click(coreBranch());
+
+  expect(branchGroup("CAUSE").getAttribute("class")).toContain("blur-");
+  expect(branchGroup("CORE").getAttribute("class")).not.toContain("blur-");
+});
+
+test("움직임은 동작 줄이기를 켜면 빠진다 — 애니메이션 · 크기 변화 클래스는 모두 motion-safe 다", () => {
+  renderGraph();
+  fireEvent.click(leaf("첫 해 생산 목표를 밝혔다"));
+  fireEvent.pointerEnter(coreBranch(), MOUSE);
+
+  expectMotionSafe();
 });
 
 // 폰 폭(393 × 600)으로 잰다 — jsdom 은 크기를 못 재서 어림값을 쓴다
