@@ -69,9 +69,9 @@ AI 팀원 제보로 확인했다. 본문이 짧거나 사진뿐인 기사(부고
 
 ## 작업 순서
 
-- [ ] Jira 티켓 → `C:/tmp/wt-<번호>`(`GIT_LFS_SKIP_SMUDGE=1`, `origin/infra` 에서 브랜치 `fix/infra/S15P31A102-<번호>-ingest-wrong-body`) — `infra` 가 `dev` 에 맞는지 먼저 본다
-- [ ] 시험 쓰기 → 지금 코드에서 단언으로 빨강 → 코드 → 초록 → 되돌림 확인 → `/verify` → 커밋(게이트 infra)
-- [ ] 재현: 고친 함수에 11/4 JSONL · SQLite 를 돌려 위 표와 같은지 · 걸린 제목을 눈으로
+- [x] Jira 티켓 → `C:/tmp/wt-183`(`GIT_LFS_SKIP_SMUDGE=1`, `origin/infra` 에서 브랜치 `fix/infra/S15P31A102-183-ingest-wrong-body`) — `infra` 가 `dev` 에 맞는지 먼저 본다
+- [x] 시험 쓰기 → 지금 코드에서 단언으로 빨강 → 코드 → 초록 → 되돌림 확인 → `/verify` → 커밋(게이트 infra)
+- [x] 재현: 고친 함수에 11/4 JSONL · SQLite 를 돌려 위 표와 같은지 · 걸린 제목을 눈으로
 - [ ] MR ① 문서 커밋 → push · MR(→ `infra`) → reviewer 조수 → 파이프라인 success 뒤 머지 → `infra` → `dev`(같은 스크립트에서 SHA · 열린 MR 확인) → 분야 브랜치 맞추기
 - [ ] 사이트 확인: Argo CD `ingest` Synced, ConfigMap 에 `wrong_body` 가 들어감 — **11-06 10:00 전**. 못 맞추면 파이프라인 전에 머지하지 않는다 — 11/5 분 잘못된 본문이 들어와도 같은 절차로 더 숨기면 된다
 - [ ] MR ② → `infra` → `dev` → 맞추기
