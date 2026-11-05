@@ -60,7 +60,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 
 ### 만드는 길
 
-- DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — V12(해외 정치 제목 규칙, Jira 171)가 운영에 반영된 뒤로는 V12. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
+- DB 는 `compose.yaml` 의 PostgreSQL(운영과 같은 `pgvector/pgvector:0.8.7-pg18`)에 **dev 판 backend** 를 붙여 Flyway 로 만든다. 판은 적재 날의 운영 판과 같아야 한다 — V13(제목의 HTML 조각 고치기, Jira 178)이 운영에 반영된 뒤로는 V13. dev 가 운영보다 앞서 있어도 운영 판에 맞춘다. V12 로 만든 DB 는 backend 를 V13 판으로 띄우면 제목도 같이 고쳐져 기사를 다시 넣지 않아도 된다. 인프라가 운영 판을 알려 준다(`select max(version::int) from flyway_schema_history`)
 - 기사는 2절 목록(11/4 부터)과 10/21 ~ 11/3 JSONL(2절)을 로컬 B2(`POST http://localhost:8080/internal/v1/articles`, 머리 `X-Internal-Key` = 로컬 `.env` 의 `INTERNAL_BATCH_KEY`)로 넣는다. 분석은 로컬 B1(`POST /internal/v1/articles/{id}/release`, 같은 키)으로 걸고 — 이때 작업 행이 생긴다 — 결과는 AI 워커가 **W1 으로** 로컬 backend 에 보내 저장한다. 그래야 마인드맵 `content` 모양(A9 가 이 모양으로 읽는다), 작업 행, `article_event.linked_at`, 이슈가 운영 코드와 같은 모양이 된다. SQL 로 직접 넣은 표가 있으면 무엇을 어떻게 넣었는지 목록표에 적는다
 - SQLite 칸을 B2 칸으로 바꾸는 규칙은 `infra/server/sqlite_to_b2.py` 한 곳(머리말)에 있다 — SQLite 를 따로 바꿔 넣으면 운영 기사와 값이 달라 적재가 멈출 수 있다
 - 덤프를 뜨기 전에 5절 검사 가운데 「작업 행」 · 「판정 걸 기사」 · 「공개 기사」 · 「사건에 묶인 기사」를 자기 DB 에 돌려 모두 0 인지 본다 — 견본이 오가는 횟수가 준다

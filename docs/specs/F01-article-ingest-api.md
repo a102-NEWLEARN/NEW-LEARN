@@ -28,6 +28,8 @@
   — `primaryKeyCollisionIsNotReadAsSameUrl`
 - AC-11: 대표를 정치로 고른 기사의 제목이 해외 정치면 국제로 옮긴다(Jira 171, `data-model.md` 2절 category_mapping). 국내 정치 주체 · 정치가 아닌 말이 있거나 북한만 나오면 정치에 남고, 다른 분야로 고르거나 대표가 비면 그대로다
   — `foreignPoliticsTitleMovesOnlyArticlesChosenAsPolitics` · `ForeignPoliticsTitleRuleTest` · `CategoryMappingMigrationTest.v11ToV12MovesForeignPoliticsToWorldAndCanBeUndone`
+- AC-12: 제목의 HTML 조각은 정해진 표로만 글자로 되돌려 저장한다. 본문은 그대로다(Jira 178, `data-model.md` article)
+  — `htmlFragmentsInTitleAreRestoredOnIngest` · `ArticleTitleCleanerTest` · `ArticleTitleMigrationTest`
 
 ## 이 티켓에서 하지 않는 것
 
