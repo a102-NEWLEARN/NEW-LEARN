@@ -41,7 +41,20 @@ import {
   ROOT_RADIUS,
   ROOT_RING,
 } from "@/components/article/mindmapLayout";
-import { DRAW, enterAt, POP_IN, POP_ONCE } from "@/components/article/motion";
+import {
+  DRAW,
+  enterAt,
+  FLOAT,
+  floatPhase,
+  FLOW,
+  FLY_OUT,
+  flyFrom,
+  HOVER_SPRING,
+  POP_ONCE,
+  RIPPLE_LOOP,
+  RIPPLE_ONCE,
+  SPRING_IN,
+} from "@/components/article/motion";
 import { useElementSize } from "@/components/issue/useElementSize";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
@@ -64,19 +77,20 @@ const VIEW_MARGIN = 48;
 const DIMMED_OPACITY = 0.22;
 // 마우스를 올린 노드와 이어지지 않은 것은 흐리게 — 포커스 흐림보다 옅게 둬서 글이 비친다 (프로토타입 v21 은 0.16)
 const HOVER_FADED_OPACITY = 0.25;
-// 열 때 나오는 차례(ms) — 가운데 → 가지(선이 먼저 뻗고 원이 튀어나온다) → 잎. 가지는 A9 순서로 60ms, 잎은 30ms 간격
-// (프로토타입 v21 im-node-in 의 가운데 0 · 가지 140 · 잎 300ms). 길이는 components/article/motion.ts
-const BRANCH_AT = (index: number) => 120 + index * 60;
-const BRANCH_LINE_BEFORE = 100;
-const LEAF_LINE_AFTER = 100;
-const LEAF_AFTER = 180;
-const LEAF_GAP = 30;
-// 잎이 많아도 다 나오기까지 1초가 안 걸리게 — 여섯째 잎부터는 다섯째와 같이 나온다
+// 열 때 나오는 차례(ms) — 가운데가 튀어나오고, 가지가 가운데에서 · 잎이 그 가지에서 날아 나온다.
+// 선은 날아가는 노드와 같은 때 · 같은 곡선으로 뻗어 선 끝이 노드를 따라간다. 가지는 A9 순서로 90ms, 잎은 50ms 간격
+// (프로토타입 v21 은 힘 시뮬레이션으로 가운데에서 퍼진다 — 여기서는 같은 모양을 정해진 길로 낸다). 길이는 components/article/motion.ts
+const BRANCH_AT = (index: number) => 180 + index * 90;
+const LEAF_AFTER = 380;
+const LEAF_GAP = 50;
+// 잎이 많아도 다 나오기까지 2초가 안 걸리게 — 여섯째 잎부터는 다섯째와 같이 나온다
 const LEAF_STAGGER_MAX = 5;
 const leafAt = (j: number) => Math.min(j, LEAF_STAGGER_MAX) * LEAF_GAP;
-// 마우스를 올린 노드는 1.12배 — 작은 움직임이라 200ms
-const HOVER_SCALE =
-  "transition-[scale] duration-[var(--seed-duration-d4)] ease-[var(--seed-timing-function-enter-expressive)]";
+// 가운데 원의 파문 — 튀어나올 때 한 번, 다 나온 뒤부터 3초마다
+const ROOT_RIPPLE_AT = 250;
+const ROOT_PULSE_AT = 1800;
+// 마우스를 올린 길 위로 흐르는 점선 무늬 — 흰 3 · 빈 9, 한 칸 12 를 newlearn-flow 가 민다
+const FLOW_DASH = "3 9";
 // 전망 가지의 잎은 점선 — 사실이 아니라 앞으로의 전망 · 해석이다 (Jira S15P31A102-58)
 const OUTLOOK_DASH = "3 2.4";
 // 글자 둘레에 바탕색 테두리를 둘러 선 위에서도 읽히게 한다
@@ -400,9 +414,22 @@ export function MindmapGraph({
           strokeWidth={2.5}
           data-faded={!lit || undefined}
           opacity={lit ? 1 : HOVER_FADED_OPACITY}
-          style={enterAt(at - BRANCH_LINE_BEFORE)}
+          style={enterAt(at)}
           className={lineClass(hover?.type === type || selectedBranch === type)}
         />
+        {/* 마우스를 올린 가지 · 그 잎으로 가는 길 위로 점선이 바깥쪽으로 흐른다 */}
+        {hover?.type === type && (
+          <line
+            data-flow
+            x1={0}
+            y1={0}
+            x2={x}
+            y2={y}
+            strokeWidth={2.5}
+            strokeDasharray={FLOW_DASH}
+            className={`pointer-events-none stroke-bg-layer-default ${FLOW}`}
+          />
+        )}
         {leaves.map((leaf, j) => {
           const leafOn = leafLit(type, leaf.key);
           return (
@@ -416,13 +443,29 @@ export function MindmapGraph({
               strokeWidth={2}
               data-faded={!leafOn || undefined}
               opacity={leafOn ? 1 : HOVER_FADED_OPACITY}
-              style={enterAt(at + LEAF_LINE_AFTER + leafAt(j))}
+              style={enterAt(at + LEAF_AFTER + leafAt(j))}
               className={lineClass(
                 (hover !== null && leafOn) || selectedLeaf === leaf.key,
               )}
             />
           );
         })}
+        {hover !== null &&
+          leaves
+            .filter((leaf) => leafLit(type, leaf.key))
+            .map((leaf) => (
+              <line
+                key={`flow-${leaf.key}`}
+                data-flow
+                x1={x}
+                y1={y}
+                x2={leaf.x}
+                y2={leaf.y}
+                strokeWidth={2}
+                strokeDasharray={FLOW_DASH}
+                className={`pointer-events-none stroke-bg-layer-default ${FLOW}`}
+              />
+            ))}
         <g
           transform={`translate(${x},${y})`}
           role="button"
@@ -438,7 +481,7 @@ export function MindmapGraph({
           onBlur={() => setRingKey(null)}
           {...hoverProps({ type, leaf: null })}
         >
-          <g className={POP_IN} style={enterAt(at)}>
+          <g className={FLY_OUT} style={flyFrom(-x, -y, at)}>
             {/* 누르는 영역을 노드보다 넓게 */}
             <circle r={BRANCH_RADIUS + 10} className="fill-transparent" />
             {/* 가지 이름도 누르는 면이다 — 글자 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
@@ -451,7 +494,7 @@ export function MindmapGraph({
             />
             {/* 마우스를 올리면 커지고 둘레가 가지 채움색으로 찬다. 포커스하면 더 진하게 */}
             <g
-              className={`${HOVER_SCALE} ${hovered ? "motion-safe:scale-[1.12]" : ""}`}
+              className={`${HOVER_SPRING} ${hovered ? "motion-safe:scale-[1.12]" : ""}`}
             >
               <circle
                 r={BRANCH_RADIUS + 6}
@@ -530,63 +573,79 @@ export function MindmapGraph({
               {...hoverProps({ type, leaf: leaf.key })}
             >
               {labeled && cut && <title>{leaf.text}</title>}
-              <g
-                className={POP_IN}
-                style={enterAt(at + LEAF_AFTER + leafAt(j))}
-              >
-                <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
-                {/* 잎 글도 누르는 면이다 — 줄 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
-                {labeled && (
-                  <rect
-                    x={side === 1 ? textX : textX - textWidth}
-                    y={(-leaf.lines.length * LEAF_LINE) / 2}
-                    width={textWidth}
-                    height={leaf.lines.length * LEAF_LINE}
-                    className="fill-transparent"
-                  />
-                )}
-                {/* 마우스를 올리면 커진다. 강조하면 테두리색으로 차며 한 번 튄다 */}
+              {/* 둥실 떠 있다 — 잎마다 박자를 달리한다. 그 안에서 가지 자리에서 날아 나온다 */}
+              <g className={FLOAT} style={floatPhase(index * 7 + j)}>
                 <g
-                  className={`${HOVER_SCALE} ${leafHovered && !selected ? "motion-safe:scale-[1.12]" : ""}`}
+                  className={FLY_OUT}
+                  style={flyFrom(
+                    x - leaf.x,
+                    y - leaf.y,
+                    at + LEAF_AFTER + leafAt(j),
+                  )}
                 >
-                  <circle
-                    data-leaf-mark
-                    r={LEAF_RADIUS}
-                    strokeWidth={2.5}
-                    strokeDasharray={
-                      type === "OUTLOOK" ? OUTLOOK_DASH : undefined
-                    }
-                    className={`transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected ? `${tone.solid} ${POP_ONCE}` : "fill-bg-layer-default"} ${tone.stroke}`}
-                  />
-                </g>
-                {ringKey === leaf.key && (
-                  <circle
-                    r={LEAF_RADIUS + 6}
-                    fill="none"
-                    strokeWidth={2}
-                    className="stroke-stroke-focus-ring"
-                  />
-                )}
-                {/* 잎 글은 한 단계 옅게 두고, 마우스를 올리거나 강조하면 진하게 (프로토타입 v21) */}
-                {labeled && (
-                  <text
-                    textAnchor={side === 1 ? "start" : "end"}
-                    fontSize={LEAF_FONT}
-                    strokeWidth={4}
-                    style={HALO}
-                    className={`stroke-bg-layer-default transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected || leafHovered ? "fill-fg-neutral" : "fill-fg-neutral-muted"} ${selected ? "font-bold" : "font-medium"}`}
+                  <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
+                  {/* 잎 글도 누르는 면이다 — 줄 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
+                  {labeled && (
+                    <rect
+                      x={side === 1 ? textX : textX - textWidth}
+                      y={(-leaf.lines.length * LEAF_LINE) / 2}
+                      width={textWidth}
+                      height={leaf.lines.length * LEAF_LINE}
+                      className="fill-transparent"
+                    />
+                  )}
+                  {/* 강조하면 둘레에 파문이 한 번 번진다 */}
+                  {selected && (
+                    <circle
+                      r={LEAF_RADIUS}
+                      fill="none"
+                      strokeWidth={2}
+                      className={`${tone.stroke} ${RIPPLE_ONCE}`}
+                    />
+                  )}
+                  {/* 마우스를 올리면 넘치며 커진다. 강조하면 테두리색으로 차며 한 번 튄다 */}
+                  <g
+                    className={`${HOVER_SPRING} ${leafHovered && !selected ? "motion-safe:scale-[1.12]" : ""}`}
                   >
-                    {leaf.lines.map((line, i) => (
-                      <tspan
-                        key={i}
-                        x={textX}
-                        y={(i - (leaf.lines.length - 1) / 2) * LEAF_LINE + 4}
-                      >
-                        {line}
-                      </tspan>
-                    ))}
-                  </text>
-                )}
+                    <circle
+                      data-leaf-mark
+                      r={LEAF_RADIUS}
+                      strokeWidth={2.5}
+                      strokeDasharray={
+                        type === "OUTLOOK" ? OUTLOOK_DASH : undefined
+                      }
+                      className={`transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected ? `${tone.solid} ${POP_ONCE}` : "fill-bg-layer-default"} ${tone.stroke}`}
+                    />
+                  </g>
+                  {ringKey === leaf.key && (
+                    <circle
+                      r={LEAF_RADIUS + 6}
+                      fill="none"
+                      strokeWidth={2}
+                      className="stroke-stroke-focus-ring"
+                    />
+                  )}
+                  {/* 잎 글은 한 단계 옅게 두고, 마우스를 올리거나 강조하면 진하게 (프로토타입 v21) */}
+                  {labeled && (
+                    <text
+                      textAnchor={side === 1 ? "start" : "end"}
+                      fontSize={LEAF_FONT}
+                      strokeWidth={4}
+                      style={HALO}
+                      className={`stroke-bg-layer-default transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected || leafHovered ? "fill-fg-neutral" : "fill-fg-neutral-muted"} ${selected ? "font-bold" : "font-medium"}`}
+                    >
+                      {leaf.lines.map((line, i) => (
+                        <tspan
+                          key={i}
+                          x={textX}
+                          y={(i - (leaf.lines.length - 1) / 2) * LEAF_LINE + 4}
+                        >
+                          {line}
+                        </tspan>
+                      ))}
+                    </text>
+                  )}
+                </g>
               </g>
             </g>
           );
@@ -650,7 +709,22 @@ export function MindmapGraph({
           {/* 가운데 — 기사 제목. 가지 선이 끝나는 자리를 덮게 맨 나중에 그린다. 열면 가장 먼저 튀어나온다.
               바로 위 h1 과 같은 글이라 화면 낭독에서 뺀다 */}
           <g aria-hidden="true">
-            <g className={POP_IN} style={enterAt(0)}>
+            {/* 파문 — 튀어나올 때 한 번, 다 나온 뒤부터 3초마다. 꾸밈이라 처음에는 보이지 않는다 */}
+            <circle
+              r={ROOT_RADIUS}
+              fill="none"
+              strokeWidth={2}
+              style={enterAt(ROOT_RIPPLE_AT)}
+              className={`stroke-bg-brand-accent ${RIPPLE_ONCE}`}
+            />
+            <circle
+              r={ROOT_RADIUS}
+              fill="none"
+              strokeWidth={2}
+              style={enterAt(ROOT_PULSE_AT)}
+              className={`stroke-bg-brand-accent ${RIPPLE_LOOP}`}
+            />
+            <g className={SPRING_IN} style={enterAt(0)}>
               <circle
                 r={ROOT_RING}
                 strokeWidth={1.5}

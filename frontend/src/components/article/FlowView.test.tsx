@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { FlowView } from "@/components/article/FlowView";
-import { enterDelay, expectMotionSafe } from "@/test/motion";
+import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -251,7 +251,7 @@ test("잎 카드는 누르는 동안 살짝 줄어든다 — 누르는 면이 �
   );
 });
 
-test("잎이 많아도 1초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
+test("잎이 많아도 2초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
   const many = Array.from({ length: 12 }, (_, i) => `잎 ${i + 1}`);
   renderFlow([
     branch("CORE", "가"),
@@ -260,12 +260,47 @@ test("잎이 많아도 1초 안에 다 나온다 — 차례 지연에 상한이 
     branch("OUTLOOK", ...many),
   ]);
 
-  const last = Math.max(
-    ...[...document.querySelectorAll<HTMLElement>("[style]")]
-      .map(enterDelay)
-      .filter((at) => !Number.isNaN(at)),
+  expect(lastEnterEnd()).toBeGreaterThan(0);
+  expect(lastEnterEnd()).toBeLessThanOrEqual(2000);
+});
+
+test("선이 자라는 동안 점 하나가 다음 번호로 달려간다 — 가로 · 세로 하나씩, 마지막 가지에는 없다", () => {
+  renderFlow();
+  const travels = (question: string) => [
+    ...step(question).querySelectorAll('[class*="newlearn-travel"]'),
+  ];
+
+  const dots = travels("무슨 일이?");
+  expect(dots).toHaveLength(2);
+  const line = step("무슨 일이?").querySelector('[class*="newlearn-grow-x"]')!;
+  dots.forEach((dot) => {
+    expect(enterDelay(dot)).toBe(enterDelay(line));
+    // 꾸밈이라 달리는 동안만 보인다 — 동작 줄이기면 끝까지 보이지 않는다
+    expect(dot.getAttribute("class")).toContain("opacity-0");
+  });
+  expect(travels("앞으로는?")).toEqual([]);
+});
+
+test("번호 원 · 머리 줄 점에서 파문이 번진다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
+  renderFlow();
+  const header = screen.getByText("기사 핵심").closest("[aria-hidden]")!;
+
+  for (const place of [step("무슨 일이?"), step("앞으로는?"), header]) {
+    const ripple = place.querySelector('[class*="newlearn-ripple"]');
+    expect(ripple).not.toBeNull();
+    expect(ripple!.getAttribute("class")).toContain("opacity-0");
+  }
+});
+
+test("잎 카드에 마우스를 올리면 살짝 들리고 원이 커진다", () => {
+  renderFlow();
+
+  expect(card("첫 해 생산 목표를 밝혔다").getAttribute("class")).toContain(
+    "motion-safe:hover:-translate-y-",
   );
-  expect(last + 300).toBeLessThanOrEqual(1000);
+  expect(mark("첫 해 생산 목표를 밝혔다").getAttribute("class")).toContain(
+    "motion-safe:group-hover:scale-",
+  );
 });
 
 test("강조한 잎의 원이 한 번 튄다 — 다른 잎은 그대로다", () => {

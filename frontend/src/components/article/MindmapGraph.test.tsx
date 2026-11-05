@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
 import { stubScreen } from "@/test/media";
-import { enterDelay, expectMotionSafe } from "@/test/motion";
+import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const branch = (type: BranchType, ...texts: string[]): MindmapBranch => ({
@@ -224,8 +224,25 @@ test("가운데 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 �
   expect(title.closest('[aria-hidden="true"]')).not.toBeNull();
 });
 
-// 노드가 튀어나오는 묶음 — 노드 바로 안. 가운데 기사 제목은 화면 낭독에서 뺀 묶음 안이다
-const popIn = (node: Element) => node.querySelector(":scope > g")!;
+// 노드가 나오는 묶음 — 가운데는 튀어나오고 가지 · 잎은 날아 나온다. 가운데 기사 제목은 화면 낭독에서 뺀 묶음 안이다
+const popIn = (node: Element) =>
+  node.querySelector(
+    '[class*="newlearn-fly-out"], [class*="newlearn-spring-in"]',
+  )!;
+// 노드 자리 — transform="translate(x,y)"
+const position = (node: Element) =>
+  node
+    .getAttribute("transform")!
+    .match(/translate\(([-\d.]+),([-\d.]+)\)/)!
+    .slice(1)
+    .map(Number);
+// 날아 나오는 출발점 — 제자리에서 잰 거리
+const flyFrom = (node: Element) => {
+  const style = (popIn(node) as SVGElement).style;
+  return ["--nl-from-x", "--nl-from-y"].map((name) =>
+    Number.parseFloat(style.getPropertyValue(name)),
+  );
+};
 const rootNode = () =>
   screen.getByText("한빛반도체 텍사스 공장").closest('[aria-hidden="true"]')!;
 const branchNode = (type: BranchType) =>
@@ -239,7 +256,7 @@ const strokeOf = (element: Element) => element.getAttribute("class") ?? "";
 const mark = (name: string) => leaf(name).querySelector("[data-leaf-mark]")!;
 const MOUSE = { pointerType: "mouse" };
 
-test("열 때 가운데 → 가지 → 잎 차례로 나온다 — 선이 먼저 뻗고 노드가 튀어나온다. 가지는 A9 순서다 (프로토타입 v21)", () => {
+test("열 때 가운데 → 가지 → 잎 차례로 나온다 — 선은 날아가는 노드를 따라 뻗는다. 가지는 A9 순서다", () => {
   renderGraph();
   const [coreLine, firstLeafLine] = lines("CORE");
   const first = leaf("한빛반도체가 텍사스 공장 착공식을 열었다");
@@ -248,11 +265,11 @@ test("열 때 가운데 → 가지 → 잎 차례로 나온다 — 선이 먼저
   for (const element of [popIn(rootNode()), popIn(coreBranch()), coreLine])
     expect(element.getAttribute("class")).toMatch(/motion-safe:animate-\[/);
   expect(enterDelay(popIn(rootNode()))).toBe(0);
-  expect(enterDelay(coreLine)).toBeLessThan(enterDelay(popIn(coreBranch())));
+  expect(enterDelay(coreLine)).toBe(enterDelay(popIn(coreBranch())));
   expect(enterDelay(popIn(coreBranch()))).toBeLessThan(
     enterDelay(firstLeafLine),
   );
-  expect(enterDelay(firstLeafLine)).toBeLessThan(enterDelay(popIn(first)));
+  expect(enterDelay(firstLeafLine)).toBe(enterDelay(popIn(first)));
   expect(enterDelay(popIn(first))).toBeLessThan(enterDelay(popIn(second)));
   const branchDelays = (["CORE", "CAUSE", "REACTION", "OUTLOOK"] as const).map(
     (type) => enterDelay(popIn(branchNode(type))),
@@ -355,7 +372,7 @@ test("키보드로 옮긴 노드는 흐리지 않는다 — 키보드 포커스�
   expect(branchGroup("CAUSE").getAttribute("data-dimmed")).toBe("true");
 });
 
-test("잎이 많아도 1초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
+test("잎이 많아도 2초 안에 다 나온다 — 차례 지연에 상한이 있다", () => {
   const many = Array.from({ length: 12 }, (_, i) => `잎 ${i + 1}`);
   renderGraph([
     branch("CORE", "가"),
@@ -364,12 +381,62 @@ test("잎이 많아도 1초 안에 다 나온다 — 차례 지연에 상한이 
     branch("OUTLOOK", ...many),
   ]);
 
-  const last = Math.max(
-    ...[...document.querySelectorAll<SVGElement>("[style]")]
-      .map(enterDelay)
-      .filter((at) => !Number.isNaN(at)),
+  expect(lastEnterEnd()).toBeGreaterThan(0);
+  expect(lastEnterEnd()).toBeLessThanOrEqual(2000);
+});
+
+test("가지는 가운데에서, 잎은 그 가지에서 날아 나온다", () => {
+  renderGraph();
+  const [bx, by] = position(coreBranch());
+  const [fx, fy] = flyFrom(coreBranch());
+  expect([bx + fx, by + fy]).toEqual([0, 0]);
+
+  const first = leaf("첫 해 생산 목표를 밝혔다");
+  const [lx, ly] = position(first);
+  const [lfx, lfy] = flyFrom(first);
+  expect([lx + lfx, ly + lfy]).toEqual([bx, by]);
+});
+
+test("가운데 원에서 파문이 번지고, 잎은 저마다 다른 박자로 둥실 떠 있다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
+  renderGraph();
+
+  const ripples = rootNode().querySelectorAll('[class*="newlearn-ripple"]');
+  expect(ripples.length).toBeGreaterThanOrEqual(2);
+  ripples.forEach((ring) =>
+    expect(ring.getAttribute("class")).toContain("opacity-0"),
   );
-  expect(last + 300).toBeLessThanOrEqual(1000);
+  const floats = [
+    "한빛반도체가 텍사스 공장 착공식을 열었다",
+    "첫 해 생산 목표를 밝혔다",
+  ].map((name) => leaf(name).querySelector('[class*="newlearn-float"]')!);
+  expect(floats.every(Boolean)).toBe(true);
+  expect(enterDelay(floats[0])).not.toBe(enterDelay(floats[1]));
+});
+
+test("마우스를 올린 길에는 점선이 바깥쪽으로 흐른다 — 가지면 그 잎들까지, 잎이면 그 잎까지", () => {
+  renderGraph();
+  const flows = (type: BranchType) =>
+    branchGroup(type).querySelectorAll("[data-flow]").length;
+  expect(flows("CORE")).toBe(0);
+
+  fireEvent.pointerEnter(coreBranch(), MOUSE);
+  expect(flows("CORE")).toBe(3);
+  expect(flows("CAUSE")).toBe(0);
+
+  fireEvent.pointerLeave(coreBranch(), MOUSE);
+  fireEvent.pointerEnter(leaf("첫 해 생산 목표를 밝혔다"), MOUSE);
+  expect(flows("CORE")).toBe(2);
+});
+
+test("강조한 잎에는 파문이 한 번 번진다", () => {
+  renderGraph();
+  const ripple = (name: string) =>
+    leaf(name).querySelector('[class*="newlearn-ripple"]');
+
+  fireEvent.click(leaf("첫 해 생산 목표를 밝혔다"));
+
+  expect(ripple("첫 해 생산 목표를 밝혔다")).not.toBeNull();
+  expect(ripple("한빛반도체가 텍사스 공장 착공식을 열었다")).toBeNull();
 });
 
 test("손가락으로 누를 때는 흐리지 않는다 — 터치는 누르면 마우스 흉내가 와서 강조와 겹친다", () => {
