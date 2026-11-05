@@ -119,7 +119,7 @@ public class ArticleIngestService {
     // 넣은 기사 id 와, 이번에 언론사를 처음 등록했는지(커밋 뒤 로그용)
     private record Inserted(long articleId, boolean newPress) {}
 
-    // 대응 표가 고른 대표. 정치로 골렸는데 제목이 해외 정치면 국제로 옮긴다 — NewsData 분류로는 나눌 수 없어서다(Jira 171)
+    // 대응 표가 고른 대표. 정치로 골랐는데 제목이 해외 정치면 국제로 옮긴다 — NewsData 분류로는 나눌 수 없어서다(Jira 171)
     private @Nullable Category representative(List<String> sourceCategories, String title) {
         Category chosen = category(sourceCategories);
         if (chosen != null && POLITICS.equals(chosen.getCode()) && ForeignPoliticsTitleRule.matches(title)) {

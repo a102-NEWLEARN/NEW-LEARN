@@ -440,7 +440,7 @@ class ArticleIngestIntegrationTest {
         assertThat(categoryFor("v11-unknown", "business", "ingest153-newcat")).isNull();
     }
 
-    // AC-11 대표가 정치로 골린 기사만 제목 규칙으로 국제에 옮긴다 — CategoryMappingMigrationTest 의 V12 와 같은 조합(Jira 171)
+    // AC-11 대표를 정치로 고른 기사만 제목 규칙으로 국제에 옮긴다 (Jira 171)
     @Test
     void foreignPoliticsTitleMovesOnlyArticlesChosenAsPolitics() throws Exception {
         assertThat(categoryForTitle("v12-foreign", "트럼프, 이란 공습 시사", "politics", "top"))

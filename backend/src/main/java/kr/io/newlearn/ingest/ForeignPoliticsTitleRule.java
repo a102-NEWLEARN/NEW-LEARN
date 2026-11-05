@@ -2,7 +2,7 @@ package kr.io.newlearn.ingest;
 
 import java.util.regex.Pattern;
 
-// 대표가 정치로 골린 NewsData 기사 가운데 해외 정치를 제목 낱말로 가린다 (Jira 171, docs/data-model.md category_mapping)
+// 대표를 정치로 고른 NewsData 기사 가운데 해외 정치를 제목 낱말로 가린다 (Jira 171, docs/data-model.md category_mapping)
 // NewsData 분류로는 나눌 수 없다 — politics 와 world 가 같이 붙은 기사가 없다
 // 외국 나라 · 인물 · 기구가 있고, 국내 정치 주체와 정치가 아닌 말이 없으면 해외 정치로 본다. 북한만 나오면 정치에 남는다(2026-11-05 사용자)
 // V12 마이그레이션이 같은 정규식으로 이미 들어온 기사를 고쳤다. 낱말만 | 로 이어 Java 와 PostgreSQL 의 뜻이 같다.

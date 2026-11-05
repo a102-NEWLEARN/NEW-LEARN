@@ -215,7 +215,7 @@ erDiagram
 - 「표에 행은 있고 칸만 빈 값」은 일부러 무시하는 값이고, 「표에 없는 값」은 아직 아무도 대응을 정하지 않은 값이다
 - 행은 실제 데이터를 본 뒤 채운다(2026-10-20). 5개 밖 기사는 수집할 때부터 받지 않지만(2026-10-20), 한 기사에 `["sports", "business"]` 처럼 같이 붙어 오는 5개 밖 값은 비워 둔 행으로 건너뛴다
 - NewsData 행은 마이그레이션 `V11__category_mapping_newsdata.sql` 이 넣는다 — NewsData 분류 18개 전부, 대표는 구체적인 것 먼저(국제 → IT·과학 → 정치 → 경제 → 사회), `domestic` 은 사회, 주제가 아닌 값 · 거르는 다섯은 칸이 빈 행(2026-11-04 사용자 결정, Jira S15P31A102-170). 값 · priority 는 그 파일이 정본이다. 같은 마이그레이션이 대응 행이 없던 동안 들어온 NewsData 기사의 대표를 같은 규칙으로 채운다(이미 찬 대표는 그대로)
-- 대표가 정치로 골린 NewsData 기사는 제목으로 해외 정치를 가려 국제로 옮긴다. NewsData 분류로는 나눌 수 없어서다(`politics` 와 `world` 가 같이 붙은 기사 0). 외국 나라 · 인물 · 기구 낱말이 있고 국내 정치 주체 · 정치가 아닌 말이 없을 때 옮기고, 북한만 나오면 정치에 남긴다(2026-11-05 사용자 결정, Jira S15P31A102-171). 낱말의 정본은 `ForeignPoliticsTitleRule.java`, 이미 들어온 기사는 `V12__category_foreign_politics_title.sql` 이 고친다. 낱말 규칙이라 오판이 있고, NewsData 가 `politics` 를 붙인 비정치 기사는 못 거른다
+- 대표를 정치로 고른 NewsData 기사는 제목으로 해외 정치를 가려 국제로 옮긴다. NewsData 분류로는 나눌 수 없어서다(`politics` 와 `world` 가 같이 붙은 기사 0). 외국 나라 · 인물 · 기구 낱말이 있고 국내 정치 주체 · 정치가 아닌 말이 없을 때 옮기고, 북한만 나오면 정치에 남긴다(2026-11-05 사용자 결정, Jira S15P31A102-171). 낱말의 정본은 `ForeignPoliticsTitleRule.java`, 이미 들어온 기사는 `V12__category_foreign_politics_title.sql` 이 고친다. 낱말 규칙이라 오판이 있고, NewsData 가 `politics` 를 붙인 비정치 기사는 못 거른다
 
 ### press · press_mapping — 언론사 명부와 표기 대응 (F01, 2026-10-21)
 
@@ -243,7 +243,7 @@ erDiagram
 | `reporter` | text | 아니오 | 기자명. 없는 기사가 있다 |
 | `body` | text | 예 | 본문 전체(데이터셋 `article`). 문단은 줄바꿈. 분석 · 근거 대조에 쓰고 API 로는 내보내지 않는다(Q3 · Q28) |
 | `published_at` | timestamptz | 예 | 발행 시각(데이터셋 `published`, `2023-07-12 15:53`). 시간대가 없어 한국 시간으로 읽자고 제안한다(addendum 에 없는 가정). 사건 발생 시점과 다른 값이다 |
-| `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고르고, 정치로 골린 NewsData 기사는 제목 규칙을 본다. 맞출 값이 없으면 비운다 |
+| `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고르고, 정치로 고른 NewsData 기사는 제목 규칙을 본다. 맞출 값이 없으면 비운다 |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
 | `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |

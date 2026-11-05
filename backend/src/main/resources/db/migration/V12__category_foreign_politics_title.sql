@@ -1,4 +1,4 @@
--- 대표가 정치로 골린 NewsData 기사 가운데 해외 정치를 제목 낱말로 국제에 옮긴다 (Jira S15P31A102-171, docs/data-model.md category_mapping)
+-- 대표를 정치로 고른 NewsData 기사 가운데 해외 정치를 제목 낱말로 국제에 옮긴다 (Jira S15P31A102-171, docs/data-model.md category_mapping)
 --
 -- NewsData 분류로는 나눌 수 없다 — politics 와 world 가 같이 붙은 기사가 없다(2026-11-04 먼저 넣은 79,335건 기준)
 -- 외국 나라 · 인물 · 기구가 있고, 국내 정치 주체와 정치가 아닌 말이 없으면 옮긴다. 북한만 나오면 정치에 남는다(2026-11-05 사용자 결정)

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-// 정치로 골린 기사 가운데 해외 정치만 국제로 옮기는 제목 규칙 (Jira 171, 제목은 시험용으로 지은 것)
+// 정치로 고른 기사 가운데 해외 정치만 국제로 옮기는 제목 규칙 (Jira 171, 제목은 시험용으로 지은 것)
 class ForeignPoliticsTitleRuleTest {
 
     @ParameterizedTest
@@ -48,7 +48,7 @@ class ForeignPoliticsTitleRuleTest {
                 "북한 대남 확성기 가동",
                 "법무장관 후보 압축", // 낱말 없음
             })
-    void domesticPoliticsStays(String title) {
+    void staysWhenRuleDoesNotApply(String title) {
         assertThat(ForeignPoliticsTitleRule.matches(title)).isFalse();
     }
 
