@@ -96,12 +96,29 @@ def title_of(*pairs):
 
 
 class FakeGitLab:
-    """main 이 부르는 GitLab API 만 흉내 낸다. 태그 커밋은 HISTORY 한 줄이라 공통 조상은 앞선 쪽이다"""
+    """main 이 부르는 GitLab API 만 흉내 낸다. 태그 커밋은 HISTORY 한 줄이라 공통 조상은 앞선 쪽이다.
+    dev 와 브랜치의 공통 조상(출발점)은 "base" 커밋이고, 따로 안 주면 파일이 dev 와 같다 — 브랜치를 판 뒤 dev 의 태그가 안 바뀐 때"""
 
-    def __init__(self, dev_file, branch_file=None, open_title=None, merge_base_broken=False, branch="deploy/app"):
-        self.files = {"head": dev_file, branch: branch_file}
-        self.opened = {branch: [{"iid": 7, "title": open_title}]} if open_title else {}
+    def __init__(
+        self,
+        dev_file,
+        branch_file=None,
+        open_title=None,
+        closed_title=None,
+        base_file=None,
+        merge_base_broken=False,
+        base_broken=False,
+        branch="deploy/app",
+    ):
+        self.branch = branch
+        self.files = {"head": dev_file, "base": dev_file if base_file is None else base_file, branch: branch_file}
+        self.merge_requests = []
+        if open_title:
+            self.merge_requests.append({"iid": 7, "state": "opened", "title": open_title})
+        if closed_title:
+            self.merge_requests.append({"iid": 6, "state": "closed", "title": closed_title})
         self.merge_base_broken = merge_base_broken
+        self.base_broken = base_broken
         self.read_refs = []
         self.commits = []
         self.updates = []
@@ -124,7 +141,12 @@ class FakeGitLab:
             self.commits.append(data)
             return 201, b"{}"
         if path.endswith("/merge_requests") and method == "GET":
-            return 200, json.dumps(self.opened.get(query["source_branch"][0], [])).encode()
+            found = [
+                mr
+                for mr in self.merge_requests
+                if query["source_branch"][0] == self.branch and query.get("state", [mr["state"]])[0] == mr["state"]
+            ]
+            return 200, json.dumps(found).encode()
         if path.endswith("/merge_requests") and method == "POST":
             self.created.append(data)
             return 201, json.dumps({"iid": 8, "web_url": "https://gitlab.test/8"}).encode()
@@ -134,6 +156,8 @@ class FakeGitLab:
         raise AssertionError(f"흉내 내지 않은 호출: {method} {url}")
 
     def merge_base(self, refs):
+        if self.branch in refs:
+            return (404, b"{}") if self.base_broken else (200, json.dumps({"id": "base"}).encode())
         if self.merge_base_broken:
             return 400, b"{}"
         found = [tag for tag in HISTORY for ref in refs if full(tag).startswith(ref)]
@@ -216,6 +240,25 @@ class KeepWaitingTag(DeployMrCase):
             self.run_main(gitlab, B1, backend=B1)
         self.assertEqual(gitlab.commits, [])
 
+    def test_stops_before_overwriting_when_start_cannot_be_found(self):
+        gitlab = self.waiting_frontend(base_broken=True)
+        with self.assertRaises(SystemExit):
+            self.run_main(gitlab, B1, backend=B1)
+        self.assertEqual(gitlab.commits, [])
+
+    def test_three_overwrites_in_a_row_keep_every_area(self):
+        dev = kustomization(B0, F0)
+        first = FakeGitLab(dev)
+        self.run_main(first, F1, frontend=F1)
+        second = FakeGitLab(dev, self.written(first), open_title=first.created[0]["title"])
+        self.run_main(second, B1, backend=B1)
+        third = FakeGitLab(dev, self.written(second), open_title=second.updates[0]["title"])
+        self.run_main(third, F2, frontend=F2)
+        content = self.written(third)
+        self.assertEqual(deploy_mr.read_tag(content, BACKEND), B1)
+        self.assertEqual(deploy_mr.read_tag(content, FRONTEND), F2)
+        self.assertEqual(third.updates[0]["title"], title_of(("backend", B1), ("frontend", F2)))
+
     def test_late_old_pipeline_does_not_replace_newer_waiting_tag(self):
         gitlab = FakeGitLab(
             kustomization(B0, F0),
@@ -249,8 +292,22 @@ class KeepWaitingTag(DeployMrCase):
 
 
 class DoesNotKeepTag(DeployMrCase):
+    def test_tag_reverted_on_dev_does_not_come_back(self):
+        # dev 의 backend 가 B2 일 때 frontend MR 이 열렸고, 그 뒤 dev 에서 B2 를 Revert 했다. 브랜치의 B2 는 물려받았을 뿐이다
+        gitlab = FakeGitLab(
+            kustomization(B1, F0),
+            kustomization(B2, F1),
+            base_file=kustomization(B2, F0),
+            open_title=title_of(("frontend", F1)),
+        )
+        self.run_main(gitlab, F2, frontend=F2)
+        content = self.written(gitlab)
+        self.assertEqual(deploy_mr.read_tag(content, BACKEND), B1)
+        self.assertEqual(deploy_mr.read_tag(content, FRONTEND), F2)
+        self.assertEqual(gitlab.updates[0]["title"], title_of(("frontend", F2)))
+
     def test_closed_mr_branch_is_not_read(self):
-        gitlab = FakeGitLab(kustomization(B0, F0), kustomization(B0, F1))
+        gitlab = FakeGitLab(kustomization(B0, F0), kustomization(B0, F1), closed_title=title_of(("frontend", F1)))
         self.run_main(gitlab, B1, backend=B1)
         self.assertNotIn("deploy/app", gitlab.read_refs)
         self.assertEqual(deploy_mr.read_tag(self.written(gitlab), FRONTEND), F0)
@@ -260,6 +317,7 @@ class DoesNotKeepTag(DeployMrCase):
         gitlab = FakeGitLab(
             kustomization(B0, F2),
             kustomization(B0, F1),
+            base_file=kustomization(B0, F0),
             open_title=title_of(("frontend", F1)),
         )
         self.run_main(gitlab, B1, backend=B1)
@@ -270,6 +328,7 @@ class DoesNotKeepTag(DeployMrCase):
         gitlab = FakeGitLab(
             kustomization(B0, F1),
             kustomization(B0, F1),
+            base_file=kustomization(B0, F0),
             open_title=title_of(("frontend", F1)),
         )
         self.run_main(gitlab, B1, backend=B1)

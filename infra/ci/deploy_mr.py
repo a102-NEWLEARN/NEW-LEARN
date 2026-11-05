@@ -5,7 +5,7 @@
 - 무엇을 바꾸나: infra/k8s/services/<app|ai>/kustomization.yaml 의 images[].newTag 한 줄
 - 어디로: kustomization 마다 고정 브랜치(deploy/app · deploy/ai)를 dev 위에 새로 덮어쓰고, 열린 MR 이 있으면 그 MR 을 갱신한다
   — 같은 파일을 바꾸는 MR 이 여러 개 쌓여 서로 부딪히지 않게
-- 덮어써도 잃지 않는 것: 열린 MR 브랜치에서 아직 dev 에 안 들어간 태그는 이어 받는다. 영역 둘이 브랜치 하나를 같이 써서,
+- 덮어써도 잃지 않는 것: 열린 MR 이 바꾼 태그 가운데 아직 dev 에 안 들어간 것은 이어 받는다. 영역 둘이 브랜치 하나를 같이 써서,
   뒤에 온 파이프라인이 먼저 대기하던 영역의 태그를 지웠다 (2026-11-05 태그 MR !677, Jira S15P31A102-174). 닫은 MR 의 태그는 잇지 않는다
 - 무엇을 믿나: w4 굽기 잡이 「올리기에 성공한 영역」만 dotenv 로 DEPLOY_TAG_<영역>=<짧은 SHA> 를 남긴다. 실패한 잡은 남기지 않는다
 - 늦게 끝난 옛 파이프라인이 새 태그를 덮지 않게, dev 의 태그나 대기 중인 태그가 이 커밋보다 새것이면 건너뛴다
@@ -146,14 +146,17 @@ def is_newer_or_same(current, new):
     return json.loads(raw)["id"].startswith(new)
 
 
-def waiting_tags(group, on_dev, on_branch):
-    """열린 MR 브랜치의 태그 가운데 아직 dev 에 안 들어간 것. 비교를 못 하면 대기로 둔다 — 조용히 사라지지 않게"""
+def waiting_tags(group, on_dev, on_start, on_branch):
+    """열린 MR 이 출발점(on_start)에서 바꾼 태그 가운데 아직 dev 에 안 들어간 것.
+    브랜치가 물려받았을 뿐인 태그는 빼야 MR 이 열린 동안 dev 에서 Revert 한 태그가 되살아나지 않는다.
+    dev 와 비교를 못 하면 대기로 둔다 — 조용히 사라지지 않게"""
     waiting = {}
     for area in areas_in(group):
         image = f"{IMAGE_PREFIX}-{area}"
         dev_tag = read_tag(on_dev, image)
         tag = read_tag(on_branch, image)
-        if dev_tag and tag and tag != dev_tag and not is_newer_or_same(dev_tag, tag):
+        changed = tag != read_tag(on_start, image)
+        if changed and dev_tag and tag and tag != dev_tag and not is_newer_or_same(dev_tag, tag):
             waiting[area] = tag
     return waiting
 
@@ -186,7 +189,11 @@ def main():
             + urllib.parse.quote(DEFAULT_BRANCH, safe=""),
         )
         # 닫힌 MR 의 브랜치는 읽지 않는다 — 사람이 버린 태그다
-        waiting = waiting_tags(group, content, read_file(path, branch)) if opened else {}
+        waiting = {}
+        if opened:
+            q = urllib.parse.urlencode([("refs[]", head), ("refs[]", branch)])
+            start = gitlab("GET", f"/repository/merge_base?{q}")["id"]
+            waiting = waiting_tags(group, content, read_file(path, start), read_file(path, branch))
         changes = []
         fresh = []  # 이번 파이프라인이 구운 태그 가운데 새로 들어가는 영역
         for area in areas_in(group):
@@ -238,7 +245,7 @@ def main():
                 "",
                 "## 👀 리뷰 포인트",
                 "",
-                "- 위 영역은 같이 반영됩니다. 한 영역을 빼려면 이 MR 을 닫습니다 — 닫은 MR 의 태그는 이어 받지 않고, 다음 굽기가 새로 엽니다",
+                "- 위 영역은 같이 반영됩니다. 이 MR 을 닫으면 태그를 모두 버리고, 다음 굽기는 그때 구운 영역만 새로 엽니다. 남길 영역은 그 태그를 구운 파이프라인의 `w5:deploy-mr` 잡을 다시 돌립니다",
                 "- 되돌리는 법: 이 MR 의 병합 커밋 Revert — Argo CD 가 위 영역을 함께 이전 이미지로 돌린다",
                 "- 이 브랜치는 다음 dev 굽기 때 CI 가 다시 덮어씁니다. 머지하지 않은 태그는 이어 받습니다. 손으로 커밋하지 않습니다",
             ]
