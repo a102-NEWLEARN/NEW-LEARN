@@ -11,7 +11,7 @@ CronJob news-ingest(옆의 news-ingest.yaml)가 ConfigMap 으로 얹어 돌린�
   load-only 에서만, NewsData 설정은 있어도 무시한다. INGEST_FILE_LINES(기대 줄 수)와 다르면 실패 — ingest.md 「지난 기사 파일로 넣기」(Jira 169)
 - 무엇을 받나: INGEST_SOURCE(latest · archive) · INGEST_TIMEFRAME · INGEST_ARCHIVE_FROM/TO · INGEST_QUERY(고르는 조건),
   INGEST_DAYS(발행 시각의 KST 날짜로 거르기) · INGEST_REQUEST_INTERVAL(요청 사이 쉬기). 뜻과 값은 ingest.md 「설정」
-- 상한: INGEST_MAX_ARTICLES(B2 로 보낼 기사) · INGEST_MAX_REQUESTS(NewsData 요청)
+- 상한: INGEST_MAX_ARTICLES(기사 — 다른 기사 본문을 빼기 전 수로 센다) · INGEST_MAX_REQUESTS(NewsData 요청)
 - 키: NEWSDATA_API_KEY(봉인 Secret newsdata-api) · INTERNAL_BATCH_KEY(internal-api 의 배치 키, load-only · full)
 
 로그는 줄마다 JSON 하나이고 키는 모두 *** 로 가린다. 끝에 {"msg": "수집 결과", …} 한 줄
@@ -67,8 +67,19 @@ BODY_LOG_CHARS = 300  # 로그에 남길 응답 본문 길이 — 키를 가린 
 BACKEND_DOWN_AFTER = 3
 MODES = ("fetch-only", "load-only", "full")
 # 거르는 순서 — 범위 밖(10시 실행의 그날 0 ~ 10시) 기사가 기사 상한을 먹지 않게 out_of_range 가 over_limit 보다 앞이다.
-# marked_duplicate 는 NewsData 가 duplicate=true 로 표시한 기사(팀원 수집과 같게), duplicate 는 같은 실행 안에서 링크 · article_id 가 겹친 기사
-SKIP_REASONS = ("bad_item", "no_body", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit")
+# marked_duplicate 는 NewsData 가 duplicate=true 로 표시한 기사(팀원 수집과 같게), duplicate 는 같은 실행 안에서 링크 · article_id 가 겹친 기사.
+# wrong_body 는 다 받은 뒤 기사끼리 견주어 뺀 기사(drop_wrong_bodies)
+SKIP_REASONS = ("bad_item", "no_body", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit", "wrong_body")
+# 다른 기사 본문을 달고 온 기사 — NewsData content 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음 · 안내문을 준다(Jira S15P31A102-183)
+# 문턱 · 까닭 · 잰 값은 docs/plans/2026-11-05-ingest-wrong-body.md
+SAME_BODY_MIN_CHARS = 500
+SAME_BODY_MIN_TITLES = 3  # 2건은 같은 기사에 제목만 달리 단 정상 기사가 있다
+LONG_BRIEF_MIN_CHARS = 5000
+LONG_BRIEF_MAX_SHARE = 0.5
+# 태그는 제목 맨 앞만 — 제목 뒤에 [영상] · [포토] 가 붙은 인터뷰 · 사진 기사는 단신이 아니다
+BRIEF_TITLE_RE = re.compile(r"^\s*\[(부고|부음|인사|포토|사진|속보|그래픽|영상|만평)\]|국민만평|부친상|모친상|빙부상|빙모상|시모상|장인상")
+TITLE_TAG_RE = re.compile(r"\[[^\]]*\]")
+TITLE_WORD_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 # 다음 쪽이 남았는데 이 까닭으로 멈추면 빠진 구간이 있다 — 상한이면 받은 데까지 넣고 종료 2
 CAPPED = ("max_requests", "max_articles")
 CONNECTION_ERRORS = (OSError, http.client.HTTPException)  # urllib.error.URLError · 끊김 · 시간 초과는 OSError
@@ -147,6 +158,37 @@ def to_article(item):
     if tags:
         article["sourceTags"] = tags
     return article
+
+
+def title_word_share(title, body):
+    """제목 낱말(태그를 뺀 두 글자 이상 덩어리)이 본문에 그대로 나오는 비율. 낱말이 없으면 1.0"""
+    words = TITLE_WORD_RE.findall(TITLE_TAG_RE.sub(" ", title))
+    if not words:
+        return 1.0
+    return sum(1 for word in words if word in body) / len(words)
+
+
+def wrong_body_findings(articles):
+    """다른 기사 본문을 달고 온 기사 → [(기사, 규칙, 제목 낱말 비율, 같은 본문을 쓰는 제목 수)]
+
+    제목 · 언론사가 글자가 아닌 기사는 판정하지 않는다 — 여기서 예외가 나면 하루치가 0건이 된다. 그 기사는 B2 가 판단한다
+    """
+    judged = [a for a in articles if isinstance(a["title"], str) and isinstance(a["pressSourceId"], str)]
+    titles = {}
+    for article in judged:
+        body = article["body"].strip()
+        if len(body) >= SAME_BODY_MIN_CHARS:
+            titles.setdefault((article["pressSourceId"], body), set()).add(article["title"])
+    found = []
+    for article in judged:
+        body = article["body"].strip()
+        same = len(titles.get((article["pressSourceId"], body), ()))
+        share = title_word_share(article["title"], body)
+        if same >= SAME_BODY_MIN_TITLES:
+            found.append((article, "same_body", share, same))
+        elif BRIEF_TITLE_RE.search(article["title"]) and len(body) >= LONG_BRIEF_MIN_CHARS and share <= LONG_BRIEF_MAX_SHARE:
+            found.append((article, "long_brief", share, same))
+    return found
 
 
 def _bounded_int(environ, name, low, ceiling, default=None):
@@ -441,6 +483,24 @@ class Run:
                 break
         return kept
 
+    def drop_wrong_bodies(self, kept):
+        """다른 기사 본문을 달고 온 기사를 뺀다. 정상 기사가 걸렸는지 보게 기사마다 한 줄 남긴다 — 본문은 안 남긴다"""
+        dropped = set()
+        for article, rule, share, same in wrong_body_findings(kept):
+            dropped.add(id(article))
+            self.skipped["wrong_body"] += 1
+            self.log({
+                "msg": "본문 불일치로 뺌",
+                "rule": rule,
+                "url": article["url"],
+                "title": article["title"],
+                "pressSourceId": article["pressSourceId"],
+                "bodyChars": len(article["body"]),
+                "titleWordShare": round(share, 2),
+                "sameBodyTitles": same,
+            })
+        return [article for article in kept if id(article) not in dropped]
+
     def post(self, path, payload):
         headers = {"Accept": "application/json", "X-Internal-Key": self.config["batch_key"]}
         body = b""  # B1 은 본문이 없다 — 11-02 사람이 건 B1 과 같은 모양(infra/server/ai-worker.md)
@@ -626,6 +686,7 @@ def run(environ, send, log, now, sleep, stdin=None):
     if kept is None:
         job.summary(0)
         return 1
+    kept = job.drop_wrong_bodies(kept)
     # 보낼 때는 발행 시각이 이른 것부터 — 판정이 앞선 기사들과만 비교한다(docs/api-internal.md 3절)
     articles = sorted(kept, key=lambda a: (a["publishedAt"], a["url"] or ""))
     if config["mode"] == "fetch-only":
@@ -686,7 +747,9 @@ def main(environ, send, out, now=None, sleep=None, stdin=None):
     secrets = keys + [json.dumps(k)[1:-1] for k in keys]
 
     def log(record):
-        out.write(redact(json.dumps(record, ensure_ascii=False), secrets) + "\n")
+        # 짝 없는 서로게이트(제목에 올 수 있다)는 stdout 이 UTF-8 strict 면 예외다 — 로그 한 줄 때문에 하루치를 잃지 않게 바꿔 적는다
+        line = redact(json.dumps(record, ensure_ascii=False), secrets).encode("utf-8", "replace").decode("utf-8")
+        out.write(line + "\n")
         out.flush()
 
     try:
