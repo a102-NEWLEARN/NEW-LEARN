@@ -157,7 +157,10 @@ class FakeGitLab:
 
     def merge_base(self, refs):
         if self.branch in refs:
-            return (404, b"{}") if self.base_broken else (200, json.dumps({"id": "base"}).encode())
+            if self.base_broken:
+                return 404, b"{}"
+            # 출발점은 dev 끝과 브랜치의 공통 조상이다. 브랜치끼리 물으면 실제 git 처럼 브랜치 끝이 답이다
+            return 200, json.dumps({"id": "base" if "head" in refs else self.branch}).encode()
         if self.merge_base_broken:
             return 400, b"{}"
         found = [tag for tag in HISTORY for ref in refs if full(tag).startswith(ref)]
