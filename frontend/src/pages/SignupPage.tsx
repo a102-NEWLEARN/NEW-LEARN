@@ -274,7 +274,7 @@ export function SignupPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-bg-layer-default">
       <FollowCursor />
-      <header className="flex h-[60px] shrink-0 items-center px-x4 md:px-x8">
+      <header className="flex h-[60px] shrink-0 items-center px-x5 md:px-x8">
         <Logo height={26} />
         <Link
           to="/"
@@ -288,7 +288,7 @@ export function SignupPage() {
       <section className="bg-bg-brand-solid">
         <div
           key={step}
-          className="mx-auto max-w-[640px] px-x4 pt-x12 pb-x10 break-keep motion-safe:animate-[newlearn-rise_300ms_var(--seed-timing-function-enter)_both] md:pt-x16 md:pb-x14"
+          className="mx-auto max-w-[640px] px-x5 pt-x12 pb-x10 motion-safe:animate-[newlearn-rise_300ms_var(--seed-timing-function-enter)_both] md:pt-x16 md:pb-x14"
         >
           <p className="t5-bold text-bg-accent-lime tabular-nums">
             {String(step + 1).padStart(2, "0")}.
@@ -315,7 +315,7 @@ export function SignupPage() {
           noValidate
           aria-labelledby="signup-title"
           onSubmit={handleSubmit}
-          className="mx-auto flex max-w-[640px] flex-col gap-x5 px-x4 pt-x10 pb-x14"
+          className="mx-auto flex max-w-[640px] flex-col gap-x5 px-x5 pt-x10 pb-x14"
         >
           {stepPanel(
             0,

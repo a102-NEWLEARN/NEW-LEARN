@@ -40,7 +40,7 @@ export function LandingPage() {
         />
       )}
       <FollowCursor />
-      <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak px-x4 md:px-x8">
+      <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak px-x5 md:px-x8">
         {/* 셸 로고처럼 누르면 맨 위로 올린다. 같은 주소라 방문 기록은 쌓이지 않는다 */}
         <Link
           to="/"
@@ -67,9 +67,8 @@ export function LandingPage() {
       </header>
       <main className="flex flex-1 items-center">
         {/* 콘텐츠 화면 최대 너비 1040px (DESIGN.md Layout & Spacing) */}
-        <div className="mx-auto grid w-full max-w-[1040px] items-center gap-x10 px-x4 py-x12 md:grid-cols-2 md:px-x8 md:py-x16">
-          {/* 한국어 문장이 글자 중간에서 줄이 바뀌지 않게 단어 단위로 끊는다 */}
-          <div className="break-keep">
+        <div className="mx-auto grid w-full max-w-[1040px] items-center gap-x10 px-x5 py-x12 md:grid-cols-2 md:px-x8 md:py-x16">
+          <div>
             <div {...rise(0)}>
               <p className="t4-bold text-fg-brand">뉴스를 넘어, 흐름을 읽다.</p>
             </div>

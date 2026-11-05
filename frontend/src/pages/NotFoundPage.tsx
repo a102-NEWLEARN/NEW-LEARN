@@ -26,7 +26,7 @@ export function NotFoundPage({
   }, [focusTitle]);
 
   return (
-    <div className="flex flex-col items-center gap-x6 px-x4 py-x16 text-center">
+    <div className="flex flex-col items-center gap-x6 px-x5 py-x16 text-center">
       {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell) */}
       <h1
         ref={titleRef}

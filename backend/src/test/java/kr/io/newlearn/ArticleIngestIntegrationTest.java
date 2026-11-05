@@ -457,6 +457,27 @@ class ArticleIngestIntegrationTest {
                 .isNull();
     }
 
+    // AC-12 제목의 HTML 조각은 글자로 되돌려 저장한다. 본문은 그대로다
+    @Test
+    void htmlFragmentsInTitleAreRestoredOnIngest() throws Exception {
+        Map<String, Object> body = body(URL + "title-fragments");
+        body.put("title", "홍길동 quot;대표 나설 생각quot;hellip; Ramp;D");
+        body.put("body", "quot;본문quot;");
+
+        long id = created(b2(body, BATCH_KEY));
+
+        assertThat(jdbc.sql("select title from article where id = :id")
+                        .param("id", id)
+                        .query(String.class)
+                        .single())
+                .isEqualTo("홍길동 \"대표 나설 생각\"… R&D");
+        assertThat(jdbc.sql("select body from article where id = :id")
+                        .param("id", id)
+                        .query(String.class)
+                        .single())
+                .isEqualTo("quot;본문quot;");
+    }
+
     // AC-9 B2 는 배치 출입증으로만 연다. 워커 출입증은 403, 출입증이 없으면 401. 아무것도 저장하지 않는다
     @Test
     void onlyTheBatchKeyCanIngest() throws Exception {

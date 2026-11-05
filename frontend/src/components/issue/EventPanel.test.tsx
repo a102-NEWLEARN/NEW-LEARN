@@ -10,6 +10,7 @@ import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { EventPanel } from "@/components/issue/EventPanel";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 // 12번 이슈의 가짜 사건 — 119 착공식(기사 5), 117 보조금 확정(기사 6), 120 추정 사건, 116 요약 없음 (src/mocks/handlers.ts)
@@ -336,4 +337,53 @@ test("새 사건을 받는 동안 다른 곳으로 옮긴 포커스는 빼앗지
   });
 
   expect(document.activeElement).toBe(outside);
+});
+
+test("사건을 열면 제목 → 날짜 → 요약 → 관련 기사 차례로 떠오르고, 관련 기사는 한 줄씩 떠오른다", async () => {
+  renderPanel(119);
+  const heading = await screen.findByRole("heading", {
+    level: 2,
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  await relatedList();
+
+  const order = [
+    heading.firstElementChild!,
+    screen.getByText("사건 발생").closest('[class*="motion-safe:animate-"]')!,
+    screen.getByRole("region", { name: "요약" }),
+    screen.getByRole("region", { name: "관련 기사" }),
+  ].map(enterDelay);
+  expect(order.some(Number.isNaN)).toBe(false);
+  order.slice(1).forEach((at, i) => expect(at).toBeGreaterThan(order[i]));
+  const rows = within(await relatedList()).getAllByRole("listitem");
+  expect(enterDelay(rows[1])).toBeGreaterThan(enterDelay(rows[0]));
+  expectMotionSafe();
+});
+
+test("이전 · 다음으로 사건을 바꾸면 새 사건 제목이 다시 떠오른다", async () => {
+  function Stepper() {
+    const [eventId, setEventId] = useState(119);
+    return <EventPanel eventId={eventId} onSelectEvent={setEventId} />;
+  }
+  renderWithProviders(<Stepper />);
+  const first = (
+    await screen.findByRole("heading", {
+      level: 2,
+      name: "한빛반도체 텍사스 공장 착공식",
+    })
+  ).firstElementChild;
+
+  fireEvent.click(await screen.findByRole("button", { name: /이전 사건/ }));
+  await waitFor(() =>
+    expect(screen.getByRole("heading", { level: 2 }).textContent).not.toBe(
+      "한빛반도체 텍사스 공장 착공식",
+    ),
+  );
+  const heading = screen.getByRole("heading", { level: 2 });
+
+  // 새로 그린 제목이다 — 같은 요소를 글만 바꾸면 애니메이션이 다시 돌지 않는다
+  expect(heading.firstElementChild).not.toBe(first);
+  expect(heading.firstElementChild!.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-/,
+  );
 });

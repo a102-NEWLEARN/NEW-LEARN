@@ -139,6 +139,17 @@ body {
   font-family: var(--seed-font-family);
   color: var(--seed-color-fg-neutral);
   background: var(--seed-color-bg-layer-default);
+  /* 한글은 단어 중간에서 줄을 바꾸지 않는다 — 좁은 화면에서 「외/환당국」처럼 끊기지 않게.
+     띄어쓰기 없이 칸보다 긴 말(주소 · 영문)은 칸을 넘지 않게 그 안에서 끊는다 (DESIGN.md Typography, Jira S15P31A102-175) */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* SEED 아래 시트 · 옆 패널 본문은 글자 단위로 끊는다(word-break: break-all, recipes/bottom-sheet.css · side-panel.css).
+   우리가 쓰는 두 가지(사건 시트, 서랍)를 위 body 규칙처럼 단어 단위로 되돌린다 (Jira S15P31A102-175) */
+.seed-bottom-sheet__content,
+.seed-side-panel__content {
+  word-break: keep-all;
 }
 
 /* 오른쪽 사건 패널이 열릴 때 — 300ms enter 곡선으로 오른쪽에서 밀려 들어온다 (EXPERIENCE.md Interaction Primitives 「모션」).
@@ -202,5 +213,159 @@ body {
   from {
     transform: translateY(24px);
     opacity: 0;
+  }
+}
+
+/* 기사 마인드맵 두 보기 · 기사 머리의 등장 · 호버 · 강조 (프로토타입 v21 im-node-in · im-draw · im-rise · im-pulse 를 키웠다).
+   쓰는 곳과 길이는 components/motion/screenMotion.ts. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+
+/* 넘쳤다가 자리 잡으며 튀어나온다 — 가운데 원 · 흐름지도 번호 원 */
+@keyframes newlearn-spring-in {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.14);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(0.95);
+  }
+  90% {
+    transform: scale(1.02);
+  }
+}
+
+/* 마인드맵 노드가 부모 자리(가운데 · 가지)에서 날아 나와 넘쳤다가 자리 잡는다.
+   노드마다 --nl-from-x · --nl-from-y 에 제자리에서 부모까지의 거리를 준다 */
+@keyframes newlearn-fly-out {
+  0% {
+    translate: var(--nl-from-x, 0) var(--nl-from-y, 0);
+    scale: 0.2;
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    scale: 1.12;
+  }
+  100% {
+    translate: 0 0;
+    scale: 1;
+  }
+}
+
+/* 선이 시작점에서 끝점으로 뻗는다 — 선에 pathLength 1 을 줘서 길이와 상관없이 1 만큼 민다 */
+@keyframes newlearn-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 아래에서 떠오른다 — 흐름지도 질문 · 잎 카드 · 기사 머리 */
+@keyframes newlearn-rise-short {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+
+/* 잇는 선이 가로로 · 세로로 자란다 */
+@keyframes newlearn-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes newlearn-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* 선이 자라는 동안 그 끝을 따라 점이 달려간다 — 출발 · 도착은 --nl-travel-from · --nl-travel-to */
+@keyframes newlearn-travel-x {
+  0% {
+    left: var(--nl-travel-from);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: var(--nl-travel-to);
+    opacity: 0;
+  }
+}
+
+@keyframes newlearn-travel-y {
+  0% {
+    top: var(--nl-travel-from);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: var(--nl-travel-to);
+    opacity: 0;
+  }
+}
+
+@keyframes newlearn-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 원 둘레에서 파문이 번진다 — 처음과 끝이 투명이라 꾸밈 고리는 늘 opacity 0 으로 둔다 */
+@keyframes newlearn-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* 마인드맵 잎이 제자리에서 둥실 떠 있다 */
+@keyframes newlearn-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -3px;
+  }
+}
+
+/* 마우스를 올린 길 위로 점선이 바깥쪽으로 흐른다 — 무늬 한 칸(12) 만큼 민다 */
+@keyframes newlearn-flow {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 강조한 잎 원이 한 번 튄다 */
+@keyframes newlearn-pop-once {
+  45% {
+    transform: scale(1.3);
   }
 }
