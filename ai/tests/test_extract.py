@@ -385,9 +385,9 @@ def test_repeated_reaction_speaker_is_warned_not_merged():
 
 def test_prompt_is_the_confirmed_v413_text():
     # 실험에서 확인한 문자열 그대로여야 한다(한 글자라도 바꾸면 PROMPT_VERSION 을 올리고 다시 확인한다)
-    assert PROMPT_VERSION == "extract-v4.13-mindmap"
+    assert PROMPT_VERSION == "extract-v4.14-mindmap"
     digest = hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()
-    assert digest == "082bcd8183303a0c6b627ab281a1683f4f582ae669c811e137952d50fa54560d"
+    assert digest == "8965556276e31fa9e5d9716be2e63d48b2d24ff133c619b74775afcb2798d72c"
 
 
 def test_prompt_carries_confirmed_rules():
@@ -415,6 +415,12 @@ def test_prompt_carries_confirmed_rules():
         "같은 기관 · 기간 · 지표의 공개 행위",  # 2-5 예외
         "사고 · 사망 발생과 그에 따른 신고 · 수사 착수",
         "밝힌 날이라, 주체가 같아도 행위 시점으로 쓰지 않는다",
+        # v4.14(판정기준 v10)
+        "발생이 이미 지칭된 사건으로 다른 행위를 꾸미는 배경일 때",  # 2-3 발생 vs 착수
+        "수행 기관은 괄호로 붙인다",  # 2-5 공개 주체 표기
+        "공개 주체 미상",
+        "다른 언론의 재보도는 원래 공개한 쪽을 주체로 둔다",
+        "여러 조사 결과를 묶은 기사는 종합 기사라",
     ):
         assert phrase in SYSTEM_PROMPT, phrase
     assert "★" not in SYSTEM_PROMPT.split("[예시")[1]
