@@ -87,10 +87,19 @@ export function setInterested(
   issueId: number,
   interested: boolean,
 ) {
-  for (const queryKey of [["issue", issueId], ["issues"]]) {
-    queryClient.setQueriesData({ queryKey }, (data: unknown) =>
-      patchIssue(data, issueId, interested),
-    );
+  // 이슈 머리는 그 키만(exact) — 타임라인(["issue", id, "timeline"])까지 걸지 않는다.
+  // 바뀐 응답에만 setQueryData 한다. 같은 값을 넣어도 TanStack 은 그 쿼리를 「방금 받음」으로 바꿔서,
+  // 무효로 해 둔 다른 목록이 다시 받지 않게 될 수 있다
+  const cached = [
+    ...queryClient.getQueriesData({
+      queryKey: ["issue", issueId],
+      exact: true,
+    }),
+    ...queryClient.getQueriesData({ queryKey: ["issues"] }),
+  ];
+  for (const [queryKey, data] of cached) {
+    const next = patchIssue(data, issueId, interested);
+    if (next !== data) queryClient.setQueryData(queryKey, next);
   }
   void queryClient.invalidateQueries({
     queryKey: interestIssuesQuery.queryKey,
