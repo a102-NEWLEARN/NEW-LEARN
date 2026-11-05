@@ -292,6 +292,7 @@ SEED 는 글꼴 파일을 함께 주지 않고 `body` 에 자동으로 걸지도
 
 크기는 rem 단위(1rem = 16px)라 사용자 글자 크기 설정을 따라 커진다. 패턴마다 쓰는 단계는 각 패턴 README 에 있다.
 한글 줄은 단어 단위로 바꾼다 — `body` 에 `word-break: keep-all` 을 건다. 좁은 화면에서 「외/환당국」「시/연」처럼 단어 중간에서 끊기던 것을 막는다. 띄어쓰기 없이 칸보다 긴 말(주소 · 영문)은 `overflow-wrap: break-word` 로 칸 안에서 끊는다. SEED 아래 시트 · 옆 패널 본문은 글자 단위(`break-all`)로 끊어서 사건 시트 · 서랍에도 단어 단위를 다시 건다. 화면마다 따로 걸던 `break-keep` 은 지웠다 (2026-11-05 모바일 총점검, S15P31A102-175).
+가운데 맞춘 짧은 제목 · 부제(홈 인사)는 줄 길이를 고르게 꺾는다(`text-wrap: balance`) — 한 단어만 다음 줄로 넘어가지 않게. 「사건 4 · 기사 12」 같은 개수 묶음은 줄바꿈 없는 칸으로 이어 숫자만 넘어가지 않게 하고, 항목 사이 점으로 줄이 시작하지 않게 한다. 항목을 나란히 늘어놓는 줄(「새로운 이슈」)은 사이 점 대신 항목마다 앞에 4px 민트 점을 붙인다 (2026-11-05 UI 점검, S15P31A102-182).
 숫자가 세로로 줄을 맞춰야 하는 곳(카드 메타의 개수, 타임라인 날짜, 변화 카드 날짜)은 고정폭 숫자를 쓴다 (`font-variant-numeric: tabular-nums`). 변화 카드는 F10(추후 논의) 기능이다.
 
 ## Layout & Spacing
@@ -318,7 +319,7 @@ SEED 는 글꼴 파일을 함께 주지 않고 `body` 에 자동으로 걸지도
 
 | 모서리 | 쓰는 곳 |
 | --- | --- |
-| 16px `radius-r4` | 이슈 카드 · 사건 상세 패널 · 카드로 감싼 기사 리스트 |
+| 16px `radius-r4` | 이슈 카드 · 사건 상세 패널 · 카드로 감싼 기사 리스트 · 마이페이지 섹션 |
 | 12px `radius-r3` | 원문 근거 박스 · 변화 카드(F10, 추후 논의) |
 | 8px `radius-r2` | 필터 칩 · 기사 썸네일 · 아이콘 버튼 · 변화 카드 안 근거 칸 |
 | 4px `radius-r1` | 상태 라벨 · 태그 · 선택된 타임라인 노드 |
@@ -337,7 +338,7 @@ SEED 컴포넌트(Action Button · Tabs · Chip · Dialog · Side Panel · Snack
 | 요소 | 배경 | 글자 · 테두리 | frontmatter 키 |
 | --- | --- | --- | --- |
 | 주요 버튼(CTA) | `bg-brand-solid` → 눌림 `bg-brand-solid-pressed` | 글자 `fg-on-brand-solid`(흰색) | `button-primary` · `button-primary-pressed` |
-| 보조 버튼 | `bg-layer-default` | 글자 `fg-neutral`, 테두리 `stroke-neutral-weak` | — |
+| 보조 버튼 | `bg-layer-default` | 글자 `fg-neutral`, 테두리 `stroke-neutral-weak` (SEED `neutralOutline`). 가입 · 로그인 · 마이페이지 · 기사 머리가 모두 이 모양이다 — 회색 채움(`neutralWeak`) · 글자만(`ghost`)으로 화면마다 달랐다 (2026-11-05 UI 점검). 글자만인 버튼은 *더 보기* · *관심사 편집* 같은 작은 보조 동작에만 | — |
 | 텍스트 링크 | — | `fg-brand`, 굵기 500, 평소에는 밑줄 없음 | `text-link` |
 | 선택된 필터 칩 | `bg-brand-weak` → 눌림 `bg-brand-weak-pressed` | 글자 `fg-brand-contrast` + 16px 체크 아이콘, 1px 테두리 `stroke-brand-solid` | `filter-chip-selected` · `filter-chip-selected-pressed` |
 | 선택된 리스트 행 · 타임라인 본문 | `bg-brand-weak` | 글자색 그대로, 테두리 없음 | `list-row-selected` |
@@ -353,8 +354,8 @@ SEED 컴포넌트(Action Button · Tabs · Chip · Dialog · Side Panel · Snack
 | --- | --- | --- |
 | IssueCard 추천 이슈 카드 | 홈 · 이슈 목록 | 흰 카드, 1px 테두리, 16px 모서리, 그림자 없음. 카테고리는 청록 글자만, 제목은 최대 2줄, 최근 사건 앞에 8px 민트 노드 (`issue-card` · `issue-card-latest`) |
 | ArticleList 최신 기사 리스트 | 최신 기사 목록 · 패널 안 관련 기사 | 제목 중심(최대 2줄), 언론사 · 날짜는 보조. 행 사이 안쪽 구분선, 리스트 자체에는 테두리 없음 |
-| CategoryTabs 카테고리 탭과 필터 칩 | 카테고리 전환 · 목록 좁히기 | 탭은 기본 `fg-neutral-muted` Medium, 선택 `fg-neutral` Bold + 2px 청록 밑줄(탭 바 밑선 위에 겹침, `tab-indicator`). 칩은 높이 32px · 모서리 8px |
-| EventDetailPanel 사건 상세 패널 | F08 사건별 관련 기사 조회 | 최대 너비 480px 흰 패널. 제목 · 날짜 · 요약 · 원문 근거 · 관련 기사/관점 탭 순서, 근거는 옅은 배경 박스 |
+| CategoryTabs 카테고리 탭과 필터 칩 | 카테고리 전환 · 목록 좁히기 | 탭은 기본 `fg-neutral-muted` Medium, 선택 `fg-neutral` Bold + 2px 청록 밑줄(탭 바 밑선 위에 겹침, `tab-indicator`). 좁은 화면은 14px — 바로 위 보기 탭(「추천 이슈 / 최신 기사」 · 「흐름지도 / 마인드맵」, 16px · 줄을 반씩)보다 한 단계 아래로 보인다. 탭 줄이 넘치면 가로로 밀고, 더 밀 것이 남았으면 오른쪽 끝 40px 를 흐린다 (2026-11-05 UI 점검). 칩은 높이 32px · 모서리 8px |
+| EventDetailPanel 사건 상세 패널 | F08 사건별 관련 기사 조회 | 최대 너비 480px 흰 패널. 제목 · 날짜 · 요약 · 원문 근거 · 관련 기사/관점 탭 순서, 근거는 옅은 배경 박스. 맨 아래 이전 · 다음 사건은 반씩 두 칸이고, 하나뿐이면 줄을 다 쓴다(다음은 오른쪽 정렬) |
 | Timeline 타임라인 | F07 사건 중심 이슈 에볼루션 맵 | 세로 2px 민트 선 위에 사건 노드. 노드 모양은 아래 표. 좁은 화면은 이 세로 목록 그대로다 — 줄마다 날짜 · 기사 수(12px) 위에 제목 전체(메인 16px · 서브 14px 굵게), 노드는 글 첫 줄 높이, 달마다 12px 굵은 제목. 넓은 화면은 가로 시간축 · 레인 지도 |
 | ChangeCard 변화 카드 | F10 근거 기반 변화 카드 (추후 논의 기능) | 이전 · 이후 근거를 나란히. CONFLICT 는 두 보도를 똑같은 모양으로 두고 판정하지 않음 |
 
