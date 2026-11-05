@@ -405,7 +405,7 @@ export function SignupPage() {
             {step > 0 && (
               <ActionButton
                 type="button"
-                variant="neutralWeak"
+                variant="neutralOutline"
                 size="large"
                 onClick={() => goTo(step - 1)}
               >
