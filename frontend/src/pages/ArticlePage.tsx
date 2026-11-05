@@ -88,7 +88,9 @@ function ArticleView({ articleId }: { articleId: number }) {
     return <NotFoundPage title={NOT_FOUND_TITLE} focusTitle={titleFocused} />;
 
   return (
-    <div className="flex h-full min-h-[560px] flex-col">
+    // 좁은 화면은 화면 전체가 한 번에 스크롤한다 — 머리가 위로 지나가고 보기 탭은 위에 붙는다.
+    // 넓은 화면은 높이를 채우고 보기가 남은 자리 안에서 스크롤한다
+    <div className="flex min-h-full flex-col md:h-full md:min-h-[560px]">
       <ArticleHeader query={article} onTitleFocusChange={setTitleFocused} />
       <TabsRoot
         value={view}
@@ -97,7 +99,7 @@ function ArticleView({ articleId }: { articleId: number }) {
         size="medium"
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="flex items-center gap-x3 px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] md:px-x8">
+        <div className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8">
           <TabsList
             aria-label="보기"
             className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none"
@@ -230,7 +232,7 @@ function MindmapBody({
 
 function Centered({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-1 items-center justify-center px-x5">
+    <div className="flex flex-1 items-center justify-center px-x5 max-md:min-h-[50dvh]">
       {children}
     </div>
   );

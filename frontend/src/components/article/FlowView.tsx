@@ -77,7 +77,8 @@ export function FlowView({ title, branches }: FlowViewProps) {
       role="group"
       aria-label="기사 흐름지도"
       onClick={releaseOnEmpty}
-      className="@container min-h-0 flex-1 overflow-y-auto"
+      // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다
+      className="@container min-h-0 flex-1 overflow-y-auto max-md:overflow-visible"
     >
       {/* 좁은 화면 — 좌우 20px, 맨 아래 96px 를 남겨 마지막 카드가 용어사전 버튼에 가리지 않게 */}
       <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 @min-[1024px]:max-w-[1280px]">

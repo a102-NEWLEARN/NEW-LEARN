@@ -20,6 +20,7 @@ import { timelineQuery } from "@/api/timeline";
 import { EventDetailPane } from "@/components/issue/EventDetailPane";
 import { IssueHeader } from "@/components/issue/IssueHeader";
 import { Timeline } from "@/components/issue/Timeline";
+import { TimelineList } from "@/components/issue/TimelineList";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -121,7 +122,12 @@ function IssueView({ issueId }: { issueId: number }) {
     return <NotFoundPage title={NOT_FOUND_TITLE} focusTitle={titleFocused} />;
 
   return (
-    <div ref={pageRef} className="flex h-full min-h-[520px]">
+    // 좁은 화면은 화면 전체가 한 번에 스크롤한다 — 머리가 위로 지나가고 세로 타임라인이 화면을 다 쓴다.
+    // 넓은 화면은 높이를 채우고 가로 지도가 남은 자리를 쓴다
+    <div
+      ref={pageRef}
+      className={narrow ? "flex min-h-full" : "flex h-full min-h-[520px]"}
+    >
       <div className="flex min-w-0 flex-1 flex-col">
         <IssueHeader query={issue} onTitleFocusChange={setTitleFocused} />
         <div className="flex min-h-0 flex-1 flex-col border-t border-stroke-neutral-subtle">
@@ -130,6 +136,14 @@ function IssueView({ issueId }: { issueId: number }) {
               <Centered>
                 <EmptyState message="아직 이 이슈에 정리된 사건이 없어요" />
               </Centered>
+            ) : // 좁은 화면은 가로 지도 대신 세로 타임라인 — 폰에서 가로 지도는 라벨이 잘리고 옆으로 계속 밀어야 한다
+            narrow ? (
+              <TimelineList
+                events={timeline.data.events}
+                selectedId={selectedId}
+                onSelect={setEvent}
+                summary={issue.data && summaryOf(issue.data)}
+              />
             ) : (
               <Timeline
                 events={timeline.data.events}
