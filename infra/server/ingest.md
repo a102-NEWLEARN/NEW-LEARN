@@ -42,7 +42,7 @@ flowchart LR
 ## 매일 실행
 
 - 10:00 에 돈다. 시작 마감이 1시간이라 그 사이 서버가 멈췄다 돌아오면 11시 전까지는 늦게라도 돈다. 10:00 ~ 11:00 에 CronJob 을 바꾸는 MR 이 머지되면 그 자리에서 한 번 돈다
-- 크레딧 어림 — 지금 조건으로 36시간 창이 평균 약 330요청, 평일 최대 약 462요청(팀장 2026-11-04, 10/21 ~ 28 기준). 그날 0 ~ 10시 기사는 받은 뒤 버린다(최신부터 오고 latest 에 끝 시각 조건이 없다)
+- 크레딧 어림 — 지금 조건으로 36시간 창 전체가 평균 약 330요청, 평일 최대 약 462요청(팀장 2026-11-04, 10/21 ~ 28 기준)이고, 범위를 지나면 멈추므로 실제로는 그보다 적다(잰 값은 `SSOT.md` 10절). 오래된 순이라 그날 0 ~ 10시 기사는 멈추기 직전 쪽에 섞인 것만 받고 버린다
 - 매일 공유 — 실행마다 `수집 결과` 줄 전체와 종료 코드를 팀장에게 넘긴다(팀장이 `credits` 를 NewsData 대시보드 차감과 견줌, 2026-11-04). 예약 실행 Job 은 이름이 `news-ingest-<숫자>` 다(손 실행은 `-check-` · `-manual-` 처럼 글자가 섞임). 다시 시도가 있었으면 Pod 가 둘이다
 
   ```bash
@@ -50,7 +50,7 @@ flowchart LR
   ```
 
   같은 날 운영 기사 목록 JSONL 도 넘긴다(`infra/server/data-load.md` 2절)
-- 팀장이 매일 적는 항목은 `수집 결과` 한 줄에서 나온다 — 요청 `requests` · 크레딧 `credits` · 받은 수 `fetched` · 새 기사 `b2.created` · 본문 정상 `fetched` − `skipped.no_body` · 빠진 구간 `stoppedBy` 와 `pubDates`. `fetched` · `no_body` 는 36시간 창 전체(그날 0 ~ 10시 · 그제 밤 포함, 절반 가까이)를 센다 — 「전날 기사 수」는 `kept`(날짜 범위 안 · 거른 뒤). 수집 시각은 `article.created_at`(B2 가 넣은 때)
+- 팀장이 매일 적는 항목은 `수집 결과` 한 줄에서 나온다 — 요청 `requests` · 크레딧 `credits` · 받은 수 `fetched` · 새 기사 `b2.created` · 본문 정상 `fetched` − `skipped.no_body` · 빠진 구간 `stoppedBy` 와 `pubDates`. `fetched` · `no_body` 는 범위 밖까지 받은 쪽 전체(그제 밤 · 멈추기 직전 쪽 포함)를 센다 — 「전날 기사 수」는 `kept`(날짜 범위 안 · 거른 뒤). 수집 시각은 `article.created_at`(B2 가 넣은 때)
 - 손 실행은 10시를 피한다 — 겹치면 둘이 같이 돌아 크레딧을 두 번 쓰거나 예약이 건너뛰어질 수 있다(손으로 만든 Job 을 CronJob 이 어떻게 세는지는 클러스터에서 확인하지 않았다)
 
 ## 손 실행 (EC2)
@@ -249,7 +249,7 @@ MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEF
 
 1. `kubectl -n app get jobs` · `kubectl -n app logs job/<이름> | tail -3` 으로 마지막 실행의 종료 코드와 `수집 결과` 를 본다
 2. 종료 1 — `NewsData 실패` 면 응답 `status` 와 본문(크레딧 · 15분 한도). `NewsData 연결 실패` 면 바깥으로 나가는 길(DNS · 인터넷). `backend 연결 실패 — 멈춘다` 나 하나도 못 감이면 backend 상태(`kubectl -n app get pod`, health)와 들어오는 길 정책(`kubectl -n app get cnp backend-ingress`)
-3. 종료 2 — `상한에 닿아 멈춤` 이면 `stoppedBy` · `pubDates` 로 빠진 구간을 본다. 최신부터 받으니 `pubDates.min` 이 범위 첫날 0시(KST — UTC 로는 전날 15:00)보다 이르면 범위 안은 다 받은 것이고 빠진 것이 없다(남은 쪽이 모두 범위 밖이었다). 아니면 48시간 안이면 「손 실행」 latest 로(상한을 올려), 지났으면 archive 로 그 구간만 다시 받는다. 자주 닿으면 매일 상한이나 고르는 조건을 MR 로. `설정 오류` 면 env · Secret(`kubectl -n app get secret newsdata-api internal-api`). `출입증 오류` 가 NewsData 면 키(구독이 끝났는지 포함 — 「키 바꾸기」), backend 면 배치 키가 backend 와 같은 Secret 인지
+3. 종료 2 — `상한에 닿아 멈춤` 이면 `stoppedBy` · `pubDates` 로 빠진 구간을 본다. 오래된 순(`sort=pubdateasc`)으로 받으니 상한에 닿으면 끝쪽이 빠진다 — `pubDates.max` 가 범위 마지막 날 24시(KST — UTC 로는 그날 15:00)를 넘었으면 범위 안은 다 받은 것이고, 아니면 `pubDates.max` 뒤가 빠진 것이다(쿼리에 그 정렬이 없으면 최신부터라 반대로 `pubDates.min` 을 본다). 빠졌으면 48시간 안이면 「손 실행」 latest 로(상한을 올려), 지났으면 archive 로 그 구간만 다시 받는다. 자주 닿으면 매일 상한이나 고르는 조건을 MR 로. `설정 오류` 면 env · Secret(`kubectl -n app get secret newsdata-api internal-api`). `출입증 오류` 가 NewsData 면 키(구독이 끝났는지 포함 — 「키 바꾸기」), backend 면 배치 키가 backend 와 같은 Secret 인지
 4. 하루치를 놓쳤으면(두 번 다 실패) 같은 날 안에 손 실행 latest 로 다시 받는다. latest 는 48시간까지라 그 뒤는 archive(5배)
 5. Job 이 아예 없으면 예약이 안 생긴 것 — `kubectl -n app describe cronjob news-ingest` 의 이벤트(시작 마감을 넘김 등)
 6. 오래 멈췄다 다시 켜면 첫 예약 실행 전까지 ②가 울릴 수 있다 — 첫 예약이 성공하면 저절로 풀린다
