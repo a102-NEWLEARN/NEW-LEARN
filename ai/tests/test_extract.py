@@ -380,7 +380,7 @@ def test_repeated_reaction_speaker_is_warned_not_merged():
     assert any("홍길동" in w for w in diag["warnings"])
 
 
-# ---------------------------------------------------------------- 프롬프트
+# ---------------------------------------------------------------- 프롬프트 문자열 고정 검사 — 모델의 규칙 준수는 별도 실험으로 확인한다
 
 
 def test_prompt_is_the_confirmed_v413_text():
