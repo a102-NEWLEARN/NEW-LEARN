@@ -154,7 +154,7 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
           asChild
           variant="ghost"
           size="small"
-          className="col-start-2 row-start-2 -mr-x2 shrink-0 self-end md:row-span-2 md:row-start-1"
+          className="col-start-2 row-start-2 -mr-[8px] shrink-0 self-end md:row-span-2 md:row-start-1"
         >
           <Link to="/me">
             관심사 편집
