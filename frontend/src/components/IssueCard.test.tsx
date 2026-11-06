@@ -1,7 +1,8 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { IssueSummary } from "@/api/issues";
 import { IssueCard } from "@/components/IssueCard";
+import { expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 // docs/api-screen.md A2 예시
@@ -123,4 +124,22 @@ test("관심 이슈가 아니면 「관심 이슈」를 붙이지 않는다", ()
   renderWithProviders(<IssueCard issue={issue} />);
 
   expect(screen.getByRole("link").textContent).not.toContain("관심 이슈");
+});
+
+test("마우스를 올리거나 키보드로 오면 「흐름 보기」가 왼쪽에서 미끄러지며 나타난다 — 꾸밈이라 링크 이름에는 없다", () => {
+  renderWithProviders(<IssueCard issue={issue} />);
+
+  const link = screen.getByRole("link");
+  const hint = within(link).getByText("흐름 보기").closest("[aria-hidden]")!;
+  expect(hint).not.toBeNull();
+  // 프로토타입 v21 im-rec-arrow — 평소 투명, 카드 호버 · 포커스 때 나타나며 4px 미끄러짐
+  expect(link.getAttribute("class")).toMatch(/(^|\s)group(\s|$)/);
+  const look = hint.getAttribute("class");
+  expect(look).toMatch(/(^|\s)opacity-0(\s|$)/);
+  expect(look).toMatch(/group-hover:opacity-100/);
+  expect(look).toMatch(/group-focus-visible:opacity-100/);
+  expect(look).toMatch(/motion-safe:translate-x-\[-4px\]/);
+  expect(look).toMatch(/motion-safe:group-hover:translate-x-\[0px\]/);
+  expect(screen.queryByRole("link", { name: /흐름 보기/ })).toBeNull();
+  expectMotionSafe();
 });

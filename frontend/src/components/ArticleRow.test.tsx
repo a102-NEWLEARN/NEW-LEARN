@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { ArticleSummary } from "@/api/types";
 import { ArticleRow } from "@/components/ArticleRow";
+import { expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 const NOW = new Date("2026-10-28T12:00:00+09:00");
@@ -57,4 +58,54 @@ test("원문 보기는 새 탭으로 여는 링크다", () => {
   expect(source.getAttribute("href")).toBe(article.url);
   expect(source.getAttribute("target")).toBe("_blank");
   expect(source.getAttribute("rel")).toBe("noopener noreferrer");
+});
+
+// 홈 최신 기사 · 나의 뉴스함의 호버 안내 (프로토타입 v21 im-row-hint)
+function renderHinted(overrides: Partial<ArticleSummary> = {}) {
+  return renderWithProviders(
+    <ul>
+      <ArticleRow
+        article={{ ...article, ...overrides }}
+        now={NOW}
+        mindmapHint
+      />
+    </ul>,
+  );
+}
+
+test("mindmapHint 이면 넓은 화면에서 마우스를 올리거나 키보드로 올 때 「마인드맵 보기」가 미끄러지며 나타난다", () => {
+  renderHinted();
+
+  const link = screen.getByRole("link", { name: /착공식\s*바른신문/ });
+  const hint = within(link)
+    .getByText("마인드맵 보기")
+    .closest("[aria-hidden]")!;
+  expect(hint).not.toBeNull();
+  expect(link.getAttribute("class")).toMatch(/(^|\s)group(\s|$)/);
+  const look = hint.getAttribute("class");
+  // 좁은 화면 · 터치에서는 안 보인다
+  expect(look).toMatch(/max-md:hidden/);
+  expect(look).toMatch(/(^|\s)opacity-0(\s|$)/);
+  expect(look).toMatch(/group-hover:opacity-100/);
+  expect(look).toMatch(/group-focus-visible:opacity-100/);
+  expect(look).toMatch(/motion-safe:translate-x-\[-4px\]/);
+  expect(look).toMatch(/motion-safe:group-hover:translate-x-\[0px\]/);
+  // 꾸밈이라 링크 이름은 그대로다
+  expect(screen.queryByRole("link", { name: /마인드맵 보기/ })).toBeNull();
+  expectMotionSafe();
+});
+
+test.each(["NONE", "QUEUED", "FAILED", "NOT_ANALYZABLE"] as const)(
+  "마인드맵이 없는 기사(%s)에는 「마인드맵 보기」를 두지 않는다",
+  (mindmapStatus) => {
+    renderHinted({ mindmapStatus });
+
+    expect(screen.queryByText("마인드맵 보기")).toBeNull();
+  },
+);
+
+test("mindmapHint 를 주지 않으면(사건 패널) 「마인드맵 보기」가 없다", () => {
+  renderRow();
+
+  expect(screen.queryByText("마인드맵 보기")).toBeNull();
 });

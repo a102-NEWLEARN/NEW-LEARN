@@ -139,6 +139,7 @@ function ArticleList({ articles }: ArticleListProps) {
               article={article}
               showCategory
               listIndex={index}
+              mindmapHint
             />
           ))}
         </ul>

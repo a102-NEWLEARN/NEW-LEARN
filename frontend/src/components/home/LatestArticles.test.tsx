@@ -223,3 +223,13 @@ test("기사 행이 30ms 간격으로 떠오르고, 분야를 바꾸면 목록�
     ),
   );
 });
+
+test("홈 최신 기사 행에는 마우스를 올리면 나타나는 「마인드맵 보기」가 있다", async () => {
+  serveArticles();
+  renderSection();
+
+  const list = await screen.findByRole("list", { name: "최신 기사" });
+  await waitFor(() =>
+    expect(within(list).getAllByText("마인드맵 보기")).toHaveLength(8),
+  );
+});

@@ -38,6 +38,16 @@ export const PANEL_FADE =
 export const BACKDROP_FADE =
   "motion-safe:animate-[newlearn-fade-in_520ms_ease-out_backwards]";
 
+// 호버 안내 — 평소 투명하고, 감싼 링크(group)에 마우스를 올리거나 키보드로 오면 왼쪽 4px 에서 미끄러지며 나타난다
+// (프로토타입 v21 im-rec-arrow 150ms · im-row-hint 180ms). 호버는 마우스가 있을 때만 걸린다(Tailwind hover 변형).
+// 동작 줄이기면 미끄러짐은 빼고 나타나기만 한다. 꾸밈이라 aria-hidden 으로 두고, 없어도 링크를 쓸 수 있다
+const HINT =
+  "opacity-0 transition-[opacity,translate] ease-[var(--seed-timing-function-enter)] group-hover:opacity-100 group-focus-visible:opacity-100 motion-safe:translate-x-[-4px] motion-safe:group-hover:translate-x-[0px] motion-safe:group-focus-visible:translate-x-[0px]";
+/** 이슈 카드 「흐름 보기 ›」 */
+export const CARD_HINT = `${HINT} duration-[150ms]`;
+/** 기사 행 「마인드맵 보기 ›」 */
+export const ROW_HINT = `${HINT} duration-[180ms]`;
+
 /** 카드 차례 — 45ms 간격, 8번째(315ms)부터는 같이 나온다 */
 export const cardAt = (index: number): CSSProperties =>
   enterAt(Math.min(index, 7) * 45);

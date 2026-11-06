@@ -1,10 +1,12 @@
 import {
   IconArticleLine,
+  IconChevronRightSmallLine,
   IconSquare2StackedLine,
   IconStarFill,
 } from "@karrotmarket/react-monochrome-icon";
 import { Link } from "react-router";
 import type { IssueSummary } from "@/api/issues";
+import { CARD_HINT } from "@/components/motion/appMotion";
 import { formatEventDate } from "@/lib/date";
 
 type IssueCardProps = {
@@ -25,7 +27,7 @@ export function IssueCard({ issue }: IssueCardProps) {
   return (
     <Link
       to={`/issues/${issue.id}`}
-      className="flex h-full flex-col gap-x3 rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default p-x5 text-left transition-[border-color,background-color,scale] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] hover:border-palette-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:bg-bg-layer-default-pressed active:[scale:var(--seed-scale-s98)]"
+      className="group flex h-full flex-col gap-x3 rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default p-x5 text-left transition-[border-color,background-color,scale] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] hover:border-palette-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:bg-bg-layer-default-pressed active:[scale:var(--seed-scale-s98)]"
     >
       <span className="flex flex-wrap items-center gap-x-x2 gap-y-x1">
         <span className="t3-medium text-fg-brand">
@@ -68,6 +70,14 @@ export function IssueCard({ issue }: IssueCardProps) {
               </b>
             </span>
           ))}
+          {/* 마우스를 올리거나 키보드로 오면 나타나는 안내 (프로토타입 v21 im-rec-arrow, appMotion.ts) */}
+          <span
+            aria-hidden
+            className={`t3-bold ml-auto inline-flex items-center text-fg-brand ${CARD_HINT}`}
+          >
+            흐름 보기
+            <IconChevronRightSmallLine size={14} />
+          </span>
         </span>
       )}
     </Link>
