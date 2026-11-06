@@ -324,7 +324,7 @@ export function Timeline({
       aria-labelledby="timeline-title"
       className="flex min-h-0 flex-1 flex-col"
     >
-      <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x5 py-x2_5 md:px-x4">
+      <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x4 py-x2_5">
         <div className="mr-auto flex flex-wrap items-baseline gap-x2_5">
           <h2 id="timeline-title" className="t6-bold text-fg-neutral">
             이슈 흐름
