@@ -16,6 +16,7 @@ import {
 } from "react";
 import { type DictionaryItem, dictionaryQuery } from "@/api/dictionary";
 import { ApiError } from "@/api/error";
+import { BUBBLE_RISE, MY_BUBBLE_RISE } from "@/components/motion/appMotion";
 import { useHideOnScroll } from "@/components/shell/useHideOnScroll";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
@@ -220,7 +221,7 @@ export function DictionaryWindow({
           message.kind === "question" ? (
             <p
               key={message.id}
-              className="t4-bold max-w-[80%] self-end rounded-[16px_16px_4px_16px] bg-bg-brand-weak px-x3_5 py-x2 text-fg-neutral"
+              className={`t4-bold max-w-[80%] self-end rounded-[16px_16px_4px_16px] bg-bg-brand-weak px-x3_5 py-x2 text-fg-neutral ${MY_BUBBLE_RISE}`}
             >
               {message.text}
             </p>
@@ -274,10 +275,12 @@ export function DictionaryWindow({
   );
 }
 
-// 사전 쪽 말풍선
+// 사전 쪽 말풍선 — 나타날 때 떠오른다. 내 질문 말풍선은 조금 더 짧게 (프로토타입 v21, appMotion.ts)
 function Bubble({ children }: { children: ReactNode }) {
   return (
-    <div className="t4-regular max-w-[88%] self-start rounded-[16px_16px_16px_4px] bg-bg-neutral-weak px-x3_5 py-x2_5 text-fg-neutral">
+    <div
+      className={`t4-regular max-w-[88%] self-start rounded-[16px_16px_16px_4px] bg-bg-neutral-weak px-x3_5 py-x2_5 text-fg-neutral ${BUBBLE_RISE}`}
+    >
       {children}
     </div>
   );

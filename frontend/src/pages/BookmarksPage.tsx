@@ -43,8 +43,14 @@ export function BookmarksPage() {
               aria-label="담은 기사"
               className="divide-y divide-stroke-neutral-subtle rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default px-x3 py-x1"
             >
-              {items.map((article) => (
-                <ArticleRow key={article.id} article={article} showCategory />
+              {items.map((article, index) => (
+                <ArticleRow
+                  key={article.id}
+                  article={article}
+                  showCategory
+                  listIndex={index}
+                  mindmapHint
+                />
               ))}
             </ul>
           )}

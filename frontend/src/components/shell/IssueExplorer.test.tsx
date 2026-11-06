@@ -6,6 +6,7 @@ import { expect, onTestFinished, test, vi } from "vitest";
 import type { IssueSummary } from "@/api/issues";
 import { IssueExplorer } from "@/components/shell/IssueExplorer";
 import { server } from "@/mocks/node";
+import { enterDelay } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 // 셸처럼 펼친 분야를 들고 있는 껍데기 (src/components/shell/AppShell.tsx)
@@ -361,4 +362,23 @@ test("저장한 이슈의 별을 누르면 A24 로 뺀다", async () => {
       (await starOf("한빛반도체 미국 공장 건설")).getAttribute("aria-pressed"),
     ).toBe("false"),
   );
+});
+
+test("분야를 펼치면 그 아래 이슈 행이 30ms 간격으로 떠오른다", async () => {
+  renderWithProviders(<Explorer />);
+
+  fireEvent.click(await category("경제"));
+  const list = await screen.findByRole("list", { name: "경제 이슈" });
+  const rows = within(list)
+    .getAllByRole("link")
+    .map((link) => link.closest("li")!);
+  // 프로토타입 v21 ul > li — 380ms, 30ms 간격. 해 묶음을 건너 차례가 이어진다
+  expect(rows[0].getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_380ms_/,
+  );
+  const delays = rows.map(enterDelay);
+  expect(delays.slice(0, 3)).toEqual([0, 30, 60]);
+  delays
+    .slice(1)
+    .forEach((at, i) => expect(at).toBeGreaterThanOrEqual(delays[i]));
 });

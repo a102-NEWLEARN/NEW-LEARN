@@ -460,3 +460,15 @@ test("서버가 까닭을 준 400 이면 그 문장만 두고 다시 시도는 �
   ).toBeDefined();
   expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
 });
+
+test("목록이 열리면 120ms 에 나타난다 — 동작 줄이기면 빠진다", async () => {
+  renderSearch();
+
+  act(() => input().focus());
+
+  const listbox = await screen.findByRole("listbox");
+  // 프로토타입 v21 검색 목록 im-fade 120ms
+  expect(
+    listbox.closest('[class*="motion-safe:animate-[newlearn-fade-in_120ms_"]'),
+  ).not.toBeNull();
+});

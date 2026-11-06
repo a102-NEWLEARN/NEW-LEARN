@@ -39,7 +39,7 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
           aria-label="메뉴 열기"
           aria-haspopup="dialog"
           onClick={onMenuClick}
-          className="flex size-x10 items-center justify-center rounded-r2 text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+          className="flex size-x10 items-center justify-center rounded-r2 text-fg-neutral transition-colors hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
         >
           <IconHorizline3VerticalLine size={20} aria-hidden />
         </button>
