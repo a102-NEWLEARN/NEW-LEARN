@@ -133,8 +133,15 @@ function ArticleList({ articles }: ArticleListProps) {
           aria-label="최신 기사"
           className={`${CARD} divide-y divide-stroke-neutral-subtle`}
         >
-          {items.map((article) => (
-            <ArticleRow key={article.id} article={article} showCategory />
+          {items.map((article, index) => (
+            <ArticleRow
+              key={article.id}
+              article={article}
+              showCategory
+              // 더 보기로 붙은 쪽도 차례를 처음부터 센다 — 포커스를 받는 첫 행이 늦게 나오지 않게
+              listIndex={index % LATEST_ARTICLES_SIZE}
+              mindmapHint
+            />
           ))}
         </ul>
       );

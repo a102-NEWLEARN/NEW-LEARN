@@ -10,6 +10,7 @@ import { expect, test, vi } from "vitest";
 import { server } from "@/mocks/node";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { shellRoute } from "@/routes";
+import { expectMotionSafe } from "@/test/motion";
 import { renderRoute, renderWithProviders } from "@/test/render";
 
 // 앱과 같은 provider · 라우트 목록으로 연다. provider 를 빼먹으면 첫 화면이 깨지는 것을 여기서 잡는다
@@ -274,4 +275,45 @@ test("화면이 넘긴 제목을 보여 준다", () => {
   expect(
     screen.getByRole("heading", { level: 1, name: "이슈를 찾을 수 없어요" }),
   ).toBeDefined();
+});
+
+test("화면이 바뀔 때마다 본문이 아래에서 떠오르고, 같은 화면에서 쿼리만 바뀌면 다시 그리지 않는다", async () => {
+  const { router } = renderRoute("/a", [
+    shellRoute([
+      { path: "/a", element: <h1 tabIndex={-1}>화면 A</h1> },
+      { path: "/b", element: <h1 tabIndex={-1}>화면 B</h1> },
+    ]),
+  ]);
+  const stage = () => screen.getByRole("main").firstElementChild!;
+
+  await screen.findByRole("heading", { level: 1, name: "화면 A" });
+  const first = stage();
+  // 프로토타입 v21 .im-screen — 10px 아래에서 300ms 로 떠오른다
+  expect(first.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_300ms_/,
+  );
+  // 칸은 내용 높이다 — 본문 높이 칸을 10px 옮기면 본문이 넘쳐 스크롤바가 잠깐 생긴다
+  expect(first.getAttribute("class")).not.toMatch(/(^|\s)h-full(\s|$)/);
+
+  await act(() => router.navigate("/a?category=world"));
+  expect(stage()).toBe(first);
+
+  await act(() => router.navigate("/b"));
+  await screen.findByRole("heading", { level: 1, name: "화면 B" });
+  // 새로 그린 칸이다 — 같은 칸이면 애니메이션이 다시 돌지 않는다
+  expect(stage()).not.toBe(first);
+  expectMotionSafe(screen.getByRole("main"));
+});
+
+test("기사 · 이슈 화면은 본문 높이를 채우고 화면 떠오름에서 뺀다 — 181 의 등장이 따로 있다", async () => {
+  renderRoute("/issues/7", [
+    shellRoute([
+      { path: "/issues/:issueId", element: <h1 tabIndex={-1}>이슈</h1> },
+    ]),
+  ]);
+
+  await screen.findByRole("heading", { level: 1, name: "이슈" });
+  const stage = screen.getByRole("main").firstElementChild!;
+  expect(stage.getAttribute("class")).toMatch(/(^|\s)h-full(\s|$)/);
+  expect(stage.getAttribute("class")).not.toMatch(/animate-/);
 });

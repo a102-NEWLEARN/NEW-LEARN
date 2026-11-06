@@ -24,6 +24,7 @@ import {
   type SearchResult,
   searchQuery,
 } from "@/api/search";
+import { LIST_FADE } from "@/components/motion/appMotion";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 
@@ -378,12 +379,12 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
         )}
       </div>
       {open && (
-        // 화면 위에 뜨는 요소라 그림자를 쓴다 (DESIGN.md Elevation & Depth).
+        // 화면 위에 뜨는 요소라 그림자를 쓴다 (DESIGN.md Elevation & Depth). 열면 120ms 에 나타난다(appMotion.ts).
         // 목록 안 어디를 눌러도(묶음 이름 · 안내 · 다시 시도) 입력 칸이 포커스를 잃지 않게 한다 —
         // 잃으면 목록이 닫히고 ↑↓ · Enter 가 듣지 않는다
         <div
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute inset-x-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3"
+          className={`absolute inset-x-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-r3 border border-stroke-neutral-weak bg-bg-layer-floating shadow-s3 ${LIST_FADE}`}
         >
           <div className="max-h-[420px] overflow-y-auto pt-x1_5">
             <div

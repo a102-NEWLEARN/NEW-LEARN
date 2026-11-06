@@ -117,3 +117,14 @@ test("바깥 제목을 받으면 제목 줄을 두지 않고 그 제목으로 �
   expect(screen.getByRole("group", { name: "내 관심 분야" })).toBeDefined();
   expect(screen.queryByText("여러 개 고를 수 있어요")).toBeNull();
 });
+
+test("누르는 동안 칩이 살짝 줄어든다 — SEED 축소 값이라 동작 줄이기면 줄지 않는다", async () => {
+  renderWithProviders(<Harness />);
+
+  // EXPERIENCE 「호버 · 눌림」 — 칩은 축소, 색 전환과 같은 150ms
+  const look = (
+    await screen.findByRole("button", { name: "정치" })
+  ).getAttribute("class");
+  expect(look).toMatch(/active:\[scale:var\(--seed-scale-s97\)\]/);
+  expect(look).toMatch(/transition-\[[^\]]*scale/);
+});

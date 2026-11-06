@@ -13,6 +13,7 @@ import type { Member } from "@/api/members";
 import type { Page } from "@/api/types";
 import { type CategoryTab, CategoryTabs } from "@/components/CategoryTabs";
 import { IssueCard } from "@/components/IssueCard";
+import { CARD_RISE, cardAt, GROUP_RISE } from "@/components/motion/appMotion";
 import { LoadingState } from "@/components/state/LoadingState";
 import { QueryState } from "@/components/state/QueryState";
 import { ActionButton } from "seed-design/ui/action-button";
@@ -194,9 +195,16 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                     }}
                   >
                     {(page) => (
-                      <ul className="mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4">
-                        {pick(page).map((issue) => (
-                          <li key={issue.id}>
+                      // 분야를 바꾸면 CategoryTabs 가 그 탭 칸에 새로 그려 묶음이 떠오르고 카드가 차례로 나온다 (appMotion.ts)
+                      <ul
+                        className={`mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4 ${GROUP_RISE}`}
+                      >
+                        {pick(page).map((issue, index) => (
+                          <li
+                            key={issue.id}
+                            className={CARD_RISE}
+                            style={cardAt(index)}
+                          >
                             <IssueCard issue={issue} />
                           </li>
                         ))}

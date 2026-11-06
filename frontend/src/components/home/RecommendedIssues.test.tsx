@@ -7,6 +7,7 @@ import type { Member } from "@/api/members";
 import type { Page } from "@/api/types";
 import { RecommendedIssues } from "@/components/home/RecommendedIssues";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 가짜 A17 과 같은 회원 — 관심 분야 경제 · IT·과학
@@ -288,4 +289,43 @@ test("관심사 편집은 마이페이지로 간다", () => {
   expect(
     screen.getByRole("link", { name: "관심사 편집" }).getAttribute("href"),
   ).toBe("/me");
+});
+
+test("카드가 45ms 간격으로 떠오르고, 분야를 바꾸면 묶음을 새로 그려 다시 떠오른다", async () => {
+  renderSection();
+  const cardList = async () =>
+    within(await screen.findByRole("tabpanel")).findByRole("list");
+
+  const first = await cardList();
+  // 프로토타입 v21 — 묶음 im-rise 260ms, 카드 .grid > * 440ms
+  expect(first.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_260ms_/,
+  );
+  const cards = within(first).getAllByRole("listitem");
+  expect(cards[0].getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_440ms_/,
+  );
+  expect(cards.map(enterDelay)).toEqual([0, 45, 90].slice(0, cards.length));
+  expectMotionSafe(first);
+
+  fireEvent.click(await screen.findByRole("tab", { name: "국제" }));
+  await waitFor(async () => expect(await cardHrefs()).toEqual(["/issues/41"]));
+  expect(await cardList()).not.toBe(first);
+});
+
+test("이미 본 분야로 돌아와 받아 둔 것으로 바로 그려도 묶음을 새로 그려 다시 떠오른다", async () => {
+  renderSection();
+  const cardList = async () =>
+    within(await screen.findByRole("tabpanel")).findByRole("list");
+
+  await cardList();
+  fireEvent.click(await screen.findByRole("tab", { name: "국제" }));
+  await waitFor(async () => expect(await cardHrefs()).toEqual(["/issues/41"]));
+  const world = await cardList();
+
+  fireEvent.click(screen.getByRole("tab", { name: /경제/ }));
+  await waitFor(async () =>
+    expect(await cardHrefs()).not.toEqual(["/issues/41"]),
+  );
+  expect(await cardList()).not.toBe(world);
 });

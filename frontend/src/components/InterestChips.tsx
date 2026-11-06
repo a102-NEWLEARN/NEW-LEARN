@@ -25,8 +25,9 @@ type InterestChipsProps = {
 };
 
 // 좁은 화면 좌우 12px — 14px 이면 393 폭 마이페이지 카드에서 관심 분야 칩이 2px 모자라 세 줄로 꺾였다
+// 누르는 동안 살짝 준다 — 색 전환과 같은 150ms. SEED 축소 값은 동작 줄이기면 1 이라 줄지 않는다 (EXPERIENCE.md 「호버 · 눌림」)
 const CHIP =
-  "t4-medium inline-flex h-[40px] items-center gap-x1 rounded-r2 border px-x3 transition-colors md:px-x3_5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring";
+  "t4-medium inline-flex h-[40px] items-center gap-x1 rounded-r2 border px-x3 transition-[color,background-color,border-color,scale] duration-[var(--seed-duration-color-transition)] active:[scale:var(--seed-scale-s97)] md:px-x3_5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring";
 
 /** 고를 수 있는 칩 모양 — 고른 것 · 안 고른 것. 가입의 사용 목적 칩도 같은 모양을 쓴다 */
 export function chipClassName(on: boolean) {

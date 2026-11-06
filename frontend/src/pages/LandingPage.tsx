@@ -1,11 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { meQuery } from "@/api/members";
 import { Logo } from "@/components/Logo";
 import { FollowCursor } from "@/components/motion/FollowCursor";
 import { GreetingIntro } from "@/components/motion/GreetingIntro";
+import {
+  DRAW,
+  enterAt,
+  RISE as RISE_SHORT,
+  SPRING_IN,
+} from "@/components/motion/screenMotion";
 import { loginPath } from "@/lib/login-path";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -97,7 +103,7 @@ export function LandingPage() {
             </div>
           </div>
           <div {...rise(4)}>
-            <HeroTimeline />
+            <HeroTimeline play={revealed} />
           </div>
         </div>
       </main>
@@ -116,6 +122,8 @@ const NODES = [
   { x: 352, r: 9, main: true },
 ];
 const RAIL_Y = 150;
+const RAIL_FROM = 24;
+const RAIL_TO = 376;
 // 사건 카드 — 위 · 아래로 번갈아 단다
 const CARDS = [
   { x: 60, y: 40, nodeX: 112 },
@@ -123,7 +131,25 @@ const CARDS = [
   { x: 272, y: 40, nodeX: 352 },
 ];
 
-function HeroTimeline() {
+// 그리는 차례(ms, 인사 막이 걷히기 시작한 때부터) — 그림 칸이 떠오르는 때(4번째, 480ms)에 가로선이 왼쪽부터 뻗고,
+// 선 끝이 지나는 자리의 노드가 튀어나온다. 이어 그 노드에서 세로선 → 카드, 맨 끝에 새 소식 점. 다 나오기까지 2초 안
+const DRAW_FROM = 480;
+const nodeAt = (x: number) =>
+  DRAW_FROM + Math.round(((x - RAIL_FROM) / (RAIL_TO - RAIL_FROM)) * 560);
+const stemAt = (x: number) => nodeAt(x) + 100;
+const cardAt = (x: number) => stemAt(x) + 100;
+const DOT_AT = cardAt(CARDS[CARDS.length - 1].nodeX) + 150;
+
+// play 이면 그려 나간다(프로토타입 v21 LandingHeroMap 의 선 그리기 · 점 튀어나옴). 동작 줄이기면 인사 막이 없어 늘 다 그린 모양이다
+function HeroTimeline({ play }: { play: boolean }) {
+  // 움직일 때만 클래스 · 지연을 붙인다
+  const motion = (className: string, at: number) =>
+    play ? { className, style: enterAt(at) } : { className: "" };
+  const pop = (at: number) =>
+    motion(`[transform-box:fill-box] origin-center ${SPRING_IN}`, at);
+  const rail = motion(DRAW, DRAW_FROM);
+  const dot = pop(DOT_AT);
+
   return (
     <svg
       viewBox="0 0 400 260"
@@ -131,69 +157,87 @@ function HeroTimeline() {
       className="mx-auto block w-full max-w-[440px]"
     >
       <line
-        x1={24}
+        x1={RAIL_FROM}
         y1={RAIL_Y}
-        x2={376}
+        x2={RAIL_TO}
         y2={RAIL_Y}
         strokeWidth={2}
-        className="stroke-stroke-brand-weak"
+        pathLength={1}
+        className={`stroke-stroke-brand-weak ${rail.className}`}
+        style={rail.style}
       />
       {CARDS.map(({ x, y, nodeX }) => {
-        const above = y < RAIL_Y;
+        const stem = motion(DRAW, stemAt(nodeX));
+        const card = motion(RISE_SHORT, cardAt(nodeX));
         return (
-          <g key={nodeX}>
+          <Fragment key={nodeX}>
+            {/* 가로선에서 카드 쪽으로 그린다. 카드 묶음 밖에 둬야 카드가 나오기 전에도 보인다 */}
             <line
               x1={nodeX}
-              y1={above ? y + 44 : RAIL_Y}
+              y1={RAIL_Y}
               x2={nodeX}
-              y2={above ? RAIL_Y : y}
-              className="stroke-stroke-neutral-weak"
+              y2={y < RAIL_Y ? y + 44 : y}
+              pathLength={1}
+              className={`stroke-stroke-neutral-weak ${stem.className}`}
+              style={stem.style}
             />
-            <rect
-              x={x}
-              y={y}
-              width={104}
-              height={44}
-              rx={12}
-              className="fill-bg-layer-default stroke-stroke-neutral-weak"
-            />
-            <rect
-              x={x + 12}
-              y={y + 12}
-              width={64}
-              height={8}
-              rx={4}
-              className="fill-bg-neutral-weak"
-            />
-            <rect
-              x={x + 12}
-              y={y + 26}
-              width={40}
-              height={6}
-              rx={3}
-              className="fill-bg-neutral-weak"
-            />
-          </g>
+            <g className={card.className} style={card.style}>
+              <rect
+                x={x}
+                y={y}
+                width={104}
+                height={44}
+                rx={12}
+                className="fill-bg-layer-default stroke-stroke-neutral-weak"
+              />
+              <rect
+                x={x + 12}
+                y={y + 12}
+                width={64}
+                height={8}
+                rx={4}
+                className="fill-bg-neutral-weak"
+              />
+              <rect
+                x={x + 12}
+                y={y + 26}
+                width={40}
+                height={6}
+                rx={3}
+                className="fill-bg-neutral-weak"
+              />
+            </g>
+          </Fragment>
         );
       })}
-      {NODES.map(({ x, r, main }) => (
-        <rect
-          key={x}
-          x={x - r}
-          y={RAIL_Y - r}
-          width={2 * r}
-          height={2 * r}
-          rx={3}
-          strokeWidth={main ? 3 : 2}
-          className={
-            main
-              ? "fill-bg-brand-accent stroke-palette-static-white"
-              : "fill-palette-static-white stroke-palette-gray-600"
-          }
-        />
-      ))}
+      {NODES.map(({ x, r, main }) => {
+        const node = pop(nodeAt(x));
+        return (
+          <rect
+            key={x}
+            x={x - r}
+            y={RAIL_Y - r}
+            width={2 * r}
+            height={2 * r}
+            rx={3}
+            strokeWidth={main ? 3 : 2}
+            className={`${
+              main
+                ? "fill-bg-brand-accent stroke-palette-static-white"
+                : "fill-palette-static-white stroke-palette-gray-600"
+            } ${node.className}`}
+            style={node.style}
+          />
+        );
+      })}
       {/* 가장 최근 사건 카드의 새 소식 점 */}
-      <circle cx={368} cy={48} r={5} className="fill-bg-accent-lime" />
+      <circle
+        cx={368}
+        cy={48}
+        r={5}
+        className={`fill-bg-accent-lime ${dot.className}`}
+        style={dot.style}
+      />
     </svg>
   );
 }

@@ -6,6 +6,7 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { PANEL_FADE } from "@/components/motion/appMotion";
 
 export type HomeView = "recommended" | "latest";
 
@@ -78,13 +79,13 @@ export function HomeViewTabs({
       {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
       {VIEWS.map((view) => (
         // 넓은 화면에서 두 부분 사이를 띄우던 위 여백(최신 기사 mt-x10)은 탭 안에서 지운다
-        <TabsContent
-          key={view.value}
-          value={view.value}
-          className="pt-x5 *:mt-0"
-        >
-          {view.value === value &&
-            (view.value === "latest" ? latest : recommended)}
+        // 고른 탭 내용은 새로 그려져 180ms 에 나타난다 (모바일 프로토타입 v1, appMotion.ts)
+        <TabsContent key={view.value} value={view.value} className="pt-x5">
+          {view.value === value && (
+            <div className={`*:mt-0 ${PANEL_FADE}`}>
+              {view.value === "latest" ? latest : recommended}
+            </div>
+          )}
         </TabsContent>
       ))}
     </TabsRoot>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
+import { SCREEN_RISE } from "@/components/motion/appMotion";
 import { DictionaryWindow } from "@/components/shell/DictionaryWindow";
 import { Header } from "@/components/shell/Header";
 import { Sidebar } from "@/components/shell/Sidebar";
@@ -10,6 +11,11 @@ import {
 } from "@/components/shell/useQuickSearch";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import type { ShellContext } from "@/components/shell/useShell";
+
+// 기사 · 이슈 화면은 본문 높이를 채운다(h-full · min-h-full) — 본문 칸도 본문 높이로 둔다.
+// 이 두 화면은 화면 떠오름에서 뺀다. 본문 높이 칸을 10px 옮기면 그만큼 본문이 넘쳐 스크롤바가 잠깐 생겼다 사라지고,
+// 두 화면에는 181 의 등장(머리 · 지도 · 마인드맵)이 따로 있다. 나머지 화면은 칸이 내용 높이라 짧아도 넘치지 않는다
+const fillsMain = (pathname: string) => /^\/(articles|issues)\//.test(pathname);
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
 // 화면 높이에 맞추고 본문만 스크롤해서 헤더가 늘 위에 붙어 있다.
@@ -109,7 +115,13 @@ export function AppShell() {
         )}
         {/* isolate — 본문 안의 z-index(검색 목록 · TIP)가 본문 밖의 용어사전 버튼 위로 새지 않게 */}
         <main ref={mainRef} className="isolate min-w-0 flex-1 overflow-y-auto">
-          <Outlet context={shell} />
+          {/* 다른 화면으로 가면 새 칸을 그려 본문이 떠오른다(appMotion.ts). 쿼리만 바뀌면 그대로 둔다 */}
+          <div
+            key={pathname}
+            className={fillsMain(pathname) ? "h-full" : SCREEN_RISE}
+          >
+            <Outlet context={shell} />
+          </div>
         </main>
       </div>
       <DictionaryWindow inset={rightPanelWidth} scrollRef={mainRef} />
