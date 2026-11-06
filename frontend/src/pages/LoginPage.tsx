@@ -9,6 +9,7 @@ import { ApiError } from "@/api/error";
 import { meQuery } from "@/api/members";
 import { AuthSwitch } from "@/components/AuthSwitch";
 import { Logo } from "@/components/Logo";
+import { GROUP_RISE, SCREEN_FADE } from "@/components/motion/appMotion";
 import { errorDescription } from "@/components/state/ErrorState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { useSnackbar } from "@/components/useSnackbar";
@@ -108,7 +109,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg-layer-default">
+    // 열면 화면이 나타나고 폼이 떠오른다 (프로토타입 v21 AuthPage, appMotion.ts)
+    <div
+      className={`flex min-h-dvh flex-col bg-bg-layer-default ${SCREEN_FADE}`}
+    >
       <header className="flex h-[60px] shrink-0 items-center px-x5 md:px-x8">
         <Logo height={26} />
         <Link
@@ -124,7 +128,7 @@ export function LoginPage() {
           noValidate
           aria-labelledby="login-title"
           onSubmit={handleSubmit}
-          className="mx-auto flex max-w-[400px] flex-col gap-x5 px-x5 pt-x10 pb-x14 md:pt-x16"
+          className={`mx-auto flex max-w-[400px] flex-col gap-x5 px-x5 pt-x10 pb-x14 md:pt-x16 ${GROUP_RISE}`}
         >
           <div className="mb-x2">
             <h1 id="login-title" className="screen-title text-fg-neutral">

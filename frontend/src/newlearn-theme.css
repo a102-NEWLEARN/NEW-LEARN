@@ -269,6 +269,14 @@ body {
   }
 }
 
+/* 10px 아래에서 떠오른다 — 앱 전체의 화면 · 카드 · 목록 행 · 폼 · 말풍선 (프로토타입 v21 im-rise, components/motion/appMotion.ts) */
+@keyframes newlearn-rise-in {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+
 /* 아래에서 떠오른다 — 흐름지도 질문 · 잎 카드 · 기사 머리 */
 @keyframes newlearn-rise-short {
   from {
