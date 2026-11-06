@@ -376,6 +376,15 @@ test("분야를 펼치면 그 아래 이슈 행이 30ms 간격으로 떠오른�
   expect(rows[0].getAttribute("class")).toMatch(
     /motion-safe:animate-\[newlearn-rise-in_380ms_/,
   );
+  // 행 자체의 움직임은 모두 motion-safe — 행 안 별 버튼의 자리 잡기(-translate-y-1/2)는 움직임이 아니라 따로 본다
+  rows.forEach((row) =>
+    expect(
+      (row.getAttribute("class") ?? "")
+        .split(/\s+/)
+        .filter((token) => /animate-/.test(token))
+        .every((token) => token.startsWith("motion-safe:")),
+    ).toBe(true),
+  );
   const delays = rows.map(enterDelay);
   expect(delays.slice(0, 3)).toEqual([0, 30, 60]);
   delays

@@ -312,3 +312,20 @@ test("카드가 45ms 간격으로 떠오르고, 분야를 바꾸면 묶음을 �
   await waitFor(async () => expect(await cardHrefs()).toEqual(["/issues/41"]));
   expect(await cardList()).not.toBe(first);
 });
+
+test("이미 본 분야로 돌아와 받아 둔 것으로 바로 그려도 묶음을 새로 그려 다시 떠오른다", async () => {
+  renderSection();
+  const cardList = async () =>
+    within(await screen.findByRole("tabpanel")).findByRole("list");
+
+  await cardList();
+  fireEvent.click(await screen.findByRole("tab", { name: "국제" }));
+  await waitFor(async () => expect(await cardHrefs()).toEqual(["/issues/41"]));
+  const world = await cardList();
+
+  fireEvent.click(screen.getByRole("tab", { name: /경제/ }));
+  await waitFor(async () =>
+    expect(await cardHrefs()).not.toEqual(["/issues/41"]),
+  );
+  expect(await cardList()).not.toBe(world);
+});

@@ -138,7 +138,8 @@ function ArticleList({ articles }: ArticleListProps) {
               key={article.id}
               article={article}
               showCategory
-              listIndex={index}
+              // 더 보기로 붙은 쪽도 차례를 처음부터 센다 — 포커스를 받는 첫 행이 늦게 나오지 않게
+              listIndex={index % LATEST_ARTICLES_SIZE}
               mindmapHint
             />
           ))}

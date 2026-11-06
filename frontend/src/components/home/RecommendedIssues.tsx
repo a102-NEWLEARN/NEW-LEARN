@@ -195,9 +195,8 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                     }}
                   >
                     {(page) => (
-                      // 분야를 바꾸면 묶음을 새로 그려 떠오르고 카드가 차례로 나온다 (appMotion.ts)
+                      // 분야를 바꾸면 CategoryTabs 가 그 탭 칸에 새로 그려 묶음이 떠오르고 카드가 차례로 나온다 (appMotion.ts)
                       <ul
-                        key={selected}
                         className={`mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4 ${GROUP_RISE}`}
                       >
                         {pick(page).map((issue, index) => (

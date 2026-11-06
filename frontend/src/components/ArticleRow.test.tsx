@@ -83,8 +83,9 @@ test("mindmapHint 이면 넓은 화면에서 마우스를 올리거나 키보드
   expect(hint).not.toBeNull();
   expect(link.getAttribute("class")).toMatch(/(^|\s)group(\s|$)/);
   const look = hint.getAttribute("class");
-  // 좁은 화면 · 터치에서는 안 보인다
-  expect(look).toMatch(/max-md:hidden/);
+  // 768px 이상이고 마우스가 있을 때만 자리를 차지한다 — 좁은 화면 · 터치 태블릿에서는 안 보이고 제목이 일찍 꺾이지 않는다
+  expect(look).toMatch(/(^|\s)hidden(\s|$)/);
+  expect(look).toMatch(/md:pointer-fine:inline-flex/);
   expect(look).toMatch(/(^|\s)opacity-0(\s|$)/);
   expect(look).toMatch(/group-hover:opacity-100/);
   expect(look).toMatch(/group-focus-visible:opacity-100/);

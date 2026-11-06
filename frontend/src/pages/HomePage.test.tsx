@@ -5,6 +5,7 @@ import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { server } from "@/mocks/node";
 import { HomePage } from "@/pages/HomePage";
 import { stubScreen } from "@/test/media";
+import { expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 셸 없이 홈만 연다. 주소(?category=)를 보려고 라우터를 쓴다
@@ -240,4 +241,5 @@ test("좁은 화면에서 홈 보기 탭을 바꾸면 그 내용이 180ms 에 �
   expect(shown().getAttribute("class")).toMatch(
     /motion-safe:animate-\[newlearn-fade-in_180ms_/,
   );
+  expectMotionSafe(shown().parentElement!);
 });

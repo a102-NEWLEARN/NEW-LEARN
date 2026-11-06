@@ -292,6 +292,8 @@ test("화면이 바뀔 때마다 본문이 아래에서 떠오르고, 같은 화
   expect(first.getAttribute("class")).toMatch(
     /motion-safe:animate-\[newlearn-rise-in_300ms_/,
   );
+  // 칸은 내용 높이다 — 본문 높이 칸을 10px 옮기면 본문이 넘쳐 스크롤바가 잠깐 생긴다
+  expect(first.getAttribute("class")).not.toMatch(/(^|\s)h-full(\s|$)/);
 
   await act(() => router.navigate("/a?category=world"));
   expect(stage()).toBe(first);
@@ -301,4 +303,17 @@ test("화면이 바뀔 때마다 본문이 아래에서 떠오르고, 같은 화
   // 새로 그린 칸이다 — 같은 칸이면 애니메이션이 다시 돌지 않는다
   expect(stage()).not.toBe(first);
   expectMotionSafe(screen.getByRole("main"));
+});
+
+test("기사 · 이슈 화면은 본문 높이를 채우고 화면 떠오름에서 뺀다 — 181 의 등장이 따로 있다", async () => {
+  renderRoute("/issues/7", [
+    shellRoute([
+      { path: "/issues/:issueId", element: <h1 tabIndex={-1}>이슈</h1> },
+    ]),
+  ]);
+
+  await screen.findByRole("heading", { level: 1, name: "이슈" });
+  const stage = screen.getByRole("main").firstElementChild!;
+  expect(stage.getAttribute("class")).toMatch(/(^|\s)h-full(\s|$)/);
+  expect(stage.getAttribute("class")).not.toMatch(/animate-/);
 });

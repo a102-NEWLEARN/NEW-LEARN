@@ -162,6 +162,8 @@ test("더 보기를 누르면 다음 8개를 아래에 붙이고 붙인 첫 기�
     .getAllByRole("link")
     .find((link) => link.getAttribute("href") === "/articles/92");
   await waitFor(() => expect(document.activeElement).toBe(added));
+  // 붙은 행은 차례를 처음부터 센다 — 포커스를 받은 첫 행이 늦게 나오지 않게
+  expect(enterDelay(added!.closest("li")!)).toBe(0);
   // 남은 기사는 4건
   expect(
     screen.getByRole("button", { name: "기사 4개 더 보기" }),

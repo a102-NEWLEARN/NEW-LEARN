@@ -70,11 +70,12 @@ export function ArticleRow({
             )}
           </span>
         </span>
-        {/* 마인드맵이 있는 기사에만, 넓은 화면에서 마우스를 올리거나 키보드로 오면 나타난다 (프로토타입 v21 im-row-hint, appMotion.ts) */}
+        {/* 마인드맵이 있는 기사에만, 마우스가 있는 768px 이상에서 마우스를 올리거나 키보드로 오면 나타난다 (프로토타입 v21 im-row-hint, appMotion.ts).
+            안 보일 때도 자리를 차지해서, 호버가 없는 터치 태블릿에서는 아예 두지 않는다 — 제목만 일찍 꺾인다 */}
         {mindmapHint && article.mindmapStatus === "SUCCEEDED" && (
           <span
             aria-hidden
-            className={`t3-bold inline-flex shrink-0 items-center text-fg-brand max-md:hidden ${ROW_HINT}`}
+            className={`t3-bold hidden shrink-0 items-center text-fg-brand md:pointer-fine:inline-flex ${ROW_HINT}`}
           >
             마인드맵 보기
             <IconChevronRightSmallLine size={14} />
