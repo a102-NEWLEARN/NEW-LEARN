@@ -217,3 +217,27 @@ test("좁은 화면에서 ?view=latest 로 열면 최신 기사 탭을 고른 �
   ).toBe("true");
   expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
 });
+
+test("좁은 화면에서 홈 보기 탭을 바꾸면 그 내용이 180ms 에 나타난다", async () => {
+  stubScreen("narrow");
+  renderHome();
+  // 고른 탭 내용 칸의 맨 바깥 — 탭을 바꾸면 새로 그려져 다시 나타난다 (모바일 프로토타입 v1)
+  const shown = () =>
+    screen.getAllByRole("tabpanel").find((panel) => !panel.hidden)!
+      .firstElementChild!;
+
+  await screen.findByRole("heading", { level: 2, name: /추천 이슈/ });
+  expect(shown().getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-fade-in_180ms_/,
+  );
+
+  const before = shown();
+  fireEvent.click(
+    within(await homeTabs()).getByRole("tab", { name: "최신 기사" }),
+  );
+  await screen.findByRole("list", { name: "최신 기사" });
+  expect(shown()).not.toBe(before);
+  expect(shown().getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-fade-in_180ms_/,
+  );
+});

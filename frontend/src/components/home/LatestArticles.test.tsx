@@ -4,6 +4,7 @@ import { expect, test } from "vitest";
 import type { ArticleSummary, Page } from "@/api/types";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 시험용 기사 20건 — 앞 12건은 경제, 뒤 8건은 정치. id 가 클수록 최근이다
@@ -200,4 +201,25 @@ test("불러오지 못하면 그 자리에 안내와 다시 시도를 둔다", a
   fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
 
   expect(await articleHrefs()).toHaveLength(8);
+});
+
+test("기사 행이 30ms 간격으로 떠오르고, 분야를 바꾸면 목록을 새로 그려 다시 떠오른다", async () => {
+  serveArticles();
+  renderSection();
+
+  const first = await screen.findByRole("list", { name: "최신 기사" });
+  const rows = within(first).getAllByRole("listitem");
+  // 프로토타입 v21 ul > li — 380ms, 30ms 간격
+  expect(rows[0].getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_380ms_/,
+  );
+  expect(rows.map(enterDelay)).toEqual([0, 30, 60, 90, 120, 150, 180, 210]);
+  expectMotionSafe(first);
+
+  fireEvent.click(screen.getByRole("tab", { name: "정치" }));
+  await waitFor(async () =>
+    expect(await screen.findByRole("list", { name: "최신 기사" })).not.toBe(
+      first,
+    ),
+  );
 });

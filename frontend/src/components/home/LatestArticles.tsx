@@ -133,8 +133,13 @@ function ArticleList({ articles }: ArticleListProps) {
           aria-label="최신 기사"
           className={`${CARD} divide-y divide-stroke-neutral-subtle`}
         >
-          {items.map((article) => (
-            <ArticleRow key={article.id} article={article} showCategory />
+          {items.map((article, index) => (
+            <ArticleRow
+              key={article.id}
+              article={article}
+              showCategory
+              listIndex={index}
+            />
           ))}
         </ul>
       );

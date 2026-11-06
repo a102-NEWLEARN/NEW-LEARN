@@ -3,12 +3,15 @@ import { Link } from "react-router";
 import type { ArticleSummary } from "@/api/types";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { formatArticleDate } from "@/lib/date";
+import { ROW_RISE, rowAt } from "@/components/motion/appMotion";
 import { enterAt, RISE } from "@/components/motion/screenMotion";
 
 type ArticleRowProps = {
   article: ArticleSummary;
   /** 주면 그만큼(ms) 뒤에 떠오른다 — 사건 패널의 관련 기사 (components/motion/screenMotion.ts) */
   enterDelay?: number;
+  /** 목록에서 몇 번째 행인가 — 주면 그 차례로 떠오른다. 홈 최신 기사 · 나의 뉴스함 (components/motion/appMotion.ts) */
+  listIndex?: number;
   /** 대표 분야도 적는다 — 여러 분야가 섞이는 홈 최신 기사 (프로토타입 v21) */
   showCategory?: boolean;
   /** 상대 시간(「3시간 전」)을 잴 지금. 테스트가 고정한다 */
@@ -22,6 +25,7 @@ export function ArticleRow({
   showCategory,
   now,
   enterDelay,
+  listIndex,
 }: ArticleRowProps) {
   const meta = [
     article.publisher.name,
@@ -29,10 +33,18 @@ export function ArticleRow({
     showCategory && article.category?.name,
   ].filter(Boolean);
 
+  // 사건 패널은 패널 차례(enterDelay), 목록은 행 차례(listIndex)로 떠오른다
+  const enter =
+    enterDelay !== undefined
+      ? { className: RISE, style: enterAt(enterDelay) }
+      : listIndex !== undefined
+        ? { className: ROW_RISE, style: rowAt(listIndex) }
+        : { className: "", style: undefined };
+
   return (
     <li
-      className={`flex items-start gap-x0_5 ${enterDelay === undefined ? "" : RISE}`}
-      style={enterDelay === undefined ? undefined : enterAt(enterDelay)}
+      className={`flex items-start gap-x0_5 ${enter.className}`}
+      style={enter.style}
     >
       <Link
         to={`/articles/${article.id}`}
