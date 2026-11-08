@@ -10,6 +10,7 @@ import { expect, onTestFinished, test, vi } from "vitest";
 import { searchQuery } from "@/api/search";
 import { SearchBox } from "@/components/home/SearchBox";
 import { server } from "@/mocks/node";
+import { expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 검색창만 연다. 결과를 고르면 다른 주소로 가므로 그 밖의 주소에는 빈 화면을 둔다
@@ -459,4 +460,18 @@ test("서버가 까닭을 준 400 이면 그 문장만 두고 다시 시도는 �
     await screen.findByText("검색어에 쓸 수 없는 글자가 들어 있어요"),
   ).toBeDefined();
   expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
+});
+
+test("목록이 열리면 120ms 에 나타난다 — 동작 줄이기면 빠진다", async () => {
+  renderSearch();
+
+  act(() => input().focus());
+
+  const listbox = await screen.findByRole("listbox");
+  // 프로토타입 v21 검색 목록 im-fade 120ms
+  const floating = listbox.closest(
+    '[class*="motion-safe:animate-[newlearn-fade-in_120ms_"]',
+  );
+  expect(floating).not.toBeNull();
+  expectMotionSafe(floating!.parentElement!);
 });

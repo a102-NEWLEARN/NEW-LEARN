@@ -206,19 +206,20 @@ export function EventPanel({
           aria-label="이전 · 다음 사건"
           className="grid grid-cols-2 gap-x2"
         >
-          {detail.previousEvent ? (
+          {/* 하나만 있으면 줄을 다 쓴다 — 반 칸만 오른쪽에 떠 있으면 비어 보였다 (2026-11-05 UI 점검) */}
+          {detail.previousEvent && (
             <EventStep
               direction="previous"
               event={detail.previousEvent}
+              alone={!detail.nextEvent}
               onClick={step}
             />
-          ) : (
-            <span />
           )}
           {detail.nextEvent && (
             <EventStep
               direction="next"
               event={detail.nextEvent}
+              alone={!detail.previousEvent}
               onClick={step}
             />
           )}
@@ -358,18 +359,22 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
 function EventStep({
   direction,
   event,
+  alone,
   onClick,
 }: {
   direction: "previous" | "next";
   event: EventRef;
+  /** 이전 · 다음 가운데 하나뿐이면 두 칸을 다 쓴다. 정렬(이전 왼쪽 · 다음 오른쪽)은 그대로 */
+  alone: boolean;
   onClick: (eventId: number) => void;
 }) {
   const previous = direction === "previous";
+  const place = alone ? "col-span-2" : previous ? "" : "col-start-2";
   return (
     <button
       type="button"
       onClick={() => onClick(event.id)}
-      className={`flex min-w-0 flex-col gap-x0_5 rounded-r3 border border-stroke-neutral-weak bg-bg-layer-default px-x3 py-x2_5 transition-colors hover:border-palette-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${previous ? "items-start text-left" : "col-start-2 items-end text-right"}`}
+      className={`flex min-w-0 flex-col gap-x0_5 rounded-r3 border border-stroke-neutral-weak bg-bg-layer-default px-x3 py-x2_5 transition-colors hover:border-palette-gray-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${place} ${previous ? "items-start text-left" : "items-end text-right"}`}
     >
       <span className="t2-regular flex items-center gap-x1 text-fg-neutral-muted">
         {previous && <IconArrowLeftLine aria-hidden size={12} />}

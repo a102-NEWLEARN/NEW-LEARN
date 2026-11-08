@@ -11,6 +11,7 @@ import { DictionaryWindow } from "@/components/shell/DictionaryWindow";
 import { problem } from "@/mocks/handlers";
 import { server } from "@/mocks/node";
 import { stubScreen } from "@/test/media";
+import { expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
 // 용어사전 창 — F13 용어사전 (EXPERIENCE.md Component Patterns 「용어사전 창」, 프로토타입 v21 GlossaryChat).
@@ -453,4 +454,25 @@ test("좁은 화면에서는 창을 좌우 · 아래 8px 까지 넓게 연다 (�
   expect(window.style.left).toBe("8px");
   expect(window.style.right).toBe("8px");
   expect(window.style.bottom).toBe("8px");
+});
+
+test("말풍선이 아래에서 떠오른다 — 사전 쪽 200ms · 내 질문 160ms", async () => {
+  renderWithProviders(<DictionaryWindow />);
+  openWindow();
+
+  // 프로토타입 v21 — 사전 말풍선 im-rise 200ms, 내 질문 160ms
+  expect(
+    within(dictionary())
+      .getByText("모르는 용어를 입력하면 뜻을 알려드려요.")
+      .getAttribute("class"),
+  ).toMatch(/motion-safe:animate-\[newlearn-rise-in_200ms_/);
+  ask("금리");
+  expect(within(dictionary()).getByText("금리").getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_160ms_/,
+  );
+  const answer = await meanings("금리");
+  expect(
+    answer.closest('[class*="motion-safe:animate-[newlearn-rise-in_200ms_"]'),
+  ).not.toBeNull();
+  expectMotionSafe(dictionary());
 });

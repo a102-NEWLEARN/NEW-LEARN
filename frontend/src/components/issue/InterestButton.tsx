@@ -80,7 +80,7 @@ export function InterestButton({
       title={interested ? "관심 이슈에서 빼기" : LABEL}
       aria-busy={mutation.isPending || undefined}
       onClick={toggle}
-      className={`flex shrink-0 items-center justify-center hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
+      className={`flex shrink-0 items-center justify-center transition-[background-color,color,opacity] hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
         small ? "size-x7 rounded-r1" : "size-x10 rounded-r2"
       } ${interested ? "text-fg-brand" : "text-fg-neutral-subtle"} ${
         // 저장하지 않은 작은 별은 줄(group/row)에 마우스를 올리거나 별에 포커스할 때만 (v21 .im-pin).

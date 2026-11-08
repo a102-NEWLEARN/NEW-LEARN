@@ -4,6 +4,7 @@ import { expect, test } from "vitest";
 import type { ArticleSummary, Page } from "@/api/types";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 시험용 기사 20건 — 앞 12건은 경제, 뒤 8건은 정치. id 가 클수록 최근이다
@@ -161,6 +162,8 @@ test("더 보기를 누르면 다음 8개를 아래에 붙이고 붙인 첫 기�
     .getAllByRole("link")
     .find((link) => link.getAttribute("href") === "/articles/92");
   await waitFor(() => expect(document.activeElement).toBe(added));
+  // 붙은 행은 차례를 처음부터 센다 — 포커스를 받은 첫 행이 늦게 나오지 않게
+  expect(enterDelay(added!.closest("li")!)).toBe(0);
   // 남은 기사는 4건
   expect(
     screen.getByRole("button", { name: "기사 4개 더 보기" }),
@@ -200,4 +203,35 @@ test("불러오지 못하면 그 자리에 안내와 다시 시도를 둔다", a
   fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
 
   expect(await articleHrefs()).toHaveLength(8);
+});
+
+test("기사 행이 30ms 간격으로 떠오르고, 분야를 바꾸면 목록을 새로 그려 다시 떠오른다", async () => {
+  serveArticles();
+  renderSection();
+
+  const first = await screen.findByRole("list", { name: "최신 기사" });
+  const rows = within(first).getAllByRole("listitem");
+  // 프로토타입 v21 ul > li — 380ms, 30ms 간격
+  expect(rows[0].getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_380ms_/,
+  );
+  expect(rows.map(enterDelay)).toEqual([0, 30, 60, 90, 120, 150, 180, 210]);
+  expectMotionSafe(first);
+
+  fireEvent.click(screen.getByRole("tab", { name: "정치" }));
+  await waitFor(async () =>
+    expect(await screen.findByRole("list", { name: "최신 기사" })).not.toBe(
+      first,
+    ),
+  );
+});
+
+test("홈 최신 기사 행에는 마우스를 올리면 나타나는 「마인드맵 보기」가 있다", async () => {
+  serveArticles();
+  renderSection();
+
+  const list = await screen.findByRole("list", { name: "최신 기사" });
+  await waitFor(() =>
+    expect(within(list).getAllByText("마인드맵 보기")).toHaveLength(8),
+  );
 });

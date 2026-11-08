@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import { server } from "@/mocks/node";
+import { expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 function problem(status: number, code: string, extra: object = {}) {
@@ -245,4 +246,22 @@ test("가입 화면으로 가는 버튼이 next 를 넘긴다", async () => {
   expect(
     screen.getByRole("link", { name: "회원가입" }).getAttribute("href"),
   ).toBe("/signup?next=/issues/12");
+});
+
+test("열면 화면이 나타나고 폼이 아래에서 떠오른다 — 동작 줄이기면 빠진다", async () => {
+  asGuest();
+  renderRoute("/login?next=/home");
+
+  const heading = await screen.findByRole("heading", {
+    level: 1,
+    name: "로그인",
+  });
+  // 프로토타입 v21 AuthPage — 화면 im-fade 150ms, 폼 im-rise 260ms
+  expect(heading.closest("form")!.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_260ms_/,
+  );
+  expect(heading.closest(".min-h-dvh")!.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-fade-in_150ms_/,
+  );
+  expectMotionSafe();
 });

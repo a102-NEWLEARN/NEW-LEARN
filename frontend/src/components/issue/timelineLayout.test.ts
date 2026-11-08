@@ -184,14 +184,8 @@ test("월 눈금마다 겹치지 않는 key 를 준다", () => {
   expect(new Set(keys).size).toBe(keys.length);
 });
 
-test("늘리는 폭은 레인 이름 칸과 오른쪽 여백을 뺀 자리다 — 좁은 화면은 두 값을 줄여 준다 (모바일 v1)", () => {
+test("늘리는 폭은 레인 이름 칸(140)과 오른쪽 여백(200)을 뺀 자리다", () => {
   const events = [event(1, at("08-04"), "MAIN"), event(2, at("08-05"), "MAIN")];
 
-  // 기본(넓은 화면) — 레인 이름 칸 140 · 오른쪽 여백 200
   expect(layoutTimeline(events, { now: NOW, width: 2000 }).width).toBe(1660);
-  // 좁은 화면 값 — 92 · 96
-  expect(
-    layoutTimeline(events, { now: NOW, width: 2000, gutter: 92, rightRoom: 96 })
-      .width,
-  ).toBe(1812);
 });

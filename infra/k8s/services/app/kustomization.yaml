@@ -17,4 +17,4 @@ images:
   - name: ghcr.io/kimzoo5676-del/newlearn-backend
     newTag: "b624a069"
   - name: ghcr.io/kimzoo5676-del/newlearn-frontend
-    newTag: "f9881bee"
+    newTag: "1268f446"

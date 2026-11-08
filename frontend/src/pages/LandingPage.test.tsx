@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test, vi } from "vitest";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 손님 — A17 이 401 이면 손님이다 (src/api/members.ts fetchMe)
@@ -113,4 +114,51 @@ test("동작 줄이기를 켜면 인사 없이 첫 화면을 띄운다", async (
 
   await screen.findByRole("heading", { level: 1 });
   expect(screen.queryByText("안녕하세요!")).toBeNull();
+  // 첫 화면 그림도 다 그린 모양이다
+  expect(animated(heroArt())).toHaveLength(0);
+});
+
+// 첫 화면 그림 (프로토타입 v21 LandingHeroMap 의 움직임만)
+const heroArt = () => document.querySelector('svg[viewBox="0 0 400 260"]')!;
+const animated = (root: Element) => [
+  ...root.querySelectorAll('[class*="motion-safe:animate-"]'),
+];
+
+test("인사 막이 걷히면 첫 화면 그림의 선이 그려지고 카드가 떠오르고 노드 · 새 소식 점이 튀어나온다", async () => {
+  renderRoute("/");
+  await screen.findByRole("heading", { level: 1 });
+  // 막 뒤에서는 아직 그리지 않는다
+  expect(animated(heroArt())).toHaveLength(0);
+
+  fireEvent.keyDown(window, { key: "Escape" });
+
+  await waitFor(() => expect(animated(heroArt()).length).toBeGreaterThan(0));
+  const art = heroArt();
+  const rail = art.querySelector("line")!;
+  expect(rail.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-draw_/,
+  );
+  expect(rail.getAttribute("pathLength")).toBe("1");
+  const nodes = [...art.querySelectorAll(":scope > rect")];
+  expect(nodes).toHaveLength(6);
+  nodes.forEach((node) =>
+    expect(node.getAttribute("class")).toMatch(
+      /motion-safe:animate-\[newlearn-spring-in_/,
+    ),
+  );
+  const nodeDelays = nodes.map(enterDelay);
+  nodeDelays
+    .slice(1)
+    .forEach((at, i) => expect(at).toBeGreaterThan(nodeDelays[i]));
+  const cards = [...art.querySelectorAll(":scope > g")];
+  cards.forEach((card) =>
+    expect(card.getAttribute("class")).toMatch(
+      /motion-safe:animate-\[newlearn-rise-short_/,
+    ),
+  );
+  // 새 소식 점은 맨 마지막
+  const dot = art.querySelector("circle")!;
+  expect(enterDelay(dot)).toBeGreaterThan(Math.max(...nodeDelays));
+  expect(lastEnterEnd(art)).toBeLessThanOrEqual(2000);
+  expectMotionSafe(art);
 });
