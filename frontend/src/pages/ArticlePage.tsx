@@ -100,9 +100,10 @@ function ArticleView({ articleId }: { articleId: number }) {
         className="flex min-h-0 flex-1 flex-col"
       >
         <div className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8">
+          {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다(AI 생성 표시는 오른쪽 끝 그대로) */}
           <TabsList
             aria-label="보기"
-            className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none"
+            className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none max-md:flex-1 max-md:gap-0"
           >
             <TabsTrigger value="flow" className={TAB}>
               흐름지도
@@ -158,9 +159,9 @@ function ArticleView({ articleId }: { articleId: number }) {
   );
 }
 
-// 탭 글자 — 분야 탭(CategoryTabs)과 같다. 고르면 굵게 + 청록 밑줄
+// 탭 글자 — 홈 보기 탭(HomeViewTabs)과 같은 16px. 고르면 굵게 + 청록 밑줄. 좁은 화면은 반씩 채운다
 const TAB =
-  "t5-medium px-0 text-fg-neutral-muted hover:text-fg-neutral aria-selected:t5-bold aria-selected:text-fg-neutral";
+  "t5-medium px-0 max-md:flex-1 max-md:justify-center text-fg-neutral-muted hover:text-fg-neutral aria-selected:t5-bold aria-selected:text-fg-neutral";
 // 탭 내용 — 남은 높이를 채운다. SEED 는 고르지 않은 탭에 aria-hidden 만 달아서 여기서 숨긴다
 const PANEL = "flex min-h-0 flex-1 flex-col aria-hidden:hidden";
 

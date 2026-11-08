@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
+import { expectMotionSafe } from "@/test/motion";
 
 // 홈 첫 화면 뒤 마인드맵 모양 배경 — 프로토타입 v21 HomeHeroBg (Jira 168)
 
@@ -104,4 +105,15 @@ test("동작 줄이기를 켜면 화면에 보여도 움직이지 않는다", ()
   render(<HomeHeroBackground />);
 
   expect(frames.request).not.toHaveBeenCalled();
+});
+
+test("열면 그림 전체가 520ms 에 걸쳐 천천히 나타난다 — 동작 줄이기면 빠진다", () => {
+  holdFrames();
+  const { container } = render(<HomeHeroBackground />);
+
+  // 프로토타입 v21 HomeHeroBg — svg im-fade-in 520ms ease-out
+  expect(container.querySelector("svg")?.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-fade-in_520ms_/,
+  );
+  expectMotionSafe(container);
 });

@@ -58,9 +58,8 @@ async function openSettings(path = "/me") {
 
 const chip = (section: HTMLElement, name: string) =>
   within(section).getByRole("button", { name });
-// 보내는 동안에는 SEED 가 버튼 안에 진행 표시를 넣어 이름이 바뀐다
-const saveButton = () =>
-  screen.getByRole("button", { name: /저장하고 홈으로/ });
+// 카드 제목 오른쪽 *저장*. 보내는 동안에는 SEED 가 버튼 안에 진행 표시를 넣어 이름 앞이 바뀐다
+const saveButton = () => screen.getByRole("button", { name: /저장$/ });
 
 test("안내와 함께 지금 관심 분야를 고른 칩으로 시작한다", async () => {
   const { section } = await openSettings();
@@ -74,12 +73,12 @@ test("안내와 함께 지금 관심 분야를 고른 칩으로 시작한다", a
   expect(chip(section, "경제").getAttribute("aria-pressed")).toBe("true");
   expect(chip(section, "IT·과학").getAttribute("aria-pressed")).toBe("true");
   expect(chip(section, "정치").getAttribute("aria-pressed")).toBe("false");
-  expect(
-    within(section).getByText("고른 관심 분야는 홈 추천에 바로 반영돼요."),
-  ).toBeDefined();
+  // 저장 줄(안내 · *홈으로* · *저장하고 홈으로*)은 없다 — 저장은 제목 오른쪽 버튼 하나다 (2026-11-05 사용자)
+  expect(within(section).queryByRole("link", { name: "홈으로" })).toBeNull();
+  expect(within(section).getByRole("button", { name: "저장" })).toBeDefined();
 });
 
-test("고치고 저장하면 A18 로 보내고 내 정보를 바꾸고 알림과 함께 홈으로 간다", async () => {
+test("고치고 저장하면 A18 로 보내고 내 정보를 바꾸고 알림을 띄우고 마이페이지에 남는다", async () => {
   const bodies = saveAnswers((codes) => HttpResponse.json(saved(codes)));
   const { section, router, queryClient } = await openSettings();
 
@@ -87,23 +86,12 @@ test("고치고 저장하면 A18 로 보내고 내 정보를 바꾸고 알림과
   fireEvent.click(chip(section, "정치"));
   fireEvent.click(saveButton());
 
-  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+  expect(await screen.findByText("관심사를 저장했어요")).toBeDefined();
   expect(bodies).toEqual([["economy", "politics"]]);
   expect(queryClient.getQueryData(meQuery.queryKey)).toEqual(
     saved(["economy", "politics"]),
   );
-  expect(await screen.findByText("관심사를 저장했어요")).toBeDefined();
-});
-
-test("홈으로는 저장하지 않고 홈으로 간다", async () => {
-  const bodies = saveAnswers((codes) => HttpResponse.json(saved(codes)));
-  const { section, router } = await openSettings();
-
-  fireEvent.click(chip(section, "정치"));
-  fireEvent.click(within(section).getByRole("link", { name: "홈으로" }));
-
-  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
-  expect(bodies).toEqual([]);
+  expect(router.state.location.pathname).toBe("/me");
 });
 
 test("마지막 남은 칩은 풀리지 않고 안내한다", async () => {
@@ -189,6 +177,7 @@ test("보내는 동안 다시 눌러도 두 번 보내지 않는다", async () =
   fireEvent.click(saveButton());
   release();
 
-  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+  expect(await screen.findByText("관심사를 저장했어요")).toBeDefined();
   expect(bodies).toHaveLength(1);
+  expect(router.state.location.pathname).toBe("/me");
 });

@@ -59,7 +59,7 @@ const SHORTCUT = "Control+\\ Meta+\\";
 // 레일의 아이콘 버튼 — 누르는 영역 40px (EXPERIENCE.md Accessibility Floor).
 // 글자가 없어서 이름은 aria-label, 마우스를 올리면 title 로 보인다
 const railItemClass =
-  "flex size-x10 items-center justify-center rounded-r2 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring";
+  "flex size-x10 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring";
 
 function RailButton({
   label,
@@ -130,7 +130,7 @@ export function SidebarMenu({
           type="button"
           data-navigates
           onClick={quickSearch}
-          className="t4-medium flex h-x9 min-w-0 flex-1 items-center gap-x2 rounded-r2 px-x2_5 text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+          className="t4-medium flex h-x9 min-w-0 flex-1 items-center gap-x2 rounded-r2 px-x2_5 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
         >
           <IconMagnifyingglassLine size={16} aria-hidden />
           빠른 이동
