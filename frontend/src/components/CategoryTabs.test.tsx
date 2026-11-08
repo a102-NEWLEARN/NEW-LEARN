@@ -119,3 +119,19 @@ test("고른 탭이 탭 줄 밖에 있으면 탭 줄을 그쪽으로 가로 스�
   // 고른 탭의 오른쪽 끝(440)이 탭 줄 오른쪽 끝(300)에 오도록
   expect(row.scrollLeft).toBe(140);
 });
+
+test("탭 줄이 오른쪽으로 더 밀리면 끝을 흐리고, 끝까지 밀면 흐림을 뗀다", () => {
+  renderWithProviders(<Harness />);
+  const row = screen.getByRole("tablist", { name: "분야" }).parentElement!;
+  // jsdom 은 배치를 계산하지 않는다 — 탭 줄 폭 300, 내용 폭 500 인 척한다
+  Object.defineProperty(row, "clientWidth", { configurable: true, value: 300 });
+  Object.defineProperty(row, "scrollWidth", { configurable: true, value: 500 });
+
+  row.scrollLeft = 0;
+  fireEvent.scroll(row);
+  expect(row.parentElement!.dataset.moreRight).toBe("true");
+
+  row.scrollLeft = 200;
+  fireEvent.scroll(row);
+  expect(row.parentElement!.dataset.moreRight).toBeUndefined();
+});

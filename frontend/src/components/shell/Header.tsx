@@ -2,13 +2,12 @@ import {
   IconBookmarkFill,
   IconBookmarkLine,
   IconHorizline3VerticalLine,
-  IconPersonFill,
-  IconPersonLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { PrefixIcon } from "@seed-design/react";
 import { Link, useLocation } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { Logo } from "@/components/Logo";
+import { ProfileMenu } from "@/components/shell/ProfileMenu";
 
 type HeaderProps = {
   /** 로고를 눌렀을 때 — 셸이 본문을 맨 위로 올린다 */
@@ -23,14 +22,14 @@ type HeaderProps = {
 // 높이 60px · 로고 26px 는 프로토타입 v21 값이다 (DESIGN.md 헤더 로고 20–32px).
 // 좁은 화면에서는 메뉴 버튼을 두고, 오른쪽 버튼은 글자를 숨긴 40px 아이콘 버튼이 된다.
 // 이름은 스크린 리더에 남는다 (EXPERIENCE.md Responsive & Platform · Accessibility Floor).
-// 지금 화면의 버튼은 브랜드 옅은 바탕 · Fill 아이콘으로 칠하고 aria-current 로 알린다 (모바일 v1 · v21 TopNav, DESIGN.md 아이콘)
+// 지금 화면의 버튼은 브랜드 옅은 바탕 · Fill 아이콘으로 칠하고 aria-current 로 알린다 (모바일 v1 · v21 TopNav, DESIGN.md 아이콘).
+// 마이페이지는 프로필 메뉴(마이페이지 · 로그아웃)를 여는 버튼이다 (ProfileMenu, 2026-11-05 S15P31A102-182)
 export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
   const { pathname } = useLocation();
   const atBookmarks = pathname === "/bookmarks";
-  const atMyPage = pathname === "/me";
   const label = narrow ? "sr-only" : undefined;
   // SEED ghost 버튼은 글자 · 아이콘 색을 --seed-box-color 로 칠한다
-  const iconButton = `aria-[current=page]:bg-bg-brand-weak aria-[current=page]:[--seed-box-color:var(--seed-color-fg-brand-contrast)] ${narrow ? "size-x10 px-0" : ""}`;
+  const iconButton = `aria-[current=page]:bg-bg-brand-weak aria-[current=page]:[--seed-box-color:var(--seed-color-fg-brand-contrast)] data-current:bg-bg-brand-weak data-current:[--seed-box-color:var(--seed-color-fg-brand-contrast)] ${narrow ? "size-x10 px-0" : ""}`;
 
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak bg-bg-layer-default px-x4">
@@ -40,7 +39,7 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
           aria-label="메뉴 열기"
           aria-haspopup="dialog"
           onClick={onMenuClick}
-          className="flex size-x10 items-center justify-center rounded-r2 text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+          className="flex size-x10 items-center justify-center rounded-r2 text-fg-neutral transition-colors hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
         >
           <IconHorizline3VerticalLine size={20} aria-hidden />
         </button>
@@ -68,19 +67,11 @@ export function Header({ onLogoClick, narrow, onMenuClick }: HeaderProps) {
           </Link>
         </ActionButton>
         <span aria-hidden className="h-[14px] w-px bg-stroke-neutral-weak" />
-        <ActionButton
-          asChild
-          variant="ghost"
-          size="small"
-          className={iconButton}
-        >
-          <Link to="/me" aria-current={atMyPage ? "page" : undefined}>
-            <PrefixIcon
-              svg={atMyPage ? <IconPersonFill /> : <IconPersonLine />}
-            />
-            <span className={label}>마이페이지</span>
-          </Link>
-        </ActionButton>
+        <ProfileMenu
+          buttonClassName={iconButton}
+          labelClassName={label}
+          narrow={narrow}
+        />
       </div>
     </header>
   );

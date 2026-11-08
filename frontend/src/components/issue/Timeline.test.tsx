@@ -9,7 +9,6 @@ import {
 import { expect, test, vi } from "vitest";
 import { fetchTimeline } from "@/api/timeline";
 import { Timeline } from "@/components/issue/Timeline";
-import { stubScreen } from "@/test/media";
 import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 
 // 12번 이슈의 가짜 사건 8개 — 메인 5 · 서브 3, 같은 시각 사건과 「추정」 사건이 있다 (src/mocks/handlers.ts)
@@ -150,7 +149,7 @@ test("TIP 을 열면 레인 뜻과 「추정」 뜻을 보여 주고 닫을 수 
 });
 
 // 처음 그릴 때는 자리 폭을 아직 못 재서 1000px 로 어림한다. 진짜 폭을 재면 처음 배율과 고른 사건 자리를 다시 맞춰야 한다
-test("좁은 화면에서 ?event= 로 고른 마지막 사건도 처음부터 화면 안에 둔다", async () => {
+test("타임라인 자리가 좁아도 ?event= 로 고른 마지막 사건을 처음부터 화면 안에 둔다", async () => {
   const width = vi
     .spyOn(HTMLElement.prototype, "clientWidth", "get")
     .mockReturnValue(375);
@@ -369,23 +368,7 @@ test("타임라인 폭이 줄어 고른 사건이 오른쪽 끝에 걸리면 다
   }
 });
 
-test("좁은 화면에서는 레인 이름 칸을 92px 로 줄이고, 확대 % 를 숨기고, 전체 보기를 아이콘 버튼으로 둔다 (모바일 v1)", async () => {
-  stubScreen("narrow");
-  await renderTimeline();
-
-  const lanes = screen.getByRole("list", { name: "레인" });
-  expect(lanes.querySelector("line")?.getAttribute("x1")).toBe("91.5");
-  const zoomGroup = screen.getByRole("group", { name: "확대 · 축소" });
-  expect(within(zoomGroup).queryByText(/%$/)).toBeNull();
-  // 전체 보기는 확대 · 축소 묶음 안의 아이콘 버튼이다. 이름은 그대로
-  const fitButton = within(zoomGroup).getByRole("button", {
-    name: "전체 보기",
-  });
-  expect(fitButton.textContent).toBe("");
-  expect(screen.getAllByRole("button", { name: "전체 보기" })).toHaveLength(1);
-});
-
-test("넓은 화면에서는 레인 이름 칸 140px · 확대 % · 글자 「전체 보기」 버튼이다", async () => {
+test("레인 이름 칸은 140px 이고, 도구줄에 확대 % 와 글자 「전체 보기」 버튼을 둔다", async () => {
   await renderTimeline();
 
   const lanes = screen.getByRole("list", { name: "레인" });

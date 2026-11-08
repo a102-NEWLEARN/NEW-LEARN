@@ -6,6 +6,7 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { PANEL_FADE } from "@/components/motion/appMotion";
 
 export type HomeView = "recommended" | "latest";
 
@@ -53,9 +54,11 @@ export function HomeViewTabs({
       size="medium"
     >
       <div ref={anchorRef} aria-hidden />
+      {/* 붙은 줄은 화면 끝까지 닿는다 — 홈 좌우 여백(20px)만큼 바깥으로. SEED 테마는 음수 간격 클래스(-mx-x5)를
+          만들지 않아 px 로 쓴다. 전에는 줄이 끝까지 안 닿아 밑으로 지나가는 카드가 양옆 틈으로 비쳤다 */}
       <div
         ref={barRef}
-        className="sticky top-0 z-[1] -mx-x5 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)]"
+        className="sticky top-0 z-[1] -mx-[20px] bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)]"
       >
         <TabsList
           aria-label="홈 보기"
@@ -76,13 +79,13 @@ export function HomeViewTabs({
       {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
       {VIEWS.map((view) => (
         // 넓은 화면에서 두 부분 사이를 띄우던 위 여백(최신 기사 mt-x10)은 탭 안에서 지운다
-        <TabsContent
-          key={view.value}
-          value={view.value}
-          className="pt-x5 *:mt-0"
-        >
-          {view.value === value &&
-            (view.value === "latest" ? latest : recommended)}
+        // 고른 탭 내용은 새로 그려져 180ms 에 나타난다 (모바일 프로토타입 v1, appMotion.ts)
+        <TabsContent key={view.value} value={view.value} className="pt-x5">
+          {view.value === value && (
+            <div className={`*:mt-0 ${PANEL_FADE}`}>
+              {view.value === "latest" ? latest : recommended}
+            </div>
+          )}
         </TabsContent>
       ))}
     </TabsRoot>

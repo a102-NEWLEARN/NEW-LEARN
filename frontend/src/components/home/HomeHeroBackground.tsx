@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import { prefersReducedMotion } from "@/lib/motion";
+import { BACKDROP_FADE } from "@/components/motion/appMotion";
 
 // 홈 첫 화면(인사 · 검색창) 뒤에 까는 마인드맵 모양 배경 — 프로토타입 v21 HomeHeroBg (S15P31A102-168).
 // 1200 × 360 판 위의 작은 네모 노드 22개를 가까운 것끼리 잇고, 가운데는 비워 글을 가리지 않는다.
-// 노드는 몇 px 씩 천천히 떠다닌다. 동작 줄이기를 켜면 멈춘다 (EXPERIENCE.md Interaction Primitives 「모션」).
+// 열면 520ms 에 걸쳐 나타나고(appMotion.ts) 노드는 몇 px 씩 천천히 떠다닌다. 동작 줄이기를 켜면 둘 다 없다 (EXPERIENCE.md Interaction Primitives 「모션」).
 // 장식이라 화면 읽기에서 빼고 누를 수 없다
 
 /** 노드 자리 — 프로토타입 값 그대로 */
@@ -127,7 +128,7 @@ export function HomeHeroBackground() {
       aria-hidden="true"
       viewBox="0 0 1200 360"
       preserveAspectRatio="xMidYMid slice"
-      className="pointer-events-none absolute inset-0 size-full"
+      className={`pointer-events-none absolute inset-0 size-full ${BACKDROP_FADE}`}
       style={{ maskImage: MASK, WebkitMaskImage: MASK }}
     >
       {LINKS.map(([a, b]) => (

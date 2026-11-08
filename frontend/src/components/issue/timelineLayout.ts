@@ -6,14 +6,10 @@ import { formatTimelineDates } from "@/lib/date";
 
 /** 왼쪽 레인 이름 칸의 폭. 사건은 이 오른쪽에 그린다 */
 export const GUTTER = 140;
-/** 좁은 화면(767px 이하)의 레인 이름 칸 — 모바일 프로토타입 v1 */
-export const NARROW_GUTTER = 92;
 /** 맨 아래 시간축 높이 */
 export const AXIS_HEIGHT = 46;
 /** 마지막 사건 오른쪽에 라벨이 들어갈 자리. 화면이 넓으면 이만큼 남기고 늘린다 — 처음 배율도 이 값으로 잰다(Timeline) */
 export const RIGHT_ROOM = 200;
-/** 좁은 화면의 오른쪽 여백 — 모바일 프로토타입 v1 */
-export const NARROW_RIGHT_ROOM = 96;
 const FIRST_X = 40;
 const LAST_ROOM = 140;
 // 시각 차이에 비례하지 않는 간격 — 빈 기간이 길어도 화면을 낭비하지 않고, 같은 레인에서는 라벨이 겹치지 않게 넓게
@@ -80,10 +76,6 @@ type LayoutOptions = {
   width?: number;
   /** 날짜에 연도를 붙일지 가릴 오늘 */
   now?: Date;
-  /** 레인 이름 칸의 폭. 기본은 넓은 화면 값 GUTTER */
-  gutter?: number;
-  /** 오른쪽 여백. 기본은 넓은 화면 값 RIGHT_ROOM */
-  rightRoom?: number;
 };
 
 const timeOf = (event: TimelineEvent) => Date.parse(event.occurredAt);
@@ -95,12 +87,7 @@ function kstYearMonth(ms: number) {
 
 export function layoutTimeline(
   input: TimelineEvent[],
-  {
-    width = 0,
-    now = new Date(),
-    gutter = GUTTER,
-    rightRoom = RIGHT_ROOM,
-  }: LayoutOptions = {},
+  { width = 0, now = new Date() }: LayoutOptions = {},
 ): TimelineLayout {
   const sorted = [...input].sort(
     (a, b) => timeOf(a) - timeOf(b) || a.id - b.id,
@@ -124,7 +111,7 @@ export function layoutTimeline(
     knots.push([time, x]);
   });
   const total = x + LAST_ROOM;
-  const plotWidth = Math.max(width - gutter - rightRoom, total);
+  const plotWidth = Math.max(width - GUTTER - RIGHT_ROOM, total);
   const scale = plotWidth / total;
 
   // 달 눈금이 들어갈 앞뒤 여유 — 사건 구간의 8%, 하루 ~ 닷새
