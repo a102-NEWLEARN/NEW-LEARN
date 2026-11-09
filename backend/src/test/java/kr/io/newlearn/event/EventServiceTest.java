@@ -8,6 +8,7 @@ import kr.io.newlearn.article.ArticleSummaryAssembler;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.PageQuery;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
 
 class EventServiceTest {
     @Test
@@ -17,9 +18,10 @@ class EventServiceTest {
         var articles = mock(ArticleRepository.class);
         var summaries = mock(ArticleSummaryAssembler.class);
         var service = new EventService(events, links, articles, summaries);
+        when(articles.findReleasedByEventId(eq(49L), any())).thenReturn(Page.empty());
         assertThatThrownBy(() -> service.get(49)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.articles(49, new PageQuery(0, 4), null))
                 .isInstanceOf(NotFoundException.class);
-        verifyNoInteractions(links, articles, summaries);
+        verifyNoInteractions(links, summaries);
     }
 }

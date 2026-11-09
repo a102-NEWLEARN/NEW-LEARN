@@ -60,6 +60,10 @@ class EventApiIntegrationTest {
 
     @Test
     void neighboursIncludeEqualOccurrenceTimesAndStayInsideIssue() throws Exception {
+        // 공개 기사가 있는 사건만 이웃이 된다(Jira 179) — 네 사건에 공개 기사를 나눠 둔다
+        moveArticle(4202, 4901);
+        moveArticle(4203, 4903);
+        moveArticle(4204, 4904);
         long[] ids = {4901, 4902, 4903, 4904};
         for (int n = 0; n < ids.length; n++) {
             var response = mvc.perform(get("/api/v1/events/" + ids[n])).andExpect(status().isOk());
@@ -75,7 +79,8 @@ class EventApiIntegrationTest {
     }
 
     @Test
-    void standaloneEventKeepsNullRelationsAndZeroArticleEventsRemainVisible() throws Exception {
+    void standaloneEventKeepsNullRelationsAndEventsWithoutPublicArticlesAreNotFound() throws Exception {
+        moveArticle(4202, 4905);
         mvc.perform(get("/api/v1/events/4905"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.issue").hasJsonPath())
@@ -86,17 +91,22 @@ class EventApiIntegrationTest {
                 .andExpect(jsonPath("$.nextEvent").isEmpty())
                 .andExpect(jsonPath("$.summary").hasJsonPath())
                 .andExpect(jsonPath("$.summary").isEmpty());
-        jdbc.sql("update article_event set event_id=4906 where article_id=4210").update();
-        for (long id : new long[] {4901, 4905, 4906}) {
-            mvc.perform(get("/api/v1/events/" + id))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.articleCount").value(0))
-                    .andExpect(jsonPath("$.publishers", hasSize(0)));
-            mvc.perform(get("/api/v1/events/" + id + "/articles"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.items", hasSize(0)))
-                    .andExpect(jsonPath("$.totalElements").value(0));
+        // 4901 은 기사가 없고 4906 은 공개 전 기사만 있다 — 둘 다 없는 사건이다(docs/api.md 1절, Jira 179)
+        moveArticle(4210, 4906);
+        for (long id : new long[] {4901, 4906}) {
+            for (String suffix : new String[] {"", "/articles"}) {
+                mvc.perform(get("/api/v1/events/" + id + suffix))
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.code").value("EVENT_NOT_FOUND"));
+            }
         }
+    }
+
+    private void moveArticle(long articleId, long eventId) {
+        jdbc.sql("update article_event set event_id=:event where article_id=:article")
+                .param("event", eventId)
+                .param("article", articleId)
+                .update();
     }
 
     @Test
@@ -169,7 +179,7 @@ class EventApiIntegrationTest {
     }
 
     @Test
-    void articlePagesUseFiveQueriesRegardlessOfItemCount() throws Exception {
+    void articlePagesUseFourQueriesRegardlessOfItemCount() throws Exception {
         var statistics = emf.unwrap(SessionFactory.class).getStatistics();
         for (int size : new int[] {2, 4}) {
             em.clear();
@@ -177,7 +187,7 @@ class EventApiIntegrationTest {
             mvc.perform(get("/api/v1/events/4902/articles").param("size", String.valueOf(size)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.items", hasSize(size)));
-            assertThat(statistics.getPrepareStatementCount()).isEqualTo(5);
+            assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
         }
     }
 
