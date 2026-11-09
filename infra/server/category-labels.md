@@ -96,8 +96,45 @@ rm labels.tsv
 
 - **공개될 기사만 읽는다.** 공개 안 될 기사는 라벨이 필요 없다
 - 덤프 적재 직후 한 번, 11/16 15분 수집 뒤 그때그때 — 「라벨 없는 공개 기사」를 뽑아 1 · 2절을 돈다(사용자 결정 2026-11-05 「수집하고나서 매번 … 매일 할 것도 아니고」)
-- 뽑는 SQL 과 나누기 · 합치기 스크립트는 덤프 적재 전에 더한다(아직 없음)
 - 라벨 전까지 새 기사는 NewsData 값이라, 어긋난 기사 · 스포츠 기사가 잠시 보일 수 있다
+
+관리자 PC 의 저장소 맨 위에서 돌린다. 실행마다 새 폴더를 쓰고, 파일은 저장소 밖에 둔다. 리다이렉트는 서버 셸 안에서만 한다 — PowerShell 은 `<` 를 못 쓰고 `>` 가 바이트를 바꾼다(`data-load.md` 2절).
+
+```bash
+mkdir C:/tmp/labels-new
+```
+
+```bash
+scp infra/server/category-labels-export.sql newlearn:infra/server/
+```
+
+```bash
+ssh newlearn 'kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -At < infra/server/category-labels-export.sql > labels-export.jsonl && wc -l labels-export.jsonl'
+```
+
+- 끝 표시: `뽑은 줄: N` 과 `wc -l` 의 수가 같다. 다르면 출력이 끊긴 것이니 다시 뽑는다
+
+```bash
+scp newlearn:labels-export.jsonl C:/tmp/labels-new/export.jsonl
+```
+
+```bash
+ssh newlearn 'rm labels-export.jsonl'
+```
+
+2,000건씩 나눈다. 찍힌 기사 수가 위 줄 수와 같은지 본다. 나눈 뒤에는 목록을 다시 뽑지 않는다 — 번호가 다른 기사를 가리키게 되어 합치기가 멈춘다.
+
+```bash
+python -X utf8 -B infra/server/category_labels.py split C:/tmp/labels-new/export.jsonl C:/tmp/labels-new/batches
+```
+
+조수에게 1절 지시문으로 `bNN.txt` 를 주어 같은 이름의 `bNN.tsv` 를 쓰게 한 뒤 합친다. 빠진 번호 · 없는 번호 · 겹침 · 모르는 코드 · 목록과 다른 제목이 있으면 종료 1 로 멈추고 어느 묶음인지 알려 준다. 그 묶음만 다시 돌린다. 제목이 깨진 기사는 조수의 값 대신 `X` 로 덮는다(1절).
+
+```bash
+python -X utf8 -B infra/server/category_labels.py merge C:/tmp/labels-new/export.jsonl C:/tmp/labels-new/batches C:/tmp/labels-new/labels.tsv
+```
+
+나온 `labels.tsv` 를 2절로 넣는다.
 
 ## 4. 덤프 적재와 만날 때
 
