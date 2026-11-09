@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class IssueService {
     private final CategoryRepository categories;
     private final IssueQueryRepository queries;
-    private final IssueRepository issues;
     private final EventRepository events;
     private final InterestIssueRepository interests;
     private final IssueCardAssembler cards;
@@ -38,13 +37,11 @@ public class IssueService {
     public IssueService(
             CategoryRepository categories,
             IssueQueryRepository queries,
-            IssueRepository issues,
             EventRepository events,
             InterestIssueRepository interests,
             IssueCardAssembler cards) {
         this.categories = categories;
         this.queries = queries;
-        this.issues = issues;
         this.events = events;
         this.interests = interests;
         this.cards = cards;
@@ -70,17 +67,15 @@ public class IssueService {
     }
 
     public TimelineResponse timeline(long issueId) {
-        if (!issues.existsById(issueId)) {
-            throw missingIssue(issueId);
-        }
-        var ordered = events.findByIssue_IdOrderByOccurredAtAscIdAsc(issueId);
+        // 공개 사건이 하나도 없으면 없는 이슈다(docs/api.md 1절, Jira 179)
+        var ordered = events.findPublicByIssueId(issueId);
         if (ordered.isEmpty()) {
-            return new TimelineResponse(issueId, List.of());
+            throw missingIssue(issueId);
         }
         var ids = ordered.stream().map(Event::getId).toList();
         var counts = queries.findEventCounts(ids).stream()
                 .collect(Collectors.toMap(IssueQueryRepository.EventCountRow::eventId, c -> c));
-        // 반응 대상이 다른 이슈 · 이슈 밖이면 이 타임라인에 그릴 수 없어 싣지 않는다. 이미 읽은 사건으로 가려 쿼리가 늘지 않는다
+        // 반응 대상이 다른 이슈 · 이슈 밖 · 공개 기사가 없는 사건이면 이 타임라인에 그릴 수 없어 싣지 않는다. 이미 읽은 사건으로 가려 쿼리가 늘지 않는다
         var sameIssue = Set.copyOf(ids);
         return new TimelineResponse(
                 issueId,

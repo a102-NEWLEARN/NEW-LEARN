@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import kr.io.newlearn.common.PublicEventSql;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -17,19 +18,20 @@ import org.springframework.stereotype.Repository;
 // 복잡한 집계는 네이티브 SQL로 읽는다. 카테고리 조인 대신 EXISTS로 필터해 행이 늘어나지 않게 한다.
 @Repository
 public class IssueQueryRepository {
-    // A2 목록과 A3 단건이 같은 계산과 행 매핑을 공유한다.
+    // A2 목록과 A3 단건이 같은 계산과 행 매핑을 공유한다. inner join 이라 공개 기사가 없는 사건은 수 · 기간에서 빠지고,
+    // 공개 사건이 하나도 없는 이슈는 행이 나오지 않는다(PublicEventSql 과 같은 규칙, 수를 세야 해서 이 모양이다)
     private static final String AGGREGATE = """
             select i.id, i.title, i.summary, i.created_at,
                 count(distinct e.id) as event_count, count(distinct a.id) as article_count,
                 count(distinct a.press_code) as publisher_count,
                 min(e.occurred_at) as first_event_at, max(e.occurred_at) as last_event_at
             from issue i
-            left join event e on e.issue_id = i.id
-            left join article_event ae on ae.event_id = e.id
-            left join article a on a.id = ae.article_id and a.released_at is not null
+            join event e on e.issue_id = i.id
+            join article_event ae on ae.event_id = e.id
+            join article a on a.id = ae.article_id and a.released_at is not null
             """;
-    private static final String FILTER = """
-            where (:category is null or exists (
+    private static final String CATEGORY_FILTER = """
+            (:category is null or exists (
                 select 1 from issue_category ic where ic.issue_id = i.id and ic.category_code = :category))
             """;
     private final JdbcClient jdbc;
@@ -39,11 +41,12 @@ public class IssueQueryRepository {
     }
 
     public Page<CardRow> findCards(@Nullable String category, String sort, Pageable pageable) {
-        long total = jdbc.sql("select count(*) from issue i " + FILTER)
+        long total = jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE + " and "
+                        + CATEGORY_FILTER)
                 .param("category", category, Types.VARCHAR)
                 .query(Long.class)
                 .single();
-        List<CardRow> rows = jdbc.sql(AGGREGATE + FILTER + """
+        List<CardRow> rows = jdbc.sql(AGGREGATE + " where " + CATEGORY_FILTER + """
                 group by i.id
                 order by case when :sort = 'createdAt' then i.created_at else max(e.occurred_at) end desc nulls last,
                     i.id desc
@@ -125,8 +128,10 @@ public class IssueQueryRepository {
             return List.of();
         }
         return jdbc.sql("""
-                select distinct on (issue_id) issue_id, id, title, label, occurred_at from event
-                where issue_id in (:ids) order by issue_id, occurred_at desc, id desc
+                select distinct on (issue_id) issue_id, id, title, label, occurred_at from event e
+                where issue_id in (:ids) and
+                """ + PublicEventSql.EVENT_HAS_PUBLIC_ARTICLE + """
+                order by issue_id, occurred_at desc, id desc
                 """)
                 .param("ids", issueIds)
                 .query((rs, n) -> new EventRow(
@@ -139,7 +144,7 @@ public class IssueQueryRepository {
     }
 
     // JDBC 값은 null 표시가 없어 NullAway 가 늘 non-null 로 본다 — 비는 칸과 not null 칸을 나눠 읽는다
-    // 비는 칸: 사건이 없는 이슈의 min · max(e.occurred_at)
+    // 비는 칸: min · max(e.occurred_at). AGGREGATE 가 inner join 이라 지금은 비지 않지만 응답 타입이 null 을 허용해 그대로 읽는다
     private static @Nullable Instant nullableInstant(ResultSet rs, String column) throws SQLException {
         OffsetDateTime time = rs.getObject(column, OffsetDateTime.class);
         return time == null ? null : time.toInstant();

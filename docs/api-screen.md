@@ -79,7 +79,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
 | `items[].code` · `items[].name` | 카테고리 참조 | 카테고리 탭 | `category` |
-| `items[].issueCount` | number | 「이 분야의 이슈가 아직 없어요」를 보일지(0이면) | 계산 — 이 카테고리에 걸린 이슈 수 (`issue_category`) |
+| `items[].issueCount` | number | 「이 분야의 이슈가 아직 없어요」를 보일지(0이면) | 계산 — 이 카테고리에 걸린 이슈 중 공개 기사가 있는 이슈 수 (`issue_category`, `api.md` 1절) |
 | `items[].articleCount` | number | 분야별 기사 수 표시 | 계산 — 대표 카테고리가 이것인 공개 기사 수 |
 
 ```json
@@ -93,22 +93,22 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | 인자 | 타입 | 용도 |
 |---|---|---|
 | `category` | enum · 선택 | 이 카테고리의 이슈만. 보내지 않으면 전체. 없는 코드와 빈 문자열은 404 `CATEGORY_NOT_FOUND`. U+0000(NUL)이 든 코드도 없는 코드라 404 다(DB 가 이 글자를 받지 못해 500 이었다, 2026-10-30) |
-| `sort` | enum · 선택 | `lastEventAt`(기본) — 마지막 사건 발생 시점 최신순(PRD FR-4 가정). 사건이 0개인 이슈는 이 값이 null 이라 맨 뒤에 놓인다. `createdAt` — 이슈가 만들어진 최신순, 검색창 아래 「새로 생성된 이슈」(2026-10-20). 같으면 `id` 내림차순. 그 밖의 값이면 400 `VALIDATION_FAILED` |
+| `sort` | enum · 선택 | `lastEventAt`(기본) — 마지막 사건 발생 시점 최신순(PRD FR-4 가정). `createdAt` — 이슈가 만들어진 최신순, 검색창 아래 「새로 생성된 이슈」(2026-10-20). 같으면 `id` 내림차순. 그 밖의 값이면 400 `VALIDATION_FAILED` |
 | `page` · `size` | number · 선택 | 쪽 번호 · 크기 (`api.md` 1절). 검색창 아래는 `size` 로 개수를 정한다(몇 개인지는 미정) |
 
-응답은 목록 모양이고 항목은 아래다. 정상 생성은 사건 3개가 모였을 때다(2026-10-20). DB에 이미 저장된 이슈의 사건이 0개인 경우 조회 규칙은 A3·A4를 따른다.
+응답은 목록 모양이고 항목은 아래다. 공개 기사가 있는 이슈만 나오고 `totalElements` 도 그 수다. 사건 수 · 기간 · 최근 사건은 공개 기사가 있는 사건만 본다(`api.md` 1절, 2026-11-09 Jira 179). 정상 생성은 사건 3개가 모였을 때다(2026-10-20).
 
 | 필드 | 타입 | 용도 | 어디서 |
 |---|---|---|---|
 | `id` · `title` | 이슈 참조 | 카드를 누르면 이슈 화면, 카드 제목 | `issue` |
 | `summary` | string · null | 카드의 한두 문장(AI 생성) | `issue.summary` |
 | `categories` | array(카테고리 참조) | 카드의 분야 표시. 여러 개일 수 있다 | `issue_category` → `category`, `sort_order` 순서(`data-model.md` 2절) |
-| `eventCount` | number | 「사건 8개」 | 계산 — 이 이슈의 사건 수 |
+| `eventCount` | number | 「사건 8개」 | 계산 — 이 이슈에서 공개 기사가 있는 사건 수 |
 | `articleCount` | number | 「기사 23개」 | 계산 — 이 이슈 사건들에 묶인 공개 기사 수 (`article_event`) |
 | `publisherCount` | number | 「언론사 5곳」 | 계산 — 그 기사들의 언론사(`press_code`) 수 |
-| `firstEventAt` · `lastEventAt` | 시각 · null | 기간 「08.04 ~ 10.09」, 정렬 | 계산 — 사건 `occurred_at` 의 가장 이른 값 · 늦은 값. 사건이 0개인 이슈면 null(표 위 「사건이 0개인 경우」 문장, A25 와 같음) |
+| `firstEventAt` · `lastEventAt` | 시각 · null | 기간 「08.04 ~ 10.09」, 정렬 | 계산 — 공개 기사가 있는 사건 `occurred_at` 의 가장 이른 값 · 늦은 값. 이 목록에 오는 이슈는 늘 값이 있다(타입의 null 허용은 그대로) |
 | `createdAt` | 시각 | 「새로 생성된 이슈」 정렬 · 표시 | `issue.created_at` |
-| `lastEvent` | 사건 참조 · null | 카드의 「최근 · 인력 수급 우려」(`label`). 사건이 0개인 이슈면 null | 계산 — `occurred_at` 내림차순, 같으면 사건 `id` 내림차순으로 하나 선택(2026-10-23 팀장 승인) |
+| `lastEvent` | 사건 참조 · null | 카드의 「최근 · 인력 수급 우려」(`label`). 조회 사이에 기사가 숨겨지면 null 일 수 있다 | 계산 — 공개 기사가 있는 사건 중 `occurred_at` 내림차순, 같으면 사건 `id` 내림차순으로 하나 선택(2026-10-23 팀장 승인) |
 | `interested` | boolean | 별표를 채울지. 로그인한 회원이 이 이슈를 관심 이슈로 저장했으면 true, 손님이면 false(2026-10-26 Jira 114) | 계산 — 세션 회원의 `interest_issue` |
 
 ```json
@@ -130,16 +130,14 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 이슈 화면 맨 위 헤더(PRD FR-20)에 쓴다. 인자는 주소의 `issueId` 하나. 응답은 A2 항목에서 `lastEvent` 만 뺀 모양이고 필드 뜻도 같다. 기간은 `firstEventAt` ~ `lastEventAt` 이다.
 
-없는 이슈는 404 `ISSUE_NOT_FOUND`다. 이슈가 존재하고 사건이 0개면 200으로 반환한다.
-이때 `eventCount`·`articleCount`·`publisherCount`는 0, `firstEventAt`·`lastEventAt`은 null이다.
+없는 이슈와 공개 기사가 하나도 없는 이슈(`api.md` 1절, 2026-11-09 Jira 179)는 404 `ISSUE_NOT_FOUND`다.
 카테고리는 저장된 관계대로 반환하며 `lastEvent` 키는 보내지 않는다(2026-10-23 사용자 승인).
 
 ### A4. 타임라인 — `GET /api/v1/issues/{issueId}/timeline`
 
-이슈 에볼루션 맵의 사건 노드를 그린다(F07, Jira 48). 이슈의 사건을 페이지 없이 한 번에 준다. 정렬은 `occurredAt` 오름차순, 같으면 `id` 오름차순. 화면은 사건을 **메인 흐름 · 서브 흐름 두 레인**에 놓는다(2026-10-20).
+이슈 에볼루션 맵의 사건 노드를 그린다(F07, Jira 48). 이슈에서 공개 기사가 있는 사건을 페이지 없이 한 번에 준다. 정렬은 `occurredAt` 오름차순, 같으면 `id` 오름차순. 화면은 사건을 **메인 흐름 · 서브 흐름 두 레인**에 놓는다(2026-10-20).
 
-없는 이슈는 404 `ISSUE_NOT_FOUND`, 존재하지만 사건이 0개면 200과 `{ "issueId": …, "events": [] }`다.
-기사가 없거나 공개 전 기사만 있는 사건도 타임라인에 남기고 기사·언론사 수는 0으로 반환한다.
+없는 이슈와 공개 기사가 하나도 없는 이슈는 404 `ISSUE_NOT_FOUND`다. 공개 기사가 없는 사건은 타임라인에서 빠진다(`api.md` 1절, 2026-11-09 Jira 179).
 사건 발생 시각으로 정렬하며 기사 발행 시각을 대신 쓰지 않는다(2026-10-23 사용자 승인).
 
 | 필드 | 타입 | 용도 | 어디서 |
@@ -147,7 +145,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `issueId` | number | 어느 이슈의 타임라인인지 | 주소의 `issueId` |
 | `events[].id` · `title` · `label` · `occurredAt` | 사건 참조 | 점 옆 키워드(`label`)와 가로 위치(발생 시점) | `event` |
 | `events[].lane` | enum | `MAIN` 메인 흐름 · `SUB` 서브 흐름. 사건의 역할로 나눈다 — 상황을 바꾸는 행위(`event.role` `MAIN`)는 `MAIN`, 다른 사건에 대한 반응 · 평가 · 여론(`REACTION`)은 `SUB`(2026-10-28 AI 제안, Jira 130). 늘 값이 있다 | 계산 — `event.role` |
-| `events[].reactsToEventId` | number · null | 반응 사건(`SUB`)이 반응하는 사건 — 화면이 두 사건이 다 보일 때 반응 점선(반응 사건 → 대상 사건)을 그린다. 대상이 **같은 이슈의 사건일 때만** 싣고, 다른 이슈 · 이슈 밖 사건이거나 대상이 없으면(이슈 전반에 대한 반응 · `MAIN`) null 이다. 칸은 늘 있다(2026-10-28 합의, Jira 134) | `event.reacts_to_event_id` — 판정이 보낸 후보 안에서 고른 것만 저장한다(`api-internal.md` 5절) |
+| `events[].reactsToEventId` | number · null | 반응 사건(`SUB`)이 반응하는 사건 — 화면이 두 사건이 다 보일 때 반응 점선(반응 사건 → 대상 사건)을 그린다. 대상이 **같은 이슈의 사건일 때만** 싣고, 다른 이슈 · 이슈 밖 사건 · 공개 기사가 없는 사건이거나 대상이 없으면(이슈 전반에 대한 반응 · `MAIN`) null 이다. 칸은 늘 있다(2026-10-28 합의, Jira 134) | `event.reacts_to_event_id` — 판정이 보낸 후보 안에서 고른 것만 저장한다(`api-internal.md` 5절) |
 | `events[].occurredAtBasis` | enum | 발생 시점을 본문에서 뽑았나(`EXTRACTED`) · 첫 기사 발행 시각으로 채웠나(`FIRST_PUBLISHED`). 뒤의 것이면 「추정」 표시를 붙일 수 있다 | `event.occurred_at_basis` |
 | `events[].articleCount` | number | 점에 마우스를 올리면 보이는 기사 수 | 계산 — 이 사건의 공개 기사 수 |
 | `events[].publisherCount` | number | 마우스를 올리면 보이는 언론사 수 | 계산 |
@@ -176,10 +174,9 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `issue` | 이슈 참조 · null | 속한 이슈. null 이면 아직 이슈로 묶이지 않은 사건 | `event.issue_id` → `issue` |
 | `articleCount` | number | 「관련 기사 4건」 | 계산 |
 | `publishers` | array(언론사 참조) | 이 사건을 보도한 언론사 전부(PRD FR-11). 중복 제거 후 `press.code` 오름차순(2026-10-26 사용자 승인) | 계산 — 공개 기사들의 `press_code` |
-| `previousEvent` · `nextEvent` | 사건 참조 · null | *이전 · 다음 사건* 이동. 같은 이슈 안에서 A4와 같은 `occurredAt` · `id` 오름차순의 인접 사건. 시각이 같아도 ID로 가른다(2026-10-26 사용자 승인). 없으면 null | 계산 |
+| `previousEvent` · `nextEvent` | 사건 참조 · null | *이전 · 다음 사건* 이동. 같은 이슈의 공개 기사가 있는 사건 안에서 A4와 같은 `occurredAt` · `id` 오름차순의 인접 사건. 시각이 같아도 ID로 가른다(2026-10-26 사용자 승인). 없으면 null | 계산 |
 
-없는 사건은 404 `EVENT_NOT_FOUND`다. 이슈 밖 사건은 `issue` · `previousEvent` · `nextEvent`가 모두 null이다.
-공개 기사 0건인 사건도 200이며 `articleCount`는 0, `publishers`는 빈 배열이다.
+없는 사건과 공개 기사가 하나도 없는 사건(`api.md` 1절, 2026-11-09 Jira 179)은 404 `EVENT_NOT_FOUND`다. 이슈 밖 사건은 `issue` · `previousEvent` · `nextEvent`가 모두 null이다.
 
 관점(PRD FR-24~26, P2)과 이 사건의 변화(F09 · F10)는 빠져 있다.
 
@@ -206,7 +203,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 
 응답은 목록 모양이고 항목은 기사 요약(1절)이다. 정렬은 발행 시각 오름차순, 같으면 `id` 오름차순. 특정 언론사를 앞세우지 않는다(PRD 4.11).
 
-공개 전 기사는 목록과 전체 개수에서 제외한다. 사건이 없으면 404 `EVENT_NOT_FOUND`, 사건은 있지만 관련 공개 기사가 없으면 200과 빈 목록이다.
+공개 전 기사는 목록과 전체 개수에서 제외한다. 사건이 없거나 공개 기사가 하나도 없으면 404 `EVENT_NOT_FOUND`다. 쪽 번호가 마지막을 넘으면 200과 빈 목록이고 전체 개수는 그대로다.
 페이지 인자 기본값·범위는 `api.md` 1절을 따른다. A6는 기존 `ArticleSummaryResponse`와 `ArticleSummaryAssembler`를 재사용한다.
 
 ### A7. 최신 기사 — `GET /api/v1/articles`
@@ -291,7 +288,7 @@ Ctrl+K(맥 ⌘K) 빠른 이동(PRD FR-3, Jira 43)이 부른다. MVP 에 넣는�
 - **제목만** 찾는다 — 이슈 · 사건 · 기사 제목에 검색어가 그대로 들어 있으면 맞다. 영문은 대소문자를 가리지 않는다. 요약 · 본문 · 사건 키워드는 찾지 않는다
 - `%` · `_` · `\` 도 그냥 글자다(패턴 검색이 아니라 위치 찾기)
 - 검색어는 앞뒤 공백을 지우고 NFC 로 맞춘 뒤 1 ~ 50자. 비었거나 넘으면 400 `VALIDATION_FAILED` 와 `errors[q]`(「검색어를 입력해 주세요」 · 「검색어는 50자까지예요」). U+0000(NUL)이 들어 있어도 400 「검색어에 쓸 수 없는 글자가 들어 있어요」 — DB 가 이 글자를 받지 못한다(2026-10-30). 규칙은 A19 와 같다
-- 사건은 **이슈에 묶인 것만**(누르면 그 이슈로 간다), 기사는 공개된 것만(`docs/api.md` 1절)
+- 이슈 · 사건은 공개 기사가 있는 것만, 사건은 **이슈에 묶인 것만**(누르면 그 이슈로 간다), 기사는 공개된 것만(`docs/api.md` 1절)
 - 유형마다 최신순 **20개까지** — 이슈는 만든 때, 사건은 발생 시점, 기사는 발행 시각. 같으면 id 가 큰 것 먼저. 전체 개수는 주지 않는다
 - 결과가 없으면 200 과 빈 배열 셋
 
@@ -442,11 +439,11 @@ A17은 DB의 현재 목록을 읽으므로 이미 로그인한 다른 세션에�
 
 ### A23 · A24. 관심 이슈 저장 · 해제 — `PUT` · `DELETE /api/v1/members/me/interest-issues/{issueId}`
 
-이슈 이름 옆 별표(사이드바 이슈 줄 · 이슈 머리)가 부른다(PRD FR-19, Jira 64). 규칙은 A20 · A21 과 같다 — 200 과 바뀐 상태 `{ "issueId": 12, "interested": true, "interestedAt": "…" }`(해제는 false · null), 겹쳐도 같은 응답, 없는 이슈를 저장하려 하면(A23 만) 404 `ISSUE_NOT_FOUND`, 로그인 · 번호표가 필요하다. 사건이 0개인 이슈도 저장할 수 있다. 숫자가 아닌 `issueId` 는 400 `VALIDATION_FAILED`. 화면은 별표를 응답의 `interested` 로 맞추고, 스낵바 문구는 고정이다 — true 면 「관심 이슈로 저장했어요」, false 면 「관심 이슈에서 뺐어요」. 손님 처리는 A20 · A21 과 같다.
+이슈 이름 옆 별표(사이드바 이슈 줄 · 이슈 머리)가 부른다(PRD FR-19, Jira 64). 규칙은 A20 · A21 과 같다 — 200 과 바뀐 상태 `{ "issueId": 12, "interested": true, "interestedAt": "…" }`(해제는 false · null), 겹쳐도 같은 응답, 없는 이슈 · 공개 기사가 하나도 없는 이슈를 저장하려 하면(A23 만) 404 `ISSUE_NOT_FOUND`, 로그인 · 번호표가 필요하다. 숫자가 아닌 `issueId` 는 400 `VALIDATION_FAILED`. 화면은 별표를 응답의 `interested` 로 맞추고, 스낵바 문구는 고정이다 — true 면 「관심 이슈로 저장했어요」, false 면 「관심 이슈에서 뺐어요」. 손님 처리는 A20 · A21 과 같다.
 
 ### A25. 관심 이슈 목록 — `GET /api/v1/members/me/interest-issues`
 
-마이페이지의 *관심 이슈* 가 부른다(PRD FR-19, Jira 64). 로그인이 필요하다. A22 처럼 쪽 없이 전부 `items` 로 주고, 정렬은 저장한 시각 최신순, 같으면 이슈 `id` 내림차순. 항목은 A2 이슈 카드(`interested` 는 늘 true)에 `interestedAt`(저장한 시각, `interest_issue.created_at`)을 더한다. 사건이 0개인 이슈도 나온다 — 집계는 0, `firstEventAt` · `lastEventAt` · `lastEvent` 는 null 이다(키를 빼지 않는다). 「지난 방문 이후 새 사건 N」은 보류라 데이터가 없다 — 마이페이지의 「새 사건 N」 배지는 그리지 않는다(2026-10-26). 홈 추천에서 별표한 이슈를 먼저 보이는 것은 화면이 A25 와 A2 를 합친다 — A2 에 정렬 인자를 더하지 않는다. 없으면 200 과 빈 `items`(화면: 「아직 저장한 이슈가 없어요」).
+마이페이지의 *관심 이슈* 가 부른다(PRD FR-19, Jira 64). 로그인이 필요하다. A22 처럼 쪽 없이 전부 `items` 로 주고, 정렬은 저장한 시각 최신순, 같으면 이슈 `id` 내림차순. 항목은 A2 이슈 카드(`interested` 는 늘 true)에 `interestedAt`(저장한 시각, `interest_issue.created_at`)을 더한다. 공개 기사가 하나도 없는 이슈는 빠진다 — 저장 행은 남아 기사가 다시 공개되면 돌아온다(`api.md` 1절, 2026-11-09 Jira 179). 「지난 방문 이후 새 사건 N」은 보류라 데이터가 없다 — 마이페이지의 「새 사건 N」 배지는 그리지 않는다(2026-10-26). 홈 추천에서 별표한 이슈를 먼저 보이는 것은 화면이 A25 와 A2 를 합친다 — A2 에 정렬 인자를 더하지 않는다. 없으면 200 과 빈 `items`(화면: 「아직 저장한 이슈가 없어요」).
 
 ---
 

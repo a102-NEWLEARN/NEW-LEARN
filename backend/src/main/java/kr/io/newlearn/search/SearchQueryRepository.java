@@ -1,6 +1,7 @@
 package kr.io.newlearn.search;
 
 import java.util.List;
+import kr.io.newlearn.common.PublicEventSql;
 import kr.io.newlearn.issue.dto.IssueRef;
 import kr.io.newlearn.search.dto.SearchArticle;
 import kr.io.newlearn.search.dto.SearchEvent;
@@ -21,11 +22,12 @@ class SearchQueryRepository {
         this.jdbc = jdbc;
     }
 
-    // 모든 이슈, 만든 때 최신순
+    // 공개 기사가 있는 이슈만(docs/api.md 1절), 만든 때 최신순
     List<IssueRef> issues(String query) {
         return jdbc.sql("""
-                        select id, title from issue
-                        where strpos(lower(title), lower(:q)) > 0
+                        select id, title from issue i
+                        where strpos(lower(title), lower(:q)) > 0 and
+                        """ + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE + """
                         order by created_at desc, id desc
                         limit :limit
                         """)
@@ -35,11 +37,12 @@ class SearchQueryRepository {
                 .list();
     }
 
-    // 이슈에 묶인 사건만(화면이 그 이슈로 옮겨 간다), 발생 시점 최신순
+    // 이슈에 묶인 사건만(화면이 그 이슈로 옮겨 간다), 공개 기사가 있는 것만, 발생 시점 최신순
     List<SearchEvent> events(String query) {
         return jdbc.sql("""
-                        select id, title, issue_id from event
-                        where issue_id is not null and strpos(lower(title), lower(:q)) > 0
+                        select id, title, issue_id from event e
+                        where issue_id is not null and strpos(lower(title), lower(:q)) > 0 and
+                        """ + PublicEventSql.EVENT_HAS_PUBLIC_ARTICLE + """
                         order by occurred_at desc, id desc
                         limit :limit
                         """)

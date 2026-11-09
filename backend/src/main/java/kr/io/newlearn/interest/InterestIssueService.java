@@ -56,6 +56,7 @@ public class InterestIssueService {
         for (var row : saved) {
             var card = byId.get(row.getId().getIssueId());
             // 여러 조회 사이에 삭제된 이슈는 FK cascade와 같은 의미로 목록에서 제외한다.
+            // 공개 기사가 없는 이슈도 카드가 없어 여기서 빠진다 — 저장 행은 남아 기사가 다시 공개되면 돌아온다(Jira 179).
             if (card != null) {
                 items.add(new InterestIssueListResponse.InterestIssueItem(card, ApiTime.toKst(row.getCreatedAt())));
             }
