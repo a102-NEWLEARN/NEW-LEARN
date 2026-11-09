@@ -1561,6 +1561,18 @@ class WrongBodyFlow(unittest.TestCase):
         self.assertEqual(urls_sent(net), [item(4)["link"]])
         self.assertEqual(summary(lines)["skipped"]["wrong_body"], 3)
 
+    def test_lone_surrogate_in_kept_article_still_loads(self):
+        # NewsData JSON 의 짝 없는 \ud83d — 남는 기사도 B2 로 가고 그날 실행이 멈추지 않는다
+        items = [item(1, title="\ud83d 가람시 소식", content="앞 \ud83d 뒤 본문"), item(2)]
+        net = FakeNet([(200, json.dumps({"status": "success", "results": items, "nextPage": None}).encode())])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(urls_sent(net), [item(1)["link"], item(2)["link"]])
+        self.assertEqual(summary(lines)["b2"]["created"], 2)
+        sent = [json.loads(call[3]) for call in net.calls if call[1] == B2]
+        self.assertEqual(sent[0]["title"], "? 가람시 소식")
+        self.assertEqual(sent[0]["body"], "앞 ? 뒤 본문")
+
     def test_lone_surrogate_in_dropped_title_does_not_stop_the_day(self):
         # 진짜 stdout 처럼 UTF-8 strict — StringIO 로는 이 실패가 보이지 않는다
         body = filler(600)
