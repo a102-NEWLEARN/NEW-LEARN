@@ -1251,9 +1251,9 @@ class WrongBodySameBody(unittest.TestCase):
         self.assertEqual(result["skipped"]["wrong_body"], 3)
         self.assertEqual(result["kept"], 1)
 
-    def test_two_titles_kept(self):
-        # 같은 기사에 제목만 달리 단 정상 기사가 있다
-        body = filler(600)
+    def test_two_titles_with_title_words_kept(self):
+        # 같은 기사에 제목만 달리 단 정상 기사가 있다 — 제목 낱말이 본문에 있으면 짝 규칙에도 안 걸린다
+        body = filler(600) + " 가람시 소식"
         net, result = self.fetch([item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2)])
         self.assertEqual(len(net.b2_calls()), 2)
         self.assertEqual(result["skipped"]["wrong_body"], 0)
@@ -1312,6 +1312,135 @@ class WrongBodySameBody(unittest.TestCase):
         net, result = self.fetch(items)
         self.assertEqual(net.b2_calls(), [])
         self.assertEqual(result["skipped"]["wrong_body"], 3)
+
+
+class WrongBodySameBodyPair(unittest.TestCase):
+    """(c) 같은 언론사 · 같은 본문을 제목 정확히 2개가 쓰고, 두 제목 모두 낱말 비율 20% 이하면 둘 다 뺀다"""
+
+    TITLE_A = "가람시 소식"
+    TITLE_B = "나래군 안내"
+
+    def fetch(self, items):
+        net = FakeNet([page(items)])
+        code, lines, text = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        return net, lines, text
+
+    def pair(self, share_a, share_b):
+        """제목 낱말 100개 중 앞의 share 개만 본문에 나오는 기사 둘. 자릿수를 맞춰 낱말끼리 부분 문자열로 맞지 않게 한다"""
+        words_a = [f"가말{n:03d}" for n in range(100)]
+        words_b = [f"나말{n:03d}" for n in range(100)]
+        body = " ".join([filler(600)] + words_a[:share_a] + words_b[:share_b])
+        return [item(1, title=" ".join(words_a), content=body), item(2, title=" ".join(words_b), content=body)]
+
+    def dropped(self, lines):
+        return {d["url"]: d for d in lines if d.get("msg") == "본문 불일치로 뺌"}
+
+    def test_pair_without_title_words_dropped(self):
+        net, lines, text = self.fetch(self.pair(0, 0) + [item(4)])
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        result = summary(lines)
+        self.assertEqual(result["skipped"]["wrong_body"], 2)
+        self.assertEqual(result["kept"], 1)
+        self.assertEqual(result["fetched"], result["kept"] + sum(result["skipped"].values()))
+        dropped = self.dropped(lines)
+        self.assertEqual(set(dropped), {item(1)["link"], item(2)["link"]})
+        self.assertEqual({d["rule"] for d in dropped.values()}, {"same_body_pair"})
+        self.assertEqual({d["sameBodyTitles"] for d in dropped.values()}, {2})
+        self.assertNotIn(filler(600), text)
+
+    def test_exactly_20_percent_dropped(self):
+        net, lines, _ = self.fetch(self.pair(20, 20))
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual(summary(lines)["skipped"]["wrong_body"], 2)
+
+    def test_one_title_over_20_percent_keeps_both(self):
+        # 한쪽 제목 낱말이 본문에 있으면 정상 기사에 다른 제목을 단 경우일 수 있다
+        for shares in ((21, 0), (0, 21)):
+            with self.subTest(shares=shares):
+                net, lines, _ = self.fetch(self.pair(*shares))
+                self.assertEqual(len(net.b2_calls()), 2)
+                self.assertEqual(summary(lines)["skipped"]["wrong_body"], 0)
+
+    def test_counts_titles_not_articles(self):
+        # 제목 A · A · B — 같은 제목이 URL 만 달라도 제목은 2개다
+        body = filler(600)
+        items = [item(1, title=self.TITLE_A, content=body), item(2, title=self.TITLE_A, content=body), item(3, title=self.TITLE_B, content=body)]
+        net, lines, _ = self.fetch(items)
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual({d["rule"] for d in self.dropped(lines).values()}, {"same_body_pair"})
+        self.assertEqual(summary(lines)["skipped"]["wrong_body"], 3)
+
+    def test_three_titles_stay_with_same_body_rule(self):
+        body = filler(600)
+        net, lines, _ = self.fetch([item(n, title=f"가람시 소식 {n}", content=body) for n in (1, 2)] + [item(3, title=self.TITLE_B, content=body)])
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual({d["rule"] for d in self.dropped(lines).values()}, {"same_body"})
+
+    def test_body_length_boundary(self):
+        for body, sent in (("가" * 499, 2), ("가" * 499 + " ", 2), ("가" * 500, 0)):
+            with self.subTest(chars=len(body), sent=sent):
+                net, _, _ = self.fetch([item(1, title=self.TITLE_A, content=body), item(2, title=self.TITLE_B, content=body)])
+                self.assertEqual(len(net.b2_calls()), sent)
+
+    def test_spaces_around_body_do_not_matter(self):
+        body = filler(600)
+        net, _, _ = self.fetch([item(1, title=self.TITLE_A, content=" " + body), item(2, title=self.TITLE_B, content=body + "\n")])
+        self.assertEqual(net.b2_calls(), [])
+
+    def test_other_press_not_grouped(self):
+        body = filler(600)
+        net, _, _ = self.fetch([item(1, title=self.TITLE_A, content=body, source_id="press_1"), item(2, title=self.TITLE_B, content=body, source_id="press_2")])
+        self.assertEqual(len(net.b2_calls()), 2)
+
+    def test_same_title_twice_kept(self):
+        # 제목이 같으면 같은 기사가 URL 만 다른 것이다
+        body = filler(600)
+        net, _, _ = self.fetch([item(n, title=self.TITLE_A, content=body) for n in (1, 2)])
+        self.assertEqual(len(net.b2_calls()), 2)
+
+    def test_title_without_words_keeps_pair(self):
+        # 낱말이 없는 제목은 비율 1.0 — 판단할 근거가 없다
+        body = filler(600)
+        net, _, _ = self.fetch([item(1, title="!!", content=body), item(2, title=self.TITLE_B, content=body)])
+        self.assertEqual(len(net.b2_calls()), 2)
+
+    def test_title_not_text_is_left_to_b2_and_rest_judged(self):
+        body = filler(600)
+        for title in (None, 123, ["가람시"]):
+            with self.subTest(title=title):
+                items = [item(1, title=self.TITLE_A, content=body), item(2, title=self.TITLE_B, content=body), item(3, title=title, content=body)]
+                net, lines, _ = self.fetch(items)
+                self.assertEqual([json.loads(c[3])["title"] for c in net.b2_calls()], [title])
+                self.assertEqual(summary(lines)["skipped"]["wrong_body"], 2)
+
+    def test_title_not_text_does_not_make_a_pair(self):
+        body = filler(600)
+        net, lines, _ = self.fetch([item(1, title=self.TITLE_A, content=body), item(2, title=None, content=body)])
+        self.assertEqual(len(net.b2_calls()), 2)
+        self.assertEqual(summary(lines)["skipped"]["wrong_body"], 0)
+
+    def test_press_not_text_is_not_judged(self):
+        body = filler(600)
+        items = [item(1, title=self.TITLE_A, content=body, source_id=["garam_kr"]), item(2, title=self.TITLE_B, content=body, source_id=["garam_kr"])]
+        net, _, _ = self.fetch(items)
+        self.assertEqual(len(net.b2_calls()), 2)
+
+    def test_pair_across_pages_dropped(self):
+        first, second = self.pair(0, 0)
+        net = FakeNet([page([first], "n1"), page([second, item(4)])])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(urls_sent(net), [item(4)["link"]])
+        self.assertEqual(summary(lines)["skipped"]["wrong_body"], 2)
+
+    def test_long_brief_keeps_its_rule(self):
+        # 기존 규칙에 걸리던 기사의 rule 이 바뀌지 않는다
+        body = filler(6000)
+        net, lines, _ = self.fetch([item(1, title="[부고] 김가람씨 별세", content=body), item(2, title=self.TITLE_B, content=body)])
+        self.assertEqual(net.b2_calls(), [])
+        rules = {url: d["rule"] for url, d in self.dropped(lines).items()}
+        self.assertEqual(rules, {item(1)["link"]: "long_brief", item(2)["link"]: "same_body_pair"})
 
 
 class WrongBodyLongBrief(unittest.TestCase):
