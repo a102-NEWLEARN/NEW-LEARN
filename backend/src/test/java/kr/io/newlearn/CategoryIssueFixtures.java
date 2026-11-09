@@ -58,5 +58,14 @@ final class CategoryIssueFixtures {
                     .param("event", n == 2 ? 4121 : 4120 + n)
                     .update();
         }
+        // 공개 기사가 없는 사건 · 이슈는 조회에서 빠진다(Jira 179) — 위 기사가 없는 사건마다 공개 기사를 하나씩 붙인다.
+        // 대표 카테고리는 비워 A1 의 분야별 기사 수는 위 기사만 센다
+        jdbc.sql("""
+                insert into article(id,source,url,press_code,title,body,published_at,released_at,created_at)
+                select id + 10000,'NEWSDATA','https://fixture.invalid/41/event/' || id,'fixture41','기사','본문',now(),now(),now()
+                from event where id between 4111 and 4133 and id <> 4121
+                """).update();
+        jdbc.sql("insert into article_event select id, id - 10000, now() from article where id between 14111 and 14133")
+                .update();
     }
 }

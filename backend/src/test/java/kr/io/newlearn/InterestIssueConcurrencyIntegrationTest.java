@@ -47,6 +47,20 @@ class InterestIssueConcurrencyIntegrationTest {
                         "insert into issue(title,created_at,updated_at) values ('동시 관심',now(),now()) returning id")
                 .query(Long.class)
                 .single();
+        // 공개 기사가 있는 이슈만 저장할 수 있다(Jira 179)
+        long event = jdbc.sql("""
+                insert into event(issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                values (:issue,'사건','키워드',now(),'EXTRACTED',now(),now(),'MAIN') returning id
+                """).param("issue", issue).query(Long.class).single();
+        jdbc.sql("insert into press values ('race64','동시신문')").update();
+        long article = jdbc.sql("""
+                insert into article(source,url,press_code,title,body,published_at,released_at,created_at)
+                values ('NEWSDATA','https://fixture.invalid/64/race','race64','기사','본문',now(),now(),now()) returning id
+                """).query(Long.class).single();
+        jdbc.sql("insert into article_event values (:article,:event,now())")
+                .param("article", article)
+                .param("event", event)
+                .update();
         try {
             // 기능이 없을 때는 SQL 오류가 아니라 라우트의 404 단언으로 먼저 실패한다.
             mvc.perform(put("/api/v1/members/me/interest-issues/" + issue)
@@ -124,6 +138,12 @@ class InterestIssueConcurrencyIntegrationTest {
                     .param("id", member)
                     .update();
             jdbc.sql("delete from member where id=:id").param("id", member).update();
+            jdbc.sql("delete from article_event where article_id=:id")
+                    .param("id", article)
+                    .update();
+            jdbc.sql("delete from article where id=:id").param("id", article).update();
+            jdbc.sql("delete from press where code='race64'").update();
+            jdbc.sql("delete from event where id=:id").param("id", event).update();
             jdbc.sql("delete from issue where id=:id").param("id", issue).update();
         }
     }

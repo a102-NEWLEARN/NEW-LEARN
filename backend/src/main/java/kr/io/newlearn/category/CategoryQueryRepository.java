@@ -2,6 +2,7 @@ package kr.io.newlearn.category;
 
 import java.util.HashMap;
 import java.util.Map;
+import kr.io.newlearn.common.PublicEventSql;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -14,7 +15,9 @@ public class CategoryQueryRepository {
     }
 
     public Map<String, Long> issueCounts() {
-        return counts("select category_code, count(*) as total from issue_category group by category_code");
+        return counts("select ic.category_code, count(*) as total from issue_category ic"
+                + " join issue i on i.id = ic.issue_id where " + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE
+                + " group by ic.category_code");
     }
 
     public Map<String, Long> articleCounts() {

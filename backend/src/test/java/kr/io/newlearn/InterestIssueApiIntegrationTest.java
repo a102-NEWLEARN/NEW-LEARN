@@ -86,6 +86,24 @@ class InterestIssueApiIntegrationTest {
         return mvc.perform(get("/api/v1/members/me/interest-issues").cookie(session));
     }
 
+    // 공개 기사가 있어야 이슈가 목록에 나온다(Jira 179) — 번호가 같은 이슈마다 사건과 공개 기사를 하나씩 붙인다
+    void addPublicArticle(int lo, int hi) {
+        for (String sql : List.of("""
+                insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                select n,n,'사건','키워드',now(),'EXTRACTED',now(),now(),'MAIN' from generate_series(:lo,:hi) n
+                on conflict (id) do nothing
+                """, """
+                insert into article(id,source,url,press_code,title,body,published_at,released_at,created_at)
+                select n,'NEWSDATA','https://fixture.invalid/64/' || n,'fixture41','기사','본문',now(),now(),now()
+                from generate_series(:lo,:hi) n on conflict (id) do nothing
+                """, """
+                insert into article_event select n,n,now() from generate_series(:lo,:hi) n
+                on conflict (article_id) do nothing
+                """)) {
+            jdbc.sql(sql).param("lo", lo).param("hi", hi).update();
+        }
+    }
+
     @Test
     void repeatedSaveKeepsFirstTimeAndRemovalIsIdempotentEvenForMissingIssue() throws Exception {
         Cookie mine = join("interest64_state");
@@ -138,13 +156,13 @@ class InterestIssueApiIntegrationTest {
     }
 
     @Test
-    void listsFlatCardsInSavedOrderAndKeepsEmptyIssueAndOtherMemberPrivate() throws Exception {
+    void listsFlatCardsInSavedOrderAndKeepsOtherMemberPrivate() throws Exception {
         Cookie mine = join("interest64_list"), other = join("interest64_other");
         list(mine)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(0)))
                 .andExpect(jsonPath("$.page").doesNotExist());
-        for (long id : new long[] {4102, 4101, 6400}) add(mine, id).andExpect(status().isOk());
+        for (long id : new long[] {4102, 4101}) add(mine, id).andExpect(status().isOk());
         add(other, 4103).andExpect(status().isOk());
         jdbc.sql("update interest_issue set created_at='2020-01-01T00:00:00Z' where member_id=:id")
                 .param("id", memberId("interest64_list"))
@@ -155,24 +173,17 @@ class InterestIssueApiIntegrationTest {
         em.clear();
         list(mine)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[*].id", contains(4102, 6400, 4101)))
+                .andExpect(jsonPath("$.items[*].id", contains(4102, 4101)))
                 .andExpect(jsonPath("$.items[0].categories[*].code", contains("politics", "economy")))
-                .andExpect(jsonPath("$.items[0].articleCount").value(2))
+                .andExpect(jsonPath("$.items[0].articleCount").value(4))
                 .andExpect(jsonPath("$.items[0].publisherCount").value(1))
                 .andExpect(jsonPath("$.items[0].lastEvent.id").value(4123))
                 .andExpect(jsonPath("$.items[*].interested", everyItem(is(true))))
                 .andExpect(jsonPath("$.items[0].interestedAt").value("2021-01-01T09:00:00+09:00"))
-                .andExpect(jsonPath("$.items[1].eventCount").value(0))
-                .andExpect(jsonPath("$.items[1].articleCount").value(0))
-                .andExpect(jsonPath("$.items[1].publisherCount").value(0))
-                .andExpect(jsonPath(
-                        "$.items[1]", allOf(hasKey("firstEventAt"), hasKey("lastEventAt"), hasKey("lastEvent"))))
-                .andExpect(jsonPath("$.items[1].firstEventAt").value(nullValue()))
-                .andExpect(jsonPath("$.items[1].lastEventAt").value(nullValue()))
-                .andExpect(jsonPath("$.items[1].lastEvent").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].eventCount").value(3))
                 .andExpect(jsonPath("$.items[0].card").doesNotExist());
         remove(other, 4102).andExpect(status().isOk());
-        list(mine).andExpect(jsonPath("$.items", hasSize(3)));
+        list(mine).andExpect(jsonPath("$.items", hasSize(2)));
         list(other).andExpect(jsonPath("$.items[*].id", contains(4103)));
     }
 
@@ -198,18 +209,16 @@ class InterestIssueApiIntegrationTest {
                     .andExpect(jsonPath("$.items[?(@.id == 4102)].interested", contains(own)));
         }
         mvc.perform(get("/api/v1/issues")).andExpect(jsonPath("$.items[*].interested", everyItem(is(false))));
-        mvc.perform(get("/api/v1/issues/6400").cookie(mine))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.eventCount").value(0))
-                .andExpect(jsonPath("$.lastEvent").doesNotExist());
     }
 
     @Test
     void missingAndMalformedIdsFollowTheContract() throws Exception {
         Cookie mine = join("interest64_errors");
-        add(mine, 999999)
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("ISSUE_NOT_FOUND"));
+        for (long id : new long[] {999999, 6400}) {
+            add(mine, id)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("ISSUE_NOT_FOUND"));
+        }
         for (String method : new String[] {"PUT", "DELETE"}) {
             mvc.perform(request(
                                     org.springframework.http.HttpMethod.valueOf(method),
@@ -260,6 +269,7 @@ class InterestIssueApiIntegrationTest {
         jdbc.sql(
                         "insert into issue(id,title,created_at,updated_at) select n,'이슈',now(),now() from generate_series(64100,64204) n")
                 .update();
+        addPublicArticle(64100, 64204);
         jdbc.sql(
                         "insert into interest_issue(member_id,issue_id,created_at) select :member,id,'2020-01-01T00:00:00Z' from issue where id between 64100 and 64204")
                 .param("member", memberId("interest64_many"))
@@ -287,6 +297,7 @@ class InterestIssueApiIntegrationTest {
                     .param("lo", 64500)
                     .param("hi", 64500 + size - 1)
                     .update();
+            addPublicArticle(64500, 64500 + size - 1);
             jdbc.sql(
                             "insert into interest_issue(member_id,issue_id,created_at) select :member,id,now() from issue where id between :lo and :hi")
                     .param("member", memberId("interest64_sql"))
