@@ -358,3 +358,146 @@ def test_mock_encoder_gives_valid_unit_vector_per_text():
 
     assert len(a) == DIMENSION
     assert a == checked_vector(enc.encode("가")) and a != b
+
+
+# --- 설정 · 띄우기 · 멈추기 -----------------------------------------------------------
+
+
+def settings(**env):
+    from app.config import load_settings
+
+    base = {"BACKEND_URL": "http://backend:8080", "INTERNAL_API_KEY": "k"}
+    return load_settings({**base, **env})
+
+
+def test_embed_is_off_unless_enabled():
+    from app.main import embed_plan
+
+    s = settings(LLM_MODE="gms")
+    assert s.embed_worker_enabled is False
+    enc, status = embed_plan(s)
+    assert enc is None and status.state == "OFF"
+
+
+def test_embed_settings_defaults_and_bad_thread_value():
+    s = settings(EMBED_TORCH_THREADS="0")
+    assert s.embed_model_path == "/models/BGE-m3-ko"
+    assert s.embed_torch_threads == 2
+    assert settings(EMBED_TORCH_THREADS="x").embed_torch_threads == 2
+    assert settings(EMBED_TORCH_THREADS="4").embed_torch_threads == 4
+
+
+def test_embed_plan_real_mode_uses_model_folder_and_threads():
+    from app.embed.model import SentenceEncoder
+    from app.main import embed_plan
+
+    s = settings(
+        LLM_MODE="gms",
+        EMBED_WORKER_ENABLED="true",
+        EMBED_MODEL_PATH="/m",
+        EMBED_TORCH_THREADS="3",
+    )
+    enc, status = embed_plan(s)
+    assert isinstance(enc, SentenceEncoder) and (enc.path, enc.threads) == ("/m", 3)
+    assert status.state == "RUNNING"
+
+
+def test_embed_plan_mock_needs_explicit_allow():
+    from app.embed.model import MockEncoder
+    from app.main import embed_plan
+
+    enc, status = embed_plan(settings(LLM_MODE="mock", EMBED_WORKER_ENABLED="true"))
+    assert enc is None and status.state == "OFF"
+    enc, status = embed_plan(
+        settings(LLM_MODE="mock", EMBED_WORKER_ENABLED="true", WORKER_ALLOW_MOCK="true")
+    )
+    assert isinstance(enc, MockEncoder) and status.state == "RUNNING"
+
+
+def test_embed_plan_blocks_without_backend():
+    from app.config import load_settings
+    from app.main import embed_plan
+
+    enc, status = embed_plan(
+        load_settings({"LLM_MODE": "gms", "EMBED_WORKER_ENABLED": "true"})
+    )
+    assert enc is None and status.state == "BLOCKED"
+
+
+async def test_model_load_failure_blocks_embed_only_and_never_reads_queue():
+    from app.main import run_embed
+
+    class Broken(FakeEncoder):
+        def load(self):
+            raise OSError("폴더 없음")
+
+    status = WorkerStatus("RUNNING")
+    b, _ = backend([])
+    reads = []
+
+    class NoReadRedis(FakeRedis):
+        async def xautoclaim(self, *a, **k):
+            reads.append(a)
+            return [b"0-0", [], []]
+
+    runner = EmbedRunner(Broken())
+    w = QueueWorker(NoReadRedis(), b, "w1", status, embed_stage(runner))
+
+    await asyncio.wait_for(run_embed(runner, w, asyncio.Event()), timeout=2)
+
+    assert status.state == "BLOCKED" and "OSError" in status.reason
+    assert reads == []
+
+
+async def test_unexpected_task_end_marks_blocked_but_not_on_stop():
+    from app.main import watch
+
+    async def boom():
+        raise RuntimeError("x")
+
+    async def fine():
+        return None
+
+    status = WorkerStatus("RUNNING")
+    stop = asyncio.Event()
+    t = asyncio.ensure_future(boom())
+    watch(t, status, stop)
+    with pytest.raises(RuntimeError):
+        await t
+    await asyncio.sleep(0)
+    assert status.state == "BLOCKED" and "RuntimeError" in status.reason
+
+    status2 = WorkerStatus("RUNNING")
+    stop.set()
+    t2 = asyncio.ensure_future(fine())
+    watch(t2, status2, stop)
+    await t2
+    await asyncio.sleep(0)
+    assert status2.state == "RUNNING"
+
+
+async def test_stop_all_waits_once_for_both_then_cancels():
+    from app.main import stop_all
+
+    stop = asyncio.Event()
+    ended = []
+
+    async def polite(name):
+        await stop.wait()
+        ended.append(name)
+
+    async def stuck():
+        await asyncio.sleep(60)
+
+    tasks = [
+        asyncio.ensure_future(polite("extract")),
+        asyncio.ensure_future(polite("embed")),
+        asyncio.ensure_future(stuck()),
+    ]
+    loop = asyncio.get_running_loop()
+    begin = loop.time()
+    await stop_all(tasks, stop, 0.2)
+
+    assert sorted(ended) == ["embed", "extract"]
+    assert tasks[2].cancelled()
+    assert loop.time() - begin < 1.0  # 예산 하나 — 워커마다 따로 기다리지 않는다
