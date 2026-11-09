@@ -11,6 +11,7 @@ import {
 import { type IssueSummary, issuesQuery } from "@/api/issues";
 import { timelineQuery } from "@/api/timeline";
 import { InterestButton } from "@/components/issue/InterestButton";
+import { ROW_RISE, rowAt } from "@/components/motion/appMotion";
 import { QueryState } from "@/components/state/QueryState";
 import { useUpcomingCategory } from "@/components/useSnackbar";
 import { formatTimelineDates } from "@/lib/date";
@@ -32,7 +33,7 @@ export function isSidebarEventPick(state: unknown) {
 const ISSUES_PER_CATEGORY = 50;
 
 const rowClass =
-  "t4-medium flex h-x8 w-full items-center gap-x1 rounded-r2 px-x2 text-left text-fg-neutral hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
+  "t4-medium flex h-x8 w-full items-center gap-x1 rounded-r2 px-x2 text-left text-fg-neutral transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
 
 export type IssueExplorerProps = {
   /** 펼친 분야 코드. 한 번에 한 분야만 연다 (프로토타입 v21) */
@@ -152,48 +153,61 @@ function CategoryIssues({ category }: { category: Category }) {
         message: "이 분야의 이슈가 아직 없어요",
       }}
     >
-      {(page) => (
-        <ul
-          aria-label={`${category.name} 이슈`}
-          className="flex flex-col pl-x5"
-        >
-          {groupByYear(page.items).map(([year, items]) => (
-            <li key={year} className="flex flex-col">
-              <h3 className="t2-bold px-x2 pt-x2 pb-x1 text-fg-neutral-muted">
-                {year}
-              </h3>
-              <ul>
-                {items.map((issue) => {
-                  const to = `/issues/${issue.id}`;
-                  const current = pathname === to;
-                  return (
-                    <li key={issue.id}>
-                      {/* 이슈 링크와 별은 나란한 두 버튼이다 — 링크 안에 버튼을 넣지 않는다. 별 자리만큼 링크 글자를 비운다 (v21). 위치 클래스(right-x…)는 SEED 테마에 없어 px 로 준다 */}
-                      <div className="group/row relative">
-                        <Link
-                          to={to}
-                          aria-current={current ? "page" : undefined}
-                          className="t3-regular block truncate rounded-r1 py-x1_5 pr-x8 pl-x2 text-fg-neutral-muted hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:t3-bold aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-neutral"
-                        >
-                          {issue.title}
-                        </Link>
-                        <InterestButton
-                          issueId={issue.id}
-                          interested={issue.interested}
-                          size="small"
-                          issueTitle={issue.title}
-                          className="absolute top-1/2 right-[2px] -translate-y-1/2"
-                        />
-                      </div>
-                      {current && <IssueEvents issue={issue} />}
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
+      {(page) => {
+        // 펼치면 이슈 행이 보이는 차례로 떠오른다 — 해 묶음을 건너 차례가 이어진다 (프로토타입 v21 ul > li, appMotion.ts)
+        const groups = groupByYear(page.items);
+        const order = new Map(
+          groups
+            .flatMap(([, items]) => items)
+            .map((issue, index) => [issue.id, index]),
+        );
+        return (
+          <ul
+            aria-label={`${category.name} 이슈`}
+            className="flex flex-col pl-x5"
+          >
+            {groups.map(([year, items]) => (
+              <li key={year} className="flex flex-col">
+                <h3 className="t2-bold px-x2 pt-x2 pb-x1 text-fg-neutral-muted">
+                  {year}
+                </h3>
+                <ul>
+                  {items.map((issue) => {
+                    const to = `/issues/${issue.id}`;
+                    const current = pathname === to;
+                    return (
+                      <li
+                        key={issue.id}
+                        className={ROW_RISE}
+                        style={rowAt(order.get(issue.id) ?? 0)}
+                      >
+                        {/* 이슈 링크와 별은 나란한 두 버튼이다 — 링크 안에 버튼을 넣지 않는다. 별 자리만큼 링크 글자를 비운다 (v21). 위치 클래스(right-x…)는 SEED 테마에 없어 px 로 준다 */}
+                        <div className="group/row relative">
+                          <Link
+                            to={to}
+                            aria-current={current ? "page" : undefined}
+                            className="t3-regular block truncate rounded-r1 py-x1_5 pr-x8 pl-x2 text-fg-neutral-muted transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring aria-[current=page]:t3-bold aria-[current=page]:bg-bg-brand-weak aria-[current=page]:text-fg-neutral"
+                          >
+                            {issue.title}
+                          </Link>
+                          <InterestButton
+                            issueId={issue.id}
+                            interested={issue.interested}
+                            size="small"
+                            issueTitle={issue.title}
+                            className="absolute top-1/2 right-[2px] -translate-y-1/2"
+                          />
+                        </div>
+                        {current && <IssueEvents issue={issue} />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        );
+      }}
     </QueryState>
   );
 }

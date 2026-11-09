@@ -33,7 +33,9 @@ public class IssueController {
         this.service = service;
     }
 
-    @Operation(summary = "[확정] A3 이슈 헤더", description = "이슈 화면 맨 위 헤더입니다. 사건이 0개인 이슈도 200 이고, 그때 수는 0 · 기간은 null 입니다.")
+    @Operation(
+            summary = "[확정] A3 이슈 헤더",
+            description = "이슈 화면 맨 위 헤더입니다. 공개 기사가 있는 사건만 셉니다. 공개 기사가 하나도 없는 이슈는 404 입니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -44,7 +46,7 @@ public class IssueController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "ISSUE_NOT_FOUND — 없는 이슈",
+            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 하나도 없는 이슈",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
@@ -58,7 +60,8 @@ public class IssueController {
 
     @Operation(
             summary = "[확정] A4 이슈 타임라인",
-            description = "이슈의 사건을 페이지 없이 한 번에, 발생 시점 오름차순(같으면 id 오름차순)으로 줍니다. 사건이 0개면 events 는 빈 목록입니다.")
+            description =
+                    "이슈의 사건을 페이지 없이 한 번에, 발생 시점 오름차순(같으면 id 오름차순)으로 줍니다. 공개 기사가 있는 사건만 나오고, 그런 사건이 하나도 없는 이슈는 404 입니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -69,7 +72,7 @@ public class IssueController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "ISSUE_NOT_FOUND — 없는 이슈",
+            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 하나도 없는 이슈",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
@@ -82,7 +85,8 @@ public class IssueController {
 
     @Operation(
             summary = "[확정] A2 이슈 목록",
-            description = "카테고리별 이슈 목록 · 홈 이슈 카드 · 검색창 아래 「새로 생성된 이슈」(sort=createdAt)에 씁니다.")
+            description =
+                    "카테고리별 이슈 목록 · 홈 이슈 카드 · 검색창 아래 「새로 생성된 이슈」(sort=createdAt)에 씁니다. 공개 기사가 있는 이슈만 나오고, 사건 수 · 기간 · 최근 사건도 공개 기사가 있는 사건으로 셉니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",

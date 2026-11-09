@@ -1,25 +1,18 @@
 import { IconChevronRightSmallLine } from "@karrotmarket/react-monochrome-icon";
 import { Skeleton } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
 import { Link } from "react-router";
 import { interestIssuesQuery } from "@/api/interestIssues";
+import { MyPageSection } from "@/components/mypage/MyPageSection";
 import { QueryState } from "@/components/state/QueryState";
 
 // 마이페이지 관심 이슈 — 별표로 저장한 이슈를 저장한 순서대로 (A25, 프로토타입 v21 MyPageScreen).
 // 「지난 방문 이후 새 사건 N」 배지는 데이터가 없어 그리지 않는다 (docs/api-screen.md A25)
 export function InterestIssues() {
-  const headingId = useId();
   const issues = useQuery(interestIssuesQuery);
 
   return (
-    <section aria-labelledby={headingId} className="py-x5">
-      <h2 id={headingId} className="t5-bold text-fg-neutral">
-        관심 이슈
-      </h2>
-      <p className="t3-regular mt-x1 mb-x3 text-fg-neutral-muted">
-        별표로 저장한 이슈예요.
-      </p>
+    <MyPageSection title="관심 이슈" description="별표로 저장한 이슈예요.">
       <QueryState
         query={issues}
         loadingLabel="관심 이슈 불러오는 중"
@@ -38,7 +31,12 @@ export function InterestIssues() {
         }}
       >
         {(items) => (
-          <ul aria-label="관심 이슈" className="-mx-x2 flex flex-col">
+          // 행 사이는 카드 안 구분선. 누를 때 바탕은 글자 바깥 8px 까지 번진다 — 글자는 제목 줄에 맞는다.
+          // SEED 테마는 음수 간격 클래스(-mx-x2)를 만들지 않아 px 로 쓴다
+          <ul
+            aria-label="관심 이슈"
+            className="-mx-[8px] flex flex-col divide-y divide-stroke-neutral-subtle"
+          >
             {items.map((issue) => (
               <li key={issue.id}>
                 <Link
@@ -67,6 +65,6 @@ export function InterestIssues() {
           </ul>
         )}
       </QueryState>
-    </section>
+    </MyPageSection>
   );
 }

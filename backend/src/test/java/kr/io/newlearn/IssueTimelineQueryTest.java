@@ -50,18 +50,13 @@ class IssueTimelineQueryTest {
     }
 
     @Test
-    void singleIssueSharesCardAggregateAndRetainsEmptyIssues() {
+    void singleIssueSharesCardAggregateAndLeavesOutIssuesWithoutPublicArticles() {
         var card = queries.findCards(null, "lastEventAt", PageRequest.of(0, 20)).stream()
                 .filter(c -> c.id() == 4102)
                 .findFirst()
                 .orElseThrow();
         assertThat(queries.findHeader(4102)).contains(card);
-        var empty = queries.findHeader(4800).orElseThrow();
-        assertThat(empty.eventCount()).isZero();
-        assertThat(empty.articleCount()).isZero();
-        assertThat(empty.publisherCount()).isZero();
-        assertThat(empty.firstEventAt()).isNull();
-        assertThat(empty.lastEventAt()).isNull();
+        assertThat(queries.findHeader(4800)).isEmpty();
         assertThat(queries.findHeader(999999)).isEmpty();
     }
 
@@ -71,23 +66,36 @@ class IssueTimelineQueryTest {
         assertThat(counts)
                 .containsExactlyInAnyOrder(
                         new IssueQueryRepository.EventCountRow(4121, 2, 1),
-                        new IssueQueryRepository.EventCountRow(4122, 0, 0),
-                        new IssueQueryRepository.EventCountRow(4123, 0, 0));
+                        new IssueQueryRepository.EventCountRow(4122, 1, 1),
+                        new IssueQueryRepository.EventCountRow(4123, 1, 1));
         clearInvocations(jdbc);
         assertThat(queries.findEventCounts(List.of())).isEmpty();
         verifyNoInteractions(jdbc);
     }
 
     @Test
-    void timelineUsesThreeQueriesForTwoAndNineEvents() {
+    void timelineUsesTwoQueriesForTwoAndNineEvents() {
         var statistics = emf.unwrap(SessionFactory.class).getStatistics();
         for (int size : new int[] {2, 9}) {
+            jdbc.sql("delete from article_event where event_id between 48001 and 48009")
+                    .update();
+            jdbc.sql("delete from article where id between 48001 and 48009").update();
             jdbc.sql("delete from event where issue_id=4800").update();
             for (int n = 1; n <= size; n++) {
                 jdbc.sql("""
                     insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
                     values (:id,4800,'사건','키워드','2026-10-20T00:00:00Z','EXTRACTED',now(),now(),'MAIN')
                     """).param("id", 48000 + n).update();
+                jdbc.sql("""
+                    insert into article(id,source,url,press_code,title,body,published_at,released_at,created_at)
+                    values (:id,'NEWSDATA',:url,'fixture41','기사','본문',now(),now(),now())
+                    """)
+                        .param("id", 48000 + n)
+                        .param("url", "https://fixture.invalid/48/" + n)
+                        .update();
+                jdbc.sql("insert into article_event values (:id,:id,now())")
+                        .param("id", 48000 + n)
+                        .update();
             }
             em.clear();
             statistics.clear();
@@ -95,7 +103,7 @@ class IssueTimelineQueryTest {
             var timeline = service.timeline(4800);
             assertThat(timeline.events()).hasSize(size);
             assertThat(timeline.events()).extracting(e -> e.id()).isSorted();
-            assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+            assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
             verify(jdbc, times(1)).sql(anyString());
         }
     }

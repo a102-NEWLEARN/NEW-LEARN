@@ -4,6 +4,7 @@ import { expect, test } from "vitest";
 import type { BookmarkItem } from "@/api/bookmarks";
 import type { ItemList } from "@/api/types";
 import { server } from "@/mocks/node";
+import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderRoute } from "@/test/render";
 
 // 나의 뉴스함 (docs/plans/2026-11-03-bookmarks.md). 가짜 회원은 407(10-27) · 11902(10-26) · 403(10-24) 순으로 담았다
@@ -101,4 +102,18 @@ test("목록을 받다가 세션이 끝났으면(401) 로그인 화면으로 보
 
   await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
   expect(router.state.location.search).toBe("?next=/bookmarks");
+});
+
+test("담은 기사 행이 30ms 간격으로 떠오르고, 마우스를 올리면 「마인드맵 보기」가 나타난다", async () => {
+  await openPage();
+
+  const list = await screen.findByRole("list", { name: "담은 기사" });
+  const rows = within(list).getAllByRole("listitem");
+  // 프로토타입 v21 ul > li — 380ms, 30ms 간격
+  expect(rows[0].getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_380ms_/,
+  );
+  expect(rows.map(enterDelay)).toEqual([0, 30, 60]);
+  expect(within(list).getAllByText("마인드맵 보기")).toHaveLength(3);
+  expectMotionSafe(list);
 });

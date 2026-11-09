@@ -52,6 +52,14 @@ class SearchApiIntegrationTest {
         // 공개 전 기사 — 모든 조회 · 검색에서 없는 기사다(AC-5, docs/api.md 1절)
         article(4302, "예산 공개 전 기사", false, "2026-10-23T00:00:00Z");
         article(4303, "다른 기사", true, "2026-10-24T00:00:00Z");
+        // 이슈 · 사건은 공개 기사가 있어야 나온다(Jira 179) — 다른 규칙을 보는 시험이 이 규칙 때문에 통과하지 않게 모두 공개 기사를 붙인다
+        event(4304, 4303L, "전혀 무관한 사건", "2026-10-24T00:00:00Z");
+        article(4304, "무관한 기사", true, "2026-10-25T00:00:00Z");
+        article(4305, "또 무관한 기사", true, "2026-10-25T00:00:00Z");
+        link(4301, 4301);
+        link(4305, 4302);
+        link(4303, 4303);
+        link(4304, 4304);
     }
 
     // AC-1 — 세 배열과 항목 칸. 사건은 옮겨 갈 이슈 번호를 같이 준다
@@ -166,8 +174,9 @@ class SearchApiIntegrationTest {
                     ? "2026-09-25T00:00:00Z"
                     : n <= 11 ? "2026-09-%02dT00:00:00Z".formatted(n) : "2026-09-20T00:00:00Z";
             issue(4400 + n, "한도 이슈 " + n, null, at, "2026-10-%02dT00:00:00Z".formatted(n));
-            event(4400 + n, 4301L, "한도 사건 " + n, at);
+            event(4400 + n, 4400L + n, "한도 사건 " + n, at);
             article(4400 + n, "한도 기사 " + n, true, at);
+            link(4400 + n, 4400 + n);
         }
         // 가장 늦은 4401, 같은 9월 20일인 4421 ~ 4412, 9월 11일부터 거꾸로 4411 ~ 4403. 가장 이른 4402 가 빠져 20개다
         Integer[] latestFirst = {
@@ -231,6 +240,13 @@ class SearchApiIntegrationTest {
                 .param("issue", issueId)
                 .param("title", title)
                 .param("at", occurredAt)
+                .update();
+    }
+
+    private void link(long articleId, long eventId) {
+        jdbc.sql("insert into article_event values (:article,:event,now())")
+                .param("article", articleId)
+                .param("event", eventId)
                 .update();
     }
 

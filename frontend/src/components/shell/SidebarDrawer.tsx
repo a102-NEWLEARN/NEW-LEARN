@@ -48,10 +48,11 @@ export function SidebarDrawer({
               <Logo height={22} />
             </Link>
           </SidePanel.Header>
-          {/* SEED 는 닫기 버튼을 머리 오른쪽 위(28px)에 띄운다 — 52px 줄 가운데로 내린다 */}
+          {/* SEED 는 닫기 버튼을 머리 오른쪽 위(위 28px · 오른쪽 24px)에 띄운다 — 52px 줄 가운데로 내리고 머리 오른쪽 여백(12px)에 맞춘다.
+              위치는 px 로 준다 — SEED 테마에는 right-x3 같은 위치 클래스가 없다 */}
           <SidePanel.CloseButton
             aria-label="메뉴 닫기"
-            className="top-[26px] right-x3 m-0 size-x10 -translate-y-1/2 p-0"
+            className="top-[26px] right-[12px] m-0 size-x10 -translate-y-1/2 p-0"
           >
             <IconXmarkLine aria-hidden />
           </SidePanel.CloseButton>
