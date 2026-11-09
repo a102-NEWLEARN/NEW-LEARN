@@ -31,6 +31,8 @@ settings = load_settings()
 SHUTDOWN_WAIT_S = 15.0
 # 모델 읽기 실패로 볼 오류 — 폴더 없음(OSError) · 패키지 없음(ImportError) · 형식 · 메모리 · torch(RuntimeError)
 LOAD_ERRORS = (OSError, ImportError, RuntimeError, ValueError, TypeError, MemoryError)
+# 모델 읽기 상한. 2GB 남짓을 디스크에서 읽어 보통 수십 초 — 넘으면 EMBED 만 멈춘다(준비 중 멈춤을 헬스로 알리려는 것)
+PREPARE_LIMIT_S = 300.0
 
 
 def worker_plan(s: Settings) -> tuple[ChatClient | None, str, WorkerStatus]:
@@ -79,9 +81,15 @@ def embed_plan(s: Settings) -> tuple[Encoder | None, WorkerStatus]:
 async def run_embed(
     runner: EmbedRunner, worker: QueueWorker, stop: asyncio.Event
 ) -> None:
-    """모델을 먼저 읽고 큐를 읽는다. 읽기 실패는 EMBED 만 멈춘다(고친 뒤 Pod 재시작). EXTRACT 는 계속 돈다."""
+    """모델을 먼저 읽고 큐를 읽는다. 읽기 실패 · 상한 초과는 EMBED 만 멈춘다(고친 뒤 Pod 재시작). EXTRACT 는 계속 돈다."""
+    worker.status.state = "STARTING"
     try:
-        await runner.prepare()
+        await asyncio.wait_for(runner.prepare(), PREPARE_LIMIT_S)
+    except TimeoutError:
+        worker.status.block(
+            f"임베딩 모델 읽기가 {PREPARE_LIMIT_S:.0f}초 안에 끝나지 않음"
+        )
+        return
     except LOAD_ERRORS as e:
         worker.status.block(f"임베딩 모델을 읽지 못함({type(e).__name__}: {e})"[:300])
         return
@@ -92,7 +100,7 @@ def watch(task: asyncio.Task, status: WorkerStatus, stop: asyncio.Event) -> None
     """작업이 종료 신호 없이 끝나면(예상 밖 예외 포함) 상태를 BLOCKED 로 — /health 가 503 으로 알린다."""
 
     def done(t: asyncio.Task) -> None:
-        if stop.is_set() or status.state != "RUNNING":
+        if stop.is_set() or status.state not in ("RUNNING", "STARTING"):
             return
         err = None if t.cancelled() else t.exception()
         status.block(
@@ -105,16 +113,18 @@ def watch(task: asyncio.Task, status: WorkerStatus, stop: asyncio.Event) -> None
 async def stop_all(
     tasks: list[asyncio.Task], stop: asyncio.Event, budget: float
 ) -> None:
-    """모두에 먼저 종료 신호를 보내고 예산 하나로 함께 기다린다. 넘으면 남은 것을 취소한다."""
+    """모두에 먼저 종료 신호를 보내고 예산 하나로 함께 기다린다. 넘으면 남은 것을 취소하고, 취소 정리도 같은 예산 안에서만
+    기다린다(최소 0.5초). 스레드 안 인코딩 계산은 취소로 멈추지 않는다 — 그건 k8s 의 강제 종료(grace 30초)가 끝낸다."""
     stop.set()
     if not tasks:
         return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + budget
     _, pending = await asyncio.wait(tasks, timeout=budget)
     for t in pending:
         t.cancel()
-    for t in pending:
-        with contextlib.suppress(asyncio.CancelledError):
-            await t
+    if pending:
+        await asyncio.wait(pending, timeout=max(deadline - loop.time(), 0.5))
 
 
 def queue_client() -> Redis:
@@ -163,15 +173,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         tasks.append(task)
     elif embed_status.state == "BLOCKED":
         log.error("EMBED 워커를 띄우지 않는다: %s", embed_status.reason)
-    yield
-    await stop_all(tasks, stop, SHUTDOWN_WAIT_S)
-    if runner is not None:
-        runner.close()
-    for close in closers:
-        await close()
-    if http is not None:
-        await http.aclose()
-    await app.state.redis.aclose()
+    try:
+        yield
+    finally:
+        # 한 단계가 실패해도 뒤 정리는 한다
+        with contextlib.suppress(Exception):
+            await stop_all(tasks, stop, SHUTDOWN_WAIT_S)
+        if runner is not None:
+            runner.close()
+        for close in [*closers, *([http.aclose] if http is not None else [])]:
+            with contextlib.suppress(Exception):
+                await close()
+        await app.state.redis.aclose()
 
 
 app = FastAPI(title="NEW:LEARN AI 분석 워커", lifespan=lifespan)

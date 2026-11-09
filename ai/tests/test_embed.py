@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import contextlib
 import json
 import math
 import threading
@@ -309,44 +310,104 @@ async def test_w1_unreachable_leaves_message_for_reclaim():
 # --- 시간 초과 · 남은 계산 ------------------------------------------------------------
 
 
-async def test_timeout_fails_internal_and_blocks_next_while_compute_runs(monkeypatch):
+async def test_timeout_fails_internal_then_blocks_at_once_while_compute_runs(
+    monkeypatch,
+):
     monkeypatch.setattr(worker_module, "JOB_LIMIT_S", worker_module.W1_RESERVE_S + 0.05)
     enc = SlowEncoder()
     w, redis, status, seen = make_worker(enc, [204, 204])
+    try:
+        await asyncio.wait_for(w.handle("1-0", fields(PAYLOAD)), timeout=2)
 
+        env = sent(seen)
+        assert (env["status"], env["error"]["code"]) == ("FAILED", "INTERNAL")
+        assert redis.acked == ["1-0"]
+        # 다음 메시지가 오기 전에 바로 멈춘다 — /health 가 곧 알린다
+        assert status.state == "BLOCKED" and "계산이 남음" in status.reason
+
+        # 그래도 다음 메시지가 들어오면 새로 인코딩하지 않고 ack 하지 않는다
+        await asyncio.wait_for(w.handle("2-0", fields(PAYLOAD)), timeout=2)
+        assert len(enc.texts) == 1
+        assert redis.acked == ["1-0"]
+    finally:
+        enc.release.set()
+
+
+async def test_timeout_after_compute_finished_does_not_block(monkeypatch):
+    # 계산은 끝났는데 W1 몫 계산으로 시간 초과가 난 경우 — 남은 계산이 없으니 멈추지 않는다
+    monkeypatch.setattr(worker_module, "JOB_LIMIT_S", worker_module.W1_RESERVE_S + 0.05)
+    enc = SlowEncoder()
+    w, _, status, _ = make_worker(enc, [204])
+    enc.release.set()
+
+    async def late(payload, deadline):
+        await asyncio.sleep(1)
+
+    w.stage = w.stage.__class__(**{**w.stage.__dict__, "process": late})
     await asyncio.wait_for(w.handle("1-0", fields(PAYLOAD)), timeout=2)
 
-    env = sent(seen)
-    assert (env["status"], env["error"]["code"]) == ("FAILED", "INTERNAL")
-    assert redis.acked == ["1-0"]
-
-    # 앞 계산이 아직 돈다 — 새로 인코딩하지 않고 EMBED 만 멈춘다(ack 하지 않음)
-    await asyncio.wait_for(w.handle("2-0", fields(PAYLOAD)), timeout=2)
-    assert len(enc.texts) == 1
-    assert redis.acked == ["1-0"]
-    assert status.state == "BLOCKED"
-    enc.release.set()
+    assert status.state == "RUNNING"
 
 
 async def test_encodes_one_at_a_time():
     enc = SlowEncoder()
     runner = EmbedRunner(enc)
-    first = asyncio.ensure_future(runner.embed("a"))
-    await asyncio.sleep(0.05)
-    with pytest.raises(Exception, match="아직"):
-        await runner.embed("b")
-    enc.release.set()
-    assert len(await first) == 1024
-    assert enc.texts == ["a"]
+    try:
+        first = asyncio.ensure_future(runner.embed("a"))
+        await asyncio.sleep(0.05)
+        with pytest.raises(Exception, match="아직"):
+            await runner.embed("b")
+        enc.release.set()
+        assert len(await first) == 1024
+        assert enc.texts == ["a"]
+    finally:
+        enc.release.set()
+        runner.close()
 
 
 async def test_prepare_loads_model_once_off_the_event_loop():
-    enc = FakeEncoder()
+    loop_thread = threading.get_ident()
+    seen = []
+
+    class Recording(FakeEncoder):
+        def load(self):
+            super().load()
+            seen.append(threading.get_ident())
+
+    enc = Recording()
     runner = EmbedRunner(enc)
 
     await runner.prepare()
 
     assert enc.loaded == 1
+    assert seen and seen[0] != loop_thread
+    runner.close()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [KeyError("본문-비밀"), IndexError("본문-비밀"), AttributeError("본문-비밀")],
+    ids=["key", "index", "attr"],
+)
+async def test_unexpected_encoder_error_still_fails_internal_without_its_text(error):
+    w, redis, status, seen = make_worker(FakeEncoder(error=error), [204])
+
+    await w.handle("1-0", fields(PAYLOAD))
+
+    env = sent(seen)
+    assert (env["status"], env["error"]["code"]) == ("FAILED", "INTERNAL")
+    assert type(error).__name__ in env["error"]["message"]
+    assert "본문-비밀" not in env["error"]["message"]
+    assert redis.acked == ["1-0"]
+    assert status.state == "RUNNING"
+
+
+async def test_huge_int_in_vector_fails_internal():
+    w, _, _, seen = make_worker(FakeEncoder(vector=[10**400] + [0] * 1023), [204])
+
+    await w.handle("1-0", fields(PAYLOAD))
+
+    assert sent(seen)["error"]["code"] == "INTERNAL"
 
 
 def test_mock_encoder_gives_valid_unit_vector_per_text():
@@ -476,7 +537,7 @@ async def test_unexpected_task_end_marks_blocked_but_not_on_stop():
     assert status2.state == "RUNNING"
 
 
-async def test_stop_all_waits_once_for_both_then_cancels():
+async def test_stop_all_signals_everyone_and_shares_one_budget():
     from app.main import stop_all
 
     stop = asyncio.Event()
@@ -486,18 +547,88 @@ async def test_stop_all_waits_once_for_both_then_cancels():
         await stop.wait()
         ended.append(name)
 
-    async def stuck():
-        await asyncio.sleep(60)
+    async def deaf():
+        await asyncio.sleep(60)  # 종료 신호를 듣지 않는다
+
+    async def stubborn():
+        # 취소도 한동안 버틴다 — 정리 대기도 예산 안에서 끝나야 한다
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            await asyncio.sleep(5)
 
     tasks = [
         asyncio.ensure_future(polite("extract")),
         asyncio.ensure_future(polite("embed")),
-        asyncio.ensure_future(stuck()),
+        asyncio.ensure_future(deaf()),
+        asyncio.ensure_future(deaf()),
+        asyncio.ensure_future(stubborn()),
     ]
     loop = asyncio.get_running_loop()
     begin = loop.time()
     await stop_all(tasks, stop, 0.2)
+    took = loop.time() - begin
 
     assert sorted(ended) == ["embed", "extract"]
-    assert tasks[2].cancelled()
-    assert loop.time() - begin < 1.0  # 예산 하나 — 워커마다 따로 기다리지 않는다
+    assert tasks[2].cancelled() and tasks[3].cancelled()
+    # 예산 0.2초 하나 + 취소 정리 최소 0.5초. 작업마다 따로 기다리면 0.2 × 3 + 버팀 5초가 넘는다
+    assert took < 1.0
+    for t in tasks:
+        t.cancel()
+
+
+async def test_model_load_that_never_ends_blocks_embed(monkeypatch):
+    from app import main as main_module
+    from app.main import run_embed
+
+    monkeypatch.setattr(main_module, "PREPARE_LIMIT_S", 0.1)
+    gate = threading.Event()
+
+    class Hanging(FakeEncoder):
+        def load(self):
+            gate.wait(5)
+
+    status = WorkerStatus("RUNNING")
+    b, _ = backend([])
+    reads = []
+
+    class NoReadRedis(FakeRedis):
+        async def xautoclaim(self, *a, **k):
+            reads.append(a)
+            return [b"0-0", [], []]
+
+    runner = EmbedRunner(Hanging())
+    w = QueueWorker(NoReadRedis(), b, "w1", status, embed_stage(runner))
+    try:
+        await asyncio.wait_for(run_embed(runner, w, asyncio.Event()), timeout=2)
+
+        assert status.state == "BLOCKED" and "끝나지 않음" in status.reason
+        assert reads == []
+    finally:
+        gate.set()
+        runner.close()
+
+
+async def test_embed_is_starting_while_model_loads():
+    from app.main import run_embed
+
+    gate = threading.Event()
+
+    class Slow(FakeEncoder):
+        def load(self):
+            gate.wait(5)
+
+    status = WorkerStatus("RUNNING")
+    b, _ = backend([])
+    runner = EmbedRunner(Slow())
+    w = QueueWorker(FakeRedis(), b, "w1", status, embed_stage(runner))
+    task = asyncio.ensure_future(run_embed(runner, w, asyncio.Event()))
+    try:
+        await asyncio.sleep(0.05)
+        assert status.state == "STARTING"
+    finally:
+        gate.set()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
+        runner.close()

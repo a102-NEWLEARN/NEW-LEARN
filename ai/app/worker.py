@@ -78,6 +78,8 @@ class Stage:
     timeout_message: str
     # (job, attempt, 봉투, 진단, 걸린 초, W1 응답) → 로그 한 줄
     describe: Callable[[int, int, Envelope, Diag, float, Any], str]
+    # 시간 초과 뒤 남은 계산이 있어 이 단계를 멈춰야 하면 그 까닭(없으면 None). 실패 W1 · ack 는 그대로 한 뒤 멈춘다
+    stuck: Callable[[], str | None] | None = None
 
 
 class QueueWorker:
@@ -142,7 +144,7 @@ class QueueWorker:
             return
         except TimeoutError:
             envelope = st.fail(payload, started, st.timeout_code, st.timeout_message)
-            diag = {}
+            diag = {"timed_out": True}
         outcome, w1 = await self.backend.send_result(job_id, envelope)
         # ack 를 진단 로그보다 먼저 한다 — 로그가 깨져 ack 를 놓치면 재회수 때 GMS 를 또 부른다
         if outcome is W1Outcome.ACK:
@@ -155,6 +157,11 @@ class QueueWorker:
                 st.name,
                 job_id,
             )
+        if diag.get("timed_out") and st.stuck is not None:
+            reason = st.stuck()
+            if reason:
+                # 다음 메시지를 읽기 전에 멈춘다 — 다음 메시지가 없어도 /health 가 바로 알린다
+                self.status.block(reason)
         try:
             log.info(
                 st.describe(job_id, attempt, envelope, diag, self.clock() - begin, w1)

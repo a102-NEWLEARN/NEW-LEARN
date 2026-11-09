@@ -11,6 +11,7 @@
 
 import asyncio
 import concurrent.futures
+import logging
 import math
 from collections.abc import Sequence
 from typing import Any, Protocol
@@ -27,8 +28,8 @@ LEAD_CHARS = 800
 # float4(article_embedding.embedding) 가 받는 가장 큰 수(api-internal.md 5절 EMBED)
 FLOAT4_MAX = 3.4028234663852886e38
 NORM_TOLERANCE = 1e-3
-# 실패 봉투로 끝낼 인코더 오류 — torch 오류는 RuntimeError 계열이다. StageBlocked 는 여기 들지 않아 위로 간다
-ENCODE_ERRORS = (RuntimeError, ValueError, TypeError, OSError, MemoryError)
+
+log = logging.getLogger(__name__)
 
 
 class Encoder(Protocol):
@@ -75,13 +76,17 @@ class EmbedRunner:
         self.pending: concurrent.futures.Future | None = None
 
     async def _submit(self, fn, *args):
-        if self.pending is not None and not self.pending.done():
+        if self.busy():
             raise StageBlocked(
                 "앞 인코딩이 아직 돈다 — 처리 시간 상한을 넘긴 계산. Pod 재시작으로 복구"
             )
         self.pending = self.pool.submit(fn, *args)
         # shield — 시간 초과로 기다림을 취소해도 진행 중인 계산 Future 는 건드리지 않고 남겨 둔다(위 검사가 본다)
         return await asyncio.shield(asyncio.wrap_future(self.pending))
+
+    def busy(self) -> bool:
+        """앞 계산(시간 초과로 기다림만 끊긴 것 포함)이 아직 도는가."""
+        return self.pending is not None and not self.pending.done()
 
     async def prepare(self) -> None:
         """큐를 읽기 전에 모델을 한 번 읽는다. 실패하면 예외 그대로 — 부르는 쪽이 EMBED 를 BLOCKED 로 둔다."""
@@ -123,12 +128,15 @@ def embed_stage(runner: EmbedRunner) -> Stage:
         diag: Diag = {"chars": len(text)}
         try:
             vector = await runner.embed(text)
-        except ENCODE_ERRORS as e:
-            # 인코더 · 벡터 검사 실패 — API 가 1분 뒤 한 번 더 건다(api.md 2절 INTERNAL)
+        except StageBlocked:
+            raise
+        except Exception as e:
+            # 인코더 · 벡터 검사의 어떤 실패든 실패 봉투로 끝낸다 — 봉투 없이 빠지면 ack 하지 않아 같은 작업이 돈다.
+            # API 가 1분 뒤 한 번 더 건다(api.md 2절 INTERNAL). 예외 글에는 입력이 섞일 수 있어 타입만 보낸다
+            log.exception("EMBED 인코딩 실패")
             diag["error"] = type(e).__name__
-            return _envelope(
-                payload, started, None, "INTERNAL", f"임베딩 실패: {e}"[:200]
-            ), diag
+            message = f"임베딩 실패({type(e).__name__})"
+            return _envelope(payload, started, None, "INTERNAL", message), diag
         result = {"model": MODEL_NAME, "dimension": DIMENSION, "vector": vector}
         return _envelope(payload, started, result, None, ""), diag
 
@@ -154,4 +162,9 @@ def embed_stage(runner: EmbedRunner) -> Stage:
         timeout_code="INTERNAL",
         timeout_message="처리 시간 상한(15분) 안에 임베딩을 끝내지 못함",
         describe=describe,
+        stuck=lambda: (
+            "시간 초과 뒤에도 인코딩 계산이 남음 — Pod 재시작으로 복구"
+            if runner.busy()
+            else None
+        ),
     )
