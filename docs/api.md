@@ -157,6 +157,7 @@ v0 에 있던 `EVIDENCE_NOT_IN_BODY` 는 지웠다. 근거가 선택 칸이 되�
 | `LLM_INPUT_TOO_LONG` | 기사가 모델이 받을 수 있는 입력 길이를 넘었다 | 아니오 — 워커가 자르는 법을 고쳐야 한다 | 「분석하지 못했어요」 |
 | `LLM_REFUSED` | 모델이 답을 거절했거나 내용 필터에 걸렸다 | 아니오 | 「분석하지 못했어요」 |
 | `INPUT_NOT_ANALYZABLE` | 본문에 분석할 문장이 없다(저작권 · 안내 문구뿐, 너무 짧음). 워커가 GMS 를 부르기 전에 거른다(`api-internal.md` 5절) | 아니오 | A8 `mindmapStatus` 가 `NOT_ANALYZABLE` — 문구는 FE 와 정한다 |
+| `EVENT_CLUSTER_TOO_SMALL` | 기반 분석에서 기사 5건 미만 묶음이라 사건을 만들지 않았다. MATCH_EVENT 에만, AI 결과 덤프로만 들어온다 — 워커는 보내지 않는다(`infra/server/data-load.md` 3절) | 아니오 | A8 `eventMatchStatus` 가 `FAILED` — 사건 · 이슈 쪽에 아무것도 두지 않는다 |
 | `RESULT_SCHEMA_INVALID` | 워커가 보낸 결과가 약속한 모양이 아니라 API 가 저장을 거절했다(W1 400 — 범위 밖 `primaryCoreIndex` 등). 워커가 아니라 API 가 적는다 | 예, 바로 한 번만(`api-internal.md` 5절) | 「분석하지 못했어요」 |
 | `JOB_STATE_CONFLICT` | `ISSUE` 결과를 저장하려는데 그사이 사건이 다른 이슈에 들어갔거나 고른 이슈가 없어졌다(W1 409). 워커가 아니라 API 가 적는다(2026-10-29 Jira 40) | 예, 바로 — 후보를 새로 계산해 시도 3까지(`api-internal.md` 5절) | 없음 — ISSUE 상태는 화면에 보이지 않는다 |
 | `INTERNAL` | 그 밖의 워커 · 서버 오류. API 가 결과를 저장하다 예상 밖 오류가 나도 API 가 이 코드로 적는다(W1 은 500) | 한 번만 더 — 1분 뒤 | 일반 오류 안내 |
