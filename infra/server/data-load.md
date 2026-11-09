@@ -91,7 +91,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 |---|---|---|
 | `article.url` | 운영 기사면 **운영 URL 과 글자까지 같다**(2절 목록 그대로, 정규화하지 않음) — 맞추는 열쇠다 | 같은 기사가 둘이 된다(새 기사로 들어감) |
 | `article.published_at` | NewsData `pubDate`(시간대 없음, `pubDateTZ` UTC)를 **UTC 로 읽은 시각**. `2026-11-03 01:02:03` 이면 `2026-11-03 01:02:03+00` = KST 10:02:03. 2절 목록(`publishedAt` 이 `Z`)과 10/21 ~ 11/3 JSONL 을 그대로 B2 로 넣었으면 저절로 맞다 — SQLite `published` 는 KST 라 변환이 값은 그대로 두고 `+09:00` 을 붙였다(`infra/server/sqlite_to_b2.py`) | 운영 기사와 다르면 적재가 멈춘다(10/21 ~ 11/3 최종 기사도 운영 기사다). 운영에 없는 기사는 견줄 짝이 없어 검사가 못 잡고, 9시간 어긋나면 A7 최신 기사 정렬 · 발생 시점이 틀린다 |
-| `article.released_at` | 화면에 보일 기사는 차 있다(EXTRACT 결과를 처음 저장한 때). **찬 기사는 `article_mindmap` 행과 EXTRACT `SUCCEEDED` 행이 꼭 있다**. 사건에 묶인 기사도 차 있어야 이슈 · 사건의 기사 수에 들어간다 | 비면 화면 어디에도 없다. 찼는데 마인드맵이 없으면 목록에는 나오고 A9 마인드맵은 404 다 |
+| `article.released_at` | 화면에 보일 기사는 차 있다(EXTRACT 결과를 처음 저장한 때). **찬 기사는 `article_mindmap` 행과 EXTRACT `SUCCEEDED` 행이 꼭 있다**. 사건에 묶인 기사도 차 있어야 한다 — 사건의 기사가 모두 비면 그 사건이, 이슈의 사건이 모두 그러면 그 이슈가 화면에서 통째로 빠진다(`docs/api.md` 1절) | 비면 화면 어디에도 없다. 찼는데 마인드맵이 없으면 목록에는 나오고 A9 마인드맵은 404 다 |
 | `article.category_code` | 공개 기사는 채운다 — 운영 값을 덮는다. B2 가 고른 값(제목 규칙 포함)을 그대로 두면 운영과 같다. 비우면 운영 값을 그대로 둔다. 라벨이 있는 기사는 적재 안에서 라벨로 다시 덮인다(`category-labels.md` 4절) | 둘 다 비면 카테고리 탭 · 이슈 분야에 안 나온다 |
 | 운영에 없는 기사 | **로컬 B1 을 건 기사(작업 행이 있는 기사)만** 넣는다 — B2 로만 넣고 분석하지 않은 기사(SQLite 의 `extra` · 뺀 기사 등)는 운영 화면에 안 보이는 행으로만 남으니, 처음부터 넣지 않거나 덤프 전에 지운다(2026-11-04). 작업 행이 없는 기사에는 마인드맵 · 임베딩 · 기사-사건 행도 없다(SQL 로 넣었어도). 칸은 모두 운영 규칙대로 — `source` `NEWSDATA`, `press_code`, 제목 · 본문 · 발행 시각. 적재가 새 운영 번호로 넣는다 | 작업 행이 없는 기사는 적재가 넣지 않고 건너뛴 수만 알린다(덤프만 커진다). 그 기사에 딸린 행이 있으면 적재가 멈춘다 |
 | `press.code` | NewsData `source_id`(예: `newsis` · `news1_kr`). `press_mapping` 의 NEWSDATA 행은 `source_value` = `source_id`, `press_code` = 그 코드 | 같은 언론사가 둘로 세어진다 |
@@ -137,8 +137,8 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 
 - 행 수 = 적재 전(시험 기사 1 ~ 3 을 지운 뒤) + 덤프(새로 넣은 기사 · 결과 — 건너뛴 기사는 빼고), 세 시퀀스(사건 · 이슈 · 작업) ≥ 최댓값
 - 3분 동안 `analysis_job` 새 행 0, 스트림 셋(`analysis.released` · `analysis.match_event` · `analysis.issue`) 길이 그대로
-- 사이트에서 A2 이슈 목록 · A3 이슈 헤더 · A4 이슈 타임라인 · A5 사건 패널 · A6 사건 관련 기사 · A7 최신 기사 · A8 기사 상세 · A9 기사 마인드맵 · A13 통합 검색이 200, 사건에 묶인 기사의 A8 `eventMatchStatus` 가 `SUCCEEDED`. 표본은 라벨로 숨기지 않은 기사로 고른다 — 숨긴 기사의 A8 은 404 다
-- 라벨 없는 공개 기사를 한 번 돌린다(`category-labels.md` 3절). 기사가 모두 숨겨진 사건 수는 `category-labels-apply.sql` 출력에서 본다 — Jira 179 전이면 화면에 그대로 보인다
+- 사이트에서 A2 이슈 목록 · A3 이슈 헤더 · A4 이슈 타임라인 · A5 사건 패널 · A6 사건 관련 기사 · A7 최신 기사 · A8 기사 상세 · A9 기사 마인드맵 · A13 통합 검색이 200, 사건에 묶인 기사의 A8 `eventMatchStatus` 가 `SUCCEEDED`. 표본은 라벨로 숨기지 않은 기사와, 공개 기사가 있는 이슈 · 사건으로 고른다 — 숨긴 기사의 A8, 기사가 모두 숨겨진 이슈 · 사건의 A3 · A4 · A5 · A6 은 404 다
+- 라벨 없는 공개 기사를 한 번 돌린다(`category-labels.md` 3절). 기사가 모두 숨겨진 사건 수는 `category-labels-apply.sql` 출력에서 본다 — 그 사건과, 사건이 모두 그런 이슈는 화면에서 빠진다(`docs/api.md` 1절)
 - 적재 동안 사이트 health 실패 0
 
 ## 6. 적재 절차 (인프라)

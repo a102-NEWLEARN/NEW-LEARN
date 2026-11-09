@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(SecurityConfig.class)
 class IssueControllerTest {
     @Test
-    void headerAndEmptyTimelineFollowJsonContract() throws Exception {
+    void nullFieldsAndEmptyEventsFollowJsonContract() throws Exception {
         when(service.get(48, null))
                 .thenReturn(new IssueHeaderResponse(48, "빈 이슈", null, List.of(), 0, 0, 0, null, null, null, false));
         when(service.timeline(48)).thenReturn(new TimelineResponse(48, List.of()));

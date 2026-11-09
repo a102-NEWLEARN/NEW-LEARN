@@ -45,7 +45,7 @@ class IssueTimelineApiIntegrationTest {
                 .andExpect(jsonPath("$.categories[0].code").value("politics"))
                 .andExpect(jsonPath("$.categories[1].code").value("economy"))
                 .andExpect(jsonPath("$.eventCount").value(3))
-                .andExpect(jsonPath("$.articleCount").value(2))
+                .andExpect(jsonPath("$.articleCount").value(4))
                 .andExpect(jsonPath("$.publisherCount").value(1))
                 .andExpect(jsonPath("$.firstEventAt").value("2026-10-20T09:00:00+09:00"))
                 .andExpect(jsonPath("$.lastEventAt").value("2026-10-22T09:00:00+09:00"))
@@ -54,7 +54,7 @@ class IssueTimelineApiIntegrationTest {
     }
 
     @Test
-    void timelineKeepsZeroArticleEventsAndSortsByOccurrenceThenId() throws Exception {
+    void timelineCountsOnlyPublicArticlesAndSortsByOccurrenceThenId() throws Exception {
         mvc.perform(get("/api/v1/issues/4102/timeline"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.issueId").value(4102))
@@ -68,9 +68,9 @@ class IssueTimelineApiIntegrationTest {
                 .andExpect(jsonPath("$.events[1].occurredAtBasis").value("FIRST_PUBLISHED"))
                 .andExpect(jsonPath("$.events[0].articleCount").value(2))
                 .andExpect(jsonPath("$.events[0].publisherCount").value(1))
-                .andExpect(jsonPath("$.events[1].articleCount").value(0))
-                .andExpect(jsonPath("$.events[2].articleCount").value(0))
-                .andExpect(jsonPath("$.events[2].publisherCount").value(0))
+                .andExpect(jsonPath("$.events[1].articleCount").value(1))
+                .andExpect(jsonPath("$.events[2].articleCount").value(1))
+                .andExpect(jsonPath("$.events[2].publisherCount").value(1))
                 .andExpect(jsonPath("$.events[0].lane").value("MAIN"))
                 .andExpect(jsonPath("$.relations").doesNotExist())
                 .andExpect(jsonPath("$.events[0].relations").doesNotExist())
@@ -124,23 +124,14 @@ class IssueTimelineApiIntegrationTest {
                 .update();
     }
 
+    // 공개 기사가 없는 이슈는 없는 이슈다(docs/api.md 1절, Jira 179). 사건이 하나도 없는 이슈도 같다
     @Test
-    void existingEmptyIssueReturnsZeroHeaderAndEmptyTimeline() throws Exception {
-        mvc.perform(get("/api/v1/issues/4800"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.eventCount").value(0))
-                .andExpect(jsonPath("$.articleCount").value(0))
-                .andExpect(jsonPath("$.publisherCount").value(0))
-                .andExpect(jsonPath("$.categories", hasSize(0)))
-                .andExpect(jsonPath("$.firstEventAt").hasJsonPath())
-                .andExpect(jsonPath("$.firstEventAt").isEmpty())
-                .andExpect(jsonPath("$.lastEventAt").hasJsonPath())
-                .andExpect(jsonPath("$.lastEventAt").isEmpty())
-                .andExpect(jsonPath("$.lastEvent").doesNotExist());
-        mvc.perform(get("/api/v1/issues/4800/timeline"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.issueId").value(4800))
-                .andExpect(jsonPath("$.events", hasSize(0)));
+    void issueWithoutEventsIsNotFound() throws Exception {
+        for (String path : new String[] {"/api/v1/issues/4800", "/api/v1/issues/4800/timeline"}) {
+            mvc.perform(get(path))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("ISSUE_NOT_FOUND"));
+        }
     }
 
     @Test
