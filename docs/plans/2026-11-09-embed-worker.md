@@ -32,7 +32,7 @@
 
 - [x] 1. 틀 나누기 — `QueueWorker` + EXTRACT 옮기기. 기존 `pytest` 무수정 통과 + EXTRACT 봉투 회귀 테스트
 - [x] 2. EMBED 처리 — `test_embed.py` 먼저(실패 확인) → `app/embed/` 구현 → 통과
-- [ ] 3. 띄우기 · 헬스 · 설정(코드 · 테스트 끝, 로컬 compose mock 확인 남음) — `main.py` · `config.py` · `compose.yaml` · `ai.yaml`(꺼짐 한 줄). `test_health.py` 통과, 로컬 compose mock 으로 B1 → EXTRACT · EMBED `SUCCEEDED` → MATCH_EVENT 작업 생성(판정 워커가 없어 `QUEUED` 로 남음)까지
+- [x] 3. 띄우기 · 헬스 · 설정(2026-11-09 로컬 compose mock 확인: 켬 → EXTRACT · EMBED SUCCEEDED · 1024차원 길이 1 · MATCH_EVENT QUEUED, 끔 → EMBED QUEUED · /health 200 OFF, 다시 켜면 남은 EMBED 를 처리) — `main.py` · `config.py` · `compose.yaml` · `ai.yaml`(꺼짐 한 줄). `test_health.py` 통과, 로컬 compose mock 으로 B1 → EXTRACT · EMBED `SUCCEEDED` → MATCH_EVENT 작업 생성(판정 워커가 없어 `QUEUED` 로 남음)까지
 - [ ] 4. 실제 모델 대조 — 견본 덤프가 오면: 덤프를 만든 모델 판(snapshot) · sentence-transformers · torch 판을 장민준에게 확인, 같은 기사 3건의 입력 글 해시가 같은지 먼저 본 뒤 CPU 벡터가 1024 · 유한 · 길이 1 · 덤프 저장 벡터와 코사인 0.999 이상(제안 기준). 2스레드에서 처음 읽기 시간 · 기사당 시간 · EXTRACT 와 함께 돌 때 최대 메모리 기록
 - [x] 5. `SSOT.md` 3절 표기 고치기
 
