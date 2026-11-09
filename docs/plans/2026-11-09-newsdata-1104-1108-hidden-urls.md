@@ -34,12 +34,12 @@
 
 ## 작업 순서
 - [x] 커밋 1: `newsdata_dataset.py` 숨김 URL + 테스트 3개 + 계획 파일. 테스트가 먼저 실패하는 것을 보고 구현한다. 확인: `pytest`
-- [ ] 커밋 2: `collect_source.py` 새 날짜 · 백업 · 숨김 칸, README 절. 확인: `ruff format --check` · `ruff check` · `pytest`(노트북 묶기 테스트 포함), `build_notebook.py newsdata_collect`
-- [ ] 서버 실행
-  1. 내장 브라우저로 JupyterLab에 노트북과 `hidden_urls/` 아래 두 목록을 올린다(contents API, 지난번 방식). 목록은 URL뿐이라 기사 본문은 올리지 않는다.
+- [x] 커밋 2: `collect_source.py` 새 날짜 · 백업 · 숨김 칸, README 절. 확인: `ruff format --check` · `ruff check` · `pytest`(노트북 묶기 테스트 포함), `build_notebook.py newsdata_collect`
+- [x] 서버 실행 (2026-11-09 10:47~11:13, 2,770크레딧)
+  1. JupyterLab에 노트북과 `hidden_urls/` 아래 두 목록을 올린다. 목록은 URL뿐이라 기사 본문은 올리지 않는다. (실제: 브라우저로 붙여 넣기가 안 돼 사용자가 업로드했다)
   2. 크레딧 대시보드에서 남은 양이 3,000 이상인지 사용자가 확인한다.
   3. 사용자가 NewsData 키를 `getpass` 칸에 직접 넣고 차례로 돌린다.
-- [ ] 커밋 3: README에 서버 결과 숫자를 적는다(날마다 요청 · 크레딧 · 원본 · 거른 뒤, 목록별 숨김 건수).
+- [x] 커밋 3: README에 서버 결과 숫자를 적는다(날마다 요청 · 크레딧 · 원본 · 거른 뒤, 목록별 숨김 건수).
 - [ ] 로컬 사본: 서버 DB의 VACUUM 사본을 내려받아 `data/newsdata_2026-10-21_2026-11-08.sqlite`로 둔다. 내려받기 전에 파일 이름과 크기를 말하고 승인을 받는다. 커밋하지 않는다.
 
 ## 안 바꿀 것
