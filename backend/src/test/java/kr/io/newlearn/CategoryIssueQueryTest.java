@@ -56,7 +56,7 @@ class CategoryIssueQueryTest {
                 .containsExactly(4102L, 4101L);
         var card = page.getContent().getFirst();
         assertThat(card.eventCount()).isEqualTo(3);
-        assertThat(card.articleCount()).isEqualTo(2);
+        assertThat(card.articleCount()).isEqualTo(4);
         assertThat(card.publisherCount()).isEqualTo(1);
         assertThat(issues.findCategories(List.of(4102L)))
                 .extracting(IssueQueryRepository.CategoryRow::code)

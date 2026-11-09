@@ -40,6 +40,11 @@ public class EventService {
 
     public EventPanelResponse get(long eventId) {
         var event = events.findWithIssueById(eventId).orElseThrow(() -> missing(eventId));
+        // 공개 기사가 하나도 없으면 없는 사건이다(docs/api.md 1절, Jira 179)
+        long articleCount = links.countReleasedArticles(eventId);
+        if (articleCount == 0) {
+            throw missing(eventId);
+        }
         var issue = event.getIssue();
         EventRef previous = null;
         EventRef next = null;
@@ -56,7 +61,7 @@ public class EventService {
                 event.getSummary(),
                 event.getOccurredAtBasis(),
                 issue == null ? null : IssueRef.from(issue),
-                links.countReleasedArticles(eventId),
+                articleCount,
                 links.findReleasedPublishers(eventId).stream()
                         .map(PublisherRef::from)
                         .toList(),
@@ -66,11 +71,12 @@ public class EventService {
 
     // memberId 는 세션 회원, 손님이면 null (ArticleService.list 와 같은 까닭으로 손님용 짧은 판은 두지 않는다)
     public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query, @Nullable Long memberId) {
-        if (!events.existsById(eventId)) {
-            throw missing(eventId);
-        }
         var pageable = query.toPageable(Sort.by(Sort.Direction.ASC, "publishedAt", "id"));
         var page = articles.findReleasedByEventId(eventId, pageable);
+        // 전체 수 0 — 사건 번호가 없거나 공개 기사가 하나도 없는 사건이다. 쪽 번호가 넘친 것과는 구분된다(그때는 전체 수가 찬다)
+        if (page.getTotalElements() == 0) {
+            throw missing(eventId);
+        }
         return PageResponse.of(page, summaries.assemble(page.getContent(), memberId));
     }
 

@@ -115,7 +115,7 @@ rm labels.tsv
 { echo 'begin;'; cat infra/server/category-labels-apply.sql; echo 'commit;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
 ```
 
-숨겨도 줄에서 기다리던 판정(MATCH_EVENT)은 멈추지 않는다. 스케줄러가 `released_at` 을 보지 않기 때문이다. 기사가 모두 숨겨진 이슈 · 사건을 조회에서 빼는 일은 Jira S15P31A102-179.
+숨겨도 줄에서 기다리던 판정(MATCH_EVENT)은 멈추지 않는다. 스케줄러가 `released_at` 을 보지 않기 때문이다. 기사가 모두 숨겨진 이슈 · 사건은 조회에서 없는 것으로 본다(`docs/api.md` 1절, Jira S15P31A102-179).
 
 ## 6. 되돌리기
 

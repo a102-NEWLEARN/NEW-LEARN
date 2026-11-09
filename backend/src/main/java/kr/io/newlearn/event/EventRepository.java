@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import kr.io.newlearn.common.PublicEventSql;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,15 +12,19 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
-    List<Event> findByIssue_IdOrderByOccurredAtAscIdAsc(Long issueId);
+    // A4 타임라인 — 공개 기사가 있는 사건만, 발생 시점 · ID 오름차순(docs/api.md 1절, Jira 179)
+    @Query("select e from Event e where e.issue.id = :issueId and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE
+            + " order by e.occurredAt asc, e.id asc")
+    List<Event> findPublicByIssueId(Long issueId);
 
     @EntityGraph(attributePaths = "issue")
     Optional<Event> findWithIssueById(Long id);
 
-    // 시각이 같은 사건도 ID로 가른다. A4와 같은 순서에서 인접한 한 건만 읽는다.
+    // 시각이 같은 사건도 ID로 가른다. A4와 같은 순서(공개 기사가 있는 사건만)에서 인접한 한 건만 읽는다.
     @Query("""
             select e from Event e where e.issue.id = :issueId
             and (e.occurredAt < :occurredAt or (e.occurredAt = :occurredAt and e.id < :id))
+            """ + " and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE + """
             order by e.occurredAt desc, e.id desc
             """)
     List<Event> findPrevious(Long issueId, Instant occurredAt, Long id, Pageable pageable);
@@ -27,6 +32,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Query("""
             select e from Event e where e.issue.id = :issueId
             and (e.occurredAt > :occurredAt or (e.occurredAt = :occurredAt and e.id > :id))
+            """ + " and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE + """
             order by e.occurredAt asc, e.id asc
             """)
     List<Event> findNext(Long issueId, Instant occurredAt, Long id, Pageable pageable);

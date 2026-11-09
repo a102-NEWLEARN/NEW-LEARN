@@ -32,7 +32,8 @@ public class EventController {
 
     @Operation(
             summary = "[확정] A5 사건 패널",
-            description = "저장된 사건 요약과 투입 기사 집계를 줍니다. 언론사는 코드 오름차순이며, 앞뒤 사건은 같은 이슈의 발생 시각·ID 순서입니다.")
+            description =
+                    "저장된 사건 요약과 투입 기사 집계를 줍니다. 공개 기사가 하나도 없는 사건은 404 입니다. 언론사는 코드 오름차순이며, 앞뒤 사건은 같은 이슈에서 공개 기사가 있는 사건의 발생 시각·ID 순서입니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -43,7 +44,7 @@ public class EventController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "EVENT_NOT_FOUND — 없는 사건",
+            description = "EVENT_NOT_FOUND — 없는 사건 · 공개 기사가 하나도 없는 사건",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
@@ -56,7 +57,8 @@ public class EventController {
 
     @Operation(
             summary = "[확정] A6 사건 관련 기사",
-            description = "투입 기사만 발행 시각·ID 오름차순으로 줍니다. 처음 5건은 size=5 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
+            description =
+                    "투입 기사만 발행 시각·ID 오름차순으로 줍니다. 공개 기사가 하나도 없는 사건은 404 입니다. 처음 5건은 size=5 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -67,7 +69,7 @@ public class EventController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "EVENT_NOT_FOUND — 없는 사건",
+            description = "EVENT_NOT_FOUND — 없는 사건 · 공개 기사가 하나도 없는 사건",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
