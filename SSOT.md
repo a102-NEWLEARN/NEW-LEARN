@@ -52,7 +52,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 분석 상태 계산은 `docs/api-internal.md` 6절을 따른다. 구현 성공 기준은
 `docs/specs/F01-F11-article-api.md`에 둔다.
 
-이슈 헤더·타임라인(A3·A4)의 조회 계약과 빈 이슈 처리는 `docs/api-screen.md` 2절,
+이슈 헤더·타임라인(A3·A4)의 조회 계약은 `docs/api-screen.md` 2절, 공개 기사가 없는 이슈 처리는 `docs/api.md` 1절,
 구현 성공 기준은 `docs/specs/F07-issue-timeline-api.md`를 따른다.
 
 새 사건을 이슈에 붙이거나 새 이슈를 만드는 분석 단계(`ISSUE`, Jira 40)의 계약은 `docs/api-internal.md` 3~5절(제안),

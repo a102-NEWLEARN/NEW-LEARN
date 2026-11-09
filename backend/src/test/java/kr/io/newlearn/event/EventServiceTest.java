@@ -12,7 +12,7 @@ import org.springframework.data.domain.Page;
 
 class EventServiceTest {
     @Test
-    void missingEventStopsBeforeReadingArticlesOrSummaries() {
+    void missingEventStopsBeforeReadingCountsOrSummaries() {
         var events = mock(EventRepository.class);
         var links = mock(ArticleEventRepository.class);
         var articles = mock(ArticleRepository.class);

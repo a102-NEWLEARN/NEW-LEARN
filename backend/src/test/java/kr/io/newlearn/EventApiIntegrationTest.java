@@ -64,6 +64,9 @@ class EventApiIntegrationTest {
         moveArticle(4202, 4901);
         moveArticle(4203, 4903);
         moveArticle(4204, 4904);
+        // 시각이 같은 이슈 밖 · 다른 이슈 사건에도 공개 기사를 줘서 「같은 이슈」 조건으로만 갈리게 한다
+        moveArticle(4205, 4905);
+        moveArticle(4206, 4906);
         long[] ids = {4901, 4902, 4903, 4904};
         for (int n = 0; n < ids.length; n++) {
             var response = mvc.perform(get("/api/v1/events/" + ids[n])).andExpect(status().isOk());
