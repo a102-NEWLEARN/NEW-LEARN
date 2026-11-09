@@ -22,7 +22,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 | LLM | SSAFY GMS (gpt-6-luna) | 핵심 정보 추출, 동일 사건 판정 등 판단 작업 |
 | DB | PostgreSQL + pgvector | 기사 원본, 분석 결과, 임베딩 저장·유사도 검색 |
 | 캐시 · 작업 큐 | Redis (Streams, AOF 저장) | 조회 캐시, 분석 작업 큐, 로그인 세션, 입구 요청 수 상한의 셈 |
-| 뉴스 수집 배치 | 쿠버네티스 CronJob `news-ingest` · Python 표준 라이브러리 스크립트 하나 | NewsData.io 수집 → B2 적재 → B1 투입. 2026-11-04 부터 매일 10시에 전날치를 넣기만(B2 만) 한다 — B1 · 15분 모드 · 고르는 조건은 8절. 데이터셋을 서비스에 넣을지는 미정(5절) |
+| 뉴스 수집 배치 | 쿠버네티스 CronJob `news-ingest` · Python 표준 라이브러리 스크립트 하나 | NewsData.io 수집 → B2 적재 → B1 투입. 2026-11-16 부터 15분마다 최근 30분을 넣기만(B2 만) 한다(앞서 2026-11-04 부터 매일 10시 전날치) — B1 · 고르는 조건은 8절. 데이터셋을 서비스에 넣을지는 미정(5절) |
 | 외부 입구 | Envoy Gateway (+ 상한 서비스 envoy-ratelimit) | HTTPS 요청을 화면·API로 분배, 주소별 요청 수 상한 |
 | 모니터링 | Prometheus, Grafana | 지표 수집, 대시보드 |
 
@@ -36,7 +36,7 @@ NEW:LEARN의 시스템 구성, 기술, 배포, 개발 환경과 팀이 정한 �
 
 1. 사용자 → Gateway → React(화면) / Spring Boot(API)
 2. Spring Boot ↔ PostgreSQL 저장·조회
-3. 수집 배치(CronJob, 매일 10시 `Asia/Seoul` — 2026-11-04 Jira 156, 처음에는 하루 두 번 00 · 12시)가 NewsData.io 기사를 PostgreSQL에 적재하고 투입한다 (F01, 2026-10-20). AI 결과 덤프가 들어갈 때까지는 적재만 한다(넣기만, 6절 「클러스터 구성」). 적재는 내부 API B2, 투입은 B1 으로 하고 배치는 DB 에 직접 쓰지 않는다(2026-11-02 인프라 담당, Jira 153 — `docs/api-internal.md` 2절). SSAFY 데이터셋은 학습 · 검증용이다(5절)
+3. 수집 배치(CronJob, 15분마다 — 2026-11-16 Jira 156, 앞서 매일 10시 · 처음에는 하루 두 번 00 · 12시)가 NewsData.io 기사를 PostgreSQL에 적재하고 투입한다 (F01, 2026-10-20). AI 결과 덤프가 들어갈 때까지는 적재만 한다(넣기만, 6절 「클러스터 구성」). 적재는 내부 API B2, 투입은 B1 으로 하고 배치는 DB 에 직접 쓰지 않는다(2026-11-02 인프라 담당, Jira 153 — `docs/api-internal.md` 2절). SSAFY 데이터셋은 학습 · 검증용이다(5절)
 4. 새 기사에 대해 분석 작업을 Redis 작업 큐에 등록
 5. AI 분석 워커가 작업을 가져가 분석 단계를 수행 (3절)
 6. 워커가 결과를 Spring Boot에 전달해 저장
@@ -117,7 +117,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 |---|---|---|
 | SSAFY NEWS 2025 상반기 | 기존 확보 | 학습 · 검증용. 서비스 DB 에 넣을지는 미정(`docs/data-model.md` 5절) |
 | SSAFY NEWS 2024 상반기 · 하반기 | 2차 교보재 | 위와 같음 |
-| NewsData.io News API (Basic 1개월, 선불) | 2차 교보재 | 실서비스 화면의 기사. 수집 배치(k8s CronJob)가 매일 10시(`Asia/Seoul`) 호출(2026-11-04 — 처음 하루 두 번 00 · 12시). 크레딧은 달마다 2만 — 지난 기사(archive)는 요청 한 번에 5, 건수 세기(count)는 요청 한 번에 50이고 받는 건수와 상관없다(가격표, 2026-10-28). 그래서 지난 기간 건수는 count 대신 archive 첫 페이지의 `totalResults` 로 보고 수집 스크립트에 요청 수 상한을 둔다(AI 팀, 2026-10-28). 구독은 팀장 계정으로 결제했고(2026-10-28) 11월 동안 쓸 수 있다 — 발표(11-18)와 11-16 수집 기간을 덮는다(2026-11-03 인프라 담당 확인) |
+| NewsData.io News API (Basic 1개월, 선불) | 2차 교보재 | 실서비스 화면의 기사. 수집 배치(k8s CronJob)가 15분마다 호출(2026-11-16 — 앞서 매일 10시, 처음 하루 두 번 00 · 12시). 크레딧은 달마다 2만 — 지난 기사(archive)는 요청 한 번에 5, 건수 세기(count)는 요청 한 번에 50이고 받는 건수와 상관없다(가격표, 2026-10-28). 그래서 지난 기간 건수는 count 대신 archive 첫 페이지의 `totalResults` 로 보고 수집 스크립트에 요청 수 상한을 둔다(AI 팀, 2026-10-28). 구독은 팀장 계정으로 결제했고(2026-10-28) 11월 동안 쓸 수 있다 — 발표(11-18)와 11-16 수집 기간을 덮는다(2026-11-03 인프라 담당 확인) |
 | 국립국어원 표준국어대사전 Open API | 인증 키 발급함(무료, 계정당 하나, 2026-10-29). 키는 env `STDICT_API_KEY` — 사이트는 봉인 Secret `stdict-api` 로 넣었다(2026-10-29, 사이트에서 `q=나무` 200 확인) | 용어사전(A19) 요청 때 API 서버가 대신 부른다(Jira 102). 하루 요청 한도 50,000건(키 신청 화면 안내, 2026-10-29). 결과를 Redis 에 하루 두기(결과가 있을 때만) · 출처 표시(사전 텍스트는 CC BY-SA 2.0 KR 이라 저작자 표시 필수)는 2026-10-29 사용자가 정했다 — 규칙은 `docs/api-screen.md` A19 |
 
 데이터셋은 학습 · 검증에, NewsData 는 서비스 화면에 쓴다(2026-10-20 팀 회의).
@@ -245,7 +245,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
   - 예외: monitoring과 gitlab-runner는 워커가 오기 전부터 관리 서버에서 돈다(2026-10-20). 워커가 붙은 뒤 monitoring을 옮길지 다시 정한다
   - 들어오는 길 네트워크 정책(CiliumNetworkPolicy, 2026-10-27, Jira S15P31A102-121): backend는 Envoy · AI 워커 · 수집 배치(2026-11-03 Jira 154)만, frontend는 Envoy만, AI 워커는 아무도(상태 확인은 kubelet), PostgreSQL은 backend · 매일 덤프 잡만, Redis는 backend · AI 워커 · 입구 상한 서비스(`envoy-gateway-system` 의 `envoy-ratelimit`, 2026-10-29 Jira S15P31A102-135)만 받는다(`infra/k8s/services/<네임스페이스>/netpol.yaml`). 입구 상한 서비스는 Envoy(판정 8081) · Prometheus(지표 19001)만 받는다(상태 확인은 kubelet, 2026-10-29 Jira S15P31A102-136, `infra/k8s/gateway/ratelimit-netpol.yaml` — 막는 포트와 까닭은 그 파일). 워커 노드 호스트(호스트 네트워크 Pod 포함)에서 오는 길은 Cilium 기본값으로 열려 있다 — kubelet 상태 확인(8080)이 그 길이다. 나가는 길은 막지 않는다. 그래서 클러스터 안 시험 Pod로 backend를 직접 부를 수 없다 — `kubectl -n app port-forward svc/backend`로 시험한다. 수집 배치는 DB · Redis 에 직접 붙지 않아 data 정책에는 없다
   - AI 워커(`ai`) 실제 모드(2026-11-02, Jira S15P31A102-115): `LLM_MODE=gms` 로 EXTRACT 큐를 읽어 SSAFY GMS 를 부르고 W1 으로 결과를 보낸다. GMS 키는 팀 공용키를 봉인한 Secret `gms-api`, W1 출입증은 `internal-api`. 임베딩 모델은 init 컨테이너가 PVC `ai-model-cache` 에 한 번 받아 두고(EMBED 워커 몫, 요청 4Gi · 상한 5Gi) EMBED 워커는 아직 없다. 수집 배치는 넣기만이라(아래 줄) B1 을 부르지 않고, AI 결과 덤프가 들어갈 때까지는 사람도 B1 을 걸지 않는다(분석 행이 생기면 덤프 적재가 되돌아간다). 켜고 끄는 법 · B1 거는 약속은 `infra/server/ai-worker.md`, 계획은 `docs/plans/2026-11-02-ai-real-mode-switch.md`
-  - 뉴스 수집 배치(2026-11-03 Jira S15P31A102-154 · 155, 2026-11-04 Jira 156): CronJob `news-ingest`(app, Argo CD 앱 `ingest`)가 매일 10시에 NewsData latest 를 36시간 창으로 받아 발행 시각(KST)이 전날인 기사만 B2 로 넣는다 — 넣기만(`INGEST_MODE=load-only`, B1 안 부름). 다른 기사 본문을 달고 온 기사는 다 받은 뒤 기사끼리 견주어 뺀다(2026-11-05 Jira S15P31A102-183, 규칙은 `infra/server/ingest.md`). 2026-11-04 09:17 조건 없이 하루 약 1만 8천 건(10절)이라 멈췄다가 조건을 받아 다시 켬 — 첫 실행 11-05 10:00(11/4 분). 고르는 조건은 팀원이 10/29 ~ 11/3 을 받은 쿼리 `country=kr&language=ko&removeduplicate=1&excludecategory=sports,entertainment,lifestyle,food,tourism` 에 오래된 순(`&sort=pubdateasc`)을 더한 것(팀장 2026-11-04 — 전날치를 7,000건에서 자르지 않고 끝까지, 쪽 전체가 전날 범위 뒤면 멈춤), 한 번에 요청 500 · 기사 20,000 상한(코드 천장). 다음 쪽이 남았는데 상한에 닿으면 종료 2 로 끝나 경보가 운다. 지난 날짜 · archive 는 같은 CronJob 에서 env 만 바꾼 손 실행. 10/21 ~ 11/3 최종 기사는 같은 틀의 손 Job 에 파일을 흘려 넣는다(`INGEST_SOURCE=file`, Jira 169 — 임시 공개는 9절). NewsData 키는 봉인 Secret `newsdata-api`, 배치 키는 `internal-api` 의 `INTERNAL_BATCH_KEY` 하나만 받는다(같은 Secret 의 워커 키는 안 받음). 경보 `NewlearnIngestMissing`(예약 뒤 3시간 성공 없음 · 예약 25시간 없음). 설정 표 · 손 실행 · 15분 모드 · B1 켜기 · 급히 멈추기는 `infra/server/ingest.md`, 계획은 `docs/plans/2026-11-04-ingest-load-only-data-load.md`
+  - 뉴스 수집 배치(2026-11-03 Jira S15P31A102-154 · 155, 2026-11-04 Jira 156): CronJob `news-ingest`(app, Argo CD 앱 `ingest`)가 15분마다 NewsData latest 를 30분 창으로 받아 B2 로 넣는다(2026-11-16 부터, 앞서 매일 10시에 36시간 창으로 전날치) — 넣기만(`INGEST_MODE=load-only`, B1 안 부름). 다른 기사 본문을 달고 온 기사는 다 받은 뒤 기사끼리 견주어 뺀다(2026-11-05 Jira S15P31A102-183, 규칙은 `infra/server/ingest.md`). 2026-11-04 09:17 조건 없이 하루 약 1만 8천 건(10절)이라 멈췄다가 조건을 받아 다시 켬 — 첫 실행 11-05 10:00(11/4 분). 고르는 조건은 팀원이 10/29 ~ 11/3 을 받은 쿼리 `country=kr&language=ko&removeduplicate=1&excludecategory=sports,entertainment,lifestyle,food,tourism` 에 오래된 순(`&sort=pubdateasc`)을 더한 것(팀장 2026-11-04 — 전날치를 7,000건에서 자르지 않고 끝까지, 쪽 전체가 전날 범위 뒤면 멈춤), 한 번에 요청 500 · 기사 20,000 상한(코드 천장). 다음 쪽이 남았는데 상한에 닿으면 종료 2 로 끝나 경보가 운다. 지난 날짜 · archive 는 같은 CronJob 에서 env 만 바꾼 손 실행. 10/21 ~ 11/3 최종 기사는 같은 틀의 손 Job 에 파일을 흘려 넣는다(`INGEST_SOURCE=file`, Jira 169 — 임시 공개는 9절). NewsData 키는 봉인 Secret `newsdata-api`, 배치 키는 `internal-api` 의 `INTERNAL_BATCH_KEY` 하나만 받는다(같은 Secret 의 워커 키는 안 받음). 경보 `NewlearnIngestMissing`(예약 뒤 3시간 성공 없음 · 예약 25시간 없음). 설정 표 · 손 실행 · 15분 모드 · B1 켜기 · 급히 멈추기는 `infra/server/ingest.md`, 계획은 `docs/plans/2026-11-04-ingest-load-only-data-load.md`
   - 기사 분야 라벨(2026-11-05 Jira S15P31A102-177): 제목을 읽은 라벨을 운영 DB 스키마 `category_label`(Flyway 밖)에 두고 `article.category_code` 를 덮는다. 스포츠 · 문화/연예 · 제목이 깨진 기사 · 잘못된 본문 기사(Jira 183)는 `released_at` 을 비워 화면에서 뺀다. 덤프 적재 안에서 다시 적용한다. 절차 · 조수 지시문 · 되돌리기는 `infra/server/category-labels.md`
 - 워커가 1대라 nodeSelector로 나누지 않고 resources requests·limits로 자원을 나눈다
 - 한계: 워커 노드 자체가 죽으면 자동 복구가 안 된다. 자동 재시작은 컨테이너 단위 장애까지다
@@ -345,7 +345,7 @@ Redis Streams로 시작하고, 필요해지면 Kafka로 바꾼다.
 
 | 항목 | 누가 | 관련 |
 |---|---|---|
-| 뉴스 수집 — 분석 투입(B1) 하루 상한과 켜는 때(AI 결과 덤프 뒤), 11-16 뒤 15분 모드, 첫 실행(11-05)을 보고 상한 · 실행 시간 · 메모리를 그대로 둘지. 매일 10시 넣기만과 고르는 조건은 정했다(2026-11-04, 6절 「클러스터 구성」). 남은 NewsData 크레딧 12,464 · 11/28 초기화(팀장 공지) | 팀 · Infra | Jira S15P31A102-156, `infra/server/ingest.md` 「설정」 · 「15분 모드로 바꾸기」 · 「B1 켜기」 |
+| 뉴스 수집 — 분석 투입(B1) 하루 상한과 켜는 때(AI 결과 덤프 뒤), 첫 실행(11-05)을 보고 상한 · 실행 시간 · 메모리를 그대로 둘지. 15분 수집과 고르는 조건은 정했다(2026-11-16 · 2026-11-04, 6절 「클러스터 구성」). 남은 NewsData 크레딧 12,464 · 11/28 초기화(팀장 공지) | 팀 · Infra | Jira S15P31A102-156, `infra/server/ingest.md` 「설정」 · 「15분 모드로 바꾸기」 · 「B1 켜기」 |
 | AI 결과 덤프 적재 — 결과를 서버 안에서 만들지 밖에서 만들지, 임베딩 `model` 문자열, 적재 시각, 마감 뒤 기사(약 11/12 ~ 11/15)에 B1 을 거는 법과 하루 분석 상한. 정한 것(2026-11-04): 덤프 약속(기사는 URL 로 맞춤 · 사건 · 이슈 · 작업 번호는 덤프 그대로) · 적재 절차, 운영 기사 목록은 매일 넘김, **최종 덤프는 11/12(목), 그날 적재 · 확인**(덤프 기사는 11/11 분까지, 2026-11-09 팀 일정표), 견본은 11/9 전후(늦어도 11/10), 마감 뒤 기사는 적재 뒤 운영 B1 로 분석 | AI · Infra | Jira S15P31A102-152, `infra/server/data-load.md` |
 | ai 이미지 굽기 메모리 — 굽기가 메모리 상한 3Gi 에 닿는다(oom 0, 커널이 캐시를 비운 횟수 382 ~ 16919). 의존성이 늘면 상한 · Kaniko 캐시 압축을 다시 정한다. 배포 속도에서 고친 넷(2026-10-23, Jira S15P31A102-106)은 6절 「굽기 러너」 · 「배포 흐름」에 있다 | Infra | 6절 「배포 흐름」 |
 | 마인드맵 렌더링 라이브러리 | FE | — |

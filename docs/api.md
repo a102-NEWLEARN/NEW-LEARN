@@ -23,7 +23,7 @@
 ```mermaid
 flowchart LR
   FE["화면 (React)"] -- "A1~A9 · A13~A25 · /api/v1" --> API["API 서버 (Spring Boot)"]
-  N["NewsData.io"] -- "기사 받기" --> B["수집 배치 (CronJob 매일 10시)"]
+  N["NewsData.io"] -- "기사 받기" --> B["수집 배치 (CronJob 15분마다)"]
   B -- "B2 적재 · B1 투입 · /internal/v1" --> API
   API -- "조회 · 저장 · 후보 검색" --> DB[("PostgreSQL + pgvector")]
   API -- "작업 메시지 · 용어 결과 캐시 · 로그인 세션" --> R[("Redis")]
