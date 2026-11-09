@@ -99,7 +99,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 | 판정 걸 기사 | 마인드맵(`primary_core_index` 있음) · 임베딩 · EXTRACT · EMBED `SUCCEEDED` 가 다 있는 기사는 MATCH_EVENT 작업 행이나 `article_event` 가 꼭 있다 | 운영 스케줄러가 판정을 걸어 위처럼 막힌다 |
 | 판정에서 일부러 뺀 기사 | 기반 분석의 묶음이 기사 5건 미만이라 사건을 만들지 않은 기사. MATCH_EVENT 작업 행을 `status=FAILED` · `retry_at` 비움 · `error_code=EVENT_CLUSTER_TOO_SMALL` 로 넣고 `article_event` 는 넣지 않는다(2026-11-09 인프라 담당). 진짜 실패와 코드로 구분한다 | 행이 없으면 운영 스케줄러가 발행 순서대로 한 건씩 다시 판정해 새 사건을 만들고 GMS 를 쓰며, 새 기사 판정이 그 뒤로 밀린다 |
 | 사건에 묶인 기사 | MATCH_EVENT `SUCCEEDED` 행과 임베딩 행이 있다 | 화면 판정 상태가 「사건을 찾는 중」(`NONE`). 임베딩이 없으면 그 사건이 새 기사의 후보에서 빠진다 |
-| `article_embedding` | `dragonkue/BGE-m3-ko` 판 `7074d66aa46562342193ca4feb3d89bf9dad71b4`(`infra/k8s/services/ai/ai.yaml`), 입력은 본문 앞 800자, 1024차원(`SSOT.md` 3절). `model` 칸은 AI 팀이 정한 한 문자열 — 운영 EMBED 워커가 W1 결과 `model` 로 보낼 값과 같게 | 운영은 모델 이름을 대조하지 않고 차원만 본다 — 다른 모델이면 11-16 새 기사가 엉뚱한 사건 후보를 받는다 |
+| `article_embedding` | `dragonkue/BGE-m3-ko` 판 `7074d66aa46562342193ca4feb3d89bf9dad71b4`(`infra/k8s/services/ai/ai.yaml`), 입력은 제목 + 줄바꿈 + 본문 앞 800자, 1024차원(`SSOT.md` 3절). `model` 칸은 `dragonkue/BGE-m3-ko` — 운영 EMBED 워커가 W1 결과 `model` 로 보내는 값과 같게(2026-11-09 AI, Jira S15P31A102-185) | 운영은 모델 이름을 대조하지 않고 차원만 본다 — 다른 모델이면 11-16 새 기사가 엉뚱한 사건 후보를 받는다 |
 | `event` | `role` 이 `MAIN` · `REACTION`(비울 수 없음), `reacts_to_event_id` · `issue_id` 는 덤프 안의 번호이거나 비움 | 적재가 고아 검사에서 멈춘다 |
 | 번호 | 사건 · 이슈 · 작업 번호는 아무 수나 좋지만 덤프 밖을 가리키지 않는다. `analysis_job.candidates` 안의 사건 · 이슈 번호도 덤프 번호 그대로 둔다(적재가 바꾸지 않는다) | — |
 
