@@ -32,3 +32,50 @@ ORDER BY a.published;
 ```
 
 `selection` 의 기본 키가 `(day, article_id)` 라 `day` 까지 걸어 조인한다. `article_id` 만으로 걸면 인덱스를 못 타 매우 느리다.
+
+# 이슈 · 사건 분류 10/21 ~ 11/8 (기반 분석)
+
+`classified_1021_1108.sqlite` 는 위 데이터셋의 최종 기사를 이슈 · 사건으로 나눈 결과다. 표 이름 · 칸은 운영 DB(`docs/data-model.md`, V2 · V8 · V10)를 따른다. **운영 기사 ID 를 모르므로 기사는 URL(`article_url`)로 잇는다** — 덤프 적재와 같은 기준(`infra/server/data-load.md`).
+
+- sha256: `3436b9afae7480ef034de858ec9077372e01a5090cdfad590fc070f3186bd6bd` (8,224,768 바이트, 2026-11-09)
+- 건수: 이슈 **162** · 사건 **825**(이슈에 든 것 746, 이슈 밖 79) · 기사 연결 **12,717** · 사건을 만든 기사의 EXTRACT 결과 825
+- 사건 역할: MAIN 601 · REACTION 224(같은 이슈의 반응 대상이 있는 것 103)
+- 발생 시점: 본문에서 뽑음(EXTRACTED) 624 · 첫 기사 시각(FIRST_PUBLISHED, 화면 「추정」) 201
+- 이슈 분야: 정치 78 · 경제 39 · 사회 27 · IT·과학 11 · 국제 7
+
+## 표
+
+| 표 | 칸 | 뜻 |
+|---|---|---|
+| `issue` | `id` · `title` · `summary` · `created_at` · `updated_at` · `source_issue_key` · `prompt_version` | 사건 3개 이상인 이슈. `id` 는 만든 순서(세 번째 사건이 생긴 때). 이름 · 요약은 `issue-summary-v4` |
+| `issue_category` | `issue_id` · `category_code` | 이슈 기사 대표 분야 중 가장 많은 것 하나(같으면 sort_order). 운영은 적재 때 다시 계산한다 |
+| `event` | `id` · `title` · `label` · `summary` · `role` · `reacts_to` · `reacts_to_event_id` · `issue_id` · `occurred_at` · `occurred_at_basis` · `created_at` · `updated_at` · `creator_url` · `reason` · `prompt_version` | 판정이 만든 사건 전부. 이슈가 안 된 사건은 `issue_id` NULL. `reacts_to_event_id` 는 같은 이슈 사건일 때만 |
+| `article_event` | `article_url` · `event_id` · `linked_at` · `title` · `publisher_code` · `published_at` · `category_code` | 기사 하나에 사건 하나. `publisher_code` 는 NewsData `source_id`(운영 `press.code`) |
+| `article_extract` | `article_url` · `content` · `summary` · `primary_core_index` · `occurred_at` · `schema_version` · `model` · `prompt_version` · `generated_at` | 사건을 만든 기사의 EXTRACT(v4.14) 결과 — 운영 `article_mindmap` 과 같은 모양(`content` 는 마인드맵 JSON) |
+| `meta` | `key` · `value` | 만든 때 · 버전 · 건수 · 덤프와 다른 점 |
+
+시각은 모두 `+09:00` ISO 글이다.
+
+```sql
+-- 이슈 하나의 타임라인(A4 와 같은 순서)
+SELECT e.id, e.label, e.title, e.role, e.reacts_to_event_id, e.occurred_at, e.occurred_at_basis,
+       (SELECT COUNT(*) FROM article_event ae WHERE ae.event_id = e.id) AS articles
+FROM event e WHERE e.issue_id = ? ORDER BY e.occurred_at, e.id;
+```
+
+## 어떻게 만들었나
+
+1. **사건 후보 묶기:** 최종 기사 BGE-m3-ko 벡터로 사건(72시간 · 거리 0.25) · 이슈(7일 · 0.40), 기사 5건 이상 사건만(`ai/experiments/issue_backfill/issue_grouping.py`). 이슈 207개 · 사건 묶음 1,038개
+2. **EXTRACT v4.14**(`ai/app/extract` 그대로): 묶음 기사를 발행 순으로 앞에서 3건까지 돌려 대표 사건이 처음 나온 기사가 사건을 만든다. 3건 모두 없으면 사건이 안 생긴다(144개)
+3. **판정**(MR !766 의 `match-v1` 과 같은 규칙): 같은 이슈 안에서 만든 순서대로, 같은 사건이면 기존 사건에 붙이고(69개) 아니면 새 사건의 이름 · 키워드 · 요약 · 역할 · 반응 대상을 짓는다. 판정 1개는 세 번 모두 형식 오류라 대표 사건 글로 이름을 채웠다
+4. **이슈 이름 · 요약**(`issue-summary-v4`): 사건 제목 · 요약으로 짓는다. 사건이 3개 아래로 준 이슈 45개는 서비스 규칙대로 이슈를 만들지 않았다(그 사건 79개는 이슈 밖)
+
+GMS: EXTRACT 1,485번 · 판정 1,101번 · 이슈 이름 162번(시험분 포함), 토큰 약 1,270만.
+
+## 덤프 규칙과 다른 점 (적재 전에 같이 볼 것)
+
+- **기사 키가 URL 이다.** 운영 기사와 URL 로 맞춘다. 10/21 ~ 11/3 은 운영에 옛 선정(79,335건) 기사가 있어 대부분 맞겠지만, 11/4 ~ 11/8 은 운영 수집과 따로 받아 운영에 없는 URL 이 있을 수 있다
+- `analysis_job` · `article_embedding` 행이 없다. 마인드맵(`article_extract`)은 사건을 만든 기사 825건뿐이다 — 덤프 규칙(공개 기사마다 마인드맵 · 작업 행)을 채우려면 나머지 기사 분석이 더 필요하다
+- 판정 후보를 같은 이슈 사건으로 좁혔다(운영은 전체 사건에서 가까운 5개). 이슈는 LLM 이슈 판정(ISSUE)이 아니라 임베딩 묶음으로 정했다 — MR !766 평가에서 이슈 판정은 이 묶음과 같은 이슈 쌍 정밀도 1.0 · 재현율 0.905
+- 이슈 이름 판정에서 「주제 모음」(이어지는 흐름이 아님)으로 본 이슈 16개(업종별 3분기 실적 발표 · 여러 쟁점 묶음 등)도 그대로 넣었다. 빼려면 `source_issue_key` 로 거른다(I0031 · I0040 · I0073 · I0091 · I0101 · I0110 · I0115 · I0116 · I0119 · I0131 · I0160 · I0186 · I0187 · I0196 · I0198 · I0200)
+- 공인이 아닌 사람 실명은 이름 · 요약에 쓰지 않게 했다(기사 속 「이름(나이)」 + 피의자 두 명). 사건을 만든 기사의 `article_extract` 원문 근거 문장에는 이름이 남아 있을 수 있다
