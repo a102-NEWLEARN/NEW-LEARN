@@ -97,6 +97,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 | `press.code` | NewsData `source_id`(예: `newsis` · `news1_kr`). `press_mapping` 의 NEWSDATA 행은 `source_value` = `source_id`, `press_code` = 그 코드 | 같은 언론사가 둘로 세어진다 |
 | `analysis_job.status` | 모두 `SUCCEEDED`, 또는 `retry_at` 이 빈 `FAILED`. **`QUEUED` 없음**. `requested_by` 는 `BATCH` | 운영 1분 스케줄러가 다시 큐에 넣거나 다시 걸어 GMS 를 부른다. 큐에 들어간 판정 · ISSUE 작업은 운영에 소비자가 없어(ai 워커는 EXTRACT 만) 판정 줄 전체를 막는다 |
 | 판정 걸 기사 | 마인드맵(`primary_core_index` 있음) · 임베딩 · EXTRACT · EMBED `SUCCEEDED` 가 다 있는 기사는 MATCH_EVENT 작업 행이나 `article_event` 가 꼭 있다 | 운영 스케줄러가 판정을 걸어 위처럼 막힌다 |
+| 판정에서 일부러 뺀 기사 | 기반 분석의 묶음이 기사 5건 미만이라 사건을 만들지 않은 기사. MATCH_EVENT 작업 행을 `status=FAILED` · `retry_at` 비움 · `error_code=EVENT_CLUSTER_TOO_SMALL` 로 넣고 `article_event` 는 넣지 않는다(2026-11-09 인프라 담당). 진짜 실패와 코드로 구분한다 | 행이 없으면 운영 스케줄러가 발행 순서대로 한 건씩 다시 판정해 새 사건을 만들고 GMS 를 쓰며, 새 기사 판정이 그 뒤로 밀린다 |
 | 사건에 묶인 기사 | MATCH_EVENT `SUCCEEDED` 행과 임베딩 행이 있다 | 화면 판정 상태가 「사건을 찾는 중」(`NONE`). 임베딩이 없으면 그 사건이 새 기사의 후보에서 빠진다 |
 | `article_embedding` | `dragonkue/BGE-m3-ko` 판 `7074d66aa46562342193ca4feb3d89bf9dad71b4`(`infra/k8s/services/ai/ai.yaml`), 입력은 제목 + 줄바꿈 + 본문 앞 800자, 1024차원(`SSOT.md` 3절). `model` 칸은 `dragonkue/BGE-m3-ko` — 운영 EMBED 워커가 W1 결과 `model` 로 보내는 값과 같게(2026-11-09 AI, Jira S15P31A102-185) | 운영은 모델 이름을 대조하지 않고 차원만 본다 — 다른 모델이면 11-16 새 기사가 엉뚱한 사건 후보를 받는다 |
 | `event` | `role` 이 `MAIN` · `REACTION`(비울 수 없음), `reacts_to_event_id` · `issue_id` 는 덤프 안의 번호이거나 비움 | 적재가 고아 검사에서 멈춘다 |
@@ -105,7 +106,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 ### 함께 보낼 것
 
 - 덤프 파일과 sha256, 뜰 때의 경고
-- 목록표 — Flyway 판, 표마다 행 수, 기사 발행 날짜 범위(KST), 공개 기사 수 · 그중 `category_code` 빈 수, 임베딩 `model` 문자열, SQL 로 직접 넣은 것
+- 목록표 — Flyway 판, 표마다 행 수, 기사 발행 날짜 범위(KST), 공개 기사 수 · 그중 `category_code` 빈 수, 판정에서 일부러 뺀 기사 수, 임베딩 `model` 문자열, SQL 로 직접 넣은 것
 - 공유 드라이브 · 메신저로. 저장소에는 올리지 않는다
 - 먼저 사건 몇 개 분량의 **견본 덤프**를 받아 R1(6절)을 한 번 돈 뒤 최종 덤프를 받는다. 견본은 **11/9(월) 전후, 늦어도 11/10(화)** — 적재 SQL 을 만들어 시험하는 데 하루, 견본에서 약속과 다른 곳이 나오면 만드는 쪽이 고쳐 다시 뽑을 이틀(11/10 ~ 11)이 11/12 전에 있어야 한다. 기사 50 ~ 100건이면 되고, 운영에 있는 기사(10/21 ~ 11/3 JSONL 과 11/4 · 11/5 목록)와 운영에 없는 기사 한두 건(로컬에서만 넣은 것), 사건 여럿을 묶은 이슈 하나, 반응 사건(`REACTION`) 하나, `retry_at` 없는 `FAILED` 작업 하나를 섞는다
 
@@ -125,6 +126,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 | 작업 행 | `QUEUED` 0, `retry_at` 이 있는 `FAILED` 0 |
 | 공개 기사 | `released_at` 이 찼는데 마인드맵이나 EXTRACT `SUCCEEDED` 행이 없는 기사 0 |
 | 판정 걸 기사 | 0 — 위 「행 규칙」 조건(`AnalysisJobRepository.java` 88 ~ 101줄)을 `load` 표에 그대로 |
+| 일부러 뺀 기사 | `EVENT_CLUSTER_TOO_SMALL` 작업 수 = 목록표, 그 기사의 `article_event` 0, `MATCH_EVENT` 가 아닌 단계 · `FAILED` 가 아닌 상태 0 |
 | 사건에 묶인 기사 | MATCH_EVENT `SUCCEEDED` 없는 것 0, 임베딩 없는 것 0, `released_at` 빈 것 0 |
 | 임베딩 | `model` 문자열이 약속한 하나뿐, 차원 1024 |
 | 고아 | 덤프 안에서 0 — 마인드맵 · 임베딩 · 작업 · 기사-사건의 기사, 기사-사건의 사건, 사건의 이슈 · 반응 대상 |
