@@ -512,7 +512,8 @@ class Run:
         body = b""  # B1 은 본문이 없다 — 11-02 사람이 건 B1 과 같은 모양(infra/server/ai-worker.md)
         if payload is not None:
             headers["Content-Type"] = "application/json"
-            body = json.dumps(payload, ensure_ascii=False).encode()
+            # NewsData JSON 의 짝 없는 대리 문자(\ud83d)는 str 에 그대로 남는다 — 기본 인코딩이면 그 한 건에 그날 실행이 끝나므로 로그처럼 ? 로 바꾼다
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8", "replace")
         status, raw = self.send("POST", self.config["backend"] + path, headers, body)
         self.connection_failures = 0
         if status in (401, 403):
