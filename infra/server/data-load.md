@@ -98,7 +98,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 | `analysis_job.status` | 모두 `SUCCEEDED`, 또는 `retry_at` 이 빈 `FAILED`. **`QUEUED` 없음**. `requested_by` 는 `BATCH` | 운영 1분 스케줄러가 다시 큐에 넣거나 다시 걸어 GMS 를 부른다. 큐에 들어간 판정 · ISSUE 작업은 운영에 소비자가 없어(ai 워커는 EXTRACT 만) 판정 줄 전체를 막는다 |
 | 판정 걸 기사 | 마인드맵(`primary_core_index` 있음) · 임베딩 · EXTRACT · EMBED `SUCCEEDED` 가 다 있는 기사는 MATCH_EVENT 작업 행이나 `article_event` 가 꼭 있다 | 운영 스케줄러가 판정을 걸어 위처럼 막힌다 |
 | 사건에 묶인 기사 | MATCH_EVENT `SUCCEEDED` 행과 임베딩 행이 있다 | 화면 판정 상태가 「사건을 찾는 중」(`NONE`). 임베딩이 없으면 그 사건이 새 기사의 후보에서 빠진다 |
-| `article_embedding` | `dragonkue/BGE-m3-ko` 판 `7074d66aa46562342193ca4feb3d89bf9dad71b4`(`infra/k8s/services/ai/ai.yaml`), 입력은 본문 앞 800자, 1024차원(`SSOT.md` 3절). `model` 칸은 AI 팀이 정한 한 문자열 — 운영 EMBED 워커가 W1 결과 `model` 로 보낼 값과 같게 | 운영은 모델 이름을 대조하지 않고 차원만 본다 — 다른 모델이면 11-16 새 기사가 엉뚱한 사건 후보를 받는다 |
+| `article_embedding` | `dragonkue/BGE-m3-ko` 판 `7074d66aa46562342193ca4feb3d89bf9dad71b4`(`infra/k8s/services/ai/ai.yaml`). 입력 · 정규화 · 차원은 `SSOT.md` 3절 그대로(입력에 제목도 들어간다). `model` 칸은 AI 팀이 정한 한 문자열 — 운영 EMBED 워커가 W1 결과 `model` 로 보낼 값과 같게 | 운영은 모델 이름을 대조하지 않고 차원만 본다 — 다른 모델이면 11-16 새 기사가 엉뚱한 사건 후보를 받는다 |
 | `event` | `role` 이 `MAIN` · `REACTION`(비울 수 없음), `reacts_to_event_id` · `issue_id` 는 덤프 안의 번호이거나 비움 | 적재가 고아 검사에서 멈춘다 |
 | 번호 | 사건 · 이슈 · 작업 번호는 아무 수나 좋지만 덤프 밖을 가리키지 않는다. `analysis_job.candidates` 안의 사건 · 이슈 번호도 덤프 번호 그대로 둔다(적재가 바꾸지 않는다) | — |
 
