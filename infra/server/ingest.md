@@ -232,7 +232,9 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 
 ## 15분 모드로 바꾸기 (11-16 뒤, Jira 156)
 
-MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEFRAME=30m`(앞 실행과 15분 겹침) · `INGEST_DAYS` 비움 · 상한(한 번에 몇 쪽인지 첫날 보고) · `activeDeadlineSeconds` 14분 안쪽(겹쳐 돌지 않게 — `concurrencyPolicy: Forbid` 라 길어지면 다음 실행을 건너뛴다), 그리고 `infra/k8s/alerts/rules.yaml` 의 `NewlearnIngestMissing` ①(시작 마감 + 실행 상한보다 길게) · ②(25시간 → 예: 1시간)와 그 시험. B1 을 같이 켤지는 아래 「B1 켜기」. 실시간 예산은 팀장 공지의 하루 약 200 을 넘지 않게 본다.
+MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEFRAME=30m`(앞 실행과 15분 겹침) · `INGEST_DAYS` 비움 · 상한(한 번에 몇 쪽인지 첫날 보고) · `activeDeadlineSeconds` 14분 안쪽(겹쳐 돌지 않게 — `concurrencyPolicy: Forbid` 라 길어지면 다음 실행을 건너뛴다), 그리고 `infra/k8s/alerts/rules.yaml` 의 `NewlearnIngestMissing` ①(시작 마감 + 실행 상한보다 길게) · ②(25시간 → 예: 1시간)와 그 시험. 11/16 부터 새 기사마다 분석하니 B1 도 같이 켠다(2026-11-09 팀 일정표, 아래 「B1 켜기」). 실시간 예산은 팀장 공지의 하루 약 200 을 넘지 않게 본다.
+
+15분 창은 앞선 30분만 받으니, 11/16 10:00 실행으로 11/15 분을 넣은 뒤 MR 을 머지하기 직전에 「지난 하루(latest)」 손 실행(`INGEST_DAYS=2026-11-16`)으로 그날 0시부터 지금까지를 한 번 받는다.
 
 15분 모드의 새 기사는 라벨 전까지 NewsData 값이다. 라벨은 그때그때 돌린다(`category-labels.md` 3절).
 
@@ -242,7 +244,7 @@ MR 하나 — `news-ingest.yaml` 의 `schedule: "*/15 * * * *"` · `INGEST_TIMEF
 
 - **덤프가 들어갈 때까지는 손으로도 B1 을 걸지 않는다.** 걸면 그 기사에 분석 행이 생겨 덤프 적재(`infra/server/data-load.md`)가 「운영 분석 표가 비어 있음」 검사에서 통째로 되돌아간다
 - 켜기 — 팀이 하루 분석 상한(GMS, `SSOT.md` 8절)을 정하고 AI 팀에 미리 알린 뒤(`infra/server/ai-worker.md` 「기사에 분석 걸기」의 약속) `INGEST_MODE=full` MR. 첫 실행 로그의 `b1` 과 GMS(AI 팀장 화면)를 같이 본다
-- 덤프 마감 뒤 운영 기사(공개 전 · 작업 없음 — 대략 11/13 ~ 11/15 분)는 적재 뒤 운영 B1 로 분석하기로 했다(2026-11-04 팀 결정, `data-load.md` 8절). B1 이 저절로 걸리지 않으니(최신 기사만 다시 받는다) 따로 건다
+- 덤프 마감 뒤 운영 기사(공개 전 · 작업 없음 — 약 11/12 ~ 11/15 분)는 적재 뒤 운영 B1 로 분석하기로 했다(2026-11-04 팀 결정, 날짜는 2026-11-09 일정표, `data-load.md` 8절). B1 이 저절로 걸리지 않으니(최신 기사만 다시 받는다) 따로 건다
 
 ## 급히 멈추기
 
