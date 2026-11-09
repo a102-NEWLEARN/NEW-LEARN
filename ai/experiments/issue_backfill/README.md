@@ -181,5 +181,7 @@ flowchart TD
 | `issue_summary.py` | GMS 프롬프트 · 요약 캐시 |
 | `notebook_source.py` | 노트북 셀 순서와 설정값 |
 | `build_notebook.py` | 위 넷을 노트북 하나로 묶는다 |
+| `regroup.py` | 저장한 기사 · 벡터로 다시 묶는다. 2주 · 19일 결과를 만든 설정(사건 0.25 · 기사 5건 이상 사건 · 이슈 0.40)이 기본값 |
+| `regroup_input.py` | 데이터셋 선정 기사와 벡터로 `regroup.py` 입력 DB 를 만든다 |
 
 테스트는 `tests/test_issue_backfill.py` · `tests/test_newsdata_collect.py` 다(네트워크 · 모델 없이 돈다).
