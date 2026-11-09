@@ -1,4 +1,4 @@
-"""받은 기사로 하루 데이터셋을 만든다: 중복 제거 → 원본 7,000건 고르기 → 불량 본문 거르기. 매일 같은 기준이다.
+"""받은 기사로 하루 데이터셋을 만든다: 중복 제거 → 원본 7,000건 고르기 → 불량 본문 거르기 → 숨긴 기사 빼기. 매일 같은 기준이다.
 
 - 중복: 같은 기사는 article_id(없으면 링크)로 하나만 남는다. 저장할 때 article_id · 링크가 이미 있으면 넣지 않는다.
   같은 사건을 다룬 다른 언론사 기사는 지우지 않는다
@@ -8,6 +8,8 @@
   1시간 칸마다 몫을 정하고 칸 안에서는 최신순으로 고른다. archive 로 받은 날은 받을 때 정한 칸별 몫을 그대로 쓰고
   (칸마다 마지막 쪽까지 받아 몫보다 많이 받는다), 다 받은 날(latest · 10/21~28)은 칸의 기사 비율로 몫을 나눈다.
   목표보다 적으면 다 쓴다
+- 숨긴 기사: 운영에서 라벨로 숨긴 기사의 URL 목록(hidden_urls 표)을 고른 원본에서 뺀다(사유 hidden).
+  원본을 고른 뒤 빼서 빈자리를 다른 기사로 채우지 않는다. 불량 본문 사유가 먼저 붙은 기사는 그 사유를 둔다
 - 결과는 selection 표(그날 기사마다 selected · extra · 뺀 사유)와 days 표(하루 한 줄 기록)에 남긴다
 """
 
@@ -38,6 +40,8 @@ CREATE TABLE IF NOT EXISTS days(
     day TEXT PRIMARY KEY, unique_articles INTEGER NOT NULL, clean INTEGER NOT NULL,
     final INTEGER NOT NULL, dropped TEXT NOT NULL, empty_hours TEXT NOT NULL, built_at TEXT NOT NULL,
     raw INTEGER);
+CREATE TABLE IF NOT EXISTS hidden_urls(
+    link TEXT PRIMARY KEY, source TEXT NOT NULL, added_at TEXT NOT NULL);
 """
 _TAG = re.compile(r"[\[【<(〈《][^\]】>)〉》]{0,20}[\]】>)〉》]")
 _WORD = re.compile(r"[0-9A-Za-z가-힣]+")
@@ -145,6 +149,29 @@ def bad_bodies(articles):
     return codes
 
 
+def add_hidden_urls(conn, urls, source):
+    """운영에서 숨긴 기사 URL 목록을 넣는다. {새로 넣은 수, DB 기사와 맞은 수}.
+
+    같은 URL 은 다시 안 들어간다. 링크는 그대로 비교한다(팀 규칙: 같은 URL = 같은 기사).
+    """
+    conn.executescript(SCHEMA)
+    links = sorted({u.strip() for u in urls if u.strip()})
+    before = conn.total_changes
+    added_at = daily.now_text()
+    conn.executemany(
+        "INSERT OR IGNORE INTO hidden_urls VALUES(?,?,?)",
+        [(link, source, added_at) for link in links],
+    )
+    added = conn.total_changes - before
+    found = sum(
+        conn.execute("SELECT 1 FROM articles WHERE link=?", (link,)).fetchone()
+        is not None
+        for link in links
+    )
+    conn.commit()
+    return {"added": added, "in_articles": found}
+
+
 def pick_by_hour(articles, target=TARGET, quotas=None):
     """칸 안에서는 최신순으로 몫만큼 고른다. 고른 article_id 집합.
 
@@ -178,13 +205,13 @@ def archive_quotas(conn, day):
 
 
 def build_day(conn, day, target=TARGET):
-    """그날 기사 → 원본 고르기 → 불량 본문 거르기. selection · days 표에 남기고 건수를 돌려준다."""
+    """그날 기사 → 원본 고르기 → 불량 본문 거르기 → 숨긴 기사 빼기. selection · days 표에 남기고 건수를 돌려준다."""
     conn.executescript(daily.SCHEMA + SCHEMA)
     if "raw" not in {r[1] for r in conn.execute("PRAGMA table_info(days)")}:
         # raw 열이 없던 때 만든 days 표(2026-11-04 오전 서버 실행)
         conn.execute("ALTER TABLE days ADD COLUMN raw INTEGER")
     start, end = daily.day_bounds(day)
-    keys = ("article_id", "source_name", "title", "content", "published")
+    keys = ("article_id", "link", "source_name", "title", "content", "published")
     rows = conn.execute(
         f"SELECT {', '.join(keys)} FROM articles WHERE published >= ? AND published < ? "
         "ORDER BY published, article_id",
@@ -195,6 +222,10 @@ def build_day(conn, day, target=TARGET):
         a["body"] = norm(a["content"])
     raw_ids = pick_by_hour(articles, target, archive_quotas(conn, day))
     codes = bad_bodies([a for a in articles if a["article_id"] in raw_ids])
+    hidden = {r[0] for r in conn.execute("SELECT link FROM hidden_urls")}
+    for a in articles:
+        if a["article_id"] in raw_ids and a["link"] in hidden:
+            codes.setdefault(a["article_id"], "hidden")
     picked = raw_ids - codes.keys()
     key = day.isoformat()
     conn.execute("DELETE FROM selection WHERE day=?", (key,))

@@ -354,6 +354,62 @@ def test_day_dataset_adds_the_raw_column_to_an_existing_days_table(tmp_path):
         assert "원본 1 · 거른 뒤 1" in ds.record_line(conn, DAY)
 
 
+def test_hidden_urls_are_dropped_after_picking_the_raw_cap(tmp_path):
+    """운영에서 라벨로 숨긴 기사(URL 목록)는 원본을 고른 뒤 뺀다. 빈자리를 다른 기사로 채우지 않는다."""
+    raws = [article(f"b{k}", kst(13, k)) for k in range(1, 6)]
+    with nd.open_store(tmp_path / "s.sqlite") as conn:
+        nd.store_page(conn, raws, "2026-11-04 10:00:00")
+        ds.add_hidden_urls(
+            conn,
+            ["https://news.invalid/b5", "https://news.invalid/b1"],
+            "hidden-urls-test.txt",
+        )
+        result = ds.build_day(conn, DAY, target=3)
+        status = dict(
+            conn.execute(
+                "SELECT article_id, status FROM selection WHERE day='2026-11-03'"
+            ).fetchall()
+        )
+    # 원본 3건은 최신순 b5 · b4 · b3. 숨긴 b5 만 빠지고 b2 가 대신 들어오지 않는다. 숨긴 b1 은 원본 밖이라 extra 다
+    assert result["raw"] == 3
+    assert result["dropped"] == {"hidden": 1}
+    assert result["final"] == 2
+    assert status == {
+        "b1": "extra",
+        "b2": "extra",
+        "b3": "selected",
+        "b4": "selected",
+        "b5": "hidden",
+    }
+
+
+def test_bad_body_reason_stays_when_the_article_is_also_hidden(tmp_path):
+    raws = [article("a1", kst(9), content=""), article("a2", kst(10))]
+    with nd.open_store(tmp_path / "s.sqlite") as conn:
+        nd.store_page(conn, raws, "2026-11-04 10:00:00")
+        ds.add_hidden_urls(
+            conn, ["https://news.invalid/a1", "https://news.invalid/a2"], "t.txt"
+        )
+        result = ds.build_day(conn, DAY)
+    assert result["dropped"] == {"empty_body": 1, "hidden": 1}
+    assert result["final"] == 0
+
+
+def test_hidden_url_list_can_be_added_again_without_growing(tmp_path):
+    urls = [
+        "https://news.invalid/a1",
+        "https://news.invalid/nowhere",
+        "  ",
+        "https://news.invalid/a1 ",
+    ]
+    with nd.open_store(tmp_path / "s.sqlite") as conn:
+        nd.store_page(conn, [article("a1", kst(9))], "2026-11-04 10:00:00")
+        first = ds.add_hidden_urls(conn, urls, "hidden-urls-1105.txt")
+        again = ds.add_hidden_urls(conn, urls, "hidden-urls-1105.txt")
+    assert first == {"added": 2, "in_articles": 1}
+    assert again == {"added": 0, "in_articles": 1}
+
+
 # 불량 본문 규칙의 판단 예시(README 「불량 본문 규칙」). 수집 배치로 옮길 때 같은 결과가 나오는지 맞춰 본다.
 # 본문은 실제 기사가 아니라 규칙을 보이려고 지은 짧은 글이다
 TERMS = (
