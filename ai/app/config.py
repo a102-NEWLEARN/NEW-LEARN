@@ -13,6 +13,17 @@ class Settings:
     backend_url: str = ""
     internal_api_key: str = ""
     worker_allow_mock: bool = False
+    embed_worker_enabled: bool = False
+    embed_model_path: str = "/models/BGE-m3-ko"
+    embed_torch_threads: int = 2
+
+
+def _positive_int(raw: str | None, default: int) -> int:
+    try:
+        n = int(raw or "")
+    except ValueError:
+        return default
+    return n if n > 0 else default
 
 
 # 이름은 저장소 루트 .env.example 을 따른다. compose 의 ai 컨테이너는 환경변수로,
@@ -32,4 +43,10 @@ def load_settings(env: Mapping[str, str] = os.environ) -> Settings:
         internal_api_key=env.get("INTERNAL_API_KEY", ""),
         # 모의 응답을 실제 작업 결과로 저장하지 않게, mock 으로 큐를 읽는 것은 명시적으로 켤 때만이다
         worker_allow_mock=env.get("WORKER_ALLOW_MOCK", "").lower() == "true",
+        # EMBED 는 꺼진 채 배포하고 덤프 적재 · 큐 점검 뒤 인프라가 켠다(Jira S15P31A102-185 계획)
+        embed_worker_enabled=env.get("EMBED_WORKER_ENABLED", "").lower() == "true",
+        # init 컨테이너가 판 7074d66 으로 받아 둔 폴더(infra/k8s/services/ai/ai.yaml)
+        embed_model_path=env.get("EMBED_MODEL_PATH") or "/models/BGE-m3-ko",
+        # SSOT 10절 실측 조건(2스레드)
+        embed_torch_threads=_positive_int(env.get("EMBED_TORCH_THREADS"), 2),
     )
