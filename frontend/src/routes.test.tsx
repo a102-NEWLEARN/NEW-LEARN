@@ -59,7 +59,6 @@ test("손님이 랜딩 밖 화면을 열면 로그인 화면으로 보내고 그
     "/issues/12?event=3",
   );
   expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "용어 사전 열기" })).toBeNull();
 });
 
 test("A17 이 손님 말고 다른 오류로 실패하면 막지 않고 화면을 띄운다", async () => {
@@ -109,17 +108,6 @@ test("없는 주소도 셸 안에 찾을 수 없음 화면을 띄운다", async 
       .getByRole("link", { name: "홈으로" })
       .getAttribute("href"),
   ).toBe("/home");
-});
-
-// 로그인 화면에 없는 것은 손님 시험(위)이 본다 — 회원이 /login 을 열면 홈으로 돌아간다
-test("셸 화면에는 용어사전 버튼이 떠 있고 랜딩에는 없다", async () => {
-  const { router } = renderRoute("/home");
-  const openDictionary = { name: "용어 사전 열기" };
-
-  expect(await screen.findByRole("button", openDictionary)).toBeDefined();
-
-  await act(() => router.navigate("/"));
-  expect(screen.queryByRole("button", openDictionary)).toBeNull();
 });
 
 test("화면이 렌더 중 터지면 셸은 두고 본문 자리에 오류 안내를 띄운다", async () => {

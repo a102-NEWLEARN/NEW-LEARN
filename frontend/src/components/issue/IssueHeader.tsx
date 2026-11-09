@@ -5,6 +5,7 @@ import { ActionButton } from "seed-design/ui/action-button";
 import type { IssueDetail } from "@/api/issue";
 import { AiBadge } from "@/components/AiBadge";
 import { InterestButton } from "@/components/issue/InterestButton";
+import { meaningProps } from "@/components/meaning/meaningProps";
 import { errorDescription } from "@/components/state/ErrorState";
 import { kstYear } from "@/lib/date";
 import { enterAt, RISE } from "@/components/motion/screenMotion";
@@ -73,8 +74,12 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           className={`t9-bold md:t11-bold min-w-0 text-fg-neutral outline-none ${issue ? "" : "flex-1"}`}
         >
           {issue ? (
-            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다
-            <span className={`block ${RISE}`} style={enterAt(HEADER_AT.title)}>
+            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다. 드래그하면 용어사전 말풍선이 뜬다
+            <span
+              className={`block ${RISE}`}
+              style={enterAt(HEADER_AT.title)}
+              {...meaningProps("ISSUE", issue.id)}
+            >
               {issue.title}
             </span>
           ) : failed ? (
@@ -118,6 +123,7 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           <p
             ref={summaryRef}
             className={`t5-regular text-fg-neutral-muted ${more ? "" : "line-clamp-2"}`}
+            {...meaningProps("ISSUE", issue.id)}
           >
             {issue.summary}
           </p>

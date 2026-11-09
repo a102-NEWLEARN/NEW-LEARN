@@ -26,6 +26,7 @@ function WithSettings({ branches }: { branches: MindmapBranch[] }) {
   const [settings, setSettings] = useState(INITIAL_MINDMAP_SETTINGS);
   return (
     <MindmapView
+      articleId={409}
       title="공장 착공"
       branches={branches}
       settings={settings}
