@@ -2,7 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from app.main import app, get_redis
+from app.main import app, get_embed_status, get_redis
+from app.worker import WorkerStatus
 
 
 class FakeRedis:
@@ -39,3 +40,21 @@ def test_health_is_down_when_redis_is_unreachable():
 
     assert res.status_code == 503
     assert res.json()["status"] == "DOWN"
+
+
+@pytest.mark.parametrize(
+    "state, code",
+    [("OFF", 200), ("RUNNING", 200), ("BLOCKED", 503)],
+)
+def test_health_reports_embed_worker_and_fails_only_when_blocked(state, code):
+    app.dependency_overrides[get_redis] = lambda: FakeRedis()
+    app.dependency_overrides[get_embed_status] = lambda: WorkerStatus(
+        state, "모델 없음" if state == "BLOCKED" else ""
+    )
+
+    res = TestClient(app).get("/health")
+
+    assert res.status_code == code
+    assert res.json()["embed_worker"] == state
+    if state == "BLOCKED":
+        assert res.json()["embed_worker_reason"] == "모델 없음"
