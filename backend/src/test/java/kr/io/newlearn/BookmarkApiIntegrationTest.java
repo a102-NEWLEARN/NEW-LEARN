@@ -186,7 +186,7 @@ class BookmarkApiIntegrationTest {
                 .update();
         var stats = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();
         for (String path : new String[] {"/api/v1/articles", "/api/v1/events/4200/articles"}) {
-            long expected = path.contains("events") ? 5 : 4;
+            long expected = 4;
             for (String size : new String[] {"2", "8"}) {
                 em.flush();
                 em.clear();

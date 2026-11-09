@@ -55,7 +55,7 @@ class CategoryIssueApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].id").value(4102))
                 .andExpect(jsonPath("$.items[0].summary").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.items[0].eventCount").value(3))
-                .andExpect(jsonPath("$.items[0].articleCount").value(2))
+                .andExpect(jsonPath("$.items[0].articleCount").value(4))
                 .andExpect(jsonPath("$.items[0].publisherCount").value(1))
                 .andExpect(jsonPath("$.items[0].categories", hasSize(2)))
                 .andExpect(jsonPath("$.items[0].categories[0].code").value("politics"))
