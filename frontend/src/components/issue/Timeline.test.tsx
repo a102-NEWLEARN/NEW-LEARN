@@ -492,3 +492,20 @@ test("움직임은 동작 줄이기를 켜면 빠진다 — 애니메이션 · �
 
   expectMotionSafe();
 });
+
+// 운영에서 같은 날 쌓인 사건의 라벨이 자기 사건보다 아래로 처져, 날짜 줄이 다음 사건 옆에 왔다 (Jira 188)
+test("레인 선 위 사건의 라벨은 선 밑에, 선에서 벗어난 사건의 라벨은 이름 줄을 사건 가운데에 맞춘다", async () => {
+  await renderTimeline();
+  const shiftY = (button: Element) =>
+    Number(
+      /translate\([-\d.]+,([-\d.]+)\)/.exec(
+        labelOf(button).parentElement!.getAttribute("transform")!,
+      )![1],
+    );
+
+  // 09.15 메인 사건 둘 — 117 은 레인 선 위, 118 은 그 아래로 쌓였다
+  expect(shiftY(node(/보조금 지급 확정/))).toBe(6);
+  expect(shiftY(node(/추가 투자 승인/))).toBe(-8);
+  // 서브 흐름에는 레인 선이 없다
+  expect(shiftY(node(/세제 혜택 패키지/))).toBe(-8);
+});

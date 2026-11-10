@@ -61,7 +61,8 @@ test("드래그하면 「의미」 하나가 뜨고, 누르면 점 셋이 튀다
   expect(card.textContent).toContain(
     "남에게 돈을 빌려 쓴 대가로 치르는 일정 비율의 돈.",
   );
-  expect(card.textContent).toContain("AI 생성");
+  // 뜻 카드에는 「AI 생성」 표시를 붙이지 않는다 (2026-11-10 사용자, Jira 188)
+  expect(card.textContent).not.toContain("AI 생성");
 });
 
 test("고른 말 · 앞뒤 조각 · 대상을 A26 에 보낸다", async () => {

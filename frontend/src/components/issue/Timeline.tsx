@@ -279,6 +279,8 @@ export function Timeline({
 
   // 라벨 — 같은 레인 오른쪽 이웃 노드까지 64px 이상 남으면 오른쪽, 아니면 노드 아래 (프로토타입).
   // 오른쪽 라벨은 노드 가운데보다 6px 아래에서 시작한다 — 메인 흐름 선이 글자를 지나가지 않게
+  const mainLaneBox = layout.lanes.find((lane) => lane.key === "MAIN");
+  const railY = mainLaneBox ? mainLaneBox.top + mainLaneBox.nodeY : null;
   const labelOf = (event: PlacedEvent) => {
     const x = screenX(event.x);
     const r = radiusOf(event);
@@ -292,8 +294,16 @@ export function Timeline({
       .map((other) => screenX(other.x) - radiusOf(other) - 18);
     const limit = Math.min(...neighbors, width - 16);
     const room = limit - (x + r + 8);
+    // 메인 흐름 레인 선 위 사건은 라벨을 선 밑에 둔다. 선에서 벗어난 사건(쌓인 사건 · 서브 흐름)은 이름 줄을 사건 가운데에 맞춘다 —
+    // 쌓였을 때 라벨이 자기 사건 옆에 오게 (Jira 188, 쌓는 간격은 timelineLayout 의 stackOffset)
+    const onRail = event.lane === "MAIN" && event.y === railY;
     if (room >= 64)
-      return { dx: r + 8, dy: 6, width: Math.min(room, 190), below: false };
+      return {
+        dx: r + 8,
+        dy: onRail ? 6 : -8,
+        width: Math.min(room, 190),
+        below: false,
+      };
     const nextX = neighbors.length ? Math.min(...neighbors) + 18 : width - 16;
     return {
       dx: -r - 4,

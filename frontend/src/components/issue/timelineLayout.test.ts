@@ -76,24 +76,35 @@ test("시각 차이와 상관없이 앞 사건과 같은 레인이면 170px, 다
   expect([b - a, c - b, d - c]).toEqual([170, 110, 170]);
 });
 
-test("같은 시각에 같은 레인 사건은 같은 가로 자리에서 첫 사건을 레인 선에 두고 30px 씩 아래로 쌓는다", () => {
+// 운영에서 같은 날 사건이 쌓이면 30px 간격에 두 줄 라벨(32px)이 맞닿아, 날짜 줄이 다음 사건 옆에 왔다 (Jira 188)
+test("같은 시각에 같은 레인 사건은 같은 가로 자리에서 첫 사건을 레인 선에 두고, 라벨이 겹치지 않게 아래로 쌓는다", () => {
   const layout = layoutTimeline(
     [
       event(1, at("09-15"), "MAIN"),
       event(2, at("09-15"), "MAIN"),
-      event(3, at("09-15"), "SUB"),
+      event(3, at("09-15"), "MAIN"),
+      event(4, at("09-15"), "SUB"),
+      event(5, at("09-15"), "SUB"),
+      event(6, at("09-15"), "SUB"),
     ],
     { now: NOW },
   );
-  const [one, two, three] = layout.events;
-
-  const [main] = layout.lanes;
+  const [one, two, three, four, five, six] = layout.events;
+  const [main, sub] = layout.lanes;
 
   expect(new Set(xs(layout)).size).toBe(1);
   // 메인 흐름 선은 레인의 nodeY 를 지난다
   expect(one.y).toBe(main.top + main.nodeY);
-  expect(two.y - one.y).toBe(30);
-  expect(three.lane).toBe("SUB");
+  // 선 위 사건의 라벨은 선 밑(사건 가운데 + 6 ~ + 38)이라 그 아래 첫 사건은 더 벌린다 — 라벨 사이 12
+  expect(two.y - one.y).toBe(58);
+  // 그다음부터는 이름 줄을 사건 가운데에 맞춘 두 줄 라벨(− 8 ~ + 24) 사이 12
+  expect(three.y - two.y).toBe(44);
+  expect(four.lane).toBe("SUB");
+  expect(four.y).toBe(sub.top + sub.nodeY);
+  expect([five.y - four.y, six.y - five.y]).toEqual([44, 44]);
+  // 레인은 마지막 사건의 라벨이 들어가게 늘어난다
+  expect(main.top + main.height).toBeGreaterThanOrEqual(three.y + 24 + 12);
+  expect(sub.top + sub.height).toBeGreaterThanOrEqual(six.y + 24 + 12);
 });
 
 test("화면이 넓으면 간격 비율을 지킨 채 빈 자리를 채우게 늘린다", () => {
