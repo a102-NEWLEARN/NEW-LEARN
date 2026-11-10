@@ -350,17 +350,6 @@ body {
   }
 }
 
-/* 마인드맵 잎이 제자리에서 둥실 떠 있다 */
-@keyframes newlearn-float {
-  0%,
-  100% {
-    translate: 0 0;
-  }
-  50% {
-    translate: 0 -3px;
-  }
-}
-
 /* 마우스를 올린 길 위로 점선이 바깥쪽으로 흐른다 — 무늬 한 칸(12) 만큼 민다 */
 @keyframes newlearn-flow {
   from {

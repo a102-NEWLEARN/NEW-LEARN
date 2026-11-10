@@ -23,11 +23,18 @@ export const BRANCH_QUESTION_FONT = 12;
 
 const BRANCH_X = 220;
 const LEAF_DX = 230;
-const LEAF_GAP = 58;
-/** 한 줄 글자 수 · 줄 수 — 넘으면 마지막 줄 끝을 「…」로 줄인다. 전체 글은 화면이 aria-label · title 에 둔다 */
+/** 이웃 잎 중심 사이 최소 거리 — 이웃 두 잎 줄 수의 합이 5 이하면 이 간격 그대로 */
+const LEAF_MIN_SPACING = 58;
+/** 이웃 잎 글 상자 사이에 남기는 틈 — 여러 줄 잎이 붙어 보이지 않게 (Jira 188) */
+const LEAF_TEXT_SPACE = 12;
+/**
+ * 한 줄 글자 수 · 줄 수 — 넘으면 마지막 줄 끝을 「…」로 줄인다. 전체 글은 화면이 aria-label · title 에 둔다.
+ * 잎은 16자 4줄(운영에서 14자 3줄로는 잎 글이 자주 잘렸다, Jira 188), 가운데 제목은 14자 3줄
+ */
 const ROOT_CHARS = 14;
-const LEAF_CHARS = 14;
-const MAX_LINES = 3;
+const ROOT_LINES = 3;
+const LEAF_CHARS = 16;
+const LEAF_LINES = 4;
 
 export type PlacedLeaf = {
   key: string;
@@ -84,9 +91,18 @@ export function wrapText(text: string, maxChars: number, maxLines: number) {
   return [...lines.slice(0, maxLines - 1), cut];
 }
 
-/** 가지 높이 — 잎이 많을수록 가운데에서 멀어져 위 · 아래 가지의 잎이 겹치지 않는다 */
-const branchHeight = (leafCount: number) =>
-  Math.max(140, (leafCount - 1) * 29 + 72);
+/** 이웃 두 잎 중심 사이 — 두 잎 글 높이의 반씩 + 틈. 두 잎 줄 수의 합이 5 이하면 최소 거리 58 그대로다 */
+const leafSpacing = (upperLines: number, lowerLines: number) =>
+  Math.max(
+    LEAF_MIN_SPACING,
+    ((upperLines + lowerLines) / 2) * LEAF_LINE + LEAF_TEXT_SPACE,
+  );
+
+/**
+ * 가지 높이 — 잎 기둥(첫 잎 중심 ~ 끝 잎 중심)이 길수록 가운데에서 멀어진다.
+ * 가장 안쪽 잎 중심이 늘 가운데에서 72 이상 떨어지고 잎 글 반높이는 4줄이라도 36 이라, 위 · 아래 가지의 잎 글이 겹치지 않는다
+ */
+const branchHeight = (span: number) => Math.max(140, span / 2 + 72);
 
 /** A9 가지 목록을 자리에 놓는다. 없는 가지는 그리지 않고, 나머지 가지는 제자리를 지킨다 */
 export function layoutMindmap(
@@ -94,11 +110,26 @@ export function layoutMindmap(
   branches: MindmapBranch[],
 ): MindmapLayout {
   return {
-    root: { lines: wrapText(title, ROOT_CHARS, MAX_LINES) },
+    root: { lines: wrapText(title, ROOT_CHARS, ROOT_LINES) },
     branches: branches.map(({ type, items }) => {
       const { side, vertical } = BRANCHES[type];
       const x = side * BRANCH_X;
-      const y = vertical * branchHeight(items.length);
+      const lines = items.map(({ text }) =>
+        wrapText(text, LEAF_CHARS, LEAF_LINES),
+      );
+      // 잎마다 첫 잎에서 떨어진 거리 — 이웃 잎 줄 수에 맞춰 벌린다
+      const offsets = lines.reduce<number[]>(
+        (acc, leafLines, j) =>
+          j === 0
+            ? [0]
+            : [
+                ...acc,
+                acc[j - 1] + leafSpacing(lines[j - 1].length, leafLines.length),
+              ],
+        [],
+      );
+      const span = offsets.at(-1) ?? 0;
+      const y = vertical * branchHeight(span);
       return {
         type,
         x,
@@ -107,9 +138,9 @@ export function layoutMindmap(
         leaves: items.map(({ text }, j) => ({
           key: `${type}-${j}`,
           text,
-          lines: wrapText(text, LEAF_CHARS, MAX_LINES),
+          lines: lines[j],
           x: x + side * LEAF_DX,
-          y: y + (j - (items.length - 1) / 2) * LEAF_GAP,
+          y: y + offsets[j] - span / 2,
         })),
       };
     }),
