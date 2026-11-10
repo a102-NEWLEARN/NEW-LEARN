@@ -1,6 +1,6 @@
 # 뉴스 수집 배치 — CronJob `news-ingest`
 
-**15분마다 NewsData latest 를 30분 창으로 받아 B2 기사 적재로 넣고(앞 실행과 15분 겹침, 같은 기사는 B2 가 URL 로 막는다), 같은 회차에서 몫만큼 B1 분석을 자동으로 건다(`INGEST_MODE=auto`, 2026-11-13 10:00 수집 뒤부터).** 몫 = min(회차 50, 하루 5,000 − 오늘 건 수, 60 − EXTRACT 대기)이고 AI 팀장이 정했다(2026-11-10, 아래 「자동 투입」). 발표 전 새 기사는 마인드맵(EXTRACT)까지만이다 — EMBED · 판정 · 이슈는 발표 뒤(`SSOT.md` 9절). B1 을 안 건 기사는 `released_at` 이 비어 화면에 나오지 않는다 — 마인드맵이 생긴 기사부터 보인다(Jira S15P31A102-156).
+**15분마다 NewsData latest 를 30분 창으로 받아 B2 기사 적재로 넣고(앞 실행과 15분 겹침, 같은 기사는 B2 가 URL 로 막는다), 같은 회차에서 몫만큼 B1 분석을 자동으로 건다(`INGEST_MODE=auto`, 2026-11-12 최종 파일 적재 · 확인 직후부터).** 몫 = min(회차 50, 하루 5,000 − 오늘 건 수, 60 − EXTRACT 대기)이고 AI 팀장이 정했다(2026-11-10, 아래 「자동 투입」). 발표 전 새 기사는 마인드맵(EXTRACT)까지만이다 — EMBED · 판정 · 이슈는 발표 뒤(`SSOT.md` 9절). B1 을 안 건 기사는 `released_at` 이 비어 화면에 나오지 않는다 — 마인드맵이 생긴 기사부터 보인다(Jira S15P31A102-156).
 
 정한 것과 까닭은 계획 `docs/plans/2026-11-10-ingest-15min-auto-b1.md`(15분 · 자동 투입, Jira 156) · `docs/plans/2026-11-04-ingest-load-only-data-load.md`(매일 넣기만) · `docs/plans/2026-11-03-news-ingest-batch.md`(Jira 154 · 155), B2 · B1 · B3 계약은 `docs/api-internal.md` 2절, 설정 값은 `infra/k8s/services/ingest/news-ingest.yaml`(주석), 거르는 조건 · 칸 맞추기는 같은 폴더의 `news_ingest.py` 에 있다.
 
@@ -50,7 +50,7 @@ flowchart LR
 - 쿼리에 `sort=pubdateasc`(오래된 순)가 있고 `INGEST_DAYS` 가 있으면, 시각을 믿을 수 있는 기사(UTC · 모양이 맞음)가 **쪽 전체에서 모두 범위 뒤**일 때 멈춘다(`stoppedBy: past_range`, 종료 0). 범위 뒤 기사가 한 건 끼인 쪽에서는 멈추지 않는다 — 정렬이 조금 어긋나도 어제 기사를 잃지 않게 요청 하나를 더 쓴다. 상한에 걸린 기사가 있으면 그쪽(종료 2)이 먼저다 — 그날 0 ~ 10시 쪽을 안 받아 요청이 준다(평균 약 330 → 240, 팀장 어림). 정렬은 2026-11-04 받기만으로 첫 쪽이 창 시작 바로 뒤인 것을 확인했다(`SSOT.md` 10절)
 - 다음 쪽이 남았는데 요청 · 기사 상한에 닿으면 받은 데까지 넣고 종료 2 — 빠진 구간이 있다는 뜻이다. 30분 넘게 이어지면 경보 ①이 울린다(아래 「경보가 오면」)
 
-## 15분 실행 (2026-11-13 10:00 수집 뒤 ~)
+## 15분 실행 (2026-11-12 적재 · 확인 직후 ~)
 
 - 15분마다 돈다. 시작 마감 5분, 실행 상한 14분, 다시 시도 없음 — 실패해도 다음 실행이 30분 창을 다시 받아 한 번의 실패는 메워진다. 두 번 연속 실패부터 기사가 빠진다(「경보가 오면」)
 - 크레딧 어림 — 평일 하루 약 520 ~ 610요청, 주말 약 180 ~ 270요청. 창 하나 최대 약 15요청(2026-11-05 ~ 08 운영 DB 발행 시각으로 30분 창 96번을 계산, 받는 수는 넣은 수의 1.2배로 어림)
@@ -138,7 +138,7 @@ kubectl -n app create job --from=cronjob/news-ingest news-ingest-preload --dry-r
 kubectl -n app wait --for=condition=Ready pod -l job-name=news-ingest-preload --timeout=120s && kubectl -n app get job news-ingest-preload -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}{" "}{end}{"\n"}'
 ```
 
-- env 는 이름만 찍는다(값은 찍지 않는다). `INGEST_MODE` · `INGEST_SOURCE` · `INTERNAL_BATCH_KEY` · `BACKEND_URL` 이 있어야 한다. 아래 exec 도 `INGEST_MODE=load-only` · `INGEST_SOURCE=file` 을 한 번 더 준다 — Job 을 다시 띄우다 `set env` 를 빠뜨려도 latest 로 돌지 않게(2026-11-13 부터 CronJob 은 `auto`)
+- env 는 이름만 찍는다(값은 찍지 않는다). `INGEST_MODE` · `INGEST_SOURCE` · `INTERNAL_BATCH_KEY` · `BACKEND_URL` 이 있어야 한다. 아래 exec 도 `INGEST_MODE=load-only` · `INGEST_SOURCE=file` 을 한 번 더 준다 — Job 을 다시 띄우다 `set env` 를 빠뜨려도 latest 로 돌지 않게(2026-11-12 전환부터 CronJob 은 `auto`)
 - 시간 상한(3시간)이 되면 Pod 가 끝나 exec 도 같이 죽는다. 상한에 잘린 Job 은 실패로 남아 같은 이름으로 다시 만들려면 먼저 지운다
 
 넣기 전 숫자를 적어 둔다 — 이 조건의 기사 수는 0 이어야 한다(아니면 같은 링크가 이미 있어 아래 수가 79,334 와 달라진다 — 파일은 79,335줄이지만 시험 기사 1번과 같은 URL 1건은 `existing` 으로 세어져 새로 안 들어간다)
@@ -243,17 +243,17 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 
 auto 는 수집 쪽 코드와 자동 투입 쪽 코드 중 큰 값으로 끝난다 — NewsData 가 실패해도(첫 요청 포함) 밀린 후보는 건다. 쉼(`daily_cap` · `capacity` · `ai_down`)은 0 이라 정상 회차를 실패로 만들지 않는다.
 
-## 15분 수집 + 자동 투입으로 바꾸기 (2026-11-13, Jira 156)
+## 15분 수집 + 자동 투입으로 바꾸기 (2026-11-12, Jira 156)
 
 계획 `docs/plans/2026-11-10-ingest-15min-auto-b1.md`. 이 절이 들어온 MR 이 값을 바꾼다. 날짜별 실행 카드는 계획에 있다. 그날 순서:
 
-1. 09:30 게이트 — 11/12 최종 파일 적재 · 확인 끝(`data-load.md` 9절), AI 팀장에 알림, `b1-state.sql`(아래)이 `released_today` 0 · `queued` 0 · `retry_pending` 0, 11/12 뒤 발행 기사 0
-2. 10:00 수집(11/12 분, 마지막 매일 실행)이 종료 0 으로 끝남 — 11/12 은 이 실행이 하루를 다 받는다
-3. MR 을 최신 `infra` 와 합쳐 파이프라인 → `infra` → `dev`. 10:27 전에 동기화되면 10:30 첫 회차가 성공해 경보가 울리지 않는다(늦으면 한 번 울리고 첫 성공에 풀린다)
+1. 10:00 수집(11/11 분, 마지막 매일 실행)이 종료 0 으로 끝남 — 덤프(11/11 까지)와 이어진다
+2. 게이트 — 11/12 최종 파일 적재 · 확인 끝(`data-load.md` 9절), AI 팀장에 알림, `b1-state.sql`(아래)이 `released_today` 0 · `queued` 0 · `retry_pending` 0, 11/12 뒤 발행 기사 0
+3. MR 을 최신 `infra` 와 합쳐 파이프라인 → `infra` → `dev`. **정각 3분 전쯤(:12 · :27 · :42 · :57) `dev` 에 머지한다** — 그날은 마지막 성공이 10:00 수집이라 새 경보 규칙(마지막 성공 뒤 30분)이 동기화되자마자 참이 된다. 동기화 뒤 5분(`for`) 안에 첫 회차가 성공하면 울리지 않고, 놓치면 한 번 울리고 첫 성공에 풀린다
 4. Argo CD `ingest` Synced, CronJob `*/15` · env, Prometheus 에 새 경보 식
-5. 첫 회차 결과 줄 — 종료 0 · `requests` ≤ 40 · `stoppedBy` `end` · `release.today` 0 · `ai` `UP` · `budget` 50 · `b1.released`
+5. 첫 회차 결과 줄 — 종료 0 · `requests` ≤ 40 · `stoppedBy` `end` · `release.today` 0 · `ai` `UP` · `budget` 50 · `b1.released` = 30분 창의 새 기사 수(최대 50)
 
-**빈 구간은 메우지 않는다** — 11/13 0시 ~ 10:00 기사는 받지 않는다(2026-11-10 사용자). 되돌리기는 그 MR 을 되돌리는 MR 이다 — 매일 10시 넣기만으로 돌아가고, 그날 낮 기사는 다음 날 10시가 받는다. 자동 투입만 끄려면 yaml `INGEST_MODE: load-only` MR.
+**빈 구간은 메우지 않는다** — 11/12 0시 ~ 전환 기사는 받지 않는다(2026-11-10 사용자, AI 팀장에게 알림). 되돌리기는 그 MR 을 되돌리는 MR 이다 — 매일 10시 넣기만으로 돌아가고, 그날 낮 기사는 다음 날 10시가 받는다. 자동 투입만 끄려면 yaml `INGEST_MODE: load-only` MR.
 
 15분 모드의 새 기사는 라벨 전까지 NewsData 값이다. 라벨은 그때그때 돌린다(`category-labels.md` 3절).
 
@@ -302,13 +302,13 @@ auto 는 수집 쪽 코드와 자동 투입 쪽 코드 중 큰 값으로 끝난�
 - 30분 창이 놓친 같은 본문 — 같은 언론사 · 같은 본문(500자 이상)을 제목 둘 이상이 쓰는 묶음. 잘못된 본문이면 라벨 X(`category-labels.md` 2절)
 
   ```bash
-  kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -c "select a.press_code, count(*) as 기사, count(distinct a.title) as 제목, min(a.id) as 첫_id, max(a.id) as 끝_id, count(*) filter (where a.released_at is not null) as 공개 from article a where a.created_at >= '2026-11-13 10:00+09' and length(btrim(a.body)) >= 500 group by a.press_code, md5(btrim(a.body)) having count(distinct a.title) >= 2 order by 3 desc"
+  kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -c "select a.press_code, count(*) as 기사, count(distinct a.title) as 제목, min(a.id) as 첫_id, max(a.id) as 끝_id, count(*) filter (where a.released_at is not null) as 공개 from article a where a.created_at >= now() - interval '1 day' and length(btrim(a.body)) >= 500 group by a.press_code, md5(btrim(a.body)) having count(distinct a.title) >= 2 order by 3 desc"
   ```
 
-**늦게 올라온 기사 · 같은 본문 재기**(2026-11-15 한 번) — 15분 수집은 발행 뒤 30분이 지나 올라온 기사를 받지 못하고, 잘못된 본문 규칙 (a) · (c) 는 묶음이 한 회차에 다 안 모여 덜 잡힌다. 11/14 하루를 넣기만으로 한 번 더 받아 `b2.created`(놓친 기사)와 「본문 불일치로 뺌」 URL 중 운영에 있던 수를 잰다(NewsData 약 240 ~ 330요청). 그 수로 매일 쓸어 담기 · 후보 SQL 의 같은 본문 빼기를 할지 정한다(계획 고를 것 6)
+**늦게 올라온 기사 · 같은 본문 재기**(2026-11-14 10:20 한 번) — 15분 수집은 발행 뒤 30분이 지나 올라온 기사를 받지 못하고, 잘못된 본문 규칙 (a) · (c) 는 묶음이 한 회차에 다 안 모여 덜 잡힌다. 첫 온전한 하루(11/13)를 넣기만으로 한 번 더 받아 `b2.created`(놓친 기사)와 「본문 불일치로 뺌」 URL 중 운영에 있던 수를 잰다(NewsData 약 240 ~ 330요청). 그 수로 매일 쓸어 담기 · 후보 SQL 의 같은 본문 빼기를 할지 정한다(계획 고를 것 6)
 
 ```bash
-kubectl -n app create job --from=cronjob/news-ingest news-ingest-1114-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_MODE=load-only INGEST_DAYS=2026-11-14 INGEST_TIMEFRAME=35 INGEST_MAX_REQUESTS=500 INGEST_MAX_ARTICLES=20000 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0,"activeDeadlineSeconds":3600}}' -o yaml | kubectl -n app create -f -
+kubectl -n app create job --from=cronjob/news-ingest news-ingest-1113-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_MODE=load-only INGEST_DAYS=2026-11-13 INGEST_TIMEFRAME=35 INGEST_MAX_REQUESTS=500 INGEST_MAX_ARTICLES=20000 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0,"activeDeadlineSeconds":3600}}' -o yaml | kubectl -n app create -f -
 ```
 
 ## 급히 멈추기

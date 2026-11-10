@@ -1,6 +1,6 @@
 # 뉴스 수집 배치 — NewsData 기사 → B2 기사 적재 → 자동 투입 B1 (Jira S15P31A102-154 · 156)
 # 스크립트는 옆의 news_ingest.py(Python 표준 라이브러리만) — kustomization.yaml 의 configMapGenerator 가 ConfigMap 으로 얹는다(이미지를 굽지 않는다)
-# 15분마다 최근 30분 기사를 넣고, 같은 회차에서 몫만큼 B1 을 자동으로 건다(auto, 2026-11-13 10:00 수집 뒤부터 — 앞서 매일 10시 전날치 넣기만).
+# 15분마다 최근 30분 기사를 넣고, 같은 회차에서 몫만큼 B1 을 자동으로 건다(auto, 2026-11-12 최종 파일 적재 · 확인 직후부터 — 앞서 매일 10시 전날치 넣기만).
 # 몫 공식 · 쉬는 기준은 AI 팀장 2026-11-10, 계획 docs/plans/2026-11-10-ingest-15min-auto-b1.md (Jira 156). env 의 뜻 · 값은 infra/server/ingest.md 「설정」
 # 손 실행(지난 날짜 · archive) · 로그 읽기 · 15분 모드 · 급히 멈추기도 infra/server/ingest.md
 apiVersion: batch/v1
