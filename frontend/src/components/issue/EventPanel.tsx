@@ -89,6 +89,8 @@ export function EventPanel({
   // A6 는 발행 순이라 첫 쪽의 맨 앞이 첫 기사다
   const firstArticle = pending ? undefined : articles.data?.pages[0]?.items[0];
 
+  // 사건이 바뀌면 key 를 바꿔 새로 그린다(떠오르는 애니메이션이 다시 돈다). 같은 부모 안 형제끼리 key 가 겹치면
+  // 앞 사건 요소가 안 지워지고 쌓인다(운영에서 이슈 제목 줄이 쌓였다, Jira 188) — 자리마다 앞말을 붙인다
   return (
     <div
       aria-busy={event.isPlaceholderData}
@@ -97,7 +99,7 @@ export function EventPanel({
       <div>
         {detail?.issue && (
           <p
-            key={detail.id}
+            key={`issue-${detail.id}`}
             className={`t3-bold truncate text-fg-brand ${RISE}`}
             style={enterAt(PANEL_AT.issue)}
           >
@@ -152,7 +154,7 @@ export function EventPanel({
         )}
         {detail && (
           <div
-            key={detail.id}
+            key={`dates-${detail.id}`}
             className={`mt-x3 flex flex-wrap gap-x1_5 ${RISE}`}
             style={enterAt(PANEL_AT.dates)}
           >
@@ -177,7 +179,7 @@ export function EventPanel({
 
       {detail?.summary && (
         <section
-          key={detail.id}
+          key={`summary-${detail.id}`}
           aria-label="요약"
           className={`${CARD} ${RISE}`}
           style={enterAt(PANEL_AT.summary)}
@@ -201,7 +203,7 @@ export function EventPanel({
       {detail && (
         <RelatedArticles
           // 사건이 바뀌면 더 보기 포커스 같은 상태를 새로 시작한다
-          key={eventId}
+          key={`articles-${eventId}`}
           articles={articles}
           count={detail.articleCount}
           pending={pending}
