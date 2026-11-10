@@ -149,7 +149,7 @@ docker compose cp db:/tmp/newlearn-ai.dump ./newlearn-ai-YYYYMMDD.dump
 
 1. **R1 — 관리자 PC 일회용 DB**: `compose.yaml` 의 DB · Redis + backend 마이그레이션 → 2절 목록 · 10/21 ~ 11/3 JSONL 일부를 B2 로 넣고 10/21 ~ 11/3 분은 `released_at` 을 채워 「운영 흉내」(임시 공개까지) → 분야 라벨을 먼저 넣는다(`category-labels.md` 2절) → 견본 덤프로 적재 SQL 을 만들고 돌림 → 덤프에 없던 임시 공개 기사가 내려갔는지 → 운영에 없는 견본 기사의 발행 시각을 원본과 대조(운영 짝이 없어 5절 검사가 못 잡는다) → 같은 덤프를 한 번 더 넣으면 통째로 실패하고 행 수 그대로인지 → backend 를 붙여 5절 API · 스케줄러. 최종 덤프로 한 번 더
 2. **적재 시각 고르기** — 적재 날은 11/12(2026-11-09 팀 일정표). 10시 수집과 겹치지 않게(겹쳐도 같은 URL 에서 트랜잭션이 실패해 되돌아갈 뿐이지만), 손 실행 Job 이 없는지(`kubectl -n app get jobs`). 팀에 알린다
-3. **백업** — 매일 백업 잡과 S3 잡을 손으로 하나씩(`infra/server/db-backup.md`). 파일 이름 · 크기 · sha256 을 남기고 PC 에도 받아 둔다
+3. **백업** — 매일 백업 잡과 S3 잡을 손으로 하나씩, 매일 잡이 끝난 뒤에 S3 잡(`infra/server/db-backup.md` 「매주 S3 사본」). 파일 이름 · 크기 · sha256 을 남기고 PC 에도 받아 둔다
 4. **R2 — 서버 일회용 DB**: 그 백업을 같은 Pod 의 일회용 DB 에 되살려(`db-backup.md` 「되살리기 연습」) 적재 SQL 을 그대로 돌린 뒤 지운다
 5. **적재 — 한 psql 트랜잭션**(`psql -1 -v ON_ERROR_STOP=1`)
    - 덤프를 SQL 로 풀 때 **표 데이터만** — `pg_restore -l` 목록에서 `TABLE DATA` 줄만 남겨 `pg_restore -L <목록> --data-only -f -`. 덤프 쪽 시퀀스 값을 박는 `setval` 줄이 따라오면 운영 `article_id_seq` 가 내려가 다음 B2 가 기본 키에서 500 이 된다
