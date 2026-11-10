@@ -29,7 +29,8 @@ class DictionaryQuota {
     static final Duration KEEP = Duration.ofDays(2);
 
     // 하나 올리고 몇 번째인지 준다. 만료가 없으면(처음 만든 키) 건다 — 올리기와 만료를 Redis 안에서 한 번에 한다
-    private static final RedisScript<Long> TAKE = RedisScript.of("""
+    // 문맥 뜻 하루 한도(MeaningQuota)도 같이 쓴다
+    static final RedisScript<Long> TAKE = RedisScript.of("""
             local used = redis.call('INCR', KEYS[1])
             if redis.call('PTTL', KEYS[1]) < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
             return used
