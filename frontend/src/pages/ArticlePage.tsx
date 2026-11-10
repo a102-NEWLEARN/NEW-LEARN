@@ -130,7 +130,11 @@ function ArticleView({ articleId }: { articleId: number }) {
               skeleton={<FlowSkeleton />}
             >
               {({ title, branches }) => (
-                <FlowView title={title} branches={branches} />
+                <FlowView
+                  articleId={articleId}
+                  title={title}
+                  branches={branches}
+                />
               )}
             </MindmapBody>
           )}
@@ -145,6 +149,7 @@ function ArticleView({ articleId }: { articleId: number }) {
             >
               {({ title, branches }) => (
                 <MindmapView
+                  articleId={articleId}
                   title={title}
                   branches={branches}
                   settings={mapSettings}

@@ -3,8 +3,6 @@ import { BottomSheet } from "@seed-design/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { EventPanel } from "@/components/issue/EventPanel";
-import { useElementSize } from "@/components/issue/useElementSize";
-import { useShell } from "@/components/shell/useShell";
 
 type EventDetailPaneProps = {
   /** 좁은 화면 시트가 열려 있나. 닫힐 때 SEED 가 내려가는 동안 내용을 남기려고 따로 받는다. 넓은 화면은 늘 true */
@@ -70,8 +68,8 @@ export function EventDetailPane({
     />
   );
 
-  // 시트는 본문(<main>) 밖 body 에 그린다 — 본문은 isolate 라 안에서 그리면 시트의 z-index 가 본문 안에서만 통해,
-  // 본문 밖에 떠 있는 용어사전 버튼이 딤 위로 올라와 관련 기사를 가린다 (EXPERIENCE.md 앱 셸 「용어사전 버튼」)
+  // 시트는 본문(<main>) 밖 body 에 그린다 — 본문은 isolate 라 안에서 그리면 시트의 z-index 가 본문 안에서만 통한다.
+  // 시트 안의 글을 드래그하면 용어사전 말풍선은 시트(data-drawer) 안에 그린다(MeaningBubble)
   if (narrow)
     return (
       <BottomSheet.Root
@@ -124,21 +122,10 @@ export function EventDetailPane({
   );
 }
 
-// 넓은 화면 패널 — 폭을 재서 셸에 알린다. 용어사전 버튼이 그만큼 비킨다. 420px 이지만 좁아지면 max-w 50% 로 줄어서 잰다.
-// 패널과 함께 생기고 사라지게 따로 둔다 — 이슈 화면은 시트와 패널을 같은 자리에 그려서 화면 폭이 바뀌어도
-// EventDetailPane 이 그대로 남아, 거기서 재면 나중에 나타난 패널을 못 잰다. 사라지면 0 으로 돌린다
+// 넓은 화면 패널 — 420px, 좁아지면 본문의 50% 까지
 function WidePanel({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLElement>(null);
-  const { width } = useElementSize(ref);
-  const shell = useShell();
-  useEffect(() => {
-    shell?.setRightPanelWidth(width);
-    return () => shell?.setRightPanelWidth(0);
-  }, [shell, width]);
-
   return (
     <aside
-      ref={ref}
       aria-label="사건 상세"
       className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
     >

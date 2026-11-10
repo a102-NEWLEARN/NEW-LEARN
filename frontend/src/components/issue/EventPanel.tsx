@@ -21,6 +21,7 @@ import { EVENT_ARTICLES_SIZE, eventArticlesQuery } from "@/api/eventArticles";
 import type { ArticleSummary, EventRef, Page } from "@/api/types";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleRow } from "@/components/ArticleRow";
+import { meaningProps } from "@/components/meaning/meaningProps";
 import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
@@ -114,6 +115,7 @@ export function EventPanel({
               key={detail.id}
               className={`block ${RISE}`}
               style={enterAt(PANEL_AT.title)}
+              {...meaningProps("EVENT", detail.id)}
             >
               {detail.title}
             </span>
@@ -186,7 +188,13 @@ export function EventPanel({
               <AiBadge />
             </span>
           </div>
-          <p className="t5-regular mt-x2_5 text-fg-neutral">{detail.summary}</p>
+          {/* 드래그하면 용어사전 말풍선이 뜬다 — 앞 사건을 보이는 동안에도 그 사건(detail.id)의 글이다 */}
+          <p
+            className="t5-regular mt-x2_5 text-fg-neutral"
+            {...meaningProps("EVENT", detail.id)}
+          >
+            {detail.summary}
+          </p>
         </section>
       )}
 

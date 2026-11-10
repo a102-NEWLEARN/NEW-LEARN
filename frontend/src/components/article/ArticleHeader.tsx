@@ -6,6 +6,7 @@ import { ActionButton } from "seed-design/ui/action-button";
 import type { ArticleDetail } from "@/api/article";
 import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { BookmarkButton } from "@/components/BookmarkButton";
+import { meaningProps } from "@/components/meaning/meaningProps";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
 import { formatFullDateTime } from "@/lib/date";
@@ -98,8 +99,12 @@ export function ArticleHeader({
           className="t9-bold md:t10-bold mt-x1_5 text-fg-neutral outline-none"
         >
           {article ? (
-            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다
-            <span className={`block ${RISE}`} style={enterAt(HEADER_AT.title)}>
+            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다. 드래그하면 용어사전 말풍선이 뜬다
+            <span
+              className={`block ${RISE}`}
+              style={enterAt(HEADER_AT.title)}
+              {...meaningProps("ARTICLE", article.id)}
+            >
               {article.title}
             </span>
           ) : failed ? (

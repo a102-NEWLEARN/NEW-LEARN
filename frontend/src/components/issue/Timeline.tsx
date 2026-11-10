@@ -33,6 +33,11 @@ import {
 } from "@/components/issue/TimelineTip";
 import { useElementSize } from "@/components/issue/useElementSize";
 import {
+  isMeaningText,
+  isTextDragClick,
+  meaningProps,
+} from "@/components/meaning/meaningProps";
+import {
   DRAW,
   enterAt,
   FADE_IN,
@@ -159,6 +164,14 @@ export function Timeline({
     const svg = svgRef.current!;
     const behavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent(SCALE_EXTENT)
+      // d3 기본 조건(Ctrl 은 휠만 · 왼쪽 버튼만)에 하나를 더한다 — 사건 이름 위에서 마우스를 누르면 지도를 끌지 않고
+      // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 휠 확대와 터치 이동은 그대로다
+      .filter(
+        (event: MouseEvent) =>
+          (!event.ctrlKey || event.type === "wheel") &&
+          !event.button &&
+          !(event.type === "mousedown" && isMeaningText(event.target)),
+      )
       .extent(() => [
         [0, 0],
         [sizeRef.current.width, sizeRef.current.height],
@@ -381,7 +394,9 @@ export function Timeline({
           width="100%"
           height={svgHeight}
           className="block cursor-grab touch-none select-none"
-          onClick={onDeselect}
+          onClick={(mouse) => {
+            if (!isTextDragClick(mouse)) onDeselect();
+          }}
         >
           <defs>
             <clipPath id="timeline-plot">
@@ -455,6 +470,7 @@ export function Timeline({
               const isHovered = event.id === hoverId;
               const isFocused = event.id === focusId;
               const label = labelOf(event);
+              const shown = fitText(event.label, label.width, 13);
               const meta = joined(dateText(event), articlesText(event));
               const enter = enterOf(event);
               return (
@@ -475,7 +491,8 @@ export function Timeline({
                   className="cursor-pointer outline-none"
                   onClick={(mouse) => {
                     mouse.stopPropagation();
-                    onSelect(event.id);
+                    // 사건 이름을 드래그한 끝의 클릭(용어사전)은 사건 고르기가 아니다
+                    if (!isTextDragClick(mouse)) onSelect(event.id);
                   }}
                   onKeyDown={(key) => onNodeKeyDown(key, event.id)}
                   onMouseEnter={() => setHoverId(event.id)}
@@ -579,14 +596,20 @@ export function Timeline({
                           className="fill-bg-layer-default opacity-95"
                         />
                       )}
+                      {/* 사건 이름은 드래그 대상이다(용어사전). 칸에 맞춰 「…」로 줄였으면 그 표시를 준다 */}
                       <text
                         dominantBaseline="hanging"
-                        className={`stroke-bg-layer-default text-[0.8125rem] ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
+                        className={`cursor-text stroke-bg-layer-default text-[0.8125rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
                         paintOrder="stroke"
                         strokeWidth={4}
                         strokeLinejoin="round"
+                        {...meaningProps(
+                          "EVENT",
+                          event.id,
+                          shown !== event.label,
+                        )}
                       >
-                        {fitText(event.label, label.width, 13)}
+                        {shown}
                       </text>
                       <text
                         y={17}

@@ -2,6 +2,10 @@ import { type MouseEvent, useEffect, useId, useState } from "react";
 import type { MindmapBranch } from "@/api/mindmap";
 import { BRANCHES, type BranchInfo } from "@/components/article/branches";
 import {
+  isTextDragClick,
+  meaningProps,
+} from "@/components/meaning/meaningProps";
+import {
   enterAt,
   FADE_IN,
   GROW_X,
@@ -34,6 +38,8 @@ const ARROW_AFTER = LINE_AFTER + 260;
 const HEADER_PULSE_AT = 1800;
 
 type FlowViewProps = {
+  /** 이 기사 — 잎 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
+  articleId: number;
   /** 머리 줄 글자 — A9 title */
   title: string;
   /** A9 가지 — 내용이 있는 것만 온다 */
@@ -47,7 +53,7 @@ const leafKey = (type: string, index: number) => `${type}:${index}`;
 // 읽는 목록 (프로토타입 v21 MindmapFlowMap · FlowCard, Jira S15P31A102-58).
 // 자리가 1024px 이상이면 가지 하나가 한 열인 가로, 아니면 세로다. 컨테이너 쿼리라 넓이를 재는 코드가 없다.
 // 잎을 누르면 강조만 한다 — 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
-export function FlowView({ title, branches }: FlowViewProps) {
+export function FlowView({ articleId, title, branches }: FlowViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const idPrefix = useId();
 
@@ -65,9 +71,10 @@ export function FlowView({ title, branches }: FlowViewProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selected]);
 
-  // 잎 카드 밖을 누르면 강조를 푼다
+  // 잎 카드 밖을 누르면 강조를 푼다. 글을 드래그한 끝의 클릭(용어사전)은 누르기가 아니다
   const releaseOnEmpty = (click: MouseEvent) => {
     if ((click.target as Element).closest("button")) return;
+    if (isTextDragClick(click)) return;
     setSelected(null);
   };
 
@@ -80,7 +87,7 @@ export function FlowView({ title, branches }: FlowViewProps) {
       // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다
       className="@container min-h-0 flex-1 overflow-y-auto max-md:overflow-visible"
     >
-      {/* 좁은 화면 — 좌우 20px, 맨 아래 96px 를 남겨 마지막 카드가 용어사전 버튼에 가리지 않게 */}
+      {/* 좁은 화면 — 좌우 20px, 맨 아래 96px (DESIGN.md Layout & Spacing 「스크롤 끝」) */}
       <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 @min-[1024px]:max-w-[1280px]">
         {/* 머리 줄 — 바로 위 h1 과 같은 글이라 낭독에서 뺀다 (마인드맵 보기의 가운데 원과 같다).
             자리가 좁으면(640px 미만) h1 이 바로 위에 보여서 같은 제목을 또 두지 않는다 */}
@@ -177,6 +184,7 @@ export function FlowView({ title, branches }: FlowViewProps) {
                     return (
                       <LeafCard
                         key={key}
+                        articleId={articleId}
                         text={text}
                         tone={tone}
                         outlook={type === "OUTLOOK"}
@@ -226,6 +234,7 @@ function ArrowToNext({ at, dot }: { at: number; dot: string }) {
 }
 
 type LeafCardProps = {
+  articleId: number;
   text: string;
   tone: BranchInfo["tone"];
   /** 전망 가지의 잎 — 점선 원과 「전망·해석」 */
@@ -240,7 +249,10 @@ type LeafCardProps = {
 // 잎 카드 — 문장 전체를 둔다. 상세 창이 없어서 자르면 끝까지 읽을 길이 없다.
 // 색 전환은 동작 줄이기에서도 남긴다 (EXPERIENCE.md Interaction Primitives). 포커스 윤곽선은 카드라 바깥으로 띄운다.
 // 마우스를 올리면 살짝 들리고 원이 커진다. 누르는 동안 살짝 줄어든다 — 누르는 면이 하나인 카드라서다 (EXPERIENCE.md 「호버 · 눌림」)
+// 글은 드래그해 고를 수 있다(용어사전) — 버튼 안 글은 브라우저가 고르지 못하게 해서 select-text 를 준다.
+// 드래그 끝에 따라오는 클릭은 강조로 치지 않는다
 function LeafCard({
+  articleId,
   text,
   tone,
   outlook,
@@ -254,9 +266,11 @@ function LeafCard({
       type="button"
       aria-pressed={on}
       data-dimmed={dimmed || undefined}
-      onClick={onPress}
+      onClick={(click) => {
+        if (!isTextDragClick(click)) onPress();
+      }}
       style={enterAt(enterDelay)}
-      className={`group flex w-full flex-col items-start gap-x2 rounded-r3_5 border px-x4 py-x3_5 text-left transition-[border-color,background-color,opacity,scale,translate] duration-[var(--seed-duration-d4)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring motion-safe:hover:-translate-y-[2px] motion-safe:active:scale-[0.98] ${RISE} ${
+      className={`group flex w-full flex-col items-start gap-x2 rounded-r3_5 border px-x4 py-x3_5 text-left select-text transition-[border-color,background-color,opacity,scale,translate] duration-[var(--seed-duration-d4)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring motion-safe:hover:-translate-y-[2px] motion-safe:active:scale-[0.98] ${RISE} ${
         on
           ? tone.cardOn
           : `border-stroke-neutral-weak bg-bg-layer-default ${tone.cardHover}`
@@ -280,7 +294,10 @@ function LeafCard({
           />
         </span>
         {/* 빈칸 없는 긴 영문 · 주소도 카드 안에서 줄을 바꾼다 */}
-        <span className="t5-medium [overflow-wrap:anywhere] text-fg-neutral">
+        <span
+          className="t5-medium [overflow-wrap:anywhere] text-fg-neutral select-text"
+          {...meaningProps("ARTICLE", articleId)}
+        >
           {text}
         </span>
       </span>{" "}
