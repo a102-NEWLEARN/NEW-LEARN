@@ -15,7 +15,6 @@ import {
   meaningQuery,
 } from "@/api/dictionary";
 import { ApiError } from "@/api/error";
-import { AiBadge } from "@/components/AiBadge";
 import {
   MEANING_ATTR,
   MEANING_CUT_ATTR,
@@ -335,7 +334,7 @@ export function MeaningBubble() {
   );
 }
 
-// 뜻 — 사전처럼 표제어 · 품사, 그 아래 뜻풀이. AI 가 만든 풀이라 AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone)
+// 뜻 — 사전처럼 표제어 · 품사, 그 아래 뜻풀이. 「AI 생성」 표시는 붙이지 않는다(2026-11-10 사용자, Jira 188 — 요약 · 마인드맵은 그대로 붙인다)
 function MeaningCard({
   term,
   result,
@@ -361,9 +360,6 @@ function MeaningCard({
             {result.pos}
           </span>
         )}
-        <span className="ml-auto pl-x2">
-          <AiBadge />
-        </span>
       </div>
       <p className="t4-regular mt-x1_5 text-fg-neutral">{result.definition}</p>
     </section>

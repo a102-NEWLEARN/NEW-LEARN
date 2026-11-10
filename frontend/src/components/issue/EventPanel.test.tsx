@@ -387,3 +387,35 @@ test("이전 · 다음으로 사건을 바꾸면 새 사건 제목이 다시 떠
     /motion-safe:animate-\[newlearn-/,
   );
 });
+
+// 운영에서 사건을 바꿀 때마다 이슈 제목 줄이 하나씩 쌓였다 — 같은 부모 안 형제가 같은 key 를 써서 앞 요소가 안 지워졌다 (Jira 188)
+test("사건을 오가도 이슈 제목 · 요약 칸은 하나씩만 있다", async () => {
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  renderWithProviders(<Harness start={119} />);
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+
+  // 이미 받은 사건으로 돌아올 때 앞 사건의 요소가 남았다 — 「이전 → 다음」으로 오간다
+  fireEvent.click(await screen.findByRole("button", { name: /이전 사건/ }));
+  await waitFor(() =>
+    expect(screen.getByRole("heading", { level: 2 }).textContent).not.toBe(
+      "한빛반도체 텍사스 공장 착공식",
+    ),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: /다음 사건/ }));
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  await relatedList();
+
+  expect(screen.getAllByText("한빛반도체 미국 공장 건설")).toHaveLength(1);
+  expect(screen.getAllByRole("region", { name: "요약" })).toHaveLength(1);
+  const sameKey = errors.mock.calls.filter((call) =>
+    call.some((part) => String(part).includes("same key")),
+  );
+  expect(sameKey).toHaveLength(0);
+  errors.mockRestore();
+});

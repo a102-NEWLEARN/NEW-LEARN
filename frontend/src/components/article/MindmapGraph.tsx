@@ -44,8 +44,6 @@ import {
 import {
   DRAW,
   enterAt,
-  FLOAT,
-  floatPhase,
   FLOW,
   FLY_OUT,
   flyFrom,
@@ -589,83 +587,81 @@ export function MindmapGraph({
               {...hoverProps({ type, leaf: leaf.key })}
             >
               {labeled && cut && <title>{leaf.text}</title>}
-              {/* 둥실 떠 있다 — 잎마다 박자를 달리한다. 그 안에서 가지 자리에서 날아 나온다 */}
-              <g className={FLOAT} style={floatPhase(index * 7 + j)}>
+              {/* 가지 자리에서 날아 나와 제자리에 선다 — 떠다니면 글을 읽기 어려워 둥실은 뺐다 (Jira 188) */}
+              <g
+                className={FLY_OUT}
+                style={flyFrom(
+                  x - leaf.x,
+                  y - leaf.y,
+                  at + LEAF_AFTER + leafAt(j),
+                )}
+              >
+                <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
+                {/* 잎 글도 누르는 면이다 — 줄 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
+                {labeled && (
+                  <rect
+                    x={side === 1 ? textX : textX - textWidth}
+                    y={(-leaf.lines.length * LEAF_LINE) / 2}
+                    width={textWidth}
+                    height={leaf.lines.length * LEAF_LINE}
+                    className="fill-transparent"
+                  />
+                )}
+                {/* 강조하면 둘레에 파문이 한 번 번진다 */}
+                {selected && (
+                  <circle
+                    r={LEAF_RADIUS}
+                    fill="none"
+                    strokeWidth={2}
+                    className={`${tone.stroke} ${RIPPLE_ONCE}`}
+                  />
+                )}
+                {/* 마우스를 올리면 넘치며 커진다. 강조하면 테두리색으로 차며 한 번 튄다 */}
                 <g
-                  className={FLY_OUT}
-                  style={flyFrom(
-                    x - leaf.x,
-                    y - leaf.y,
-                    at + LEAF_AFTER + leafAt(j),
-                  )}
+                  className={`${HOVER_SPRING} ${leafHovered && !selected ? "motion-safe:scale-[1.12]" : ""}`}
                 >
-                  <circle r={LEAF_RADIUS + 10} className="fill-transparent" />
-                  {/* 잎 글도 누르는 면이다 — 줄 사이 틈을 눌러도 빈 곳이 되지 않게 글 영역을 깐다 */}
-                  {labeled && (
-                    <rect
-                      x={side === 1 ? textX : textX - textWidth}
-                      y={(-leaf.lines.length * LEAF_LINE) / 2}
-                      width={textWidth}
-                      height={leaf.lines.length * LEAF_LINE}
-                      className="fill-transparent"
-                    />
-                  )}
-                  {/* 강조하면 둘레에 파문이 한 번 번진다 */}
-                  {selected && (
-                    <circle
-                      r={LEAF_RADIUS}
-                      fill="none"
-                      strokeWidth={2}
-                      className={`${tone.stroke} ${RIPPLE_ONCE}`}
-                    />
-                  )}
-                  {/* 마우스를 올리면 넘치며 커진다. 강조하면 테두리색으로 차며 한 번 튄다 */}
-                  <g
-                    className={`${HOVER_SPRING} ${leafHovered && !selected ? "motion-safe:scale-[1.12]" : ""}`}
-                  >
-                    <circle
-                      data-leaf-mark
-                      r={LEAF_RADIUS}
-                      strokeWidth={2.5}
-                      strokeDasharray={
-                        type === "OUTLOOK" ? OUTLOOK_DASH : undefined
-                      }
-                      className={`transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected ? `${tone.solid} ${POP_ONCE}` : "fill-bg-layer-default"} ${tone.stroke}`}
-                    />
-                  </g>
-                  {ringKey === leaf.key && (
-                    <circle
-                      r={LEAF_RADIUS + 6}
-                      fill="none"
-                      strokeWidth={2}
-                      className="stroke-stroke-focus-ring"
-                    />
-                  )}
-                  {/* 잎 글은 한 단계 옅게 두고, 마우스를 올리거나 강조하면 진하게 (프로토타입 v21) */}
-                  {/* 라벨을 늘 보일 때만 드래그 대상이다 — 끄면 마우스가 떠날 때 글이 사라져 고른 것이 풀린다 */}
-                  {labeled && (
-                    <text
-                      textAnchor={side === 1 ? "start" : "end"}
-                      fontSize={LEAF_FONT}
-                      strokeWidth={4}
-                      style={HALO}
-                      className={`stroke-bg-layer-default transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected || leafHovered ? "fill-fg-neutral" : "fill-fg-neutral-muted"} ${selected ? "font-bold" : "font-medium"} ${showLabels ? "cursor-text select-text" : ""}`}
-                      {...(showLabels
-                        ? meaningProps("ARTICLE", articleId, cut)
-                        : {})}
-                    >
-                      {leaf.lines.map((line, i) => (
-                        <tspan
-                          key={i}
-                          x={textX}
-                          y={(i - (leaf.lines.length - 1) / 2) * LEAF_LINE + 4}
-                        >
-                          {line}
-                        </tspan>
-                      ))}
-                    </text>
-                  )}
+                  <circle
+                    data-leaf-mark
+                    r={LEAF_RADIUS}
+                    strokeWidth={2.5}
+                    strokeDasharray={
+                      type === "OUTLOOK" ? OUTLOOK_DASH : undefined
+                    }
+                    className={`transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected ? `${tone.solid} ${POP_ONCE}` : "fill-bg-layer-default"} ${tone.stroke}`}
+                  />
                 </g>
+                {ringKey === leaf.key && (
+                  <circle
+                    r={LEAF_RADIUS + 6}
+                    fill="none"
+                    strokeWidth={2}
+                    className="stroke-stroke-focus-ring"
+                  />
+                )}
+                {/* 잎 글은 한 단계 옅게 두고, 마우스를 올리거나 강조하면 진하게 (프로토타입 v21) */}
+                {/* 라벨을 늘 보일 때만 드래그 대상이다 — 끄면 마우스가 떠날 때 글이 사라져 고른 것이 풀린다 */}
+                {labeled && (
+                  <text
+                    textAnchor={side === 1 ? "start" : "end"}
+                    fontSize={LEAF_FONT}
+                    strokeWidth={4}
+                    style={HALO}
+                    className={`stroke-bg-layer-default transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected || leafHovered ? "fill-fg-neutral" : "fill-fg-neutral-muted"} ${selected ? "font-bold" : "font-medium"} ${showLabels ? "cursor-text select-text" : ""}`}
+                    {...(showLabels
+                      ? meaningProps("ARTICLE", articleId, cut)
+                      : {})}
+                  >
+                    {leaf.lines.map((line, i) => (
+                      <tspan
+                        key={i}
+                        x={textX}
+                        y={(i - (leaf.lines.length - 1) / 2) * LEAF_LINE + 4}
+                      >
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                )}
               </g>
             </g>
           );
