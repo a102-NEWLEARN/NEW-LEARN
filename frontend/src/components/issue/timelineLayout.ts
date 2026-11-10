@@ -15,8 +15,25 @@ const LAST_ROOM = 140;
 // 시각 차이에 비례하지 않는 간격 — 빈 기간이 길어도 화면을 낭비하지 않고, 같은 레인에서는 라벨이 겹치지 않게 넓게
 const SAME_LANE_GAP = 170;
 const OTHER_LANE_GAP = 110;
-/** 같은 시각 · 같은 레인 사건을 아래로 쌓는 간격 */
-const STACK_GAP = 30;
+/**
+ * 같은 시각 · 같은 레인 사건을 아래로 쌓는 간격 — 라벨 두 줄(32px) 사이에 12px 를 남긴다 (Jira 188 — 30px 로는 라벨이 맞닿아
+ * 날짜 줄이 다음 사건 옆에 왔다). 라벨은 이름 줄을 사건 가운데에 맞춰 사건 가운데 − 8 ~ + 24 에 놓인다(Timeline.tsx).
+ * 메인 흐름 레인 선 위 사건의 라벨만 선 밑(+ 6 ~ + 38)이라, 그 바로 아래 사건은 14px 더 벌린다
+ */
+const STACK_GAP = 44;
+const STACK_GAP_BELOW_RAIL = 58;
+/** 선에서 벗어난 사건 라벨의 아래 끝(사건 가운데 기준) · 선 위 사건 라벨의 아래 끝 · 레인 아래 끝까지 남길 틈 */
+const LABEL_BOTTOM = 24;
+const RAIL_LABEL_BOTTOM = 38;
+const LANE_BOTTOM_ROOM = 12;
+
+/** 쌓인 순서(0 부터)의 사건이 첫 사건에서 아래로 떨어진 거리. 메인 흐름 첫 사건은 레인 선 위다 */
+const stackOffset = (lane: TimelineLane, index: number) =>
+  index === 0
+    ? 0
+    : lane === "MAIN"
+      ? STACK_GAP_BELOW_RAIL + (index - 1) * STACK_GAP
+      : index * STACK_GAP;
 const DAY = 86_400_000;
 const KST_OFFSET = 9 * 3_600_000;
 
@@ -132,7 +149,7 @@ export function layoutTimeline(
     return (xA + (xB - xA) * ratio) * scale;
   };
 
-  // 세로 — 같은 시각 · 같은 레인 사건은 첫 사건을 레인 자리에 두고 아래로 쌓는다(라벨이 레인 선에 걸리지 않게). 둘을 넘으면 레인을 늘린다
+  // 세로 — 같은 시각 · 같은 레인 사건은 첫 사건을 레인 자리에 두고 아래로 쌓는다(라벨끼리 12px 를 남기게, stackOffset). 마지막 라벨이 안 들어가면 레인을 늘린다
   const stacks = new Map<string, TimelineEvent[]>();
   for (const event of sorted) {
     const key = `${laneOf(event)}|${timeOf(event)}`;
@@ -149,7 +166,16 @@ export function layoutTimeline(
         .filter((stack) => laneOf(stack[0]) === key)
         .map((stack) => stack.length),
     );
-    const extra = Math.max(0, tallest - 2) * STACK_GAP;
+    // 가장 높이 쌓인 칸의 마지막 라벨이 레인 안에 들어오게 늘린다
+    const lastLabelBottom =
+      stackOffset(key, tallest - 1) +
+      (key === "MAIN" && tallest === 1 ? RAIL_LABEL_BOTTOM : LABEL_BOTTOM);
+    const extra = Math.max(
+      0,
+      lastLabelBottom +
+        LANE_BOTTOM_ROOM -
+        (LANES[key].height - LANES[key].nodeY),
+    );
     const lane = {
       key,
       name: LANES[key].name,
@@ -174,7 +200,7 @@ export function layoutTimeline(
       ...event,
       lane: lane.key,
       x: xAt(timeOf(event)),
-      y: lane.top + lane.nodeY + offset * STACK_GAP,
+      y: lane.top + lane.nodeY + stackOffset(lane.key, offset),
       dateLabel: dateLabels[index],
       estimated: event.occurredAtBasis === "FIRST_PUBLISHED",
     };
