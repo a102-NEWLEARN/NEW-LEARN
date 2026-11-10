@@ -182,36 +182,32 @@ tests:
               summary: "DB 백업 postgres-backup-s3 의 마지막 성공이 8d 0h 11m 0s 전이다 (값이 1s 면 지표가 없음)"
               description: *backup
 
-  # 뉴스 수집(Jira S15P31A102-154 · 156) — 값은 예약 · 성공 시각(초). 멈춘 동안은 울리지 않는다. 매일 10시 한 번 기준(① 3시간 · ② 25시간)
-  # 켠 뒤 급히 멈춘 모양: 옛 예약(0초) 뒤 성공이 없다. suspend 조건이 없으면 3시간 뒤 울린다
+  # 뉴스 수집(Jira S15P31A102-154 · 156) — 값은 예약 · 성공 시각(초). 멈춘 동안은 울리지 않는다. 15분마다 기준(① · ② 30분, for 5분)
   - name: 수집 멈춘 동안은 안 울림
     interval: 1m
     input_series:
       - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
-        values: "1x2000"
+        values: "1x200"
       - series: kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"}
-        values: "0x2000"
+        values: "0x200"
       - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
-        values: "-3600x2000"
+        values: "-3600x200"
     alert_rule_test:
-      - eval_time: 4h
-        alertname: NewlearnIngestMissing
-      - eval_time: 30h
+      - eval_time: 2h
         alertname: NewlearnIngestMissing
 
-  # 손 실행 없이 켜고 1시간에 첫 예약 — 성공 기록이 아예 없다(kube-state-metrics 는 그 줄을 안 낸다)
-  - name: 수집 성공 기록 없이 첫 예약 실패
+  # 성공 기록이 아예 없다(kube-state-metrics 는 그 줄을 안 낸다) — 처음부터 참이라 for 5m 뒤 울린다
+  - name: 수집 성공 기록 없음
     interval: 1m
     input_series:
       - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
-        values: "0x400"
+        values: "0x20"
       - series: kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"}
-        values: "_x60 3600x340"
+        values: "0x20"
     alert_rule_test:
-      # 예약 뒤 3시간(4시간 1분부터 참), for 10m 이 아직 안 참
-      - eval_time: 4h10m
+      - eval_time: 4m
         alertname: NewlearnIngestMissing
-      - eval_time: 4h11m
+      - eval_time: 5m
         alertname: NewlearnIngestMissing
         exp_alerts:
           - exp_labels:
@@ -220,37 +216,37 @@ tests:
               namespace: app
               cronjob: news-ingest
             exp_annotations:
-              summary: "뉴스 수집 news-ingest — 마지막 예약 실행이 3h 11m 0s 전인데 그 뒤 성공이 없거나 다음 예약 실행이 없다"
-              description: &ingest "kubectl -n app get jobs · kubectl -n app logs job/<이름>. 볼 것 · 멈추는 법은 infra/server/ingest.md 「경보가 오면」"
+              summary: "뉴스 수집 · 자동 투입 news-ingest — 마지막 성공 또는 예약 실행 뒤 0s 지났거나 성공 기록이 없다"
+              description: &ingest "kubectl -n app get jobs · kubectl -n app logs job/<이름>. 결과 줄 release.skippedBy 가 wait · failing 이면 수집은 됐고 분석 줄이 막힌 것. 볼 것 · 멈추는 법은 infra/server/ingest.md 「경보가 오면」"
 
-  # 멈춘 동안 손으로 받기만 돌려(10분에 성공) 성공 시각만 있고, 켠 뒤 첫 예약 전 — 울리면 안 된다
-  - name: 수집 손 실행 성공 뒤 첫 예약 전
+  # 15분마다 예약 · 1분 뒤 성공 — 조용하다
+  - name: 수집 정상 운영
     interval: 1m
     input_series:
       - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
-        values: "0x2000"
-      - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
-        values: "_x10 600x1990"
-    alert_rule_test:
-      - eval_time: 4h11m
-        alertname: NewlearnIngestMissing
-      - eval_time: 30h
-        alertname: NewlearnIngestMissing
-
-  # 손 실행 성공(10분) 뒤 켜고 1시간에 첫 예약이 실패 — 손 실행의 성공 시각이 예약보다 이르니 울린다
-  - name: 수집 손 실행 성공 뒤 첫 예약 실패
-    interval: 1m
-    input_series:
-      - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
-        values: "0x400"
-      - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
-        values: "_x10 600x390"
+        values: "0x89"
       - series: kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"}
-        values: "_x60 3600x340"
+        values: "0x14 900x14 1800x14 2700x14 3600x14 4500x14"
+      - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
+        values: "60x14 960x14 1860x14 2760x14 3660x14 4560x14"
     alert_rule_test:
-      - eval_time: 4h10m
+      - eval_time: 80m
         alertname: NewlearnIngestMissing
-      - eval_time: 4h11m
+
+  # 예약은 계속 생기는데 1분 뒤 첫 성공 말고는 모두 실패 — 성공 뒤 30분(32분부터 참), for 5m
+  - name: 수집 연속 실패
+    interval: 1m
+    input_series:
+      - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
+        values: "0x89"
+      - series: kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"}
+        values: "0x14 900x14 1800x14 2700x14 3600x14 4500x14"
+      - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
+        values: "60x89"
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: NewlearnIngestMissing
+      - eval_time: 37m
         alertname: NewlearnIngestMissing
         exp_alerts:
           - exp_labels:
@@ -259,39 +255,23 @@ tests:
               namespace: app
               cronjob: news-ingest
             exp_annotations:
-              summary: "뉴스 수집 news-ingest — 마지막 예약 실행이 3h 11m 0s 전인데 그 뒤 성공이 없거나 다음 예약 실행이 없다"
+              summary: "뉴스 수집 · 자동 투입 news-ingest — 마지막 성공 또는 예약 실행 뒤 36m 0s 지났거나 성공 기록이 없다"
               description: *ingest
 
-  # 1시간 예약이 1분 뒤 성공 — 다음 예약(25시간)까지 조용하다
-  - name: 수집 예약 실행 성공
+  # 손 실행 성공만 이어지고 예약이 끊김 — 예약 뒤 30분(31분부터 참), for 5m
+  - name: 수집 예약이 30분 넘게 없음
     interval: 1m
     input_series:
       - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
-        values: "0x1600"
+        values: "0x59"
       - series: kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"}
-        values: "_x60 3600x1540"
+        values: "0x59"
       - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
-        values: "_x61 3660x1539"
+        values: "60x19 1200x19 2400x19"
     alert_rule_test:
-      - eval_time: 4h11m
+      - eval_time: 35m
         alertname: NewlearnIngestMissing
-      - eval_time: 25h
-        alertname: NewlearnIngestMissing
-
-  # 1시간 예약이 성공한 뒤 예약이 더 오지 않음(시각을 놓침) — 예약 뒤 25시간(26시간 1분부터 참)
-  - name: 수집 예약이 25시간 넘게 없음
-    interval: 1m
-    input_series:
-      - series: kube_cronjob_spec_suspend{namespace="app", cronjob="news-ingest"}
-        values: "0x1700"
-      - series: kube_cronjob_status_last_schedule_time{namespace="app", cronjob="news-ingest"}
-        values: "_x60 3600x1640"
-      - series: kube_cronjob_status_last_successful_time{namespace="app", cronjob="news-ingest"}
-        values: "_x61 3660x1639"
-    alert_rule_test:
-      - eval_time: 26h10m
-        alertname: NewlearnIngestMissing
-      - eval_time: 26h11m
+      - eval_time: 36m
         alertname: NewlearnIngestMissing
         exp_alerts:
           - exp_labels:
@@ -300,5 +280,5 @@ tests:
               namespace: app
               cronjob: news-ingest
             exp_annotations:
-              summary: "뉴스 수집 news-ingest — 마지막 예약 실행이 1d 1h 11m 0s 전인데 그 뒤 성공이 없거나 다음 예약 실행이 없다"
+              summary: "뉴스 수집 · 자동 투입 news-ingest — 마지막 성공 또는 예약 실행 뒤 36m 0s 지났거나 성공 기록이 없다"
               description: *ingest

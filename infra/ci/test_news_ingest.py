@@ -36,6 +36,8 @@ KST = timezone(timedelta(hours=9))
 NOW = datetime(2026, 11, 4, 10, 0, tzinfo=KST)  # 매일 10시 실행 — 전날은 11-03
 B2 = BACKEND + "/internal/v1/articles"
 B1 = re.compile(re.escape(BACKEND) + r"/internal/v1/articles/(\d+)/release")
+B3 = BACKEND + "/internal/v1/articles/release-candidates"
+HEALTH = "http://ai.test:8000/health"
 
 
 def item(n, **over):
@@ -80,7 +82,7 @@ def page(items, next_page=None):
 
 def env(**over):
     values = {
-        "INGEST_MODE": "full",
+        "INGEST_MODE": "load-only",
         "NEWSDATA_API_KEY": KEY,
         "INTERNAL_BATCH_KEY": BATCH_KEY,
         "BACKEND_URL": BACKEND,
@@ -97,12 +99,16 @@ class FakeNet:
     pages: NewsData 가 차례로 돌려줄 (상태, 본문) 또는 던질 예외
     b2: 기사(dict) → (상태, 본문). 없으면 처음 보는 URL 은 201, 본 URL 은 200
     b1: (기사 번호, 몇 번째 시도) → (상태, 본문). 없으면 202
+    b3: 질의 dict → (상태, 본문) 또는 던질 예외. 없으면 이 가짜 망이 B2 로 받은 기사를 넣은 차례의 거꾸로(최신부터) 후보로, 대기 0
+    health: (상태, 본문) 또는 던질 예외. 없으면 200 UP
     """
 
-    def __init__(self, pages=(), b2=None, b1=None):
+    def __init__(self, pages=(), b2=None, b1=None, b3=None, health=None):
         self.pages = list(pages)
         self.b2 = b2
         self.b1 = b1
+        self.b3 = b3
+        self.health = health
         self.calls = []
         self.ids = {}
         self.b1_tries = Counter()
@@ -121,6 +127,17 @@ class FakeNet:
             created = article["url"] not in self.ids
             article_id = self.ids.setdefault(article["url"], len(self.ids) + 1)
             return self._reply(201 if created else 200, {"articleId": article_id, "created": created})
+        if url.startswith(B3 + "?"):
+            query = dict(urllib.parse.parse_qsl(url.partition("?")[2], strict_parsing=True))
+            resp = self.b3(query) if self.b3 else b3_state(candidates=sorted(self.ids.values(), reverse=True)[: int(query["limit"])])
+            if isinstance(resp, BaseException):
+                raise resp
+            return self._reply(*resp)
+        if url == HEALTH:
+            resp = self.health or (200, {"status": "UP", "redis": "UP", "worker": "RUNNING"})
+            if isinstance(resp, BaseException):
+                raise resp
+            return self._reply(*resp)
         found = B1.fullmatch(url)
         if found:
             article_id = int(found.group(1))
@@ -150,6 +167,40 @@ class FakeNet:
 
     def b1_calls(self):
         return [c for c in self.calls if B1.fullmatch(c[1])]
+
+    def b1_ids(self):
+        return [int(B1.fullmatch(c[1]).group(1)) for c in self.b1_calls()]
+
+    def b3_calls(self):
+        return [c for c in self.calls if c[1].startswith(B3 + "?")]
+
+    def health_calls(self):
+        return [c for c in self.calls if c[1] == HEALTH]
+
+
+def b3_state(today=0, queued=0, retry=0, oldest=None, succeeded=0, failed=0, candidates=()):
+    """B3 200 (상태, 본문) — 값은 지어낸 것"""
+    return (200, {
+        "releasedToday": today,
+        "extract": {"queued": queued, "retryPending": retry, "oldestQueuedAt": oldest,
+                    "succeededLast15Minutes": succeeded, "failedLast15Minutes": failed},
+        "candidates": [{"articleId": i, "publishedAt": "2026-11-13T10:40:00+09:00"} for i in candidates],
+    })
+
+
+def auto_env(**over):
+    """INGEST_MODE=auto — 자동 투입 설정까지(계획 docs/plans/2026-11-10-ingest-15min-auto-b1.md 의 값)"""
+    values = {
+        "INGEST_MODE": "auto",
+        "INGEST_RELEASE_FROM": "2026-11-12",
+        "INGEST_RELEASE_PER_RUN": "50",
+        "INGEST_RELEASE_PER_DAY": "5000",
+        "INGEST_RELEASE_CAPACITY": "60",
+        "INGEST_RELEASE_MAX_WAIT_MINUTES": "30",
+        "AI_HEALTH_URL": HEALTH,
+    }
+    values.update(over)
+    return env(**values)
 
 
 def run(environ, net, now=None, sleep=None):
@@ -303,12 +354,15 @@ class Secrets(unittest.TestCase):
 
     def test_batch_key_goes_only_to_backend(self):
         net = FakeNet([page([item(1)])])
-        run(env(), net)
+        run(auto_env(), net)
         self.assertNotIn("X-Internal-Key", net.newsdata_calls()[0][2])
         self.assertEqual(net.b2_calls()[0][2]["X-Internal-Key"], BATCH_KEY)
         self.assertEqual(net.b2_calls()[0][2]["Content-Type"], "application/json")
+        self.assertEqual(net.b3_calls()[0][2]["X-Internal-Key"], BATCH_KEY)
+        self.assertEqual(net.b3_calls()[0][0], "GET")
         self.assertEqual(net.b1_calls()[0][2]["X-Internal-Key"], BATCH_KEY)
         self.assertEqual(net.b1_calls()[0][3], b"")  # B1 은 본문 없이
+        self.assertNotIn("X-Internal-Key", net.health_calls()[0][2])  # AI 워커 /health 에는 키를 안 보낸다
 
 
 class NoRedirect(unittest.TestCase):
@@ -433,61 +487,42 @@ class Limits(unittest.TestCase):
 
 
 class Flow(unittest.TestCase):
-    def test_created_and_existing_both_released(self):
-        def b2(article):
-            return (201, {"articleId": 11, "created": True}) if article["url"].endswith("/1") else (200, {"articleId": 12, "created": False})
-
-        net = FakeNet([page([item(1), item(2)])], b2=b2)
-        code, lines, _ = run(env(), net)
+    # auto — B2 로 모두 넣은 뒤 회차 끝에 B3 후보로 B1. 후보는 넣은 차례 거꾸로(가짜 망 기본 B3)
+    def test_auto_loads_all_then_releases_newest_inserted_first(self):
+        net = FakeNet([page([item(1), item(2)])])
+        code, lines, _ = run(auto_env(), net)
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(net.b1_tries), [11, 12])
+        b3_at = net.calls.index(net.b3_calls()[0])
+        self.assertTrue(all(net.calls.index(c) < b3_at for c in net.b2_calls()))  # B2 를 다 넣은 뒤에 B3
+        self.assertEqual(net.b1_ids(), [2, 1])
         result = summary(lines)
-        self.assertEqual(result["b2"], {"created": 1, "existing": 1, "rejected": 0, "failed": 0})
-        self.assertEqual(result["b1"], {"released": 2, "already": 0, "failed": 0, "retried": 0})
-
-    def test_rejected_article_is_not_released(self):
-        def b2(article):
-            if article["url"].endswith("/1"):
-                return (400, {"code": "VALIDATION_FAILED", "errors": [{"field": "title", "reason": "too long"}]})
-            return (201, {"articleId": 5, "created": True})
-
-        net = FakeNet([page([item(1), item(2)])], b2=b2)
-        code, lines, _ = run(env(), net)
-        self.assertEqual(code, 0)
-        self.assertEqual(list(net.b1_tries), [5])
-        self.assertEqual(summary(lines)["b2"]["rejected"], 1)
+        self.assertEqual(result["b2"], {"created": 2, "existing": 0, "rejected": 0, "failed": 0})
+        self.assertEqual(result["b1"], {"released": 2, "already": 0, "failed": 0})
 
     def test_all_already_released_is_success(self):
         net = FakeNet([page([item(1), item(2)])], b1=lambda aid, n: (409, {"code": "ALREADY_RELEASED"}))
-        code, lines, _ = run(env(), net)
+        code, lines, _ = run(auto_env(), net)
         self.assertEqual(code, 0)
         self.assertEqual(summary(lines)["b1"]["already"], 2)
 
-    def test_b1_server_error_retried_once_after_others(self):
-        net = FakeNet([page([item(1), item(2)])], b1=lambda aid, n: (503, b"") if aid == 1 and n == 1 else (202, {"articleId": aid}))
-        code, lines, _ = run(env(), net)
+    def test_b1_server_error_is_not_retried_in_the_same_run(self):
+        # 다음 회차 B3 가 작업 행이 없는 기사만 후보로 주니 그때 다시 나온다(AI 팀장 「다시 걸기 전에 작업 행 확인」)
+        net = FakeNet([page([item(1), item(2)])], b1=lambda aid, n: (503, b"") if aid == 1 else (202, {"articleId": aid}))
+        code, lines, _ = run(auto_env(), net)
         self.assertEqual(code, 0)
-        self.assertEqual([B1.fullmatch(c[1]).group(1) for c in net.b1_calls()], ["1", "2", "1"])
-        self.assertEqual(summary(lines)["b1"], {"released": 2, "already": 0, "failed": 0, "retried": 1})
+        self.assertEqual(net.b1_ids(), [2, 1])
+        self.assertEqual(summary(lines)["b1"], {"released": 1, "already": 0, "failed": 1})
+        self.assertTrue(any(line.get("msg") == "B1 실패" and line.get("articleId") == 1 and line.get("status") == 503 for line in lines))
 
-    def test_b1_connection_error_also_retried(self):
+    def test_b1_connection_error_counts_and_none_went_exits_1(self):
         def b1(aid, n):
-            if n == 1:
-                raise ConnectionResetError("끊김")
-            return (202, {"articleId": aid})
+            raise ConnectionResetError("끊김")
 
         net = FakeNet([page([item(1)])], b1=b1)
-        code, lines, _ = run(env(), net)
-        self.assertEqual(code, 0)
-        self.assertEqual(summary(lines)["b1"]["released"], 1)
-
-    def test_b1_failing_twice_is_logged_with_article_id(self):
-        net = FakeNet([page([item(1), item(2)])], b1=lambda aid, n: (500, b"") if aid == 1 else (202, {"articleId": aid}))
-        code, lines, _ = run(env(), net)
-        self.assertEqual(code, 0)
-        self.assertEqual(net.b1_tries[1], 2)
+        code, lines, _ = run(auto_env(), net)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(net.b1_calls()), 1)
         self.assertEqual(summary(lines)["b1"]["failed"], 1)
-        self.assertTrue(any(line.get("articleId") == 1 and line.get("status") == 500 for line in lines if line.get("msg") != "수집 결과"))
 
     def test_auth_error_on_b2_stops_with_exit_2(self):
         net = FakeNet([page([item(1), item(2)])], b2=lambda article: (401, {"code": "UNAUTHORIZED"}))
@@ -497,12 +532,11 @@ class Flow(unittest.TestCase):
 
     def test_auth_error_on_b1_stops_with_exit_2(self):
         net = FakeNet([page([item(1), item(2)])], b1=lambda aid, n: (403, {"code": "FORBIDDEN"}))
-        code, lines, _ = run(env(), net)
+        code, lines, _ = run(auto_env(), net)
         self.assertEqual(code, 2)
         self.assertEqual(len(net.b1_calls()), 1)
-        # 그때 걸던 기사 1 은 B2 는 됐으니 번호가 남아야 한다
-        self.assertTrue(any(line.get("msg") == "B1 실패" and line.get("articleId") == 1 for line in lines))
-        self.assertEqual(summary(lines)["b1"]["failed"], 1)
+        self.assertEqual(summary(lines)["release"]["skippedBy"], "auth")
+        self.assertTrue(any(line.get("msg") == "출입증 오류 — 멈춘다" for line in lines))
 
     def test_none_reached_b1_exits_1(self):
         net = FakeNet([page([item(1), item(2)])], b2=lambda article: (500, {"code": "INTERNAL_ERROR"}))
@@ -549,32 +583,16 @@ class Flow(unittest.TestCase):
         self.assertEqual(summary(lines)["b2"]["failed"], 1)
         self.assertEqual(net.b1_calls(), [])
 
-    def test_backend_down_keeps_pending_article_ids(self):
-        # 기사 2 는 B2 는 됐는데 B1 이 503 → 끝에 다시 걸 목록에 있다가, 뒤 기사들의 B2 가 이어서 끊겨 멈춤 — 번호가 로그에 남아야 한다
-        def b2(article):
-            if article["url"].endswith("/2"):
-                return (201, {"articleId": 102, "created": True})
-            raise TimeoutError("timed out")
-
-        net = FakeNet([page([item(i) for i in range(1, 6)])], b2=b2, b1=lambda aid, n: (503, b""))
-        code, lines, _ = run(env(), net)
-        self.assertEqual(code, 1)
-        self.assertTrue(any(line.get("msg") == "B1 실패" and line.get("articleId") == 102 for line in lines))
-        self.assertEqual(summary(lines)["b1"]["failed"], 1)
-
-    def test_backend_down_during_retry_logs_the_rest(self):
-        # 다섯 모두 B1 첫 시도 503, 다시 걸 때는 연결 거부 → 세 번째에서 멈춰도 다섯 번호가 모두 남아야 한다
+    def test_backend_down_during_release_stops_with_1(self):
+        # B1 이 이어서 셋 끊기면 남은 후보는 걸지 않고 멈춘다 — 작업 행이 없으니 다음 회차 후보로 다시 나온다
         def b1(aid, n):
-            if n == 1:
-                return (503, b"")
             raise ConnectionRefusedError("refused")
 
         net = FakeNet([page([item(i) for i in range(1, 6)])], b1=b1)
-        code, lines, _ = run(env(), net)
+        code, lines, _ = run(auto_env(), net)
         self.assertEqual(code, 1)
-        logged = sorted(line["articleId"] for line in lines if line.get("msg") == "B1 실패")
-        self.assertEqual(logged, [1, 2, 3, 4, 5])
-        self.assertEqual(summary(lines)["b1"]["failed"], 5)
+        self.assertEqual(len(net.b1_calls()), news_ingest.BACKEND_DOWN_AFTER)
+        self.assertTrue(any(line.get("msg") == "backend 연결 실패 — 멈춘다" for line in lines))
 
     def test_scattered_connection_failures_do_not_stop(self):
         # 이어서가 아니라 띄엄띄엄 끊기면 멈추지 않는다 — 사이에 답이 오면 센 수가 0 으로
@@ -610,7 +628,7 @@ class Flow(unittest.TestCase):
         net = FakeNet([page([item(1), item(2, content=None), item(3)])])
         _, lines, _ = run(env(), net)
         result = summary(lines)
-        self.assertEqual((result["mode"], result["requests"], result["fetched"], result["kept"]), ("full", 1, 3, 2))
+        self.assertEqual((result["mode"], result["requests"], result["fetched"], result["kept"]), ("load-only", 1, 3, 2))
 
 
 def day_item(n, pub_date, **over):
@@ -862,16 +880,16 @@ class StopReasons(unittest.TestCase):
         self.assertEqual(code, 0)
 
     def test_max_requests_with_next_page_loads_then_exits_2(self):
-        for mode in ("load-only", "full"):
-            with self.subTest(mode=mode):
+        for make in (env, auto_env):
+            with self.subTest(mode=make().get("INGEST_MODE")):
                 net = FakeNet([page([item(1)], "n1"), page([item(2)], "n2")])
-                code, lines, _ = run(env(INGEST_MODE=mode, INGEST_MAX_REQUESTS="2"), net)
+                code, lines, _ = run(make(INGEST_MAX_REQUESTS="2"), net)
                 self.assertEqual(code, 2)
                 self.assertEqual(len(net.b2_calls()), 2)
                 self.assertEqual(summary(lines)["stoppedBy"], "max_requests")
         net = FakeNet([page([item(1)], "n1"), page([item(2)], "n2")])
-        run(env(INGEST_MAX_REQUESTS="2"), net)
-        self.assertEqual(len(net.b1_calls()), 2)  # full 은 넣은 기사에 B1 까지 건 뒤 종료 2
+        run(auto_env(INGEST_MAX_REQUESTS="2"), net)
+        self.assertEqual(len(net.b1_calls()), 2)  # auto 는 상한에 닿아도 자동 투입까지 한 뒤 종료 2(큰 값)
 
     def test_max_articles_with_more_left_exits_2(self):
         net = FakeNet([page([item(1), item(2), item(3)])])
@@ -1524,9 +1542,9 @@ class WrongBodyFlow(unittest.TestCase):
         self.assertEqual(result["fetched"], result["kept"] + sum(result["skipped"].values()))
         self.assertEqual((result["fetched"], result["kept"], result["skipped"]["wrong_body"]), (6, 1, 3))
 
-    def test_full_mode_never_releases_dropped(self):
+    def test_auto_never_releases_dropped(self):
         net = FakeNet([page(self.same_body(1, 2, 3) + [item(4)])])
-        code, _, _ = run(env(), net)
+        code, _, _ = run(auto_env(), net)
         self.assertEqual(code, 0)
         self.assertEqual(urls_sent(net), [item(4)["link"]])
         self.assertEqual(len(net.b1_calls()), 1)
@@ -1613,6 +1631,282 @@ class WrongBodyFlow(unittest.TestCase):
         code, _, _ = run_file(daily_env(INGEST_MAX_ARTICLES="5"), net, jsonl(*rows))
         self.assertEqual(code, 0)
         self.assertEqual(len(net.b2_calls()), 3)
+
+
+# ── 자동 투입 auto · release-only (Jira S15P31A102-156, 계획 docs/plans/2026-11-10-ingest-15min-auto-b1.md) ──
+
+AT = datetime(2026, 11, 13, 10, 30, tzinfo=KST)  # 15분 회차 — 대기 시간을 셀 「지금」
+
+
+def kst(minutes_ago):
+    """AT 에서 minutes_ago 분 전의 B3 시각(+09:00)"""
+    return (AT - timedelta(minutes=minutes_ago)).isoformat()
+
+
+def release(lines):
+    return summary(lines)["release"]
+
+
+class AutoConfig(unittest.TestCase):
+    RELEASE_KEYS = ("INGEST_RELEASE_FROM", "INGEST_RELEASE_PER_RUN", "INGEST_RELEASE_PER_DAY",
+                    "INGEST_RELEASE_CAPACITY", "INGEST_RELEASE_MAX_WAIT_MINUTES", "AI_HEALTH_URL")
+
+    def test_full_is_gone_and_points_to_auto(self):
+        net = FakeNet()
+        code, lines, _ = run(env(INGEST_MODE="full"), net)
+        self.assertEqual(code, 2)
+        self.assertEqual(net.calls, [])
+        self.assertIn("auto", lines[0]["error"])
+
+    def test_every_release_setting_is_required_in_auto(self):
+        for key in self.RELEASE_KEYS:
+            with self.subTest(key=key):
+                net = FakeNet()
+                code, lines, _ = run(auto_env(**{key: None}), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])  # NewsData 를 부르기 전에 멈춘다(크레딧 0)
+                self.assertEqual(lines[0]["msg"], "설정 오류")
+
+    def test_release_settings_out_of_range(self):
+        for key, raw in (("INGEST_RELEASE_PER_RUN", "0"), ("INGEST_RELEASE_PER_RUN", "501"),
+                         ("INGEST_RELEASE_PER_DAY", "20001"), ("INGEST_RELEASE_CAPACITY", "0"),
+                         ("INGEST_RELEASE_MAX_WAIT_MINUTES", "1441"), ("INGEST_RELEASE_FROM", "2026-13-01"),
+                         ("INGEST_RELEASE_FROM", "yesterday"), ("AI_HEALTH_URL", "ftp://ai/health"),
+                         ("AI_HEALTH_URL", "http://ai.ai.svc:8000")):
+            with self.subTest(key=key, raw=raw):
+                net = FakeNet()
+                code, _, _ = run(auto_env(**{key: raw}), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+    def test_other_modes_neither_read_nor_check_release_settings(self):
+        # 손 실행이 CronJob(auto)의 env 를 물려받아도 INGEST_MODE 하나만 덮으면 돈다
+        broken = {key: "엉터리" for key in self.RELEASE_KEYS}
+        for mode in ("load-only", "fetch-only"):
+            with self.subTest(mode=mode):
+                net = FakeNet([page([item(1)])])
+                code, lines, _ = run(env(INGEST_MODE=mode, **broken), net)
+                self.assertEqual(code, 0)
+                self.assertEqual(net.b3_calls() + net.health_calls() + net.b1_calls(), [])
+                self.assertNotIn("release", summary(lines))
+
+    def test_health_off_skips_the_check(self):
+        net = FakeNet([page([item(1)])])
+        code, lines, _ = run(auto_env(AI_HEALTH_URL="off"), net)
+        self.assertEqual(code, 0)
+        self.assertEqual(net.health_calls(), [])
+        self.assertEqual(release(lines)["ai"], "off")
+        self.assertEqual(net.b1_ids(), [1])
+
+
+class AutoBudget(unittest.TestCase):
+    """몫 = min(PER_RUN, PER_DAY − 오늘 건 수, CAPACITY − queued − retryPending) — AI 팀장 b1_state.sql 의 budget 과 같은 차례"""
+
+    def go(self, net, **over):
+        return run(auto_env(**over), net, now=AT)
+
+    def test_b3_query_and_record(self):
+        net = FakeNet([page([])], b3=lambda q: b3_state(today=7, queued=2, retry=1, oldest=kst(3), succeeded=40, failed=1, candidates=[9, 8]))
+        code, lines, _ = self.go(net)
+        self.assertEqual(code, 0)
+        _, query = net.b3_calls()[0][1].split("?")
+        self.assertEqual(dict(urllib.parse.parse_qsl(query)), {"publishedFrom": "2026-11-12", "limit": "50"})
+        result = release(lines)
+        expected = {"from": "2026-11-12", "today": 7, "queued": 2, "retryPending": 1, "oldestWaitMinutes": 3.0,
+                    "succeeded15m": 40, "failed15m": 1, "candidates": 2, "ai": "UP", "budget": 50, "picked": 2,
+                    "skippedBy": None}
+        self.assertEqual({k: result[k] for k in expected}, expected)
+        self.assertIsInstance(result["b3Ms"], int)
+        self.assertEqual(net.b1_ids(), [9, 8])
+
+    def test_budget_is_min_of_per_run_day_left_and_capacity_left(self):
+        cases = [
+            (dict(), 50),                                # 회차 최대
+            (dict(today=4990), 10),                       # 하루 남은 수
+            (dict(queued=55, retry=2), 3),                # 대기 상한 − queued − retryPending
+            (dict(today=4999, queued=59), 1),
+        ]
+        for state, budget in cases:
+            with self.subTest(state=state):
+                net = FakeNet([page([])], b3=lambda q, s=state: b3_state(candidates=range(1000, 1060), **s))
+                code, lines, _ = self.go(net)
+                self.assertEqual(code, 0)
+                self.assertEqual(release(lines)["budget"], budget)
+                self.assertEqual(net.b1_ids(), list(range(1000, 1000 + budget)))  # 후보 앞에서부터
+
+    def test_zero_budget_rests_without_alarm(self):
+        for state, reason in ((dict(today=5000), "daily_cap"), (dict(today=6000), "daily_cap"),
+                              (dict(queued=60), "capacity"), (dict(queued=40, retry=20), "capacity")):
+            with self.subTest(state=state):
+                net = FakeNet([page([])], b3=lambda q, s=state: b3_state(candidates=[1, 2], **s))
+                code, lines, _ = self.go(net)
+                self.assertEqual(code, 0)
+                self.assertEqual((release(lines)["skippedBy"], release(lines)["budget"]), (reason, 0))
+                self.assertEqual(net.b1_calls(), [])
+                self.assertTrue(any(line.get("msg") == "자동 투입 쉼" and line.get("skippedBy") == reason for line in lines))
+
+    def test_oldest_wait_30_minutes_rests_with_alarm(self):
+        for minutes, code_expected, reason in ((29.9, 0, None), (30, 1, "wait"), (95, 1, "wait")):
+            with self.subTest(minutes=minutes):
+                net = FakeNet([page([])], b3=lambda q, m=minutes: b3_state(queued=1, oldest=kst(m), succeeded=5, candidates=[1]))
+                code, lines, _ = self.go(net)
+                self.assertEqual(code, code_expected)
+                self.assertEqual(release(lines)["skippedBy"], reason)
+                self.assertEqual(len(net.b1_calls()), 0 if reason else 1)
+
+    def test_failing_needs_ten_failures_and_more_than_successes(self):
+        for failed, succeeded, reason in ((9, 0, None), (10, 9, "failing"), (10, 10, None), (30, 2, "failing")):
+            with self.subTest(failed=failed, succeeded=succeeded):
+                net = FakeNet([page([])], b3=lambda q, f=failed, s=succeeded: b3_state(failed=f, succeeded=s, candidates=[1]))
+                code, lines, _ = self.go(net)
+                self.assertEqual(code, 1 if reason else 0)
+                self.assertEqual(release(lines)["skippedBy"], reason)
+
+    def test_ai_down_rests_before_anything_else(self):
+        for health in ((503, {"status": "DOWN", "worker": "BLOCKED"}), ConnectionRefusedError("refused"), TimeoutError("timed out")):
+            with self.subTest(health=health):
+                net = FakeNet([page([])], b3=lambda q: b3_state(today=5000, candidates=[1]), health=health)
+                code, lines, _ = self.go(net)
+                self.assertEqual(code, 0)  # NewlearnServiceDown 이 따로 운다
+                self.assertEqual((release(lines)["ai"], release(lines)["skippedBy"]), ("DOWN", "ai_down"))
+                self.assertEqual(net.b1_calls(), [])
+
+
+class AutoB3Errors(unittest.TestCase):
+    def go(self, b3):
+        net = FakeNet([page([item(1)])], b3=b3)
+        code, lines, _ = run(auto_env(), net, now=AT)
+        return net, code, lines
+
+    def test_b3_status_decides_exit_code(self):
+        for resp, code_expected, reason in (((401, {"code": "UNAUTHORIZED"}), 2, "auth"), ((403, {"code": "FORBIDDEN"}), 2, "auth"),
+                                            ((400, {"code": "VALIDATION_FAILED"}), 2, "bad_request"),
+                                            ((500, {"code": "INTERNAL_ERROR"}), 1, "status_error"),
+                                            (ConnectionResetError("끊김"), 1, "status_error")):
+            with self.subTest(resp=resp):
+                net, code, lines = self.go(lambda q, r=resp: r)
+                self.assertEqual(code, code_expected)
+                self.assertEqual(release(lines)["skippedBy"], reason)
+                self.assertEqual((net.b1_calls(), net.health_calls()), ([], []))
+                self.assertEqual(summary(lines)["b2"]["created"], 1)  # 수집은 그대로 넣었다
+
+    def test_b3_odd_shape_is_status_error(self):
+        good = b3_state(candidates=[1])[1]
+        broken = [
+            b"<html>",
+            {**good, "extract": None},
+            {**good, "releasedToday": True},
+            {**good, "releasedToday": -1},
+            {**good, "candidates": [{"articleId": "1"}]},
+            {**good, "extract": {**good["extract"], "oldestQueuedAt": "2026-11-13T10:00:00"}},  # 오프셋 없음
+            {**good, "extract": {**good["extract"], "oldestQueuedAt": "어제"}},
+        ]
+        for body in broken:
+            with self.subTest(body=body):
+                net, code, lines = self.go(lambda q, b=body: (200, b))
+                self.assertEqual(code, 1)
+                self.assertEqual(release(lines)["skippedBy"], "status_error")
+                self.assertEqual(net.b1_calls(), [])
+
+
+class AutoFlow(unittest.TestCase):
+    """종료 코드 = 수집 쪽과 투입 쪽 중 큰 값. NewsData 가 실패해도 밀린 후보는 건다"""
+
+    def test_newsdata_failure_still_releases_backlog(self):
+        net = FakeNet([(500, {"status": "error"})], b3=lambda q: b3_state(candidates=[7, 8]))
+        code, lines, _ = run(auto_env(), net, now=AT)
+        self.assertEqual(code, 1)  # 수집 쪽 1
+        self.assertEqual(net.b2_calls(), [])
+        self.assertEqual(net.b1_ids(), [7, 8])
+        self.assertEqual(summary(lines)["b1"]["released"], 2)
+
+    def test_newsdata_key_rejected_still_releases_backlog(self):
+        net = FakeNet([(401, {"status": "error"})], b3=lambda q: b3_state(candidates=[7]))
+        code, _, _ = run(auto_env(), net, now=AT)
+        self.assertEqual(code, 2)
+        self.assertEqual(net.b1_ids(), [7])
+
+    def test_batch_key_rejected_at_b2_skips_release(self):
+        net = FakeNet([page([item(1)])], b2=lambda article: (401, {"code": "UNAUTHORIZED"}))
+        code, lines, _ = run(auto_env(), net, now=AT)
+        self.assertEqual(code, 2)
+        self.assertEqual(net.b3_calls(), [])
+        self.assertIsNone(summary(lines)["release"])
+
+    def test_rest_with_normal_collection_is_success(self):
+        net = FakeNet([page([item(1)])], b3=lambda q: b3_state(today=5000, candidates=[1]))
+        code, _, _ = run(auto_env(), net, now=AT)
+        self.assertEqual(code, 0)
+
+    def test_nothing_to_release_is_success(self):
+        net = FakeNet([page([])], b3=lambda q: b3_state(candidates=[]))
+        code, lines, _ = run(auto_env(), net, now=AT)
+        self.assertEqual(code, 0)
+        self.assertEqual(release(lines)["picked"], 0)
+
+
+class ReleaseOnly(unittest.TestCase):
+    """손으로 소량 걸 때 — NewsData · B2 없이 같은 몫 계산(AI 팀장 「하루 합계가 한 군데로」)"""
+
+    def test_runs_without_newsdata_settings(self):
+        net = FakeNet(b3=lambda q: b3_state(candidates=[5, 6]))
+        environ = auto_env(INGEST_MODE="release-only", NEWSDATA_API_KEY=None, INGEST_RELEASE_PER_RUN="3", INGEST_TIMEFRAME="엉터리")
+        code, lines, _ = run(environ, net, now=AT)
+        self.assertEqual(code, 0)
+        self.assertEqual((net.newsdata_calls(), net.b2_calls()), ([], []))
+        _, query = net.b3_calls()[0][1].split("?")
+        self.assertEqual(dict(urllib.parse.parse_qsl(query))["limit"], "3")
+        self.assertEqual(net.b1_ids(), [5, 6])
+        result = summary(lines)
+        self.assertEqual((result["mode"], result["b1"]["released"], result["release"]["budget"]), ("release-only", 2, 3))
+
+    def test_same_budget_rules(self):
+        net = FakeNet(b3=lambda q: b3_state(today=5000, candidates=[5]))
+        code, lines, _ = run(auto_env(INGEST_MODE="release-only"), net, now=AT)
+        self.assertEqual(code, 0)
+        self.assertEqual(release(lines)["skippedBy"], "daily_cap")
+        self.assertEqual(net.b1_calls(), [])
+
+    def test_needs_release_settings_and_backend(self):
+        for over in (dict(INGEST_RELEASE_CAPACITY=None), dict(INTERNAL_BATCH_KEY=None), dict(BACKEND_URL=None)):
+            with self.subTest(over=over):
+                net = FakeNet()
+                code, _, _ = run(auto_env(INGEST_MODE="release-only", **over), net)
+                self.assertEqual(code, 2)
+                self.assertEqual(net.calls, [])
+
+
+def yaml_env():
+    """news-ingest.yaml 의 컨테이너 env 중 value 가 있는 것 — 표준 라이브러리만이라 모양만 읽는다(name 바로 다음 줄의 value)"""
+    text = (SCRIPT.parent / "news-ingest.yaml").read_text(encoding="utf-8")
+    pairs = re.findall(r"- name: (\S+)\n\s+value: (.+)", text)
+    return {name: value.strip().strip('"') for name, value in pairs}
+
+
+class YamlEnv(unittest.TestCase):
+    """CronJob 의 env 가 이 스크립트로 그대로 도는지 — 손 실행은 그 env 를 물려받는다(ingest.md 「손 실행」)"""
+
+    def secrets(self):
+        return {"NEWSDATA_API_KEY": KEY, "INTERNAL_BATCH_KEY": BATCH_KEY, "BACKEND_URL": BACKEND}
+
+    def test_cronjob_env_is_auto_and_runs(self):
+        values = yaml_env()
+        self.assertEqual((values["INGEST_MODE"], values["INGEST_TIMEFRAME"]), ("auto", "30m"))
+        self.assertNotIn("INGEST_DAYS", values)
+        environ = {**values, **self.secrets(), "AI_HEALTH_URL": HEALTH}
+        net = FakeNet([page([item(1)])])
+        code, lines, _ = run(environ, net, now=AT)
+        self.assertEqual(code, 0)
+        self.assertEqual(net.b1_ids(), [1])
+        self.assertEqual(release(lines)["budget"], int(values["INGEST_RELEASE_PER_RUN"]))
+
+    def test_manual_run_overrides_only_the_mode(self):
+        environ = {**yaml_env(), **self.secrets(), "INGEST_MODE": "load-only", "INGEST_DAYS": "2026-11-02", "INGEST_TIMEFRAME": "35"}
+        net = FakeNet([page([item(1)])])
+        code, lines, _ = run(environ, net, now=AT)
+        self.assertEqual(code, 0)
+        self.assertEqual(net.b3_calls() + net.health_calls() + net.b1_calls(), [])
+        self.assertEqual(summary(lines)["b2"]["created"], 1)
 
 
 if __name__ == "__main__":

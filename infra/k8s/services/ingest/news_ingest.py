@@ -1,4 +1,4 @@
-"""뉴스 수집 배치 — NewsData 기사 → B2 기사 적재 → (full 이면) B1 분석 걸기 (Jira S15P31A102-154 · 156)
+"""뉴스 수집 배치 — NewsData 기사 → B2 기사 적재 → (auto 면) 몫만큼 B1 분석 걸기 (Jira S15P31A102-154 · 156)
 
 CronJob news-ingest(옆의 news-ingest.yaml)가 ConfigMap 으로 얹어 돌린다. 계약은 docs/api-internal.md 2절,
 정한 것과 까닭은 docs/plans/2026-11-03-news-ingest-batch.md · 2026-11-04-ingest-load-only-data-load.md,
@@ -6,13 +6,17 @@ CronJob news-ingest(옆의 news-ingest.yaml)가 ConfigMap 으로 얹어 돌린�
 
 - INGEST_MODE=fetch-only — NewsData 요청 하나만 보내고 받은 수 · 거른 수 · 처음 몇 건의 B2 요청 모양을 찍는다(B2 · B1 안 부름)
 - INGEST_MODE=load-only — 걸러 남은 기사를 발행 순서대로 B2 로 넣기만 한다(B1 안 부름 — AI 결과 덤프가 들어갈 때까지)
-- INGEST_MODE=full — B2 로 넣고, 돌려받은 id 로 B1 을 부른다
+- INGEST_MODE=auto — B2 로 넣은 뒤 회차 끝에 B3(오늘 건 수 · EXTRACT 대기 · 후보)와 AI 워커 /health 를 보고
+  몫 = min(회차 최대, 하루 상한 − 오늘 건 수, 대기 상한 − 대기)만큼 후보에 B1 을 건다(AI 팀장 2026-11-10, 계획
+  docs/plans/2026-11-10-ingest-15min-auto-b1.md). 설정은 INGEST_RELEASE_* · AI_HEALTH_URL
+- INGEST_MODE=release-only — NewsData · B2 없이 위 자동 투입만. 손으로 소량 걸 때 같은 몫 계산을 거치게(손 Job)
+- full(그 회차에 넣은 기사를 상한 없이 모두 B1)은 없앴다 — 주면 설정 오류
 - INGEST_SOURCE=file — NewsData 대신 표준 입력의 B2 요청 모양 JSONL(infra/server/sqlite_to_b2.py 가 만든 지난 기사)을 한 줄씩 B2 로.
   load-only 에서만, NewsData 설정은 있어도 무시한다. INGEST_FILE_LINES(기대 줄 수)와 다르면 실패 — ingest.md 「지난 기사 파일로 넣기」(Jira 169)
 - 무엇을 받나: INGEST_SOURCE(latest · archive) · INGEST_TIMEFRAME · INGEST_ARCHIVE_FROM/TO · INGEST_QUERY(고르는 조건),
   INGEST_DAYS(발행 시각의 KST 날짜로 거르기) · INGEST_REQUEST_INTERVAL(요청 사이 쉬기). 뜻과 값은 ingest.md 「설정」
 - 상한: INGEST_MAX_ARTICLES(기사 — 다른 기사 본문을 빼기 전 수로 센다) · INGEST_MAX_REQUESTS(NewsData 요청)
-- 키: NEWSDATA_API_KEY(봉인 Secret newsdata-api) · INTERNAL_BATCH_KEY(internal-api 의 배치 키, load-only · full)
+- 키: NEWSDATA_API_KEY(봉인 Secret newsdata-api) · INTERNAL_BATCH_KEY(internal-api 의 배치 키, load-only · auto · release-only)
 
 로그는 줄마다 JSON 하나이고 키는 모두 *** 로 가린다. 끝에 {"msg": "수집 결과", …} 한 줄
 종료 코드 0 · 1 · 2 의 뜻은 infra/server/ingest.md 「로그 읽기」의 표 — CronJob 은 2(다시 해도 같음)면 다시 시도하지 않는다
@@ -65,7 +69,17 @@ BODY_LOG_CHARS = 300  # 로그에 남길 응답 본문 길이 — 키를 가린 
 # backend 연결이 이어서 이만큼 실패하면 멈춘다 — 정책 실수로 패킷이 버려지면 요청마다 시간 초과라,
 # 기사를 다 기다리면 Job 시간 상한에 잘려 결과 줄이 안 남는다
 BACKEND_DOWN_AFTER = 3
-MODES = ("fetch-only", "load-only", "full")
+MODES = ("fetch-only", "load-only", "auto", "release-only")
+RELEASE_MODES = ("auto", "release-only")
+# 자동 투입(Jira 156) — B3 주소, 상한 천장, 「실패 몰림」 문턱
+B3_PATH = "/internal/v1/articles/release-candidates"
+RELEASE_PER_RUN_CEILING = 500  # B3 limit 의 상한과 같다
+RELEASE_PER_DAY_CEILING = 20000
+RELEASE_CAPACITY_CEILING = 10000
+RELEASE_WAIT_CEILING = 1440
+# 최근 15분 EXTRACT 실패가 이만큼 이상이고 성공보다 많으면 쉰다 — 회차 50 의 1/5. 빈 본문 몇 건(INPUT_NOT_ANALYZABLE)으로는 안 걸리게
+FAILING_MIN = 10
+HEALTH_URL_RE = re.compile(r"https?://[^\s/]+/\S*")
 # 거르는 순서 — 범위 밖(10시 실행의 그날 0 ~ 10시) 기사가 기사 상한을 먹지 않게 out_of_range 가 over_limit 보다 앞이다.
 # marked_duplicate 는 NewsData 가 duplicate=true 로 표시한 기사(팀원 수집과 같게), duplicate 는 같은 실행 안에서 링크 · article_id 가 겹친 기사.
 # wrong_body 는 다 받은 뒤 기사끼리 견주어 뺀 기사(drop_wrong_bodies)
@@ -281,8 +295,12 @@ def parse_archive(environ, source):
 
 def load_config(environ, now):
     mode = environ.get("INGEST_MODE", "").strip()
+    if mode == "full":
+        raise ConfigError("INGEST_MODE=full 은 없앴다 — 그 회차 기사를 상한 없이 모두 B1 했다. auto(넣고 몫만큼 자동 투입)를 쓴다 (Jira 156)")
     if mode not in MODES:
         raise ConfigError(f"INGEST_MODE 는 {' · '.join(MODES)} 중 하나여야 한다 (지금: {mode!r})")
+    if mode == "release-only":
+        return load_release_only_config(environ)
     source = environ.get("INGEST_SOURCE", "").strip() or "latest"
     if source == FILE_SOURCE:
         return load_file_config(environ, mode)
@@ -308,7 +326,67 @@ def load_config(environ, now):
         raise ConfigError("NEWSDATA_API_KEY 가 없다 — 봉인 Secret newsdata-api (infra/server/seal-secrets.sh newsdata)")
     if mode != "fetch-only":
         check_backend(config)
+    if mode == "auto":
+        config["release"] = parse_release(environ)
     return config
+
+
+def parse_release(environ):
+    """auto · release-only 의 자동 투입 설정. 다른 모드는 읽지 않는다 — 손 실행이 CronJob env 를 물려받아도 모드 하나만 덮으면 돈다"""
+    health = environ.get("AI_HEALTH_URL", "").strip()
+    if health != "off" and not HEALTH_URL_RE.fullmatch(health):
+        raise ConfigError(f"AI_HEALTH_URL 은 http(s)://<호스트>/<경로> 또는 off 여야 한다 (지금: {health!r})")
+    return {
+        "from": _date(environ.get("INGEST_RELEASE_FROM", "").strip(), "INGEST_RELEASE_FROM"),
+        "per_run": _bounded_int(environ, "INGEST_RELEASE_PER_RUN", 1, RELEASE_PER_RUN_CEILING),
+        "per_day": _bounded_int(environ, "INGEST_RELEASE_PER_DAY", 1, RELEASE_PER_DAY_CEILING),
+        "capacity": _bounded_int(environ, "INGEST_RELEASE_CAPACITY", 1, RELEASE_CAPACITY_CEILING),
+        "max_wait": _bounded_int(environ, "INGEST_RELEASE_MAX_WAIT_MINUTES", 1, RELEASE_WAIT_CEILING),
+        "ai_health": None if health == "off" else health,
+    }
+
+
+def load_release_only_config(environ):
+    """INGEST_MODE=release-only — NewsData 설정(키 · 쿼리 · 기간 · 상한 · 소스)은 있어도 무시한다"""
+    config = {
+        "mode": "release-only",
+        "source": None,
+        "newsdata_key": "",
+        "batch_key": environ.get("INTERNAL_BATCH_KEY", "").strip(),
+        "backend": environ.get("BACKEND_URL", "").strip().rstrip("/"),
+    }
+    check_backend(config)
+    config["release"] = parse_release(environ)
+    return config
+
+
+def parse_b3(data):
+    """B3 200 본문 → dict. 모양이 다르면 None(배치는 그 회차를 쉰다)"""
+
+    def count(value):
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+    if not isinstance(data, dict) or not isinstance(data.get("extract"), dict) or not isinstance(data.get("candidates"), list):
+        return None
+    extract = data["extract"]
+    fields = (data.get("releasedToday"), extract.get("queued"), extract.get("retryPending"),
+              extract.get("succeededLast15Minutes"), extract.get("failedLast15Minutes"))
+    if not all(count(value) for value in fields):
+        return None
+    oldest = extract.get("oldestQueuedAt")
+    if oldest is not None:
+        try:
+            oldest = datetime.fromisoformat(oldest) if isinstance(oldest, str) else None
+        except ValueError:
+            oldest = None
+        if oldest is None or oldest.tzinfo is None:
+            return None
+    ids = [c.get("articleId") if isinstance(c, dict) else None for c in data["candidates"]]
+    if not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
+        return None
+    today, queued, retry, succeeded, failed = fields
+    return {"today": today, "queued": queued, "retry": retry, "oldest": oldest,
+            "succeeded": succeeded, "failed": failed, "candidates": ids}
 
 
 def check_backend(config):
@@ -356,7 +434,8 @@ class Run:
         self.connection_failures = 0  # backend 연결이 이어서 실패한 수
         self.skipped = Counter({reason: 0 for reason in SKIP_REASONS})
         self.b2 = Counter({"created": 0, "existing": 0, "rejected": 0, "failed": 0})
-        self.b1 = Counter({"released": 0, "already": 0, "failed": 0, "retried": 0})
+        self.b1 = Counter({"released": 0, "already": 0, "failed": 0})
+        self.release = None  # 자동 투입 기록 — auto · release-only 의 결과 줄 release 칸
 
     def short(self, body):
         """로그에 남길 응답 본문 — 가린 뒤 자른다. 거꾸로 하면 자르는 자리에 걸친 키의 앞부분이 남는다"""
@@ -548,54 +627,111 @@ class Run:
         self.log({"msg": "B2 실패", "url": article["url"], "status": status, "body": self.short(raw)})
         return None
 
-    def release(self, article_id, last_try):
-        """B1 을 부른다. 다시 걸어 볼 실패(연결 · 5xx)면 False"""
+    def ingest(self, articles):
+        """B2 로 넣기만 한다. B1 은 auto 의 자동 투입(auto_release)이 회차 끝에 몫만큼 건다"""
+        for article in articles:
+            self.load(article)
+
+    def release_one(self, article_id):
+        """B1 을 한 번 부른다. 연결 실패 · 5xx 는 그 회차에 다시 걸지 않는다 — 다음 회차 B3 가 작업 행이 없는 기사만 후보로 주니,
+        서버가 받았으면 빠지고 못 받았으면 다시 나온다(AI 팀장 2026-11-10 「다시 걸기 전에 작업 행 확인」)"""
         try:
             status, raw = self.post(f"/internal/v1/articles/{article_id}/release", None)
         except CONNECTION_ERRORS as err:
-            status, raw = None, repr(err).encode()
+            self.b1["failed"] += 1
+            self.log({"msg": "B1 연결 실패", "articleId": article_id, "error": repr(err)})
             if self.connection_failed():
-                # 이 기사 번호는 ingest() 가 멈추며 남긴다
                 raise BackendDown(f"backend 연결이 {BACKEND_DOWN_AFTER}번 이어서 실패했다") from err
+            return
         if status == 202:
             self.b1["released"] += 1
-            return True
-        if status == 409:
+        elif status == 409:
             self.b1["already"] += 1
-            return True
-        if (status is None or status >= 500) and not last_try:
-            return False
-        self.b1["failed"] += 1
-        self.log({"msg": "B1 실패", "articleId": article_id, "status": status, "body": self.short(raw)})
-        return True
+        else:
+            self.b1["failed"] += 1
+            self.log({"msg": "B1 실패", "articleId": article_id, "status": status, "body": self.short(raw)})
 
-    def ingest(self, articles):
-        retry, current = [], None
-        load_only = self.config["mode"] == "load-only"
+    def skip(self, reason, code, **extra):
+        """자동 투입을 이번 회차에 쉰다 — 까닭을 기록에 남기고 한 줄 찍는다"""
+        self.release.update({"skippedBy": reason, "budget": 0, **extra})
+        self.log({"msg": "자동 투입 쉼", "skippedBy": reason, **extra})
+        return code
+
+    def ai_health(self):
+        """AI 워커 /health — 200 이면 UP. 503(BLOCKED · Redis DOWN) · 연결 실패(준비된 Pod 없음)면 DOWN. 끈 설정이면 off"""
+        url = self.config["release"]["ai_health"]
+        if url is None:
+            return "off"
         try:
-            for article in articles:
-                article_id = self.load(article)
-                if article_id is None or load_only:
-                    continue
-                current = article_id
-                if not self.release(article_id, last_try=False):
-                    retry.append(article_id)
-                current = None
-            # B2 는 됐는데 B1 이 연결 · 5xx 로 실패한 기사 — 최신 기사만 받아 다음 실행에 대개 다시 오지 않으니 끝에 한 번 더
-            while retry:
-                current = retry.pop(0)
-                self.b1["retried"] += 1
-                self.release(current, last_try=True)
-                current = None
-        except (AuthError, BackendDown):
-            # 멈추면 B2 는 됐는데 B1 을 끝내 못 건 기사가 남는다 — 사람이 그 번호로 B1 을 걸게 번호를 남긴다(docs/api-internal.md 2절)
-            for article_id in ([current] if current is not None else []) + retry:
-                self.b1["failed"] += 1
-                self.log({"msg": "B1 실패", "articleId": article_id, "status": None, "body": "멈춰서 걸지 못함"})
-            raise
+            status, _ = self.send("GET", url, {"Accept": "application/json"}, None)
+        except CONNECTION_ERRORS:
+            return "DOWN"
+        return "UP" if status == 200 else "DOWN"
+
+    def auto_release(self, now):
+        """B3 → /health → 몫 → B1. 투입 쪽 종료 코드를 돌려준다(0 정상 · 쉼, 1 다시 볼 것 — 경보로 감, 2 설정 · 출입증)
+
+        몫 = min(회차 최대, 하루 상한 − 오늘 건 수, 대기 상한 − queued − retryPending). 순서 · 문턱은 계획
+        docs/plans/2026-11-10-ingest-15min-auto-b1.md 「판단 순서」, 세는 법은 backend B3 · infra/server/b1-state.sql
+        """
+        rel = self.config["release"]
+        self.release = {"from": rel["from"].isoformat(), "skippedBy": None}
+        query = urllib.parse.urlencode({"publishedFrom": rel["from"].isoformat(), "limit": rel["per_run"]})
+        headers = {"Accept": "application/json", "X-Internal-Key": self.config["batch_key"]}
+        started = time.monotonic()
+        try:
+            status, raw = self.send("GET", f"{self.config['backend']}{B3_PATH}?{query}", headers, None)
+        except CONNECTION_ERRORS as err:
+            return self.skip("status_error", 1, error=repr(err))
+        self.release["b3Ms"] = round((time.monotonic() - started) * 1000)
+        if status in (401, 403):
+            self.log({"msg": "출입증 오류 — 멈춘다", "error": f"{B3_PATH} → {status} {self.short(raw)}"})
+            return self.skip("auth", 2)
+        if status == 400:
+            return self.skip("bad_request", 2, status=status, body=self.short(raw))
+        state = parse_b3(_json(raw)) if status == 200 else None
+        if state is None:
+            return self.skip("status_error", 1, status=status, body=self.short(raw))
+        wait = None
+        if state["oldest"] is not None:
+            wait = round(max(0.0, (now - state["oldest"]).total_seconds() / 60), 1)
+        self.release.update({
+            "today": state["today"], "queued": state["queued"], "retryPending": state["retry"],
+            "oldestWaitMinutes": wait, "succeeded15m": state["succeeded"], "failed15m": state["failed"],
+            "candidates": len(state["candidates"]),
+        })
+        self.release["ai"] = self.ai_health()
+        if self.release["ai"] == "DOWN":
+            return self.skip("ai_down", 0)  # NewlearnServiceDown 이 따로 운다
+        if state["today"] >= rel["per_day"]:
+            return self.skip("daily_cap", 0)
+        if wait is not None and wait >= rel["max_wait"]:
+            return self.skip("wait", 1)
+        if state["failed"] >= FAILING_MIN and state["failed"] > state["succeeded"]:
+            return self.skip("failing", 1)
+        budget = max(0, min(rel["per_run"], rel["per_day"] - state["today"], rel["capacity"] - state["queued"] - state["retry"]))
+        if budget == 0:
+            return self.skip("capacity", 0)
+        picked = state["candidates"][:budget]
+        self.release.update({"budget": budget, "picked": len(picked)})
+        try:
+            for article_id in picked:
+                self.release_one(article_id)
+        except AuthError as err:
+            self.log({"msg": "출입증 오류 — 멈춘다", "error": str(err)})
+            self.release["skippedBy"] = "auth"
+            return 2
+        except BackendDown as err:
+            self.log({"msg": "backend 연결 실패 — 멈춘다", "error": str(err)})
+            return 1
+        went = self.b1["released"] + self.b1["already"]
+        return 1 if picked and went == 0 else 0
 
     def summary(self, kept):
         config = self.config
+        if config["mode"] == "release-only":
+            self.log({"msg": "수집 결과", "mode": "release-only", "b1": dict(self.b1), "release": self.release})
+            return
         days = config["days"]
         record = {
             "msg": "수집 결과",
@@ -612,8 +748,9 @@ class Run:
         }
         if config["mode"] != "fetch-only":
             record["b2"] = dict(self.b2)
-        if config["mode"] == "full":
+        if config["mode"] == "auto":
             record["b1"] = dict(self.b1)
+            record["release"] = self.release
         self.log(record)
 
 
@@ -684,46 +821,53 @@ def run(environ, send, log, now, sleep, stdin=None):
     job = Run(config, send, log, sleep)
     if config["source"] == FILE_SOURCE:
         return run_file(job, stdin if stdin is not None else sys.stdin.buffer)
+    if config["mode"] == "release-only":
+        code = job.auto_release(now)
+        job.summary(None)
+        return code
+    # 수집 쪽 종료 코드. auto 는 그 뒤 투입 쪽 코드와 큰 값을 쓴다 — NewsData 가 실패해도 밀린 후보는 건다
+    kept_count = 0
     try:
         kept = job.fetch()
+        code = 1 if kept is None else 0
     except AuthError as err:
         log({"msg": "출입증 오류 — 멈춘다", "error": str(err)})
-        job.summary(0)
-        return 2
-    if kept is None:
-        job.summary(0)
-        return 1
-    kept = job.drop_wrong_bodies(kept)
-    # 보낼 때는 발행 시각이 이른 것부터 — 판정이 앞선 기사들과만 비교한다(docs/api-internal.md 3절)
-    articles = sorted(kept, key=lambda a: (a["publishedAt"], a["url"] or ""))
-    if config["mode"] == "fetch-only":
-        for article in articles[:SAMPLE_COUNT]:
-            sample = {k: v for k, v in article.items() if k != "body"}
-            sample["bodyChars"] = len(article["body"])
-            log({"msg": "견본", "article": sample})
-        job.summary(len(articles))
-        return 0
-    try:
-        job.ingest(articles)
-    except AuthError as err:
-        log({"msg": "출입증 오류 — 멈춘다", "error": str(err)})
-        job.summary(len(articles))
-        return 2
-    except BackendDown as err:
-        log({"msg": "backend 연결 실패 — 멈춘다", "error": str(err)})
-        job.summary(len(articles))
-        return 1
-    job.summary(len(articles))
+        kept, code = None, 2
+    if kept is not None:
+        kept = job.drop_wrong_bodies(kept)
+        # 보낼 때는 발행 시각이 이른 것부터 — 판정이 앞선 기사들과만 비교한다(docs/api-internal.md 3절)
+        articles = sorted(kept, key=lambda a: (a["publishedAt"], a["url"] or ""))
+        kept_count = len(articles)
+        if config["mode"] == "fetch-only":
+            for article in articles[:SAMPLE_COUNT]:
+                sample = {k: v for k, v in article.items() if k != "body"}
+                sample["bodyChars"] = len(article["body"])
+                log({"msg": "견본", "article": sample})
+            job.summary(kept_count)
+            return 0
+        try:
+            job.ingest(articles)
+        except AuthError as err:  # 배치 키 — B3 · B1 도 같은 키라 자동 투입도 안 한다
+            log({"msg": "출입증 오류 — 멈춘다", "error": str(err)})
+            job.summary(kept_count)
+            return 2
+        except BackendDown as err:
+            log({"msg": "backend 연결 실패 — 멈춘다", "error": str(err)})
+            job.summary(kept_count)
+            return 1
+        if job.stopped_by in CAPPED or job.stopped_by == "newsdata_auth":
+            # 다음 쪽이 남았다 · 중간에 키를 안 받았다 — 받은 데까지는 넣었다. 다시 돌아도 같으니 2(다시 시도 없음 → 경보)
+            code = 2
+        elif job.stopped_by == "newsdata_error":
+            code = 1
+        else:
+            code = 1 if articles and job.b2["created"] + job.b2["existing"] == 0 else 0
+    if config["mode"] == "auto":
+        code = max(code, job.auto_release(now))
+    job.summary(kept_count)
     if job.stopped_by in CAPPED:
-        # 다음 쪽이 남았다 — 받은 데까지는 넣었다. 다시 돌아도 같은 상한이라 2(다시 시도 없음 → 경보)
         log({"msg": "상한에 닿아 멈춤 — 빠진 구간이 있다", "stoppedBy": job.stopped_by})
-        return 2
-    if job.stopped_by == "newsdata_auth":
-        return 2
-    if job.stopped_by == "newsdata_error":
-        return 1
-    went = job.b1["released"] + job.b1["already"] if config["mode"] == "full" else job.b2["created"] + job.b2["existing"]
-    return 1 if articles and went == 0 else 0
+    return code
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

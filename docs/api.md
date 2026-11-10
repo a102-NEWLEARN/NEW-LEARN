@@ -23,7 +23,7 @@
 ```mermaid
 flowchart LR
   FE["화면 (React)"] -- "A1~A9 · A13~A25 · /api/v1" --> API["API 서버 (Spring Boot)"]
-  N["NewsData.io"] -- "기사 받기" --> B["수집 배치 (CronJob 매일 10시)"]
+  N["NewsData.io"] -- "기사 받기" --> B["수집 배치 (CronJob 15분마다)"]
   B -- "B2 적재 · B1 투입 · /internal/v1" --> API
   API -- "조회 · 저장 · 후보 검색" --> DB[("PostgreSQL + pgvector")]
   API -- "작업 메시지 · 용어 결과 캐시 · 로그인 세션" --> R[("Redis")]
@@ -284,7 +284,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 64 | A23 · A24 · A25 (관심 이슈 저장 · 해제 · 목록), A2 · A3 의 `interested` | 같음. 표 `interest_issue`. 「지난 방문 이후 새 사건」은 보류 |
 | 102 | A19 용어사전 | 2026-10-29 구현 · 사이트 반영(`docs/specs/F13-dictionary-api.md`). 키는 봉인 Secret `stdict-api`(SSOT 5절) |
 | 187 | A26 문맥 뜻 | 2026-11-10 구현(`docs/specs/F13-dictionary-api.md` AC-10 ~). GMS 키는 봉인 Secret `gms-api`(app 네임스페이스, SSOT 5절). 로그인 · 번호표 필요, 하루 한도 · 저장은 Redis |
-| 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 Jira 154 · 156 — 2026-11-04 부터 B2 만(넣기만), B1 은 AI 결과 덤프 뒤 |
+| 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 Jira 154 · 156 — 2026-11-04 부터 B2 만(넣기만), 2026-11-13 10:00 수집 뒤부터 B3 로 몫을 보고 B1(auto) |
 | 153 | B2 적재 | 2026-11-03 구현(`docs/specs/F01-article-ingest-api.md`). 같은 URL 이면 그 기사 id, 처음 보는 언론사는 `source_id` 로 등록. 수집 배치(Jira 154)가 B2 → B1 순서로 부른다 — 넣기만 모드(2026-11-04, Jira 156)는 B2 만 |
 | 170 | NewsData 원본 분류 → 카테고리 대응 행 | 2026-11-04 — 마이그레이션 V11(`data-model.md` 2절 category_mapping). B2 대표 카테고리가 차고, 이미 들어온 기사도 다시 계산. A1 · A7 은 대표 카테고리 기준 그대로 |
 | 171 | 해외 정치 기사 → 국제 | 2026-11-05 — B2 기사 적재 제목 규칙 · 마이그레이션 V12(`data-model.md` 2절 category_mapping). API 모양은 그대로, A1 분야별 기사 수 · A7 최신 기사는 대표 카테고리 기준 그대로 |
