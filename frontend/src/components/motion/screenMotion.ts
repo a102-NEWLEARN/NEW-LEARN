@@ -38,9 +38,6 @@ export const RIPPLE_ONCE =
   "opacity-0 motion-safe:animate-[newlearn-ripple_700ms_cubic-bezier(0.2,0.8,0.2,1)_both]";
 export const RIPPLE_LOOP =
   "opacity-0 motion-safe:animate-[newlearn-ripple_3s_cubic-bezier(0.2,0.8,0.2,1)_infinite_backwards]";
-/** 마인드맵 잎이 둥실 떠 있다 — 잎마다 박자를 달리한다(floatPhase) */
-export const FLOAT =
-  "motion-safe:animate-[newlearn-float_4.8s_ease-in-out_infinite]";
 /** 마우스를 올린 길 위로 흐르는 점선 — 동작 줄이기면 보이지 않는다 */
 export const FLOW =
   "opacity-0 motion-safe:opacity-100 motion-safe:animate-[newlearn-flow_900ms_linear_infinite]";
@@ -71,8 +68,3 @@ export const travel = (from: string, to: string, ms: number): CSSProperties =>
     "--nl-travel-from": from,
     "--nl-travel-to": to,
   }) as CSSProperties;
-
-/** 둥실 뜨는 박자 — 음수 지연이라 처음부터 서로 다른 자리에서 시작한다 */
-export const floatPhase = (seed: number): CSSProperties => ({
-  animationDelay: `${-((seed * 730) % 4800)}ms`,
-});

@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
+import { boundsOf, layoutMindmap } from "@/components/article/mindmapLayout";
 import { stubScreen } from "@/test/media";
 import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
@@ -401,7 +402,7 @@ test("가지는 가운데에서, 잎은 그 가지에서 날아 나온다", () =
   expect([lx + lfx, ly + lfy]).toEqual([bx, by]);
 });
 
-test("가운데 원에서 파문이 번지고, 잎은 저마다 다른 박자로 둥실 떠 있다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
+test("가운데 원에서 파문이 번진다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
   renderGraph();
 
   const ripples = rootNode().querySelectorAll('[class*="newlearn-ripple"]');
@@ -409,12 +410,61 @@ test("가운데 원에서 파문이 번지고, 잎은 저마다 다른 박자로
   ripples.forEach((ring) =>
     expect(ring.getAttribute("class")).toContain("opacity-0"),
   );
-  const floats = [
+});
+
+// 운영에서 잎 글자가 계속 위아래로 움직여 읽기 어려웠다 — 잎은 날아 나온 뒤 제자리에 선다 (Jira 188)
+test("잎은 날아 나온 뒤 떠다니지 않는다", () => {
+  renderGraph();
+
+  [
     "한빛반도체가 텍사스 공장 착공식을 열었다",
     "첫 해 생산 목표를 밝혔다",
-  ].map((name) => leaf(name).querySelector('[class*="newlearn-float"]')!);
-  expect(floats.every(Boolean)).toBe(true);
-  expect(enterDelay(floats[0])).not.toBe(enterDelay(floats[1]));
+  ].forEach((name) =>
+    expect(leaf(name).querySelector('[class*="newlearn-float"]')).toBeNull(),
+  );
+  expect(document.querySelector('[class*="newlearn-float"]')).toBeNull();
+});
+
+// 운영에서 「화면에 맞추기」 뒤 왼쪽 아래 확대 · 축소 버튼이 잎 글을 가렸다 (Jira 188)
+test("화면에 맞추면 위 톱니 · 아래 확대 버튼 자리를 비워 둔다", async () => {
+  const many = Array.from(
+    { length: 6 },
+    (_, i) =>
+      `${i + 1}번 잎은 반도체 보조금과 관세 협상 결과를 두고 여야가 서로 다른 해석을 내놓으며 공방을 이어 갔다`,
+  );
+  const tall = (["CORE", "CAUSE", "REACTION", "OUTLOOK"] as const).map((type) =>
+    branch(type, ...many),
+  );
+  const [W, H] = [1100, 470];
+  const width = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockReturnValue(W);
+  const height = vi
+    .spyOn(HTMLElement.prototype, "clientHeight", "get")
+    .mockReturnValue(H);
+  try {
+    renderGraph(tall);
+    const view = () =>
+      [...document.querySelectorAll("g[transform]")]
+        .map((g) => g.getAttribute("transform")!)
+        .find((value) => value.includes("scale("))!;
+    await waitFor(() => expect(view()).toBeDefined());
+    const [tx, ty, k] = view()
+      .match(/translate\(([-\d.]+),([-\d.]+)\) scale\(([-\d.]+)\)/)!
+      .slice(1)
+      .map(Number);
+    const box = boundsOf(layoutMindmap("한빛반도체 텍사스 공장 착공", tall));
+
+    // 세로가 배율을 정하는 그림이다 — 위 끝은 톱니(아래 끝 56) 밑, 아래 끝은 확대 버튼(위 끝 H − 52) 위
+    expect(ty + k * box.y0).toBeGreaterThanOrEqual(56);
+    expect(ty + k * box.y1).toBeLessThanOrEqual(H - 52);
+    // 가로는 화면 안
+    expect(tx + k * box.x0).toBeGreaterThanOrEqual(0);
+    expect(tx + k * box.x1).toBeLessThanOrEqual(W);
+  } finally {
+    width.mockRestore();
+    height.mockRestore();
+  }
 });
 
 test("마우스를 올린 길에는 점선이 바깥쪽으로 흐른다 — 가지면 그 잎들까지, 잎이면 그 잎까지", () => {
