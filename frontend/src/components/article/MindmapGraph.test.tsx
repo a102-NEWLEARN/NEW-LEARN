@@ -401,7 +401,7 @@ test("가지는 가운데에서, 잎은 그 가지에서 날아 나온다", () =
   expect([lx + lfx, ly + lfy]).toEqual([bx, by]);
 });
 
-test("가운데 원에서 파문이 번지고, 잎은 저마다 다른 박자로 둥실 떠 있다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
+test("가운데 원에서 파문이 번진다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
   renderGraph();
 
   const ripples = rootNode().querySelectorAll('[class*="newlearn-ripple"]');
@@ -409,12 +409,19 @@ test("가운데 원에서 파문이 번지고, 잎은 저마다 다른 박자로
   ripples.forEach((ring) =>
     expect(ring.getAttribute("class")).toContain("opacity-0"),
   );
-  const floats = [
+});
+
+// 운영에서 잎 글자가 계속 위아래로 움직여 읽기 어려웠다 — 잎은 날아 나온 뒤 제자리에 선다 (Jira 188)
+test("잎은 날아 나온 뒤 떠다니지 않는다", () => {
+  renderGraph();
+
+  [
     "한빛반도체가 텍사스 공장 착공식을 열었다",
     "첫 해 생산 목표를 밝혔다",
-  ].map((name) => leaf(name).querySelector('[class*="newlearn-float"]')!);
-  expect(floats.every(Boolean)).toBe(true);
-  expect(enterDelay(floats[0])).not.toBe(enterDelay(floats[1]));
+  ].forEach((name) =>
+    expect(leaf(name).querySelector('[class*="newlearn-float"]')).toBeNull(),
+  );
+  expect(document.querySelector('[class*="newlearn-float"]')).toBeNull();
 });
 
 test("마우스를 올린 길에는 점선이 바깥쪽으로 흐른다 — 가지면 그 잎들까지, 잎이면 그 잎까지", () => {

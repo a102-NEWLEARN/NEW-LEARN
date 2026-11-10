@@ -463,7 +463,7 @@ A17은 DB의 현재 목록을 읽으므로 이미 로그인한 다른 세션에�
 | `query` | string | 다듬은 `term` |
 | `word` | string · null | 표제어 — 조사 · 어미를 뗀 기본형(「이자를」 → 「이자」) |
 | `pos` | string · null | 품사(「명사」). 구 · 고유 명사처럼 맞는 품사가 없으면 null |
-| `definition` | string · null | 그 글의 문맥에 맞는 뜻풀이 한 문장(AI 생성 — 화면은 AI 생성 표시를 붙인다) |
+| `definition` | string · null | 그 글의 문맥에 맞는 뜻풀이 한 문장(AI 생성. 화면은 「AI 생성」 표시를 붙이지 않는다 — 2026-11-10 사용자, Jira 188) |
 
 ```json
 { "query": "이자를", "word": "이자", "pos": "명사", "definition": "남에게 돈을 빌려 쓴 대가로 치르는 일정 비율의 돈." }

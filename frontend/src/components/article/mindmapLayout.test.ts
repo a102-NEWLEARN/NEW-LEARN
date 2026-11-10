@@ -3,6 +3,7 @@ import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import {
   boundsOf,
   layoutMindmap,
+  LEAF_LINE,
   LEAF_RADIUS,
   wrapText,
 } from "@/components/article/mindmapLayout";
@@ -68,7 +69,7 @@ describe("layoutMindmap — 정해진 자리 (프로토타입 v21 buildMindmapGr
     ]);
     const [core, reaction] = layout.branches;
 
-    // 잎 8개면 가지 높이는 7 × 29 + 72 = 275
+    // 한 줄 잎 8개면 잎 기둥 길이 7 × 58 = 406, 가지 높이는 406 / 2 + 72 = 275
     expect([core.y, reaction.y]).toEqual([-275, 275]);
     const lowestCore = Math.max(...core.leaves.map((leaf) => leaf.y));
     const highestReaction = Math.min(...reaction.leaves.map((leaf) => leaf.y));
@@ -86,11 +87,62 @@ describe("layoutMindmap — 정해진 자리 (프로토타입 v21 buildMindmapGr
       "착공식 첫 해 생산 목표",
       "발표",
     ]);
+    // 잎은 16자에서, 가운데 제목은 14자에서 바꾼다 (Jira 188)
     expect(layout.branches[0].leaves[0].lines).toEqual([
       "한빛반도체가 10월 6일",
-      "텍사스 공장 착공식을",
-      "열었다",
+      "텍사스 공장 착공식을 열었다",
     ]);
+  });
+
+  // ── 잎 글 읽기 (Jira 188 — 운영에서 잎 글이 「…」로 잘리고 잎끼리 붙어 보였다) ──
+
+  const longLeaf = (n: number) =>
+    `${n}번 잎은 반도체 보조금과 관세 협상 결과를 두고 여야가 서로 다른 해석을 내놓으며 공방을 이어 갔다`;
+
+  test("잎 글은 4줄까지 보이고, 넘치면 넷째 줄 끝을 「…」로 줄인다", () => {
+    const layout = layoutMindmap("제목", [
+      branch("CORE", `${longLeaf(1)} 그 뒤 정부는 추가 대책을 예고했다`),
+    ]);
+    const lines = layout.branches[0].leaves[0].lines;
+
+    expect(lines).toHaveLength(4);
+    expect(lines.at(-1)!.endsWith("…")).toBe(true);
+    lines.forEach((line) => expect(line.length).toBeLessThanOrEqual(16));
+  });
+
+  test("여러 줄 잎은 이웃 잎과 글 높이만큼 벌어진다", () => {
+    const layout = layoutMindmap("제목", [
+      branch("CORE", longLeaf(1), longLeaf(2), longLeaf(3)),
+    ]);
+    const [a, b, c] = layout.branches[0].leaves;
+
+    expect(a.lines).toHaveLength(4);
+    // 이웃 두 4줄 잎 글 사이에 12 이상 — 글 높이 4 × 18 의 반씩 + 12
+    expect(b.y - a.y).toBeGreaterThanOrEqual(4 * LEAF_LINE + 12);
+    expect(c.y - b.y).toBeGreaterThanOrEqual(4 * LEAF_LINE + 12);
+    // 가지를 가운데에 두고 위아래로 고르게 놓는다
+    expect(b.y).toBe(layout.branches[0].y);
+  });
+
+  test("여러 줄 잎이 많아도 위 · 아래 가지의 잎 글이 겹치지 않는다", () => {
+    const many = Array.from({ length: 6 }, (_, i) => longLeaf(i + 1));
+    const layout = layoutMindmap("제목", [
+      branch("CORE", ...many),
+      branch("REACTION", ...many),
+    ]);
+    const [core, reaction] = layout.branches;
+    // 4줄 잎 6개 — 잎 기둥 5 × 84 = 420, 가지 높이 420 / 2 + 72 = 282
+    expect([core.y, reaction.y]).toEqual([-282, 282]);
+    const half = (leaf: { lines: string[] }) =>
+      (leaf.lines.length * LEAF_LINE) / 2;
+
+    const lowestCore = Math.max(
+      ...core.leaves.map((leaf) => leaf.y + half(leaf)),
+    );
+    const highestReaction = Math.min(
+      ...reaction.leaves.map((leaf) => leaf.y - half(leaf)),
+    );
+    expect(highestReaction - lowestCore).toBeGreaterThanOrEqual(12);
   });
 });
 
