@@ -63,6 +63,24 @@ SELECT e.id, e.label, e.title, e.role, e.reacts_to_event_id, e.occurred_at, e.oc
 FROM event e WHERE e.issue_id = ? ORDER BY e.occurred_at, e.id;
 ```
 
+## 기사 본문을 붙인 파일 (`classified_with_articles_1021_1108.sqlite`)
+
+분류 파일에 사건 기사 12,717건의 원본 글을 URL 로 붙인 것이다. 두 파일을 따로 받아 잇지 않아도 된다.
+
+- sha256: `f11083b6df3446f1200ea071c566298c6f19e0aa341eff22eb9704db9cfcf5ff` (72,142,848 바이트, 2026-11-10)
+- 위 표 6개는 분류 파일과 같다. 아래 표 하나와 뷰 하나만 더했다
+
+| 표 · 뷰 | 칸 | 뜻 |
+|---|---|---|
+| `article_body` | `article_url` · `newsdata_article_id` · `description` · `content` · `source_name` · `newsdata_category` | 사건 기사 12,717건의 설명 · 본문 · 언론사 이름 · NewsData 분야 원문(`top,politics` 꼴). 위 기사 데이터셋의 `articles` 에서 최종 기사만 `article_event.article_url = articles.link` 로 가져왔다(빠진 기사 0) |
+| `issue_event_article` (뷰) | 이슈 · 사건 · 기사 칸과 본문 | 이슈 → 사건 → 기사를 한 줄로 펼친 것. 이슈 밖 사건의 기사(1,389건)는 `issue_id` 가 NULL |
+
+```sql
+-- 이슈 하나의 기사를 사건 순서대로, 본문까지
+SELECT event_label, event_title, article_title, publisher_code, published_at, content
+FROM issue_event_article WHERE issue_id = ? ORDER BY occurred_at, event_id, published_at;
+```
+
 ## 어떻게 만들었나
 
 1. **사건 후보 묶기:** 최종 기사 BGE-m3-ko 벡터로 사건(72시간 · 거리 0.25) · 이슈(7일 · 0.40), 기사 5건 이상 사건만(`ai/experiments/issue_backfill/issue_grouping.py`). 이슈 207개 · 사건 묶음 1,038개
