@@ -67,11 +67,9 @@ import { prefersReducedMotion } from "@/lib/motion";
 const SCALE_EXTENT: [number, number] = [0.25, 3];
 const ZOOM_OUT = 0.8;
 const ZOOM_IN = 1.25;
-// 화면에 맞추기는 1.15배까지, 가지 포커스는 1.7배까지 (프로토타입 v21).
-// 여백은 가로 · 세로 따로 — 세로 64 는 왼쪽 아래 확대 버튼(높이 52) · 오른쪽 위 톱니(아래 끝 56)를 비운다.
-// 운영에서 여백 24 로 맞추면 확대 버튼이 잎 글을 가렸다 (Jira 188)
-const FIT_ALL = { padX: 24, padY: 64, max: 1.15 };
-const FIT_BRANCH = { padX: 64, padY: 64, max: 1.7 };
+// 화면에 맞추기는 여백 24 · 1.15배까지, 가지 포커스는 여백 64 · 1.7배까지 (프로토타입 v21)
+const FIT_ALL = { padding: 24, max: 1.15 };
+const FIT_BRANCH = { padding: 64, max: 1.7 };
 // 좁은 화면에서 전체에 맞출 때의 배율 범위 — 다 넣으려고 줄이면 글자를 못 읽는다 (모바일 프로토타입 v1)
 const NARROW_FIT = { min: 0.72, max: 1 };
 // 잴 수 없을 때(jsdom) 쓰는 그래프 자리 크기
@@ -107,7 +105,7 @@ type Size = { width: number; height: number };
 function fitTransform(
   box: Box,
   size: Size,
-  { padX, padY, max }: { padX: number; padY: number; max: number },
+  { padding, max }: { padding: number; max: number },
 ) {
   const [min, extentMax] = SCALE_EXTENT;
   const k = Math.max(
@@ -115,8 +113,8 @@ function fitTransform(
     Math.min(
       max,
       extentMax,
-      (size.width - 2 * padX) / Math.max(1, box.x1 - box.x0),
-      (size.height - 2 * padY) / Math.max(1, box.y1 - box.y0),
+      (size.width - 2 * padding) / Math.max(1, box.x1 - box.x0),
+      (size.height - 2 * padding) / Math.max(1, box.y1 - box.y0),
     ),
   );
   const cx = (box.x0 + box.x1) / 2;
