@@ -19,11 +19,6 @@ export const ROW_RISE =
 /** 새로 그린 묶음 · 폼이 떠오른다 — 로그인 폼 · 분야를 바꾼 추천 이슈 */
 export const GROUP_RISE =
   "motion-safe:animate-[newlearn-rise-in_260ms_var(--seed-timing-function-enter)_backwards]";
-/** 용어사전 말풍선 — 사전의 답 200ms · 내 질문 160ms */
-export const BUBBLE_RISE =
-  "motion-safe:animate-[newlearn-rise-in_200ms_var(--seed-timing-function-enter)_backwards]";
-export const MY_BUBBLE_RISE =
-  "motion-safe:animate-[newlearn-rise-in_160ms_var(--seed-timing-function-enter)_backwards]";
 
 /** 나타난다 — 로그인 화면 150ms */
 export const SCREEN_FADE =

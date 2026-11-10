@@ -1,53 +1,46 @@
 import { expect, test } from "vitest";
-import { dictionaryQuery, fetchDictionary } from "@/api/dictionary";
+import { fetchMeaning, meaningQuery } from "@/api/dictionary";
 
-// 가짜 A19 — 금리 · 사과 · 구원^투수만 안다. 그 밖의 말은 빈 결과다 (docs/api-screen.md A19 모양)
+// 가짜 A26 — 아는 말은 뜻 하나, 모르는 말은 세 칸이 null (docs/api-screen.md A26 모양)
 
-test("표제어마다 첫 뜻풀이 하나와 출처를 받는다", async () => {
-  const result = await fetchDictionary("사과");
+test("뜻 하나를 사전 모양으로 받는다 — 표제어는 기본형", async () => {
+  const result = await fetchMeaning({
+    term: "이자를",
+    around: "가계의 이자를 줄인다",
+    contextType: "ARTICLE",
+    contextId: 409,
+  });
 
-  expect(result.query).toBe("사과");
-  expect(result.items).toHaveLength(4);
-  expect(result.items[2]).toEqual({
-    word: "사과",
+  expect(result).toEqual({
+    query: "이자를",
+    word: "이자",
     pos: "명사",
-    definition: "사과나무의 열매.",
-  });
-  expect(result.source).toBe("국립국어원 표준국어대사전");
-});
-
-test("품사가 없는 표제어는 pos 가 null 이고, 표제어의 ^ 는 그대로 온다", async () => {
-  const result = await fetchDictionary("구원투수");
-
-  expect(result.items).toEqual([
-    {
-      word: "구원^투수",
-      pos: null,
-      definition: "앞서 던지던 투수가 위기에 몰렸을 때 대신 나와 던지는 투수.",
-    },
-  ]);
-});
-
-test("서버가 다듬은 검색어를 query 로 돌려준다", async () => {
-  const result = await fetchDictionary("  금리 ");
-
-  expect(result.query).toBe("금리");
-  expect(result.items.map((item) => item.word)).toEqual(["금리"]);
-});
-
-test("모르는 말이면 items 가 빈다", async () => {
-  await expect(fetchDictionary("없는말")).resolves.toEqual({
-    query: "없는말",
-    items: [],
-    source: "국립국어원 표준국어대사전",
+    definition: expect.any(String),
   });
 });
 
-test("앞뒤 공백 · 유니코드 조합만 다른 말은 같은 결과로 친다", () => {
-  // 「금」을 첫소리 · 가운뎃소리 · 끝소리로 나눠 쓴 것(NFD)
-  const decomposed = "금리".normalize("NFD");
+test("풀이할 수 없는 말은 세 칸이 null 이다", async () => {
+  await expect(
+    fetchMeaning({
+      term: "리했",
+      around: "정리했다",
+      contextType: "ARTICLE",
+      contextId: 409,
+    }),
+  ).resolves.toEqual({
+    query: "리했",
+    word: null,
+    pos: null,
+    definition: null,
+  });
+});
 
-  expect(dictionaryQuery(` ${decomposed} `).queryKey).toEqual(
-    dictionaryQuery("금리").queryKey,
+test("같은 대상의 공백만 다른 말은 같은 키다", () => {
+  const base = { around: "x", contextType: "ARTICLE" as const, contextId: 1 };
+  expect(meaningQuery({ ...base, term: "금리 인상" }).queryKey).toEqual(
+    meaningQuery({ ...base, term: "금리인상" }).queryKey,
+  );
+  expect(meaningQuery({ ...base, term: "금리" }).queryKey).not.toEqual(
+    meaningQuery({ ...base, term: "금리", contextId: 2 }).queryKey,
   );
 });

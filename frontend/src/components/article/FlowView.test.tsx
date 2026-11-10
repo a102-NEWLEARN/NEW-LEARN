@@ -23,7 +23,11 @@ const BRANCHES = [
 
 function renderFlow(branches = BRANCHES) {
   renderWithProviders(
-    <FlowView title="한빛반도체 텍사스 공장 착공" branches={branches} />,
+    <FlowView
+      articleId={409}
+      title="한빛반도체 텍사스 공장 착공"
+      branches={branches}
+    />,
   );
 }
 
@@ -33,6 +37,44 @@ const pressed = (name: string | RegExp) =>
 // 가지 하나 — 질문 제목으로 찾은 목록 칸
 const step = (question: string) =>
   screen.getByRole("heading", { level: 2, name: question }).closest("li")!;
+
+// F13 용어사전 — 잎 글은 드래그 대상(data-meaning)이고, 드래그 끝에 따라오는 클릭은 강조로 치지 않는다
+test("잎 글을 드래그한 끝의 클릭은 강조하지 않는다 — 그냥 누르면 강조한다", () => {
+  renderFlow();
+  const leaf = "한빛반도체가 텍사스 공장 착공식을 열었다";
+  const text = within(card(leaf)).getByText(leaf);
+  expect(text.getAttribute("data-meaning")).toBe("ARTICLE:409");
+  expect(card(leaf).className).toContain("select-text");
+
+  const range = document.createRange();
+  range.setStart(text.firstChild!, 0);
+  range.setEnd(text.firstChild!, 5);
+  window.getSelection()!.removeAllRanges();
+  window.getSelection()!.addRange(range);
+  // 마우스 클릭은 detail 이 1 이상이다
+  fireEvent.click(card(leaf), { detail: 1 });
+  expect(pressed(leaf)).toBe("false");
+
+  window.getSelection()!.removeAllRanges();
+  fireEvent.click(card(leaf), { detail: 1 });
+  expect(pressed(leaf)).toBe("true");
+});
+
+test("선택이 남아 있어도 키보드(Enter · Space)로 낸 클릭은 강조한다 — detail 이 0 이다", () => {
+  renderFlow();
+  const leaf = "한빛반도체가 텍사스 공장 착공식을 열었다";
+  const text = within(card(leaf)).getByText(leaf);
+  const range = document.createRange();
+  range.setStart(text.firstChild!, 0);
+  range.setEnd(text.firstChild!, 5);
+  window.getSelection()!.removeAllRanges();
+  window.getSelection()!.addRange(range);
+
+  fireEvent.click(card(leaf), { detail: 0 });
+
+  expect(pressed(leaf)).toBe("true");
+  window.getSelection()!.removeAllRanges();
+});
 
 test("가지를 A9 순서대로 질문 제목 · 번호 · 이름과 잎 수로 둔다", () => {
   renderFlow();

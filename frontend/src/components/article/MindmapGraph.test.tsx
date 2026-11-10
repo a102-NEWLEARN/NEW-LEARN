@@ -24,7 +24,11 @@ const BRANCHES = [
 
 function renderGraph(branches = BRANCHES) {
   renderWithProviders(
-    <MindmapGraph title="한빛반도체 텍사스 공장 착공" branches={branches} />,
+    <MindmapGraph
+      articleId={409}
+      title="한빛반도체 텍사스 공장 착공"
+      branches={branches}
+    />,
   );
 }
 
@@ -449,13 +453,18 @@ test("손가락으로 누를 때는 흐리지 않는다 — 터치는 누르면 
 
 test("마우스를 올린 가지를 범례로 숨기면 흐림을 푼다 — 숨긴 노드에서는 마우스가 떠났다는 알림이 오지 않는다", () => {
   const { rerender } = renderWithProviders(
-    <MindmapGraph title="한빛반도체 텍사스 공장 착공" branches={BRANCHES} />,
+    <MindmapGraph
+      articleId={409}
+      title="한빛반도체 텍사스 공장 착공"
+      branches={BRANCHES}
+    />,
   );
   fireEvent.pointerEnter(causeBranch(), MOUSE);
   expect(faded(coreBranch())).toBe("true");
 
   rerender(
     <MindmapGraph
+      articleId={409}
       title="한빛반도체 텍사스 공장 착공"
       branches={BRANCHES}
       hidden={new Set(["CAUSE"])}

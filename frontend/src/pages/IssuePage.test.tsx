@@ -6,9 +6,9 @@ import {
   within,
 } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, onTestFinished, test, vi } from "vitest";
+import { expect, onTestFinished, test } from "vitest";
 import { server } from "@/mocks/node";
-import { resizeScreen, stubScreen } from "@/test/media";
+import { stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 이슈 화면 — 앱과 같은 라우트(src/routes.tsx)로 연다. 12번 이슈는 가짜 사건 8개를 가진다 (src/mocks/handlers.ts)
@@ -440,112 +440,12 @@ test("패널이 닫혀 있을 때 타임라인 빈 곳을 누르면 포커스를
   expect(document.activeElement).toBe(document.body);
 });
 
-// 용어사전 버튼은 셸이 오른쪽 아래에 띄운다. 넓은 화면의 사건 패널이 열리면 패널의 실제 폭만큼 비킨다
-// (EXPERIENCE.md 앱 셸 「용어사전 버튼」). jsdom 은 폭을 0 으로 재서 사건 패널만 420 으로 준다
-const dictionaryButton = () =>
-  screen.getByRole("button", { name: "용어 사전 열기" });
-
-function measurePanel(width: number) {
-  const spy = vi
-    .spyOn(HTMLElement.prototype, "clientWidth", "get")
-    .mockImplementation(function (this: HTMLElement) {
-      return this.getAttribute("aria-label") === "사건 상세" ? width : 0;
-    });
-  onTestFinished(() => spy.mockRestore());
-}
-
-test("넓은 화면에서 사건 패널이 열리면 용어사전 버튼이 패널 폭만큼 비키고, 닫으면 돌아온다", async () => {
-  measurePanel(420);
-  renderRoute("/issues/12");
-  await node(/착공식/);
-  expect(dictionaryButton().style.right).toBe("24px");
-
-  fireEvent.click(await node(/착공식/));
-  await panelTitle("한빛반도체 텍사스 공장 착공식");
-  expect(dictionaryButton().style.right).toBe("444px");
-
-  fireEvent.click(screen.getByRole("button", { name: "상세 패널 닫기" }));
-  expect(dictionaryButton().style.right).toBe("24px");
-});
-
-test("패널이 줄어든 폭(max-w 50%)도 잰 대로 비킨다", async () => {
-  measurePanel(380);
-  renderRoute("/issues/12?event=119");
-  await panelTitle("한빛반도체 텍사스 공장 착공식");
-
-  expect(dictionaryButton().style.right).toBe("404px");
-});
-
-test("사건 패널을 연 채 다른 화면으로 가면 용어사전 버튼이 제자리로 돌아온다", async () => {
-  measurePanel(420);
-  const { router } = renderRoute("/issues/12?event=119");
-  await panelTitle("한빛반도체 텍사스 공장 착공식");
-  expect(dictionaryButton().style.right).toBe("444px");
-
-  await act(() => router.navigate("/home"));
-
-  expect(dictionaryButton().style.right).toBe("24px");
-});
-
-test("좁은 화면에서는 사건 시트가 올라와도 용어사전 버튼이 비키지 않는다 — 오른쪽 16px (모바일 v1)", async () => {
-  stubScreen("narrow");
-  measurePanel(420);
-  renderRoute("/issues/12?event=119");
-  await screen.findByRole("dialog", { name: "사건 상세" });
-
-  // 시트는 모달이라 뒤를 aria-hidden 으로 가린다 — 역할로는 못 찾아 속성으로 찾는다
-  const button = document.querySelector<HTMLElement>(
-    'button[aria-label="용어 사전 열기"]',
-  );
-  expect(button?.style.right).toBe("16px");
-});
-
-test("좁은 화면 사건 시트는 본문(main) 밖에 그려 딤이 용어사전 버튼까지 덮는다", async () => {
+test("좁은 화면 사건 시트는 본문(main) 밖에 그린다 — 본문은 isolate 라 안에서 그리면 z-index 가 본문 안에서만 통한다", async () => {
   stubScreen("narrow");
   renderRoute("/issues/12?event=119");
 
   const sheet = await screen.findByRole("dialog", { name: "사건 상세" });
-  // 본문은 isolate 라 그 안의 z-index 는 본문 밖에 떠 있는 용어사전 버튼을 넘지 못한다
   expect(document.querySelector("main")?.contains(sheet)).toBe(false);
-});
-
-test("좁은 화면에서 넓은 화면으로 바뀌면 그때 나타난 패널 폭만큼 비킨다", async () => {
-  stubScreen("narrow");
-  measurePanel(420);
-  renderRoute("/issues/12?event=119");
-  await screen.findByRole("dialog", { name: "사건 상세" });
-  // 시트가 사라지는 동안 뒤가 aria-hidden 일 수 있어 속성으로 찾는다
-  const right = () =>
-    document.querySelector<HTMLElement>('button[aria-label="용어 사전 열기"]')
-      ?.style.right;
-
-  act(() => resizeScreen("wide"));
-  await panel();
-  expect(right()).toBe("444px");
-
-  act(() => resizeScreen("narrow"));
-  await screen.findByRole("dialog", { name: "사건 상세" });
-  // 좁은 화면 버튼 자리 — 모바일 v1
-  expect(right()).toBe("16px");
-
-  act(() => resizeScreen("wide"));
-  await panel();
-  expect(right()).toBe("444px");
-});
-
-test("용어사전 창과 사건 패널이 같이 열려 있으면 Esc 는 창부터 닫는다", async () => {
-  const { router } = renderRoute("/issues/12?event=119");
-  await panelTitle("한빛반도체 텍사스 공장 착공식");
-  fireEvent.click(dictionaryButton());
-
-  fireEvent.keyDown(screen.getByRole("textbox", { name: "용어 입력" }), {
-    key: "Escape",
-  });
-  expect(screen.queryByRole("dialog", { name: "용어 사전" })).toBeNull();
-  expect(router.state.location.search).toBe("?event=119");
-
-  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-  expect(router.state.location.search).toBe("");
 });
 
 test("사이드바에서 사건을 누르면 패널이 열리고 포커스가 패널 제목으로 간다", async () => {
