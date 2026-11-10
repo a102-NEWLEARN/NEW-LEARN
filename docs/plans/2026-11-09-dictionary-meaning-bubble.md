@@ -96,12 +96,13 @@ d3-zoom `filter` 를 `(!e.ctrlKey || e.type === "wheel") && !e.button && !(mouse
 
 ## 작업 순서
 
-- [ ] Jira 티켓(스토리 포인트), worktree(`C:/tmp/wt-…`) — 본 폴더는 다른 세션이 쓴다
-- [ ] **실험**: 실제 브라우저에서 SVG 글자 드래그, 흰 테두리(HALO) 아래 선택 색, `Range` 위치 재기, HTML 버튼 글자. 안 되면 멈추고 그 부분만 빼는 안을 보고
-- [ ] backend 실패 시험 → 구현 — 고친 코드를 되돌려 단언에서 빨개지는지
+- [x] Jira 티켓(스토리 포인트), worktree(`C:/tmp/wt-…`) — 본 폴더는 다른 세션이 쓴다
+- [x] **실험**: 실제 브라우저에서 SVG 글자 드래그, 흰 테두리(HALO) 아래 선택 색, `Range` 위치 재기, HTML 버튼 글자. 안 되면 멈추고 그 부분만 빼는 안을 보고
+- [x] backend 실패 시험 → 구현 — 고친 코드를 되돌려 단언에서 빨개지는지
 - [ ] 로컬 실호출로 고정 표(동음이의어 · 말 조각 · 주입 문구, 10 ~ 15번) 측정, 하루 한도 · GMS 설정 확정 — worktree backend 를 `--spring.config.import` 로 본 폴더 `.env` 에 붙인다. 앱이 읽고 Claude 는 값을 보지 않는다
-- [ ] frontend: `pickTerm` 시험 → 말풍선 → 드래그 대상 → 옛 창 제거
-- [ ] 화면 확인(아래) → reviewer → MR 셋(backend · frontend · infra)
+  - 2026-11-10: 본 폴더에 `.env` 가 없었다. `bootTestRun`(Testcontainers) + PC 의 `GMS_API_KEY` 환경변수로 돌렸으나 GMS 가 401 — 뜻 응답 · 시간 · 크레딧은 못 잼(키 봉인 뒤로). 대신 화면 글이 서버 검사를 지나는 것과 「키만 있고 주소가 비면 500」 결함을 찾아 고침
+- [x] frontend: `pickTerm` 시험 → 말풍선 → 드래그 대상 → 옛 창 제거
+- [x] 화면 확인(아래) → reviewer → MR 셋(backend !772 · frontend !773 · infra !774)
 - [ ] 머지 · 배포는 사용자와 정한다: backend → infra → 봉인(사용자) → frontend. `mvp-overview` 는 PM 확인이 끝나면
 
 ## 안 바꿀 것
