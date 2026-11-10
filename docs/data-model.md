@@ -247,7 +247,7 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고르고, 정치로 고른 NewsData 기사는 제목 규칙을 본다. 맞출 값이 없으면 비운다. 제목을 읽은 분야 라벨이 오면 라벨로 덮는다(`infra/server/category-labels.md`) |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 분야 라벨로 숨기는 기사는 손으로 비운다(무엇을 숨기는지는 `infra/server/category-labels.md`). 비운 기사의 EXTRACT 결과를 저장하면 다시 찬다. 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |
+| `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 분야 라벨로 숨기는 기사는 손으로 비운다(무엇을 숨기는지는 `infra/server/category-labels.md`). 비운 기사의 EXTRACT 결과를 저장하면 다시 찬다. AI 결과 적재는 사건에 묶인 기사를 마인드맵 없이도 채운다(`SSOT.md` 9절 2026-11-10). 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
 - 필수 값이 빠진 기사는 저장하지 않고 이유를 돌려준다(PRD FR-1) — B2 가 400 과 `errors[]` 로 답하고, 배치가 세어 Job 로그에 남긴다(`docs/api-internal.md` 2절, Jira 153)
@@ -423,7 +423,7 @@ erDiagram
 
 ### 용어사전 — 테이블 없음 (F13, 2026-10-21)
 
-- 국립국어원 표준국어대사전 Open API 를 우리 API(A19)가 대신 부른다. 인증 키를 화면에 드러내지 않으려고서다
+- 국립국어원 표준국어대사전 Open API 를 우리 API(A19)가 대신 부른다. 인증 키를 화면에 드러내지 않으려고서다. 2026-11-10 부터 화면은 드래그한 말의 문맥 뜻(A26, SSAFY GMS)을 쓴다 — 테이블은 없고 결과 · 하루 호출 수를 Redis 에 하루 · 이틀 둔다(`docs/api-screen.md` A26)
 - 검색 기록을 남기지 않아서(2026-10-21) 테이블이 없다. 결과를 Redis 에 잠깐 두는 규칙과 출처 표시는 `docs/api-screen.md` A19
 
 ---
@@ -485,7 +485,7 @@ erDiagram
 | F08 사건별 관련 기사 조회 | `event` · `article_event` · `article` · `article_mindmap.summary` | A5 · A6 |
 | F11 기사·이슈 양방향 연결 | `article_event` → `event` → `issue` | A8(소속 사건 · 이슈) · A6 |
 | F12 회원 · 관심 분야 (제안) | `member` · `member_category` · `bookmark` · `interest_issue` | A14 ~ A18 · A20 ~ A25 |
-| F13 용어사전 (제안) | 없음(Redis 에 결과를 잠깐 둔다) | A19 |
+| F13 용어사전 (제안) | 없음(Redis 에 결과를 잠깐 둔다) | A19 · A26 |
 
 ---
 

@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import type { TimelineEvent } from "@/api/timeline";
 import { LANE_NAME, useTimelineTip } from "@/components/issue/TimelineTip";
 import {
+  isTextDragClick,
+  meaningProps,
+} from "@/components/meaning/meaningProps";
+import {
   enterAt,
   GROW_Y,
   RIPPLE_ONCE,
@@ -178,8 +182,11 @@ function EventRow({ event, selected, enterAt: at, onSelect }: EventRowProps) {
         LANE_NAME[main ? "MAIN" : "SUB"],
         articlesText(event),
       )}
-      onClick={() => onSelect(event.id)}
-      className={`relative flex w-full flex-col gap-x0_5 rounded-r3 py-x3 pr-x3 text-left transition-[background-color,scale] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-stroke-focus-ring motion-safe:active:scale-[0.98] ${main ? "pl-[36px]" : "pl-[56px]"} ${selected ? "bg-bg-brand-weak" : "hover:bg-bg-layer-default-pressed"}`}
+      // 사건 제목을 드래그한 끝의 클릭(용어사전)은 사건 고르기가 아니다
+      onClick={(click) => {
+        if (!isTextDragClick(click)) onSelect(event.id);
+      }}
+      className={`relative flex w-full flex-col gap-x0_5 rounded-r3 py-x3 pr-x3 text-left select-text transition-[background-color,scale] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-stroke-focus-ring motion-safe:active:scale-[0.98] ${main ? "pl-[36px]" : "pl-[56px]"} ${selected ? "bg-bg-brand-weak" : "hover:bg-bg-layer-default-pressed"}`}
     >
       {/* 서브 흐름 — 메인 흐름 선에서 2px 점선으로 갈라진다 */}
       {!main && (
@@ -211,8 +218,9 @@ function EventRow({ event, selected, enterAt: at, onSelect }: EventRowProps) {
         {joined(" · ", dateText(event), articlesText(event))}
       </span>
       <span
-        className={`${main ? "t5-bold" : "t4-bold"} ${selected ? "text-fg-brand" : "text-fg-neutral"} ${RISE}`}
+        className={`${main ? "t5-bold" : "t4-bold"} ${selected ? "text-fg-brand" : "text-fg-neutral"} select-text ${RISE}`}
         style={enterAt(at + TEXT_AFTER)}
+        {...meaningProps("EVENT", event.id)}
       >
         {event.title}
       </span>

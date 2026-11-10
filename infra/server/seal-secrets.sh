@@ -11,6 +11,7 @@
 #   bash infra/server/seal-secrets.sh alertmanager  Prometheus 경보를 받을 Mattermost 들어오는 웹훅 주소(배포알림 채널과 같은 주소) → monitoring
 #   bash infra/server/seal-secrets.sh pg-backup-s3  DB 주간 백업을 S3 에 올리는 키(올리기만 되는 IAM 사용자) · 버킷 이름 → data
 #   bash infra/server/seal-secrets.sh gms           AI 워커가 SSAFY GMS 를 부를 키 — 봉인 전에 그 키로 GMS 를 불러 본다 → ai
+#   bash infra/server/seal-secrets.sh gms-app       backend 의 용어사전 문맥 뜻(A26)이 GMS 를 부를 키(같은 팀 공용키) — 위와 같게 확인 → app
 #   bash infra/server/seal-secrets.sh internal-api  직원용 문(/internal/v1) 출입증 — 워커 · 배치 키를 무작위로 만든다(묻지 않음) → app 에 둘 · ai 에 워커 키
 #   bash infra/server/seal-secrets.sh stdict        용어사전(A19)이 표준국어대사전을 부를 키 — 봉인 전에 그 키로 「나무」를 찾아본다 → app
 #   bash infra/server/seal-secrets.sh newsdata      수집 배치가 NewsData 최신 기사를 받을 키 — 봉인 전에 그 키로 최신 기사 요청 하나(크레딧 1 안팎) → app
@@ -22,7 +23,7 @@ set -euo pipefail
 OUT="$HOME/sealed"
 CONTROLLER_NS=sealed-secrets # infra/k8s/apps/templates/sealed-secrets.yaml
 
-usage() { sed -n '5,16p' "$0" | sed 's/^# *//'; }
+usage() { sed -n '5,17p' "$0" | sed 's/^# *//'; }
 need_tty() { [ -t 0 ] || { echo "❌ 값을 물어야 한다 — 터미널에서 직접 돌린다 (ssh -t)" >&2; exit 1; }; }
 
 [ "$(id -u)" -ne 0 ] || { echo "❌ sudo 없이 돌린다" >&2; exit 1; }
@@ -36,6 +37,39 @@ seal() {
   kubectl create secret generic "$1" -n "$2" --from-file="$3"=/dev/stdin --dry-run=client -o yaml \
     | kubeseal --controller-namespace "$CONTROLLER_NS" --format yaml >"$4"
   echo "봉인: $4"
+}
+
+# SSAFY GMS 키를 물어 그 키가 GMS 를 지나는지 본 뒤 봉인한다 — 네임스페이스 · Deployment(컨테이너 이름이 같다) · 출력 파일
+# 주소 · 모델은 비밀이 아니라 매니페스트에 있다. 같은 값을 두 곳에 적지 않게 클러스터에 반영된 그 Deployment 의 값을 읽는다
+seal_gms() {
+  local ns="$1" deploy="$2" out="$3" base model key resp code msg
+  env_of() { kubectl -n "$ns" get deploy "$deploy" -o jsonpath="{.spec.template.spec.containers[?(@.name==\"$deploy\")].env[?(@.name==\"$1\")].value}" 2>/dev/null || true; }
+  base="$(env_of GMS_BASE_URL)"
+  model="$(env_of GMS_MODEL)"
+  [[ "$base" =~ ^https://[A-Za-z0-9./_-]+$ ]] || { echo "❌ $ns/$deploy Deployment 에 GMS_BASE_URL 이 없다 — 매니페스트의 주소가 클러스터에 반영된 뒤 돌린다" >&2; exit 1; }
+  [[ "$model" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "❌ $ns/$deploy Deployment 에 GMS_MODEL 이 없다" >&2; exit 1; }
+  echo "GMS 주소: $base · 모델: $model"
+  read -rsp "GMS 키 (화면에 안 보인다): " key
+  echo
+  # 복사해 붙이면 눈에 안 보이는 공백이 따라온다 — 키에 쓰는 글자를 몰라 공백만 지운다
+  key="$(printf '%s' "$key" | tr -d '[:space:]')"
+  [ -n "$key" ] || { echo "❌ 키가 비었다" >&2; exit 2; }
+  # 봉인하기 전에 이 키가 GMS 를 지나는지 본다 — 메시지가 빈 요청을 보내 답을 만들지 않게 한다
+  # GMS 는 키가 틀리면 401(「Invalid or expired GMS key」), 맞으면 모델 API 로 넘기고 모델 API 가 빈 메시지를 400 으로 거절한다
+  # GET /models 는 GMS 가 본문의 model 을 먼저 읽어서 키와 상관없이 500 이라 쓸 수 없다 (2026-10-27 가짜 키로 확인)
+  # 키는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임). 본문에는 비밀이 없다
+  resp="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
+    | curl -s -w '\n%{http_code}' --max-time 15 -K - -H 'Content-Type: application/json' \
+        -d "{\"model\":\"$model\",\"messages\":[]}" "$base/chat/completions" || true)"
+  code="${resp##*$'\n'}"
+  msg="$(printf '%s' "${resp%$'\n'*}" | tr -d '\n' | cut -c1-200)"
+  case "$code" in
+    400) echo "GMS 키 확인 — GMS 를 지났다 (모델 API 가 빈 메시지를 거절: HTTP 400)" ;;
+    401 | 403) unset key; echo "❌ GMS 가 이 키를 받지 않았다 (HTTP $code) — 키 확인: $msg" >&2; exit 1 ;;
+    *) unset key; echo "❌ 알 수 없는 답 (HTTP $code) — 봉인하지 않는다: $msg" >&2; exit 1 ;;
+  esac
+  printf '%s' "$key" | seal gms-api "$ns" GMS_API_KEY "$out"
+  unset key
 }
 
 # Mattermost 들어오는 웹훅 주소를 물어 url 에 담고, 봉인하기 전에 그 주소로 채널에 연결 시험 글을 하나 쓴다 — 시험글
@@ -187,35 +221,17 @@ case "${1:-}" in
   gms)
     need_tty
     # AI 워커가 SSAFY GMS(OpenAI 호환 API)를 부를 키 — ai Deployment 의 GMS_API_KEY 가 이 이름 · 키를 읽는다
-    # 주소는 비밀이 아니라 매니페스트(infra/k8s/services/ai/ai.yaml)에 있다. 같은 값을 두 곳에 적지 않게 클러스터에 반영된 값을 읽는다
-    env_of() { kubectl -n ai get deploy ai -o jsonpath="{.spec.template.spec.containers[?(@.name==\"ai\")].env[?(@.name==\"$1\")].value}" 2>/dev/null || true; }
-    base="$(env_of GMS_BASE_URL)"
-    model="$(env_of GMS_MODEL)"
-    [[ "$base" =~ ^https://[A-Za-z0-9./_-]+$ ]] || { echo "❌ ai Deployment 에 GMS_BASE_URL 이 없다 — ai.yaml 의 주소가 클러스터에 반영된 뒤 돌린다" >&2; exit 1; }
-    [[ "$model" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "❌ ai Deployment 에 GMS_MODEL 이 없다" >&2; exit 1; }
-    echo "GMS 주소: $base · 모델: $model"
-    read -rsp "GMS 키 (화면에 안 보인다): " key
-    echo
-    # 복사해 붙이면 눈에 안 보이는 공백이 따라온다 — 키에 쓰는 글자를 몰라 공백만 지운다
-    key="$(printf '%s' "$key" | tr -d '[:space:]')"
-    [ -n "$key" ] || { echo "❌ 키가 비었다" >&2; exit 2; }
-    # 봉인하기 전에 이 키가 GMS 를 지나는지 본다 — 메시지가 빈 요청을 보내 답을 만들지 않게 한다
-    # GMS 는 키가 틀리면 401(「Invalid or expired GMS key」), 맞으면 모델 API 로 넘기고 모델 API 가 빈 메시지를 400 으로 거절한다
-    # GET /models 는 GMS 가 본문의 model 을 먼저 읽어서 키와 상관없이 500 이라 쓸 수 없다 (2026-10-27 가짜 키로 확인)
-    # 키는 curl 설정을 표준 입력으로 넘긴다(ps 에 안 보임). 본문에는 비밀이 없다
-    resp="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
-      | curl -s -w '\n%{http_code}' --max-time 15 -K - -H 'Content-Type: application/json' \
-          -d "{\"model\":\"$model\",\"messages\":[]}" "$base/chat/completions" || true)"
-    code="${resp##*$'\n'}"
-    msg="$(printf '%s' "${resp%$'\n'*}" | tr -d '\n' | cut -c1-200)"
-    case "$code" in
-      400) echo "GMS 키 확인 — GMS 를 지났다 (모델 API 가 빈 메시지를 거절: HTTP 400)" ;;
-      401 | 403) unset key; echo "❌ GMS 가 이 키를 받지 않았다 (HTTP $code) — 키 확인: $msg" >&2; exit 1 ;;
-      *) unset key; echo "❌ 알 수 없는 답 (HTTP $code) — 봉인하지 않는다: $msg" >&2; exit 1 ;;
-    esac
-    printf '%s' "$key" | seal gms-api ai GMS_API_KEY "$OUT/sealed-gms-api.yaml"
-    unset key
+    seal_gms ai ai "$OUT/sealed-gms-api.yaml"
     echo "관리자 PC 로 가져와 infra/k8s/services/ai/sealed-gms-api.yaml 로"
+    ;;
+  gms-app)
+    need_tty
+    # backend 의 용어사전 문맥 뜻(A26)이 같은 팀 공용 GMS 키를 쓴다 — 봉인은 네임스페이스에 묶여 app 에 따로 봉인한다 (Jira 187)
+    # backend Deployment 의 GMS_API_KEY 가 이 이름 · 키를 읽는다(backend.yaml, optional — 봉인 전에는 502 로 닫힌 채)
+    seal_gms app backend "$OUT/sealed-gms-api-app.yaml"
+    echo "관리자 PC 로 가져와 infra/k8s/services/app/sealed-gms-api.yaml 로 (kustomization.yaml 의 resources 에도 한 줄)"
+    # env 는 컨테이너가 뜰 때만 읽는다 — 봉인 파일만 넣는 MR 은 Pod 를 바꾸지 않는다
+    echo "Secret 이 풀린 뒤: kubectl -n app rollout restart deploy/backend"
     ;;
   internal-api)
     # 직원용 문(/internal/v1) 출입증 — backend 는 X-Internal-Key 머리를 두 키와 비교한다. 워커 키는 W1(분석 결과), 배치 키는 B2 · B1(기사 적재 · 분석 걸기)만 연다 (docs/api-internal.md)

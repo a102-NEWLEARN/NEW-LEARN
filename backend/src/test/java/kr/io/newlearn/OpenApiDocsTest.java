@@ -414,6 +414,32 @@ class OpenApiDocsTest {
                         "$.components.schemas.DictionaryItem.properties.pos.type", hasItems("string", "null")));
     }
 
+    // A26 드래그한 말의 문맥 뜻(Jira 187, 스펙 F13 AC-18) — 명세대로 만들고 시험을 마쳐 [확정](GMS 는 가짜로 바꿔 시험)
+    @Test
+    void meaningApiIsDocumentedWithBodyAndErrors() throws Exception {
+        String operation = op("post", "/api/v1/dictionary/meaning");
+        docs().andExpect(jsonPath(operation + ".summary", startsWith("[확정] A26 ")))
+                .andExpect(jsonPath(operation + ".tags", contains("용어사전")))
+                .andExpect(jsonPath(
+                        operation + ".requestBody.content['application/json'].schema['$ref']",
+                        endsWith("/MeaningRequest")))
+                .andExpect(jsonPath(
+                        operation + ".responses['200'].content['application/json'].schema['$ref']",
+                        endsWith("/MeaningResponse")))
+                .andExpect(jsonPath(operation + ".responses['400'].description", containsString("VALIDATION_FAILED")))
+                .andExpect(jsonPath(operation + ".responses['401'].description", containsString("UNAUTHORIZED")))
+                .andExpect(jsonPath(operation + ".responses['404'].description", containsString("ARTICLE_NOT_FOUND")))
+                .andExpect(
+                        jsonPath(operation + ".responses['502'].description", containsString("DICTIONARY_UNAVAILABLE")))
+                .andExpect(jsonPath(problemExample(operation, "502") + ".code").value("DICTIONARY_UNAVAILABLE"))
+                .andExpect(jsonPath(
+                        "$.components.schemas.MeaningRequest.properties.term.description", not(emptyOrNullString())))
+                .andExpect(jsonPath(
+                        "$.components.schemas.MeaningResponse.properties.word.type", hasItems("string", "null")))
+                .andExpect(jsonPath(
+                        "$.components.schemas.MeaningResponse.properties.definition.type", hasItems("string", "null")));
+    }
+
     @Test
     void interestIssueApisExposeConfirmedResponsesAndNullableRemovalTime() throws Exception {
         String path = "/api/v1/members/me/interest-issues/{issueId}";
