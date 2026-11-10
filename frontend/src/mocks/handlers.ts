@@ -1,8 +1,9 @@
+import { delay } from "msw";
 import { http, HttpResponse } from "msw/http";
 import type { ArticleDetail, EventMatchStatus } from "@/api/article";
 import type { BookmarkItem, BookmarkState } from "@/api/bookmarks";
 import type { Category } from "@/api/categories";
-import type { DictionaryItem, DictionaryResult } from "@/api/dictionary";
+import type { MeaningRequest, MeaningResult } from "@/api/dictionary";
 import type { EventDetail } from "@/api/event";
 import type { IssueDetail } from "@/api/issue";
 import type {
@@ -733,46 +734,65 @@ function search(word: string): SearchResult {
   };
 }
 
-// A19 — 표제어마다 첫 뜻풀이 하나. 뜻풀이는 지어낸 것이다. 사과는 동음이의어가 여럿인 예(결과 3개 넘음),
-// 구원^투수는 품사가 없는 구 표제어 예(docs/api-screen.md A19, 2026-10-29 실제 키로 확인한 모양).
-// 사전은 표제어 번호 차례로 줘서 흔한 뜻이 뒤에 온다 — 사이트의 「사과」 8개 중 「사과나무의 열매」가 5번째,
-// 「용서를 빎」이 8번째다(2026-11-03). 그 차례를 흉내 낸다
-const dictionaryEntries: DictionaryItem[] = [
-  {
-    word: "금리",
+// A26 — 드래그한 말의 문맥 뜻 하나. 뜻풀이는 지어낸 것이다. 409 기사(어려운 경제 기사)의 말을 주로 안다.
+// 조사를 붙여 골라도(「이자를」) 표제어는 기본형이다. 모르는 말 · 말 조각은 세 칸이 null(풀이 불가)이다 (docs/api-screen.md A26)
+const meaningEntries: Record<string, Omit<MeaningResult, "query">> = {
+  이자: {
+    word: "이자",
     pos: "명사",
-    definition: "빌려준 돈이나 맡긴 돈에 붙는 이자의 비율.",
+    definition: "남에게 돈을 빌려 쓴 대가로 치르는 일정 비율의 돈.",
   },
-  { word: "사과", pos: "명사", definition: "참외의 한 가지." },
-  {
-    word: "사과",
+  기준금리: {
+    word: "기준금리",
     pos: "명사",
-    definition: "옛 군대에 둔 벼슬의 하나.",
+    definition: "중앙은행이 시중 금리의 기준으로 삼으려고 정하는 정책 금리.",
   },
-  { word: "사과", pos: "명사", definition: "사과나무의 열매." },
-  {
-    word: "사과",
-    pos: "명사",
-    definition: "자기의 잘못을 인정하고 용서를 빎.",
-  },
-  {
-    word: "구원^투수",
+  양적긴축: {
+    word: "양적 긴축",
     pos: null,
-    definition: "앞서 던지던 투수가 위기에 몰렸을 때 대신 나와 던지는 투수.",
+    definition: "중앙은행이 가진 채권을 줄여 시중에 풀린 돈을 거둬들이는 정책.",
   },
-];
+  역레포: {
+    word: "역레포",
+    pos: "명사",
+    definition:
+      "중앙은행이 채권을 팔고 나중에 되사기로 하여 시중의 돈을 잠시 흡수하는 거래.",
+  },
+  통화스와프: {
+    word: "통화 스와프",
+    pos: null,
+    definition:
+      "두 나라 중앙은행이 필요할 때 서로의 돈을 미리 정한 비율로 바꿔 쓰기로 한 약속.",
+  },
+  유동성: {
+    word: "유동성",
+    pos: "명사",
+    definition: "가진 자산을 손해 없이 곧바로 현금으로 바꿀 수 있는 정도.",
+  },
+  디레버리징: {
+    word: "디레버리징",
+    pos: "명사",
+    definition: "빚을 줄여 자산에 비해 지나치게 많은 부채를 덜어 내는 일.",
+  },
+  시사하다: {
+    word: "시사하다",
+    pos: "동사",
+    definition: "앞으로 그렇게 할 뜻을 미리 넌지시 드러내다.",
+  },
+};
 
-// 서버처럼 검색어를 다듬고, 사전처럼 띄어쓰기 자리(^ · 공백)는 보지 않고 맞춘다
-function lookUp(q: string): DictionaryResult {
-  const query = q.trim().normalize("NFC");
-  const bare = (text: string) => text.replace(/[\s^]/g, "");
-  return {
-    query,
-    items: dictionaryEntries.filter(
-      (entry) => bare(entry.word) === bare(query),
-    ),
-    source: "국립국어원 표준국어대사전",
-  };
+// 조사 · 어미를 대충 떼어 아는 말을 찾는다 — 가짜 응답이라 몇 가지만
+function meaningOf({ term }: MeaningRequest): MeaningResult {
+  const query = term.trim().normalize("NFC");
+  const bare = query.replace(/[\s\p{Z}]/gu, "");
+  const stem = bare.replace(/(을|를|이|가|은|는|의|에|로|와|과)$/u, "");
+  const known =
+    meaningEntries[bare] ??
+    meaningEntries[stem] ??
+    (/^시사/.test(bare) ? meaningEntries.시사하다 : undefined);
+  return known
+    ? { query, ...known }
+    : { query, word: null, pos: null, definition: null };
 }
 
 export const handlers = [
@@ -1072,7 +1092,10 @@ export const handlers = [
     }
     return HttpResponse.json(search(word));
   }),
-  http.get("/api/v1/dictionary", ({ request }) =>
-    HttpResponse.json(lookUp(new URL(request.url).searchParams.get("q") ?? "")),
-  ),
+  // A26 — 모델을 부르는 시간을 흉내 내 화면에서는 잠깐 기다린다(점 셋이 튄다). 테스트는 기다리지 않는다
+  http.post("/api/v1/dictionary/meaning", async ({ request }) => {
+    const body = (await request.json()) as MeaningRequest;
+    if (import.meta.env.MODE !== "test") await delay(1200);
+    return HttpResponse.json(meaningOf(body));
+  }),
 ];
