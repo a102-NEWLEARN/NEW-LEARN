@@ -21,15 +21,21 @@ public final class QueryText {
     // 비었거나 U+0000(NUL)이 들었거나 50자를 넘으면 400 VALIDATION_FAILED 와 errors[q]
     // NUL 은 PostgreSQL 이 글자로 받지 못해 A13 은 500 이 났고, A19 는 사전에 그대로 넘겼다(2026-10-30)
     public static String normalize(@Nullable String q, String blankReason, String nulReason, String tooLongReason) {
+        return normalize(q, "q", blankReason, nulReason, tooLongReason);
+    }
+
+    // 같은 규칙을 다른 칸 이름(errors[field])으로 — A26 문맥 뜻의 term (Jira 187)
+    public static String normalize(
+            @Nullable String q, String field, String blankReason, String nulReason, String tooLongReason) {
         String query = q == null ? "" : Normalizer.normalize(q.strip(), Normalizer.Form.NFC);
         if (query.isEmpty()) {
-            throw invalid(blankReason);
+            throw invalid(field, blankReason);
         }
         if (containsNul(query)) {
-            throw invalid(nulReason);
+            throw invalid(field, nulReason);
         }
         if (query.codePointCount(0, query.length()) > MAX_LENGTH) {
-            throw invalid(tooLongReason);
+            throw invalid(field, tooLongReason);
         }
         return query;
     }
@@ -39,7 +45,8 @@ public final class QueryText {
         return text.indexOf('\u0000') >= 0;
     }
 
-    private static ApiException invalid(String reason) {
-        return new ApiException(ErrorCode.VALIDATION_FAILED, "q: " + reason, List.of(new FieldErrorItem("q", reason)));
+    public static ApiException invalid(String field, String reason) {
+        return new ApiException(
+                ErrorCode.VALIDATION_FAILED, field + ": " + reason, List.of(new FieldErrorItem(field, reason)));
     }
 }

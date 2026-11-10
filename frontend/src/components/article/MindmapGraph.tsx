@@ -56,6 +56,11 @@ import {
   SPRING_IN,
 } from "@/components/motion/screenMotion";
 import { useElementSize } from "@/components/issue/useElementSize";
+import {
+  isMeaningText,
+  isTextDragClick,
+  meaningProps,
+} from "@/components/meaning/meaningProps";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -122,6 +127,8 @@ function fitTransform(
 }
 
 type MindmapGraphProps = {
+  /** 이 기사 — 잎 · 가운데 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
+  articleId: number;
   /** 가운데 글자 — A9 title(지금은 기사 제목) */
   title: string;
   /** A9 가지 — 내용이 있는 것만 온다 */
@@ -144,6 +151,7 @@ type Hover = { type: BranchType; leaf: string | null } | null;
 // 가지를 누르면 그 가지만 화면에 맞추고 나머지는 흐리게, 잎을 누르면 그 잎을 강조한다 (EXPERIENCE.md 보기 탭).
 // 노드 상세 카드는 띄우지 않는다 (S15P31A102-59)
 export function MindmapGraph({
+  articleId,
   title,
   branches,
   hidden = NONE_HIDDEN,
@@ -232,6 +240,14 @@ export function MindmapGraph({
     const svg = svgRef.current!;
     const behavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent(SCALE_EXTENT)
+      // d3 기본 조건(Ctrl 은 휠만 · 왼쪽 버튼만)에 하나를 더한다 — 드래그 대상 글 위에서 마우스를 누르면 지도를 끌지 않고
+      // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 휠 확대와 터치 이동은 그대로다
+      .filter(
+        (event: MouseEvent) =>
+          (!event.ctrlKey || event.type === "wheel") &&
+          !event.button &&
+          !(event.type === "mousedown" && isMeaningText(event.target)),
+      )
       // 누르는 동안 손이 조금 떨려도(3px 까지) 끌기가 아니라 누르기로 친다
       .clickDistance(3)
       .extent(() => [
@@ -361,10 +377,10 @@ export function MindmapGraph({
     const { k } = transformRef.current;
     apply(zoomIdentity.translate(w / 2 - k * x, h / 2 - k * y).scale(k));
   };
-  // 노드 누르기 — 빈 곳 누르기(포커스 풀기)로 번지지 않게 막는다
+  // 노드 누르기 — 빈 곳 누르기(포커스 풀기)로 번지지 않게 막는다. 글을 드래그한 끝의 클릭(용어사전)은 누르기가 아니다
   const onNodeClick = (mouse: MouseEvent, press: () => void) => {
     mouse.stopPropagation();
-    press();
+    if (!isTextDragClick(mouse)) press();
   };
   const onNodeKeyDown = (key: KeyboardEvent, press: () => void) => {
     if (key.key !== "Enter" && key.key !== " ") return;
@@ -626,13 +642,17 @@ export function MindmapGraph({
                     />
                   )}
                   {/* 잎 글은 한 단계 옅게 두고, 마우스를 올리거나 강조하면 진하게 (프로토타입 v21) */}
+                  {/* 라벨을 늘 보일 때만 드래그 대상이다 — 끄면 마우스가 떠날 때 글이 사라져 고른 것이 풀린다 */}
                   {labeled && (
                     <text
                       textAnchor={side === 1 ? "start" : "end"}
                       fontSize={LEAF_FONT}
                       strokeWidth={4}
                       style={HALO}
-                      className={`stroke-bg-layer-default transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected || leafHovered ? "fill-fg-neutral" : "fill-fg-neutral-muted"} ${selected ? "font-bold" : "font-medium"}`}
+                      className={`stroke-bg-layer-default transition-[fill] duration-[var(--seed-duration-color-transition)] ${selected || leafHovered ? "fill-fg-neutral" : "fill-fg-neutral-muted"} ${selected ? "font-bold" : "font-medium"} ${showLabels ? "cursor-text select-text" : ""}`}
+                      {...(showLabels
+                        ? meaningProps("ARTICLE", articleId, cut)
+                        : {})}
                     >
                       {leaf.lines.map((line, i) => (
                         <tspan
@@ -702,7 +722,9 @@ export function MindmapGraph({
         width="100%"
         height="100%"
         className="block cursor-grab touch-none select-none"
-        onClick={releaseAll}
+        onClick={(mouse) => {
+          if (!isTextDragClick(mouse)) releaseAll();
+        }}
       >
         <g transform={transform.toString()}>
           {layout.branches.map(renderBranch)}
@@ -734,12 +756,18 @@ export function MindmapGraph({
               {layout.root.lines.at(-1)?.endsWith("…") && (
                 <title>{title}</title>
               )}
+              {/* 가운데 제목도 드래그 대상이다(용어사전) — 글 위를 누르면 지도를 끌지 않고 글을 고른다 */}
               <text
                 textAnchor="middle"
                 fontSize={ROOT_FONT}
                 strokeWidth={5}
                 style={HALO}
-                className="pointer-events-none fill-fg-neutral stroke-bg-layer-default font-bold"
+                className="cursor-text fill-fg-neutral stroke-bg-layer-default font-bold select-text"
+                {...meaningProps(
+                  "ARTICLE",
+                  articleId,
+                  layout.root.lines.at(-1)?.endsWith("…") ?? false,
+                )}
               >
                 {layout.root.lines.map((line, i) => (
                   <tspan key={i} x={0} y={ROOT_RING + 22 + i * ROOT_LINE}>

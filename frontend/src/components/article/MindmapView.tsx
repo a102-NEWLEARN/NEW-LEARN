@@ -25,6 +25,8 @@ export const INITIAL_MINDMAP_SETTINGS: MindmapSettings = {
 };
 
 type MindmapViewProps = {
+  /** 이 기사 — 잎 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
+  articleId: number;
   /** 가운데 글자 — A9 title */
   title: string;
   /** A9 가지 — 내용이 있는 것만 온다 */
@@ -37,6 +39,7 @@ type MindmapViewProps = {
 // 가지 토글은 범례 칩이 맡는다 — 누르면 그 가지를 숨기고 다시 누르면 되살린다. 숨긴 것이 있으면 「모두 보기」.
 // 탐색 설정은 「라벨 표시」 하나다 (2026-10-30 사용자 결정, 프로토타입 v21 그래프 설정 가운데 하나)
 export function MindmapView({
+  articleId,
   title,
   branches,
   settings,
@@ -128,6 +131,7 @@ export function MindmapView({
         {/* 탭 순서가 화면에서 읽는 순서와 같게 — 범례 다음에 설정, 그다음 그래프 */}
         <GraphSettings showLabels={showLabels} onShowLabels={setShowLabels} />
         <MindmapGraph
+          articleId={articleId}
           title={title}
           branches={branches}
           hidden={hidden}

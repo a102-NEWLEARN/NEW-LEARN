@@ -423,7 +423,7 @@ erDiagram
 
 ### 용어사전 — 테이블 없음 (F13, 2026-10-21)
 
-- 국립국어원 표준국어대사전 Open API 를 우리 API(A19)가 대신 부른다. 인증 키를 화면에 드러내지 않으려고서다
+- 국립국어원 표준국어대사전 Open API 를 우리 API(A19)가 대신 부른다. 인증 키를 화면에 드러내지 않으려고서다. 2026-11-10 부터 화면은 드래그한 말의 문맥 뜻(A26, SSAFY GMS)을 쓴다 — 테이블은 없고 결과 · 하루 호출 수를 Redis 에 하루 · 이틀 둔다(`docs/api-screen.md` A26)
 - 검색 기록을 남기지 않아서(2026-10-21) 테이블이 없다. 결과를 Redis 에 잠깐 두는 규칙과 출처 표시는 `docs/api-screen.md` A19
 
 ---
@@ -485,7 +485,7 @@ erDiagram
 | F08 사건별 관련 기사 조회 | `event` · `article_event` · `article` · `article_mindmap.summary` | A5 · A6 |
 | F11 기사·이슈 양방향 연결 | `article_event` → `event` → `issue` | A8(소속 사건 · 이슈) · A6 |
 | F12 회원 · 관심 분야 (제안) | `member` · `member_category` · `bookmark` · `interest_issue` | A14 ~ A18 · A20 ~ A25 |
-| F13 용어사전 (제안) | 없음(Redis 에 결과를 잠깐 둔다) | A19 |
+| F13 용어사전 (제안) | 없음(Redis 에 결과를 잠깐 둔다) | A19 · A26 |
 
 ---
 
