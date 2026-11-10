@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: gms-api
+  namespace: app
+spec:
+  encryptedData:
+    GMS_API_KEY: AgCUy9+g4OCUQmcr0giwLMX/+mgyluAkMHM/4WhLDImIaNC097MZ0Di02Cw+o2wqcbZmnj6LTyXPZg2oBvIAs28E1BJs3V/BS1S7cqr5VRytooqulG/7dP8BZYQLpBaKDFdQLuvj6kOayXSAukimcHqhYND8Dxu2xFV5n4KT/PUhXbfQLDqwDGh0zcF7uG3Y6dKOWLlFZHeUVNPiXyvXxPXEhJluw44T6/JPXJgqwNSlvSw+p51EVON0Ccm8Zgb73opqZjfV76hTrxSXRX6+z+13pVrwHWM3ufosF3XdfTF102BhKjXfOuBtILw/XUuIaUG20FNb2sdaVDTZHfH/KzjRhI2JCUpE2SLBrrU6uD8u2nXwuJL6NIBRgX5Le1CVo58ER/OuKJTLhbF+ShkIg5MWlBOnmd+uGnN4x+1EETWV6eLC/Ta33jjYUtGJaTM6B68TWZ65h8W106UpcXmBg1gcam1XCvnc2+7DOMiNUU/u8XC/RTLAf1KiepL7EPEeqD3Uwua5D7XLUrFhE//+25H26FybVU97CLbNbAVVk2+ibPc26OInsNPlx2WeSEE2XNL/VHSrCp8w1lC2cDuCJ7VASni/zHEDAUn05Nt7bsm5FnH47q3w9kd1LkQcvj0Kr+Y3ty55pIGJTaHVbvQdtv9Yy10wkHKVE26jnGv/RqvMWOgrrJ9cTTrzHNmcIrCMB9AmtP1kLYhC358vyVH/MRqOiRmg8DZqfCIWfkk4G+adLLQhkjC3TEpDeFNx0hkP+w==
+  template:
+    metadata:
+      name: gms-api
+      namespace: app

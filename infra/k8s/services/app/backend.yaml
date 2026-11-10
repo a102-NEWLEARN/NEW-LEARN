@@ -78,6 +78,23 @@ spec:
                   name: stdict-api
                   key: STDICT_API_KEY
                   optional: true
+            # 용어사전 문맥 뜻(A26)이 부르는 SSAFY GMS (Jira 187, docs/api-screen.md A26). 주소 · 모델은 AI 워커와 같은 값이다 —
+            # 바꿀 때는 infra/k8s/services/ai/ai.yaml 의 GMS_BASE_URL · GMS_MODEL 과 같이 바꾼다
+            - name: GMS_BASE_URL
+              value: https://gms.ssafy.io/gmsapi/api.openai.com/v1
+            - name: GMS_MODEL
+              value: gpt-6-luna
+            # 키는 AI 워커와 같은 팀 공용키를 app 에 따로 봉인한 Secret gms-api(seal-secrets.sh gms-app).
+            # 봉인 전에는 값이 비고, 비면 GMS 를 부르지 않고 502 — 닫힌 채로 시작
+            - name: GMS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gms-api
+                  key: GMS_API_KEY
+                  optional: true
+            # 하루에 GMS 를 부르는 수의 상한(팀 공용 예산). 0 이면 GMS 를 부르지 않는다 — 끄는 스위치(바꾸면 Pod 를 다시 띄운다)
+            - name: MEANING_DAILY_LIMIT
+              value: "3000"
           # POSTGRES_DB · POSTGRES_USER · POSTGRES_PASSWORD (sealed-postgres-auth.yaml — data 의 DB 와 같은 값)
           envFrom:
             - secretRef:

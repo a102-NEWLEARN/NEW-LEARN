@@ -71,9 +71,12 @@ MODES = ("fetch-only", "load-only", "full")
 # wrong_body 는 다 받은 뒤 기사끼리 견주어 뺀 기사(drop_wrong_bodies)
 SKIP_REASONS = ("bad_item", "no_body", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit", "wrong_body")
 # 다른 기사 본문을 달고 온 기사 — NewsData content 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음 · 안내문을 준다(Jira S15P31A102-183)
-# 문턱 · 까닭 · 잰 값은 docs/plans/2026-11-05-ingest-wrong-body.md
+# 문턱 · 까닭 · 잰 값은 docs/plans/2026-11-05-ingest-wrong-body.md, 제목 2개 짝은 docs/plans/2026-11-09-ingest-wrong-body-pair.md
 SAME_BODY_MIN_CHARS = 500
-SAME_BODY_MIN_TITLES = 3  # 2건은 같은 기사에 제목만 달리 단 정상 기사가 있다
+SAME_BODY_MIN_TITLES = 3
+# 제목 2개는 같은 기사에 제목만 달리 단 정상 기사가 있어, 두 제목 낱말이 다 본문에 거의 없을 때만 뺀다
+SAME_BODY_PAIR_TITLES = 2
+SAME_BODY_PAIR_MAX_SHARE = 0.2
 LONG_BRIEF_MIN_CHARS = 5000
 LONG_BRIEF_MAX_SHARE = 0.5
 # 태그는 제목 맨 앞만 — 제목 뒤에 [영상] · [포토] 가 붙은 인터뷰 · 사진 기사는 단신이 아니다
@@ -182,12 +185,15 @@ def wrong_body_findings(articles):
     found = []
     for article in judged:
         body = article["body"].strip()
-        same = len(titles.get((article["pressSourceId"], body), ()))
+        group = titles.get((article["pressSourceId"], body), ())
+        same = len(group)
         share = title_word_share(article["title"], body)
         if same >= SAME_BODY_MIN_TITLES:
             found.append((article, "same_body", share, same))
         elif BRIEF_TITLE_RE.search(article["title"]) and len(body) >= LONG_BRIEF_MIN_CHARS and share <= LONG_BRIEF_MAX_SHARE:
             found.append((article, "long_brief", share, same))
+        elif same == SAME_BODY_PAIR_TITLES and all(title_word_share(title, body) <= SAME_BODY_PAIR_MAX_SHARE for title in group):
+            found.append((article, "same_body_pair", share, same))
     return found
 
 
@@ -506,7 +512,8 @@ class Run:
         body = b""  # B1 은 본문이 없다 — 11-02 사람이 건 B1 과 같은 모양(infra/server/ai-worker.md)
         if payload is not None:
             headers["Content-Type"] = "application/json"
-            body = json.dumps(payload, ensure_ascii=False).encode()
+            # NewsData JSON 의 짝 없는 대리 문자(\ud83d)는 str 에 그대로 남는다 — 기본 인코딩이면 그 한 건에 그날 실행이 끝나므로 로그처럼 ? 로 바꾼다
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8", "replace")
         status, raw = self.send("POST", self.config["backend"] + path, headers, body)
         self.connection_failures = 0
         if status in (401, 403):

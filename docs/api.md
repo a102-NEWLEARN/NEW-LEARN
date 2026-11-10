@@ -31,6 +31,7 @@ flowchart LR
   W -- "W1 결과 · /internal/v1" --> API
   W -- "핵심 정보 추출 · 동일 사건 판정 · 이슈 이름과 요약" --> G["SSAFY GMS"]
   API -- "A19 대신 부름" --> D["표준국어대사전 Open API"]
+  API -- "A26 문맥 뜻 하나" --> G
 ```
 
 ---
@@ -121,9 +122,9 @@ flowchart TD
 | `LOGIN_ID_TAKEN` | 409 | 가입(A14)하려는 아이디를 이미 누가 쓴다 | 409 Conflict 는 「요청은 맞는데 지금 자원 상태와 부딪친다」는 뜻이다. 형식 오류(400)와 갈라야 화면이 「다른 아이디」를 안내한다 | 화면: 아이디 칸 옆에 「이미 쓰는 아이디예요」 |
 | `LOGIN_FAILED` | 401 | 로그인(A15)의 아이디가 없거나 비밀번호가 틀렸다. 둘 중 무엇인지는 알려 주지 않는다 | 401 은 「누구인지 확인하지 못했다」는 뜻이다. 아이디가 있는지 없는지 새지 않게 한 코드로 묶었다 | 화면: 「아이디나 비밀번호를 확인해 주세요」 |
 | `TOO_MANY_REQUESTS` | 429 | 로그인(A15)을 같은 아이디로 5번 연속 틀려 1분 동안 잠겼다. 잠긴 동안은 비밀번호가 맞아도 이 코드다(`api-screen.md` A15) | 429 Too Many Requests 는 「너무 자주 보냈으니 잠시 뒤에」라는 뜻이다. 틀린 비밀번호(401)와 갈라야 화면이 「잠시 뒤에」를 안내한다 | 화면: 「로그인을 5번 틀려 1분 뒤에 다시 할 수 있어요」 |
-| `RATE_LIMITED` | 429 | 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전을 같은 IP 에서 1분에 100 · 300 · 100번 넘게 불렀다(가입 · 로그인은 2026-10-30 Jira 137 에서 10 · 20 → 100 · 300 — QA · 발표 때 같은 와이파이). **백엔드가 아니라 입구(Envoy)가 만든다** — 그래서 `instance` 칸이 없고 응답 머리에 `Retry-After: 60` 이 붙는다. 세 주소의 응답에는 429 가 아니어도 `x-ratelimit-limit` · `x-ratelimit-remaining` · `x-ratelimit-reset`(이번 1분 칸이 끝날 때까지 남은 초)이 붙는다 — `Retry-After` 는 늘 60 이라 실제로 풀리는 때는 `x-ratelimit-reset` 이 더 정확하다(2026-10-29 Jira 135, `SSOT.md` 6절 「외부 입구」) | 429 는 같다. 다만 `TOO_MANY_REQUESTS`(같은 아이디 5번 틀림)와 코드를 나눈다 — 그 코드는 화면이 「로그인을 5번 틀려 1분 뒤에」로 안내해서, 같은 코드를 쓰면 엉뚱한 안내가 뜬다 | 화면: 「요청이 많아요. 잠시 뒤 다시 시도해 주세요」. 바로 다시 보내지 않는다 |
-| `UNAUTHORIZED` · `FORBIDDEN` | 401 · 403 | 로그인이 필요한 API(A16 ~ A18 · A20 ~ A25)를 세션 없이 불렀거나, 내부 API 를 인증 없이(401) · 권한 없이(403) 불렀다. 화면의 POST · PUT · DELETE 에 CSRF 번호표가 없거나 틀려도 403 이다(1절 「인증」). 내부 API 출입증은 1절 「인증」 | 401 은 「누구인지 모른다」, 403 은 「누군지는 알지만 허락되지 않았다」는 뜻이다 | 화면: 401 이면 로그인 화면으로 보내고, 로그인하면 보던 화면으로 돌아온다. 다만 앱이 뜰 때 부른 A17 의 401 은 「손님」이라는 뜻이라 보내지 않는다. A16 로그아웃의 401 은 세션이 이미 끊겼다는 뜻이라 로그아웃한 것과 같이 랜딩으로 간다(EXPERIENCE.md 이동 규칙, Jira 66). 배치 · 워커: 설정한 키를 확인한다 |
-| `DICTIONARY_UNAVAILABLE` | 502 | 용어사전(A19)이 부른 표준국어대사전 Open API 가 답하지 않거나, 오류 · 하루 한도 초과 · 읽을 수 없는 응답을 돌려줬다. 인증 키를 넣기 전에도 이 코드다. 결과 없음(사전의 빈 본문)은 오류가 아니라 200 빈 `items` 다(`api-screen.md` A19) | 502 Bad Gateway 는 「우리 서버가 다른 서버에 부탁했는데 제대로 된 답을 못 받았다」는 뜻이다. 사용자 잘못도 우리 서버 고장도 아니다 | 화면: 사전 창에 「지금은 찾을 수 없어요」 |
+| `RATE_LIMITED` | 429 | A14 가입 · A15 로그인 · A19 용어사전 · A26 문맥 뜻을 같은 IP 에서 1분에 100 · 300 · 100 · 100번 넘게 불렀다(A26 은 2026-11-10 Jira 187, 따로 센다)(가입 · 로그인은 2026-10-30 Jira 137 에서 10 · 20 → 100 · 300 — QA · 발표 때 같은 와이파이). **백엔드가 아니라 입구(Envoy)가 만든다** — 그래서 `instance` 칸이 없고 응답 머리에 `Retry-After: 60` 이 붙는다. 이 주소들의 응답에는 429 가 아니어도 `x-ratelimit-limit` · `x-ratelimit-remaining` · `x-ratelimit-reset`(이번 1분 칸이 끝날 때까지 남은 초)이 붙는다 — `Retry-After` 는 늘 60 이라 실제로 풀리는 때는 `x-ratelimit-reset` 이 더 정확하다(2026-10-29 Jira 135, `SSOT.md` 6절 「외부 입구」) | 429 는 같다. 다만 `TOO_MANY_REQUESTS`(같은 아이디 5번 틀림)와 코드를 나눈다 — 그 코드는 화면이 「로그인을 5번 틀려 1분 뒤에」로 안내해서, 같은 코드를 쓰면 엉뚱한 안내가 뜬다 | 화면: 「요청이 많아요. 잠시 뒤 다시 시도해 주세요」. 바로 다시 보내지 않는다 |
+| `UNAUTHORIZED` · `FORBIDDEN` | 401 · 403 | 로그인이 필요한 API(A16 ~ A18 · A20 ~ A26)를 세션 없이 불렀거나, 내부 API 를 인증 없이(401) · 권한 없이(403) 불렀다. 화면의 POST · PUT · DELETE 에 CSRF 번호표가 없거나 틀려도 403 이다(1절 「인증」). 내부 API 출입증은 1절 「인증」 | 401 은 「누구인지 모른다」, 403 은 「누군지는 알지만 허락되지 않았다」는 뜻이다 | 화면: 401 이면 로그인 화면으로 보내고, 로그인하면 보던 화면으로 돌아온다. 다만 앱이 뜰 때 부른 A17 의 401 은 「손님」이라는 뜻이라 보내지 않는다. A16 로그아웃의 401 은 세션이 이미 끊겼다는 뜻이라 로그아웃한 것과 같이 랜딩으로 간다(EXPERIENCE.md 이동 규칙, Jira 66). 배치 · 워커: 설정한 키를 확인한다 |
+| `DICTIONARY_UNAVAILABLE` | 502 | 용어사전(A19)이 부른 표준국어대사전 Open API · 문맥 뜻(A26)이 부른 SSAFY GMS 가 답하지 않거나, 오류 · 하루 한도 초과 · 읽을 수 없는 응답을 돌려줬다. 키를 넣기 전에도 이 코드다. A26 은 그날 호출 수를 셀 수 없을 때(Redis 실패)도 이 코드다. 결과 없음은 오류가 아니라 200 이다 — A19 빈 `items`, A26 세 칸 null(`api-screen.md` A19 · A26) | 502 Bad Gateway 는 「우리 서버가 다른 서버에 부탁했는데 제대로 된 답을 못 받았다」는 뜻이다. 사용자 잘못도 우리 서버 고장도 아니다 | 화면: 용어사전 말풍선에 「지금은 찾을 수 없어요」 |
 | `INTERNAL_ERROR` | 500 | 그 밖의 서버 오류 | 500 은 서버 쪽 잘못이다. 받는 쪽이 고칠 것이 없다 | 화면: 일반 오류 안내와 *다시 시도*. 서버는 로그를 남긴다 |
 | `NOT_FOUND` · `METHOD_NOT_ALLOWED` · `NOT_ACCEPTABLE` · `UNSUPPORTED_MEDIA_TYPE` | 404 · 405 · 406 · 415 | 우리 코드에 닿기 전에 스프링이 막은 요청이다. 그런 주소가 없음 · 주소는 있는데 HTTP 메서드가 다름 · `Accept` 가 JSON 을 받지 않음 · 본문 형식(`Content-Type`)이 JSON 이 아님. code 는 상태 이름 그대로 붙인다(2026-10-22) | 각 상태의 표준 뜻 그대로다. `NOT_FOUND` 는 「주소 자체가 없다」는 뜻이라 자원 코드(`ISSUE_NOT_FOUND` 등 — 주소는 있는데 그 ID 가 없음)와 나눈다 | 화면: 대개 화면 코드의 버그라 일반 오류 안내를 띄우고 로그를 남긴다 |
 
@@ -157,6 +158,7 @@ v0 에 있던 `EVIDENCE_NOT_IN_BODY` 는 지웠다. 근거가 선택 칸이 되�
 | `LLM_INPUT_TOO_LONG` | 기사가 모델이 받을 수 있는 입력 길이를 넘었다 | 아니오 — 워커가 자르는 법을 고쳐야 한다 | 「분석하지 못했어요」 |
 | `LLM_REFUSED` | 모델이 답을 거절했거나 내용 필터에 걸렸다 | 아니오 | 「분석하지 못했어요」 |
 | `INPUT_NOT_ANALYZABLE` | 본문에 분석할 문장이 없다(저작권 · 안내 문구뿐, 너무 짧음). 워커가 GMS 를 부르기 전에 거른다(`api-internal.md` 5절) | 아니오 | A8 `mindmapStatus` 가 `NOT_ANALYZABLE` — 문구는 FE 와 정한다 |
+| `EVENT_CLUSTER_TOO_SMALL` | 기반 분석에서 기사 5건 미만 묶음이라 사건을 만들지 않았다. MATCH_EVENT 에만, AI 결과 덤프로만 들어온다 — 워커는 보내지 않는다(`infra/server/data-load.md` 3절) | 아니오 | A8 `eventMatchStatus` 가 `FAILED` — 사건 · 이슈 쪽에 아무것도 두지 않는다 |
 | `RESULT_SCHEMA_INVALID` | 워커가 보낸 결과가 약속한 모양이 아니라 API 가 저장을 거절했다(W1 400 — 범위 밖 `primaryCoreIndex` 등). 워커가 아니라 API 가 적는다 | 예, 바로 한 번만(`api-internal.md` 5절) | 「분석하지 못했어요」 |
 | `JOB_STATE_CONFLICT` | `ISSUE` 결과를 저장하려는데 그사이 사건이 다른 이슈에 들어갔거나 고른 이슈가 없어졌다(W1 409). 워커가 아니라 API 가 적는다(2026-10-29 Jira 40) | 예, 바로 — 후보를 새로 계산해 시도 3까지(`api-internal.md` 5절) | 없음 — ISSUE 상태는 화면에 보이지 않는다 |
 | `INTERNAL` | 그 밖의 워커 · 서버 오류. API 가 결과를 저장하다 예상 밖 오류가 나도 API 가 이 코드로 적는다(W1 은 500) | 한 번만 더 — 1분 뒤 | 일반 오류 안내 |
@@ -177,7 +179,7 @@ flowchart LR
   R --> M["/members — A14 가입 · A17 내 정보 · A18 관심 분야"]
   M --> MS["/me/bookmarks — A20 · A21 담기 · 빼기 · A22 나의 뉴스함<br/>/me/interest-issues — A23 · A24 저장 · 해제 · A25 목록"]
   R --> AU["/auth — A15 로그인 · A16 로그아웃"]
-  R --> D["/dictionary — A19 용어사전"]
+  R --> D["/dictionary — A19 용어사전(화면은 안 씀) · /dictionary/meaning A26 문맥 뜻"]
   R2["/internal/v1 (배치 · 워커만)"] --> B2["/articles — B2 적재"]
   R2 --> B1["/articles/{articleId}/release — B1 투입"]
   R2 --> W1["/analysis-jobs/{jobId}/result — W1 결과 전달"]
@@ -200,13 +202,14 @@ flowchart LR
 | A16 | `POST /api/v1/auth/logout` | 로그아웃 (F12, Jira 62) |
 | A17 | `GET /api/v1/members/me` | 내 정보와 관심 분야 (F12, Jira 65) |
 | A18 | `PUT /api/v1/members/me/categories` | 관심 분야 바꾸기 (F12, Jira 65) |
-| A19 | `GET /api/v1/dictionary` | 용어사전 — 표준국어대사전 검색 (F13 용어사전, Jira 102) |
+| A19 | `GET /api/v1/dictionary` | 용어사전 — 표준국어대사전 검색 (F13 용어사전, Jira 102). 2026-11-10 부터 화면은 A26 을 쓴다 |
 | A20 | `PUT /api/v1/members/me/bookmarks/{articleId}` | 북마크 담기 — 기사 옆 북마크 아이콘 (F12 회원 · 관심 분야, Jira 63) |
 | A21 | `DELETE /api/v1/members/me/bookmarks/{articleId}` | 북마크 빼기 (F12, Jira 63) |
 | A22 | `GET /api/v1/members/me/bookmarks` | 나의 뉴스함 — 담은 기사 전부, 최근 담은 순 (F12, Jira 63) |
 | A23 | `PUT /api/v1/members/me/interest-issues/{issueId}` | 관심 이슈 저장 — 이슈 이름 옆 별표 (F12, Jira 64) |
 | A24 | `DELETE /api/v1/members/me/interest-issues/{issueId}` | 관심 이슈 해제 (F12, Jira 64) |
 | A25 | `GET /api/v1/members/me/interest-issues` | 마이페이지 관심 이슈 — 저장한 이슈 전부, 최근 저장 순 (F12, Jira 64) |
+| A26 | `POST /api/v1/dictionary/meaning` | 드래그한 말의 문맥 뜻 하나 — 기사 · 이슈 · 사건 화면의 「의미」 말풍선, SSAFY GMS (F13 용어사전, Jira 187) |
 | B2 | `POST /internal/v1/articles` | 수집 배치의 기사 적재 — `docs/api-internal.md` (F01 뉴스 데이터 적재·조회, Jira 153) |
 | B1 | `POST /internal/v1/articles/{articleId}/release` | 수집 배치의 기사 투입 — `docs/api-internal.md` |
 | W1 | `POST /internal/v1/analysis-jobs/{jobId}/result` | 워커의 분석 결과 전달 — `docs/api-internal.md` |
@@ -280,6 +283,7 @@ AI 질문 1~8 은 2026-10-23 AI 담당의 답으로 풀었다. 반영한 곳은 
 | 63 | A20 · A21 · A22 (북마크 담기 · 빼기 · 나의 뉴스함), A6 · A7 · A8 의 `bookmarked` | 2026-10-28 구현(`docs/specs/F12-bookmark-interest-api.md`). 표 `bookmark` 는 V7. 담기는 한 문장(`insert … on conflict do update … returning`)이라 동시에 담거나 빼도 500 이 나지 않고 처음 담은 시각이 남는다 |
 | 64 | A23 · A24 · A25 (관심 이슈 저장 · 해제 · 목록), A2 · A3 의 `interested` | 같음. 표 `interest_issue`. 「지난 방문 이후 새 사건」은 보류 |
 | 102 | A19 용어사전 | 2026-10-29 구현 · 사이트 반영(`docs/specs/F13-dictionary-api.md`). 키는 봉인 Secret `stdict-api`(SSOT 5절) |
+| 187 | A26 문맥 뜻 | 2026-11-10 구현(`docs/specs/F13-dictionary-api.md` AC-10 ~). GMS 키는 봉인 Secret `gms-api`(app 네임스페이스, SSOT 5절). 로그인 · 번호표 필요, 하루 한도 · 저장은 Redis |
 | 34 | B1 투입 | 분석만 걸고, 공개는 EXTRACT 결과를 처음 저장할 때(2026-10-26 사용자). 수집 배치는 Jira 154 · 156 — 2026-11-04 부터 B2 만(넣기만), B1 은 AI 결과 덤프 뒤 |
 | 153 | B2 적재 | 2026-11-03 구현(`docs/specs/F01-article-ingest-api.md`). 같은 URL 이면 그 기사 id, 처음 보는 언론사는 `source_id` 로 등록. 수집 배치(Jira 154)가 B2 → B1 순서로 부른다 — 넣기만 모드(2026-11-04, Jira 156)는 B2 만 |
 | 170 | NewsData 원본 분류 → 카테고리 대응 행 | 2026-11-04 — 마이그레이션 V11(`data-model.md` 2절 category_mapping). B2 대표 카테고리가 차고, 이미 들어온 기사도 다시 계산. A1 · A7 은 대표 카테고리 기준 그대로 |

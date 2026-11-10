@@ -1,6 +1,7 @@
 # 주소(IP)별 요청 수 상한 — 로그인 없이 부르는 A19 용어사전 · A15 로그인 · A14 가입 (Jira S15P31A102-135, 2026-10-29 사용자)
 # 무차별 대입(로그인) · 계정 찍어 내기(가입)를 입구에서 막는다. 용어사전은 사전 하루 한도가 한 IP 때문에 빨리 바닥나지 않게 늦출 뿐이고(IP 하나가 1분 100건이면 하루 144,000건)
 #   하루 한도 45,000건은 앱이 따로 센다(docs/api-screen.md A19)
+# A26 용어사전 문맥 뜻(로그인 필요, Jira S15P31A102-187)도 같은 1분 100건이되 바구니는 따로다 — GMS 하루 한도(기본 3,000)를 한 IP 가 몰아 쓰지 못하게 늦춘다
 # global 상한이다 — Envoy 가 요청마다 상한 서비스(envoy-ratelimit, envoy-gateway-system)에 묻고, 상한 서비스가 Redis 에 센다
 #   켜는 설정은 apps/templates/envoy-gateway.yaml 의 Helm 값, Redis 로 가는 길은 data/netpol.yaml
 #   local(Envoy 안에서 세기)로 처음 걸었지만 「IP 마다」(sourceCIDR Distinct)가 v1.9.2 에서 동작하지 않았다 — 2026-10-29 실측(102번 모두 통과, rate_limited 0)
@@ -25,6 +26,42 @@ spec:
       kind: HTTPRoute
       name: app
       sectionName: dictionary
+  rateLimit:
+    global:
+      rules:
+        - clientSelectors:
+            - sourceCIDR:
+                type: Distinct
+                value: 0.0.0.0/0
+          limit:
+            requests: 100
+            unit: Minute
+  responseOverride:
+    - match:
+        statusCodes:
+          - type: Value
+            value: 429
+      source: Local
+      response:
+        contentType: application/problem+json
+        header:
+          set:
+            - name: Retry-After
+              value: "60"
+        body:
+          type: Inline
+          inline: '{"title":"Too Many Requests","status":429,"detail":"주소별 요청 수 상한(1분 100건)을 넘었다","code":"RATE_LIMITED"}'
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: meaning-rate-limit
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: app
+      sectionName: meaning
   rateLimit:
     global:
       rules:

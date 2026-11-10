@@ -77,6 +77,14 @@ newlearn:
     stdict-key: ${STDICT_API_KEY:}
     # 사전을 하루에 부르는 수의 상한 — Open API 한도 50,000건의 90%. 넘으면 그날은 부르지 않고 502 (Jira 135)
     daily-limit: 45000
+    # 드래그한 말의 문맥 뜻(A26, Jira 187) — SSAFY GMS. 주소 · 모델은 AI 워커와 같은 값(infra/k8s/services/ai/ai.yaml)이고
+    # 키는 env 로만 받는다. 비어 있으면 GMS 를 부르지 않고 502. 사이트는 backend.yaml 이 넣는다(키는 봉인 Secret gms-api)
+    meaning:
+      gms-base-url: ${GMS_BASE_URL:}
+      gms-api-key: ${GMS_API_KEY:}
+      gms-model: ${GMS_MODEL:gpt-6-luna}
+      # 하루에 GMS 를 부르는 수의 상한(팀 공용 예산). 0 이면 GMS 를 부르지 않는다 — 끄는 스위치
+      daily-limit: ${MEANING_DAILY_LIMIT:3000}
 
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
