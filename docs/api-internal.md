@@ -9,6 +9,7 @@ SSOT 2절 3~6번(배치가 적재 · 투입, 작업 큐 등록, 워커 분석, �
 - **v1.2 (2026-10-26, Jira S15P31A102-30)**: 출입증(`X-Internal-Key`), 스트림 길이 상한 · 그룹 만들기 · 큐에 못 넣은 작업 다시 넣기, W1 의 401 · 403 · 봉투를 못 읽을 때, 워커 쪽 숫자(BE 안)를 정했다. 다시 걸기 간격은 `api.md` 2절
 - **v1.3 (2026-10-26, Jira S15P31A102-34)**: B1 은 분석만 건다 — 기사가 보이는 때(`released_at`)는 EXTRACT 결과를 처음 저장한 때로 옮겼다(사용자 결정). 202 본문을 정했다
 - **v1.4 (2026-11-03, Jira S15P31A102-153)**: 기사 적재 B2 를 더했다. 수집 배치는 기사를 B2 로 넣고 돌려받은 id 로 B1 을 부른다 — DB 에 직접 쓰지 않는다(`SSOT.md` 8절에 미정으로 있던 적재 길)
+- **v1.5 (2026-11-11, Jira S15P31A102-156)**: 자동 투입 판단 자료 B3 를 더했다 — 수집 배치가 회차마다 오늘 건 수 · EXTRACT 대기 · 후보를 읽어 몫(AI 팀장 공식)만큼 B1 을 건다. 읽기만 한다
 
 표 읽는 법은 `docs/api-screen.md` 머리와 같다. 「저장하는 곳」은 API 가 그 값을 어느 칸에 넣는지다.
 
@@ -109,6 +110,36 @@ B2 로 적재해 둔 기사에 분석을 건다. 적재할 때 `released_at` 은
 | 409 `ALREADY_RELEASED` | 이미 투입했다(그 기사의 분석 작업이 있다) 또는 이미 화면에 있다(`released_at` 이 있다). 배치는 건너뛴다. 분야 라벨로 숨겨 `released_at` 이 빈 기사는 작업이 없으면 409 가 아니다 — 202 로 분석이 걸리고 다시 공개된다(`infra/server/category-labels.md` 5절) |
 
 - 데이터셋은 검증용이라(SSOT 5절) 서비스에 투입할지는 정하지 않았다(`data-model.md` 5절 17번)
+
+### B3. 자동 투입 판단 자료 — `GET /internal/v1/articles/release-candidates`
+
+수집 배치가 회차마다 B1 을 걸기 전에 읽는다 — 오늘 건 수 · EXTRACT 상태 · 후보(2026-11-11, Jira 156, 계획 `docs/plans/2026-11-10-ingest-15min-auto-b1.md`). 읽기만 한다. 몫 = min(회차 최대, 하루 상한 − `releasedToday`, 대기 상한 − `queued` − `retryPending`) 계산과 B1 걸기는 배치가 한다(`infra/k8s/services/ingest/news_ingest.py`). 배치는 DB 에 직접 붙지 않아(위 2절 머리) 세기를 여기 둔다. 세는 법은 AI 팀장 쿼리 `infra/server/b1-state.sql` 과 같다 — 한쪽을 바꾸면 다른 쪽도.
+
+| 인자 | 타입 | 필수 | 용도 |
+|---|---|---|---|
+| `publishedFrom` | string(`YYYY-MM-DD`) | 예 | 후보 · 오늘 건 수의 기사 발행 KST 날짜 시작(그날 0시). 덤프 마감 다음 날 — 2026-11-12 |
+| `limit` | number | 예 | 후보 최대 수, 1 ~ 500. 배치의 회차 최대 |
+
+200 본문
+
+| 칸 | 타입 | 뜻 |
+|---|---|---|
+| `releasedToday` | number | 오늘(DB 시각, KST 0시부터) 만든 EXTRACT 작업 수 — 기사 발행이 `publishedFrom` 이후인 것만. 재시도는 같은 행이라 한 번. 적재 작업은 `created_at` 이 AI 가 마인드맵을 만든 시각이라 날짜가 아니라 기사로 가른다 |
+| `extract.queued` | number | EXTRACT `QUEUED`(워커가 처리 중인 것 포함) |
+| `extract.retryPending` | number | EXTRACT `FAILED` 인데 `retry_at` 이 있음(다시 걸 예정) |
+| `extract.oldestQueuedAt` | string(시각) · null | `QUEUED` 중 가장 이른 `queued_at`. 없으면 null |
+| `extract.succeededLast15Minutes` · `extract.failedLast15Minutes` | number | 최근 15분에 끝난(`finished_at`) EXTRACT 의 성공 · 실패 수 |
+| `candidates[]` | 목록 | `{ articleId, publishedAt }`. 발행이 `publishedFrom` 이후 · `released_at` 빔 · 작업 행 없음 · `article_event` 없음 · 분야 라벨 표(`category_label.article_label`)에 행 없음. 넣은 시각(`article.created_at`) 최신 순 — 그 회차 B2 가 방금 넣은 기사가 맨 앞 |
+
+- EMBED 는 세지 않는다 — 발표(11-18) 뒤까지 워커를 꺼 둬서 늘 대기다(`SSOT.md` 9절)
+- 라벨 행이 있으면 빼는 까닭: 라벨은 공개된 기사에 붙이고 숨긴 T · C 와 적재가 넣는 사건 기사는 작업 행이 있어, 이 범위에 라벨 행이 있으면 손으로 넣은 숨김 X 뿐이다(`infra/server/category-labels.md` 5절). 라벨 표는 인프라 SQL 이 만든 스키마라 없으면 500 이다
+- 시각은 다른 응답처럼 +09:00(`docs/api.md` 1절 「시간」)
+
+| 응답 | 뜻 |
+|---|---|
+| 200 | 위 본문 |
+| 400 `VALIDATION_FAILED` | `publishedFrom` 이 없거나 날짜 모양이 아님, `limit` 이 없거나 1 ~ 500 밖 — `errors[]` 에 칸과 이유 |
+| 401 · 403 | B1 과 같다(배치 출입증만 연다) |
 
 ## 3. 큐 모양과 순서
 
