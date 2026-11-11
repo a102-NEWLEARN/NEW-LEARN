@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { QueryState } from "@/components/state/QueryState";
+import { uniqueById, uniqueCount } from "@/lib/uniqueById";
 import { ActionButton } from "seed-design/ui/action-button";
 
 // 「전체」 탭의 값. A1 분야 코드와 겹치지 않는다
@@ -102,8 +103,18 @@ const CARD =
 // 고른 분야의 기사 목록. 탭이 바뀌면 key 로 새로 그려 *더 보기* 포커스 같은 상태를 새로 시작한다
 function ArticleList({ articles }: ArticleListProps) {
   const pages = articles.data?.pages ?? [];
-  const items = pages.flatMap((page) => page.items);
-  const total = pages[0]?.totalElements ?? 0;
+  // 15분 수집이 새 기사를 맨 앞에 넣으면 다음 쪽이 밀려 본 기사가 다시 온다 — 처음 것만 남긴다
+  const chunks = uniqueById(pages.map((page) => page.items));
+  const items = chunks.flat();
+  // 다음 쪽이 돌려줄 수 — 마지막으로 받은 쪽 기준이라 쪽 사이에 기사가 들어와도 음수가 되지 않는다.
+  // 그 쪽에 이미 본 기사가 다시 오면 실제로 붙는 수는 이보다 적다
+  const last = pages.at(-1);
+  const nextCount = last
+    ? Math.min(
+        last.totalElements - (last.page + 1) * last.size,
+        LATEST_ARTICLES_SIZE,
+      )
+    : 0;
 
   // *더 보기* 로 붙인 첫 기사로 포커스를 옮긴다 — 마지막 쪽이면 버튼이 사라져 포커스를 잃는다 (사건 패널과 같다)
   const listRef = useRef<HTMLUListElement>(null);
@@ -117,9 +128,28 @@ function ArticleList({ articles }: ArticleListProps) {
     );
     links?.[from]?.focus();
   }, [items.length]);
-  const loadMore = () => {
-    focusFrom.current = items.length;
-    void articles.fetchNextPage();
+  // 탭이 바뀌면 이 목록을 새로 그린다. 같은 쿼리 관찰자가 새 탭을 가리키므로, 받던 *더 보기* 를 멈춰 새 탭의 다음 쪽을 받지 않게 한다
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const loadMore = async () => {
+    const from = items.length;
+    focusFrom.current = from;
+    let result = await articles.fetchNextPage();
+    // 앞에 새 기사가 쪽 크기 이상 들어오면 받은 쪽이 모두 본 기사일 수 있다 — 새 기사가 붙을 때까지 다음 쪽을 더 받는다
+    while (
+      mounted.current &&
+      uniqueCount(result.data) <= from &&
+      result.hasNextPage &&
+      !result.isError
+    )
+      result = await articles.fetchNextPage();
+    // 붙은 것이 없으면 포커스를 기다리지 않는다 — 나중에 다시 불러와 행이 늘 때 포커스가 뛰지 않게
+    if (uniqueCount(result.data) <= from) focusFrom.current = null;
   };
 
   let body: ReactNode;
@@ -133,16 +163,18 @@ function ArticleList({ articles }: ArticleListProps) {
           aria-label="최신 기사"
           className={`${CARD} divide-y divide-stroke-neutral-subtle`}
         >
-          {items.map((article, index) => (
-            <ArticleRow
-              key={article.id}
-              article={article}
-              showCategory
-              // 더 보기로 붙은 쪽도 차례를 처음부터 센다 — 포커스를 받는 첫 행이 늦게 나오지 않게
-              listIndex={index % LATEST_ARTICLES_SIZE}
-              mindmapHint
-            />
-          ))}
+          {chunks.flatMap((chunk) =>
+            chunk.map((article, at) => (
+              <ArticleRow
+                key={article.id}
+                article={article}
+                showCategory
+                // 더 보기로 붙은 쪽도 차례를 그 쪽 첫 행부터 센다 — 포커스를 받는 첫 행이 늦게 나오지 않게
+                listIndex={at}
+                mindmapHint
+              />
+            )),
+          )}
         </ul>
       );
   } else if (articles.isError) {
@@ -174,9 +206,9 @@ function ArticleList({ articles }: ArticleListProps) {
           size="small"
           className="mt-x2"
           loading={articles.isFetchingNextPage}
-          onClick={loadMore}
+          onClick={() => void loadMore()}
         >
-          {`기사 ${Math.min(total - items.length, LATEST_ARTICLES_SIZE)}개 더 보기`}
+          {`기사 ${nextCount}개 더 보기`}
           <IconChevronDownLine aria-hidden size={14} />
         </ActionButton>
       )}
