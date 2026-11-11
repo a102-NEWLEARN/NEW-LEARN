@@ -2,12 +2,12 @@
 -- 사건 없는 공개 기사 내리기 → 시퀀스 → 단언 → 되돌리기 기록 마무리 → load 스키마 지움. 같은 트랜잭션 안
 -- pg_temp.label_code 는 라벨 적용 파일이 만든 임시 표다(on commit drop)
 
--- 10. 사건 없는 공개 기사 내리기(2026-11-10 사용자 ②) — 10/21 ~ 11/3 임시 공개분 중 사건에 안 묶인 기사(SSOT.md 9절)
+-- 10. 마인드맵 없는 공개 기사 내리기(2026-11-10 사용자 — 사건에 묶였어도 마인드맵이 없으면 숨긴다, SSOT.md 9절)
+--     10/21 ~ 11/3 임시 공개분 중 마인드맵이 안 온 기사가 여기서 내려간다
 insert into load_undo.unreleased (id, old_released_at)
 select a.id, a.released_at
 from public.article a
 where a.released_at is not null
-  and not exists (select 1 from public.article_event l where l.article_id = a.id)
   and not exists (select 1 from public.article_mindmap m where m.article_id = a.id);
 
 update public.article a
@@ -22,16 +22,21 @@ select setval(pg_get_serial_sequence('public.event', 'id'), (select max(id) from
 -- 12. 단언 — 하나라도 걸리면 통째로 되돌아간다. 기대값은 상수가 아니라 넣은 표로 센다
 do $$
 declare
-    linked        bigint := (select count(*) from public.article_event);
-    hidden_linked bigint := (select count(*) from public.article_event l
-                             join public.article a on a.id = l.article_id
+    mapped        bigint := (select count(*) from public.article_mindmap);
+    hidden_mapped bigint := (select count(*) from public.article_mindmap m
+                             join public.article a on a.id = m.article_id
                              join category_label.article_label x on x.url = a.url
                              join pg_temp.label_code c on c.label = x.label
                              where c.hidden);
     released      bigint := (select count(*) from public.article where released_at is not null);
 begin
-    if released <> linked - hidden_linked then
-        raise exception '공개 기사 % ≠ 사건 기사 % − 숨김 라벨 %', released, linked, hidden_linked;
+    if released <> mapped - hidden_mapped then
+        raise exception '공개 기사 % ≠ 마인드맵 기사 % − 숨김 라벨 %', released, mapped, hidden_mapped;
+    end if;
+    if exists (select 1 from public.article a
+               where a.released_at is not null
+                 and not exists (select 1 from public.article_mindmap m where m.article_id = a.id)) then
+        raise exception '마인드맵 없는 공개 기사가 있다';
     end if;
     if exists (select 1 from public.article_event l
                join public.article a on a.id = l.article_id

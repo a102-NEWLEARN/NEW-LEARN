@@ -245,13 +245,14 @@ select s.article_id, 'MATCH_EVENT', 'SUCCEEDED', 'BATCH', 1,
 from load.article_event l
 join pg_temp.src_map s on s.url = l.url;
 
--- 9. 사건 기사 공개(2026-11-10 사용자 ① — 마인드맵이 없어도). 이미 공개된 기사는 그대로 둔다
---    공개 시각은 마인드맵 저장 시각, 마인드맵이 없으면 적재 시각
+-- 9. 마인드맵이 있는 기사만 공개(2026-11-10 저녁 사용자 「마인드맵이 없는 기사는 화면에 표시 안 하고 숨긴다」 — 같은 날 낮의
+--    「사건 기사는 마인드맵이 없어도 공개」를 뒤집음). 이미 공개된 기사는 그대로 두고, 마인드맵 없는 공개 기사는 마무리 10번이 내린다
+--    공개 시각은 마인드맵 저장 시각
 with released as (
     update public.article a
-    set released_at = coalesce(m.generated_at, now())
+    set released_at = m.generated_at
     from pg_temp.src_map s
-    left join load.article_mindmap m on m.url = s.url
+    join load.article_mindmap m on m.url = s.url
     where a.id = s.article_id
       and a.released_at is null
     returning a.id
