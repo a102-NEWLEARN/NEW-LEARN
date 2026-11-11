@@ -8,6 +8,7 @@ import {
 import { http, HttpResponse } from "msw/http";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
+import type { ArticleSummary, Page } from "@/api/types";
 import { EventPanel } from "@/components/issue/EventPanel";
 import { server } from "@/mocks/node";
 import { enterDelay, expectMotionSafe } from "@/test/motion";
@@ -244,6 +245,93 @@ test("더 보기로 붙인 첫 기사로 포커스를 옮긴다 — 마지막 �
       within(list).getAllByRole("listitem")[5].querySelector("a"),
     ),
   );
+});
+
+// 117번 사건의 기사 6건 — 가짜 A6 를 그대로 받는다
+async function articlesOf117() {
+  const res = await fetch(
+    new URL("/api/v1/events/117/articles?page=0&size=20", location.origin),
+  );
+  return ((await res.json()) as Page<ArticleSummary>).items;
+}
+
+// 119번 사건 관련 기사를 쪽마다 다른 목록으로 준다 — 첫 쪽을 준 뒤 기사가 끼는 모양
+function serveShifted(before: ArticleSummary[], after: ArticleSummary[]) {
+  server.use(
+    http.get("/api/v1/events/119/articles", ({ request }) => {
+      const page = Number(new URL(request.url).searchParams.get("page"));
+      const all = page === 0 ? before : after;
+      return HttpResponse.json({
+        items: all.slice(page * 5, (page + 1) * 5),
+        page,
+        size: 5,
+        totalElements: all.length,
+        totalPages: Math.ceil(all.length / 5),
+      } satisfies Page<ArticleSummary>);
+    }),
+  );
+}
+
+const relatedHrefs = (list: HTMLElement) =>
+  within(list)
+    .getAllByRole("listitem")
+    .map((row) => row.querySelector("a")?.getAttribute("href"));
+
+test("더 보기 사이에 기사가 중간에 끼어 다음 쪽이 밀려도 같은 기사는 한 번만 보인다", async () => {
+  // 늦게 분석된 기사(999)가 셋째 자리에 끼어 다음 쪽이 1칸 밀린다 — 첫 쪽의 마지막 기사가 다시 온다
+  const before = await articlesOf117();
+  serveShifted(before, [
+    ...before.slice(0, 2),
+    { ...before[0], id: 999, title: "늦게 분석된 기사" },
+    ...before.slice(2),
+  ]);
+  const errors = vi.spyOn(console, "error");
+  try {
+    renderPanel(119);
+    const list = await relatedList();
+
+    fireEvent.click(screen.getByRole("button", { name: "기사 1개 더 보기" }));
+
+    await waitFor(() =>
+      expect(relatedHrefs(list)).toEqual(
+        before.map(({ id }) => `/articles/${id}`),
+      ),
+    );
+    const rows = within(list).getAllByRole("listitem");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(rows[5].querySelector("a")),
+    );
+    // 붙인 쪽은 그 쪽 첫 행부터 차례를 센다
+    expect(enterDelay(rows[5])).toBe(enterDelay(rows[0]));
+    expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+    expect(
+      errors.mock.calls.filter((call) => String(call[0]).includes("same key")),
+    ).toEqual([]);
+  } finally {
+    errors.mockRestore();
+  }
+});
+
+test("진행 중인 사건 끝에 기사가 붙어도 「기사 N개 더 보기」의 N 은 다음 쪽이 돌려줄 수다", async () => {
+  // 첫 쪽을 받을 때 6건이었는데, 다음 쪽 전에 새 기사 다섯이 끝에 붙는다
+  const before = await articlesOf117();
+  const after = [
+    ...before,
+    ...[1, 2, 3, 4, 5].map((at) => ({ ...before[5], id: 990 + at })),
+  ];
+  serveShifted(before, after);
+  renderPanel(119);
+  const list = await relatedList();
+
+  fireEvent.click(screen.getByRole("button", { name: "기사 1개 더 보기" }));
+
+  // 둘째 쪽(여섯째 ~ 열째)이 붙고, 남은 한 건을 센다 — 첫 쪽 전체(6)로 빼면 -4 였다
+  await waitFor(() =>
+    expect(within(list).getAllByRole("listitem")).toHaveLength(10),
+  );
+  expect(
+    screen.getByRole("button", { name: "기사 1개 더 보기" }),
+  ).toBeDefined();
 });
 
 test("「기사 N개 더 보기」의 N 은 한 번에 붙는 수다", async () => {
