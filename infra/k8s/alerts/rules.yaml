@@ -166,11 +166,13 @@ spec:
             summary: '로그 수집 {{ $labels.pod }} — Loki 로 못 보냈다고 센 로그가 10분 동안 {{ $value | printf "%.0f" }}줄쯤 (사유 {{ $labels.reason }})'
             description: "infra/server/alerts.md 「로그 경보가 오면」"
         # ② 메모리가 상한(256Mi)에 가까움 — 닿으면 OOMKill. Alloy 는 시작할 때 상한의 90% 를 Go 메모리 한도로 스스로 건다(go_gc_gomemlimit_bytes 230.4MiB)
-        #   85% 15분. 켜던 날(2026-11-11) 이 식 그대로 워커 0.53 · 관리 서버 0.39, 7일 최대도 같았다
+        #   프로그램이 쓰는 메모리(RSS, anon)로 본다 — working set 은 파일 캐시까지 세서 거짓으로 울린다. 2026-11-11 반영 직후 관리 서버 Alloy 가
+        #   working set 0.88 로 이 경보를 울렸는데 anon 65.8MiB(0.26) · 파일 캐시 158MiB(그중 실행 파일을 메모리에 올린 것 121.8MiB)였다.
+        #   파일 캐시는 커널이 되찾아 OOM 으로 이어지지 않는다. RSS 비율 7일 최대 0.24 ~ 0.29(처음부터 다시 보낸 재현 때 0.294). 85% 15분
         #   양쪽을 max by 로 접는다 — on 으로 짝지으면 kube-state-metrics Pod 가 바뀌는 동안 같은 줄이 둘이 되어 평가 오류가 난다(위 뉴스 수집 경보와 같은 까닭)
         - alert: NewlearnLogShipperMemoryHigh
           expr: |
-            max by (namespace, pod, container) (container_memory_working_set_bytes{namespace="monitoring", container="alloy"})
+            max by (namespace, pod, container) (container_memory_rss{namespace="monitoring", container="alloy"})
             /
             max by (namespace, pod, container) (kube_pod_container_resource_limits{namespace="monitoring", container="alloy", resource="memory"})
             > 0.85
@@ -179,7 +181,7 @@ spec:
             notify: mattermost
             severity: warning
           annotations:
-            summary: '로그 수집 {{ $labels.pod }} 메모리가 상한의 {{ $value | humanizePercentage }}'
+            summary: '로그 수집 {{ $labels.pod }} 프로그램 메모리(RSS)가 상한의 {{ $value | humanizePercentage }}'
             description: "infra/server/alerts.md 「로그 경보가 오면」"
         # ③ 멈춤 — 준비된 Pod 가 노드 수보다 적거나(죽음 · 못 뜸), 떠 있는데 지표 수집이 실패. 그러면 ① ② 도 믿을 수 없다
         #   10분 — 값을 바꿔 노드마다 하나씩 다시 뜨는 동안(약 1분)은 거른다. kube-state-metrics 줄은 ② 와 같은 까닭으로 max by 로 접는다
