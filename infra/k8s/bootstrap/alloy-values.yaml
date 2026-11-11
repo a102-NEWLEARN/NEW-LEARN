@@ -19,9 +19,18 @@ rbac:
       verbs: ["get", "list", "watch"]
 
 alloy:
-  # 서버의 Pod 로그 파일(/var/log/pods)을 읽는다. 차트가 읽기 전용으로 붙인다
+  # 읽은 위치(책갈피, <storagePath>/loki.source.file.pods/positions.yml)를 서버 디스크에 둔다 (Jira S15P31A102-192)
+  #   차트 기본 /tmp/alloy 는 컨테이너 안이라 컨테이너가 다시 뜨면 사라진다. 그러면 노드 로그를 처음부터 다시 보내
+  #   Loki 상한(429)에 걸리고, 재시도하는 동안 새 로그가 늦게 들어간다(재시도를 다 쓰면 빠진다). 경위는 infra/server/logging.md 「겪은 것」
+  #   서버 쪽 자리는 아래 controller.volumes.extra. 처음 바꿀 때는 infra/server/logging.md 3절대로 책갈피를 먼저 옮긴다
+  storagePath: /var/lib/alloy
   mounts:
+    # 서버의 Pod 로그 파일(/var/log/pods)을 읽는다. 차트가 읽기 전용으로 붙인다
     varlog: true
+    # 설정 다시 읽기 보조 컨테이너에는 붙지 않는다(차트 설명)
+    extra:
+      - name: alloy-storage
+        mountPath: /var/lib/alloy
   # Grafana 로 보내는 익명 사용 통계를 끈다
   enableReporting: false
   resources:
@@ -111,8 +120,26 @@ alloy:
 
 controller:
   type: daemonset
+  # 서버 데이터 자리 관례(/var/lib/newlearn/<이름>, Loki PV 와 같다). 노드마다 따로라 hostPath — 없으면 만든다
+  #   Alloy 는 root 로 돈다(/var/log/pods 를 읽으려면 필요, 2026-11-11 id 로 확인)라 만든 폴더에 쓸 수 있다
+  volumes:
+    extra:
+      - name: alloy-storage
+        hostPath:
+          path: /var/lib/newlearn/alloy
+          type: DirectoryOrCreate
   # 관리 서버(control-plane taint)에도 뜨게 — monitoring · kube-system 로그도 모은다
   tolerations:
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule
+
+# Prometheus 가 Alloy 자체 지표를 모은다 — 버린 로그 · 멈춤 경보(infra/k8s/alerts/rules.yaml)가 쓴다 (Jira S15P31A102-192)
+# kps 가 모든 ServiceMonitor 를 읽는다(monitoring-values.yaml serviceMonitorSelectorNilUsesHelmValues). 수집 주기는 비워 전역 30초를 따른다
+# 쓰는 지표만 남긴다 — Pod 하나가 약 400줄을 내지만(2026-11-11) 경보 · 확인에 쓰는 것은 아래 여섯. up 은 거르기와 상관없이 남는다
+serviceMonitor:
+  enabled: true
+  metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: "loki_write_dropped_entries_total|loki_write_sent_entries_total|loki_source_file_files_active_total|go_gc_gomemlimit_bytes|process_resident_memory_bytes|go_memstats_heap_inuse_bytes"
+      action: keep
