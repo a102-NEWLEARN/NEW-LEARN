@@ -29,7 +29,7 @@ class InterestIssueSchemaTest {
                                 "select version from flyway_schema_history where success and version is not null order by installed_rank")
                         .query(String.class)
                         .list())
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14");
         assertThat(jdbc.sql(
                                 "select count(*) from flyway_schema_history where version='9' and script='V9__interest_issue.sql' and success")
                         .query(Long.class)
