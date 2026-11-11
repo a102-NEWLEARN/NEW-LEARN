@@ -8,6 +8,34 @@
 | `explain.sql` | 기사 표 행 수, 운영에서 실제로 나가는 쿼리 15개의 실행 계획 · 읽은 블록 | `ssh newlearn 'kubectl -n data exec -i postgres-0 -- psql -X -U newlearn -d newlearn' < infra/server/perf/explain.sql` |
 | `stats.sql` | 기사 표 통째 읽기 · 인덱스 읽기 · 블록 누적값, 표 · 인덱스 크기 | 위와 같고 파일만 `stats.sql` |
 
+## exporter 올리기
+
+postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱스 읽기 · 블록)를 지표로 바꾸고, 대시보드 「조회 성능」이 이 지표와 입구 로그의 API 응답 시간을 같이 그린다. 값은 `infra/k8s/bootstrap/pg-exporter/`, 왜 두었나는 `SSOT.md` 6절 「모니터링」. 저장소를 서버에 클론하지 않으므로 그 폴더를 먼저 서버로 보낸다(`infra/server/README.md` 「서버로 보내기」).
+
+1. **길 정책** — data 네임스페이스 `postgres-ingress` 에 exporter 항목이 있어야 5432 에 닿는다(`infra/k8s/services/data/netpol.yaml`). Argo CD 의 data 앱이 dev 를 따라 반영한다
+2. **DB 역할 · 비밀번호 Secret** (EC2, 사람이 친다) — 읽기 전용 역할 `newlearn_monitor`(`pg_monitor`)를 만들고 무작위 비밀번호를 정해 monitoring 의 Secret `postgres-exporter` 에 넣는다. 평문은 화면 · 명령 줄 · DB 로그에 남지 않는다(스크립트 머리 주석). 다시 돌리면 비밀번호를 바꾸고 exporter 를 다시 띄운다
+
+   ```bash
+   bash infra/k8s/bootstrap/pg-exporter/make-secret.sh
+   ```
+
+3. **설치** (EC2) — 대시보드(`query-perf-dashboard.json`)를 바꾼 뒤에도 같은 한 줄
+
+   ```bash
+   kubectl apply -k infra/k8s/bootstrap/pg-exporter
+   ```
+
+4. **확인**
+
+   | 무엇을 | 어떻게 (어디서) | 기대 |
+   |---|---|---|
+   | exporter | `kubectl -n monitoring logs deploy/postgres-exporter` (EC2) | 오류 줄 없음 |
+   | 수집 | `infra/server/README.md` 「모니터링」 5번의 수집 대상 명령 (EC2) | `postgres-exporter` 까지 모두 up |
+   | DB 연결 | Grafana Explore 에서 `pg_up` | 1 |
+   | 값 | 대시보드 「조회 성능」 | 패널 여섯에 모두 선이 있다. 아래 세 칸은 설치한 뒤부터 쌓인다 |
+
+내리기: `kubectl delete -k infra/k8s/bootstrap/pg-exporter` → `kubectl -n monitoring delete secret postgres-exporter` → DB 에서 `drop role newlearn_monitor` → 길 정책 항목을 빼는 MR.
+
 ## 한 번 잴 때 순서
 
 1. `stats.sql` → `bench.py` → `stats.sql` — 두 번 찍은 통계의 차이가 bench 동안 일어난 일이다

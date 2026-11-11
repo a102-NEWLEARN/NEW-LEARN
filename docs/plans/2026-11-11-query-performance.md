@@ -157,7 +157,7 @@ create index article_public_category_published_idx
 |---|---|
 | A (infra) | 새 `infra/k8s/bootstrap/pg-exporter/` — `kustomization.yaml` · `exporter.yaml` · `make-secret.sh` · `query-perf-dashboard.json` |
 | | 새 `infra/server/perf/` — `README.md` · `bench.py` · `explain.sql` · `stats.sql` · `results.md` |
-| | 고침 `infra/k8s/services/data/netpol.yaml` · `infra/server/README.md` 「모니터링」 7번 · `SSOT.md` 6절 「모니터링」 · 이 계획 파일 |
+| | 고침 `infra/k8s/services/data/netpol.yaml` · `infra/server/README.md` 「모니터링」 머리 문단 한 구절 · `SSOT.md` 6절 「모니터링」 · 이 계획 파일 |
 | B (backend) | 새 `backend/src/main/resources/db/migration/V14__article_public_indexes.sql` · 인덱스 정의 시험 |
 | | 고침 `InterestIssueSchemaTest.java` · `SearchQueryRepository.java` 주석 · `docs/specs/F02-search-api.md` · `docs/data-model.md`(article 인덱스) |
 | 기록 | `infra/server/perf/results.md` 개선 후 값, `SSOT.md` 10절에 한 줄과 그 파일 가리키기 |
