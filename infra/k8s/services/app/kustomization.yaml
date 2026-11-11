@@ -18,4 +18,4 @@ images:
   - name: ghcr.io/kimzoo5676-del/newlearn-backend
     newTag: "280b796e"
   - name: ghcr.io/kimzoo5676-del/newlearn-frontend
-    newTag: "d388ee01"
+    newTag: "b2941458"
