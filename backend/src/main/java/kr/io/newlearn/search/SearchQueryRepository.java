@@ -8,7 +8,7 @@ import kr.io.newlearn.search.dto.SearchEvent;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
-// A13 제목 검색 — 유형마다 SQL 하나. 인덱스 없이 표를 훑는다(지금 규모, 느려지면 인덱스는 따로 — 스펙 「가정」)
+// A13 제목 검색 — 유형마다 SQL 하나. 기사는 공개 기사 인덱스(V14)를 최신순으로 훑으며 제목을 거른다. 검색용 인덱스(pg_trgm)는 없다 — 스펙 「가정」
 // LIKE 대신 위치 찾기(strpos)라 검색어의 %, _, \ 도 그냥 글자다. LIKE '%'||q||'%' 에 그대로 넣으면 % 는 모든 제목,
 // _ 는 아무 한 글자와 맞고, 끝의 \ 는 닫는 % 를 글자로 만들어 결과가 조용히 틀어진다(오류는 나지 않는다)
 @Repository
