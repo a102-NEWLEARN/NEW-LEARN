@@ -93,6 +93,10 @@ SAME_BODY_PAIR_TITLES = 2
 SAME_BODY_PAIR_MAX_SHARE = 0.2
 LONG_BRIEF_MIN_CHARS = 5000
 LONG_BRIEF_MAX_SHARE = 0.5
+# 본문이 언론사 화면 문구(설정 · 뉴스레터 · 개인정보 안내)뿐인 기사 — 경향 날씨 · 만평이 11/2 ~ 11/10 에 7번, 모두 478자로 왔다.
+# 같은 문구가 실제 본문 뒤에 붙어 오는 단신 · 사진 기사가 많아, 본문이 이 문구로 시작하고 짧을 때만 뺀다(2026-11-11 AI 팀장 제보)
+SCREEN_TEXT_PREFIXES = ("공유하기 보기 설정 글자 크기",)
+SCREEN_TEXT_MAX_CHARS = 600
 # 태그는 제목 맨 앞만 — 제목 뒤에 [영상] · [포토] 가 붙은 인터뷰 · 사진 기사는 단신이 아니다
 BRIEF_TITLE_RE = re.compile(r"^\s*\[(부고|부음|인사|포토|사진|속보|그래픽|영상|만평)\]|국민만평|부친상|모친상|빙부상|빙모상|시모상|장인상")
 TITLE_TAG_RE = re.compile(r"\[[^\]]*\]")
@@ -202,7 +206,9 @@ def wrong_body_findings(articles):
         group = titles.get((article["pressSourceId"], body), ())
         same = len(group)
         share = title_word_share(article["title"], body)
-        if same >= SAME_BODY_MIN_TITLES:
+        if len(body) <= SCREEN_TEXT_MAX_CHARS and " ".join(body.split()).startswith(SCREEN_TEXT_PREFIXES):
+            found.append((article, "screen_text", share, same))
+        elif same >= SAME_BODY_MIN_TITLES:
             found.append((article, "same_body", share, same))
         elif BRIEF_TITLE_RE.search(article["title"]) and len(body) >= LONG_BRIEF_MIN_CHARS and share <= LONG_BRIEF_MAX_SHARE:
             found.append((article, "long_brief", share, same))

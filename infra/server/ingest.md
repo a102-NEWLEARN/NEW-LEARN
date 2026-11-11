@@ -45,7 +45,7 @@ flowchart LR
 - `INGEST_RELEASE_*` · `AI_HEALTH_URL` 은 `auto` · `release-only` 에서만 읽고 모두 필수다. 다른 모드는 읽지도 검사하지도 않는다 — 손 실행이 CronJob env 를 물려받아도 `INGEST_MODE` 하나만 덮으면 돈다
 - 같은 실행 안의 중복은 링크와 NewsData `article_id` 로 거르고, 실행 사이 중복은 B2 가 URL 로 막는다(200)
 - 거르는 순서: 기사 모양 → 본문 없음 → 분야(스포츠 · 연예 · 생활 · 음식 · 여행 — 쿼리의 `excludecategory` 와 같은 다섯) → NewsData 가 `duplicate=true` 로 표시 → 시간대 → 시각 모양 → **날짜 범위 밖** → 같은 실행 안 중복 → 기사 상한. 범위 밖(10시 실행의 그날 0 ~ 10시)이 상한을 먹지 않는다
-- **다른 기사 본문을 달고 온 기사는 다 받은 뒤 뺀다**(`skipped.wrong_body`, Jira S15P31A102-183). NewsData `content` 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음이나 언론사 안내문을 준다. 본문을 되살리지 않고 그 기사를 넣지 않는다. 규칙은 셋이다 — (a) 한 번 수집 안에서 같은 언론사 · 같은 본문(앞뒤 공백 뺌, 500자 이상)을 제목이 다른 기사 3건 이상이 쓴다 (b) 단신 제목(`news_ingest.py` 의 `BRIEF_TITLE_RE`) + 본문 5,000자 이상 + 제목 낱말이 본문에 나오는 비율 50% 이하 (c) (a) 와 같은 묶음을 제목 정확히 2개가 쓰고 두 제목 모두 낱말 비율 20% 이하. 제목 · 언론사가 글자가 아니면 판정하지 않고 B2 가 판단한다. 파일 넣기(`INGEST_SOURCE=file`)는 거르지 않는다. 기사 상한은 빼기 전 수로 센다. 잰 값 · 못 잡는 것은 계획 `docs/plans/2026-11-05-ingest-wrong-body.md`, (c) 는 `docs/plans/2026-11-09-ingest-wrong-body-pair.md`
+- **다른 기사 본문을 달고 온 기사는 다 받은 뒤 뺀다**(`skipped.wrong_body`, Jira S15P31A102-183). NewsData `content` 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음이나 언론사 안내문을 준다. 본문을 되살리지 않고 그 기사를 넣지 않는다. 규칙은 넷이다 — (a) 한 번 수집 안에서 같은 언론사 · 같은 본문(앞뒤 공백 뺌, 500자 이상)을 제목이 다른 기사 3건 이상이 쓴다 (b) 단신 제목(`news_ingest.py` 의 `BRIEF_TITLE_RE`) + 본문 5,000자 이상 + 제목 낱말이 본문에 나오는 비율 50% 이하 (c) (a) 와 같은 묶음을 제목 정확히 2개가 쓰고 두 제목 모두 낱말 비율 20% 이하 (d) 본문이 언론사 화면 문구(`SCREEN_TEXT_PREFIXES` — 지금은 경향의 설정 · 뉴스레터 · 개인정보 안내)로 시작하고 600자 이하 — 기사 하나만으로 뺀다. 같은 문구가 실제 본문 뒤에 붙어 오는 경향 단신 · 사진 기사는 본문이 있어 남는다. 제목 · 언론사가 글자가 아니면 판정하지 않고 B2 가 판단한다. 파일 넣기(`INGEST_SOURCE=file`)는 거르지 않는다. 기사 상한은 빼기 전 수로 센다. 잰 값 · 못 잡는 것은 계획 `docs/plans/2026-11-05-ingest-wrong-body.md`, (c) 는 `docs/plans/2026-11-09-ingest-wrong-body-pair.md`, (d) 의 잰 값은 `SSOT.md` 9절 2026-11-11
 - NewsData 가 중간에 실패한 날은 받은 데까지로 판정한다. 같은 본문 기사가 일부만 모여 들어간 뒤 다시 시도에서 묶음이 차면, `본문 불일치로 뺌` 이 찍혀도 앞서 넣은 기사는 DB 에 있다. 그날 Pod 가 둘이면 그 URL 을 DB 와 대조해 숨긴다(`category-labels.md`)
 - 쿼리에 `sort=pubdateasc`(오래된 순)가 있고 `INGEST_DAYS` 가 있으면, 시각을 믿을 수 있는 기사(UTC · 모양이 맞음)가 **쪽 전체에서 모두 범위 뒤**일 때 멈춘다(`stoppedBy: past_range`, 종료 0). 범위 뒤 기사가 한 건 끼인 쪽에서는 멈추지 않는다 — 정렬이 조금 어긋나도 어제 기사를 잃지 않게 요청 하나를 더 쓴다. 상한에 걸린 기사가 있으면 그쪽(종료 2)이 먼저다 — 그날 0 ~ 10시 쪽을 안 받아 요청이 준다(평균 약 330 → 240, 팀장 어림). 정렬은 2026-11-04 받기만으로 첫 쪽이 창 시작 바로 뒤인 것을 확인했다(`SSOT.md` 10절)
 - 다음 쪽이 남았는데 요청 · 기사 상한에 닿으면 받은 데까지 넣고 종료 2 — 빠진 구간이 있다는 뜻이다. 30분 넘게 이어지면 경보 ①이 울린다(아래 「경보가 오면」)
@@ -215,7 +215,7 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 | `설정 오류` | env 가 틀림(위 「설정」) — 종료 2 |
 | `예상 못 한 오류` | 스크립트가 못 다룬 오류의 traceback(키는 가림) — 종료 1 |
 | `진행` · `못 읽은 줄` · `줄 수가 다르다` | `file` 만 — 5,000줄마다 읽은 줄 · `b2`, UTF-8 · JSON 객체가 아니거나 필수 칸(`url` · `title` · `body` · `pressSourceId` · `pressName` · `publishedAt`)이 빈 줄의 번호(B2 를 안 부름), `INGEST_FILE_LINES` 와 읽은 줄이 다름 |
-| `본문 불일치로 뺌` | 다른 기사 본문이라 뺀 기사 하나 — `rule`(`same_body` · `long_brief` · `same_body_pair`) · `url` · `title` · `pressSourceId` · `bodyChars` · `titleWordShare` · `sameBodyTitles`. 본문은 안 남긴다. 정상 기사가 걸렸는지 이 줄로 본다 |
+| `본문 불일치로 뺌` | 다른 기사 본문이라 뺀 기사 하나 — `rule`(`same_body` · `long_brief` · `same_body_pair` · `screen_text`) · `url` · `title` · `pressSourceId` · `bodyChars` · `titleWordShare` · `sameBodyTitles`. 본문은 안 남긴다. 정상 기사가 걸렸는지 이 줄로 본다 |
 | `자동 투입 쉼` | 그 회차는 B1 을 걸지 않았다 — `skippedBy`(아래 「자동 투입」 표)와 B3 응답(실패면 `status` · `body`) |
 | `B1 실패` · `B1 연결 실패` | 자동 투입의 기사 하나 — 기사 번호 · 상태. 그 회차에 다시 걸지 않는다 |
 | `수집 결과` | 실행 한 번의 요약 — 아래 표 |

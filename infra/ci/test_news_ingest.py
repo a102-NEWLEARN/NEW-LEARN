@@ -1510,6 +1510,38 @@ class WrongBodyLongBrief(unittest.TestCase):
         self.assertEqual(self.sent("[부고] 김가람씨 별세", "가" * 4999 + " "), (1, 0))
 
 
+class WrongBodyScreenText(unittest.TestCase):
+    """(d) 본문이 언론사 화면 문구(설정 · 뉴스레터 · 개인정보 안내)뿐인 기사 — 경향 날씨 · 만평이 11/2 부터 거의 매일 478자로 온다"""
+
+    SCREEN = "공유하기 보기 설정 글자 크기 보통 크게 아주 크게 컬러 모드 라이트 다크 베이지 그린 본문 요약 "
+
+    def sent(self, content, **over):
+        net = FakeNet([page([item(1, content=content, **over), item(2)])])
+        code, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual(code, 0)
+        dropped = [line for line in lines if line.get("msg") == "본문 불일치로 뺌"]
+        return len(net.b2_calls()), summary(lines)["skipped"]["wrong_body"], [d["rule"] for d in dropped]
+
+    def test_screen_text_only_dropped(self):
+        self.assertEqual(self.sent(self.SCREEN + filler(478 - len(self.SCREEN))), (1, 1, ["screen_text"]))
+
+    def test_one_article_is_enough(self):
+        # 같은 본문 규칙과 달리 묶음이 필요 없다 — 15분 수집은 한 회차에 한두 건만 본다
+        self.assertEqual(self.sent(self.SCREEN + "뉴스레터 구독이 완료되었습니다."), (1, 1, ["screen_text"]))
+
+    def test_spaces_and_line_breaks_do_not_matter(self):
+        self.assertEqual(self.sent("\n " + self.SCREEN.replace(" ", "\n  ") + filler(300)), (1, 1, ["screen_text"]))
+
+    def test_real_text_before_screen_text_kept(self):
+        # 경향 단신 · 사진 기사는 실제 본문 뒤에 같은 안내문이 붙어 온다 — 본문이 있으니 남긴다
+        self.assertEqual(self.sent("가람시청 앞에서 가을 축제가 열렸다. " + self.SCREEN + filler(400)), (2, 0, []))
+
+    def test_long_body_after_screen_text_kept(self):
+        # 화면 문구 뒤에 긴 글이 이어지면 본문이 있는 것이다
+        self.assertEqual(self.sent(self.SCREEN + "가" * (600 - len(self.SCREEN))), (1, 1, ["screen_text"]))
+        self.assertEqual(self.sent(self.SCREEN + "가" * (601 - len(self.SCREEN))), (2, 0, []))
+
+
 class WrongBodyFlow(unittest.TestCase):
     def same_body(self, *numbers):
         body = filler(600)
