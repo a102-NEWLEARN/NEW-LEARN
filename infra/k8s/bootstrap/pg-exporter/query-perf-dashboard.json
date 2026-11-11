@@ -1,0 +1,567 @@
+{
+  "uid": "newlearn-query-perf",
+  "title": "조회 성능",
+  "description": "기사 표 부분 인덱스 전 · 후 — API 응답 시간(입구 로그)과 기사 표 통째 읽기(DB 통계) (Jira S15P31A102-189 · 190)",
+  "tags": [
+    "newlearn",
+    "performance"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "DB 판 바뀜 (Flyway)",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "expr": "{namespace=\"app\", container=\"backend\"} |= \"Successfully applied\"",
+        "target": {
+          "expr": "{namespace=\"app\", container=\"backend\"} |= \"Successfully applied\"",
+          "refId": "Anno"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "읽는 법",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "기사 목록 · 분야 수 · 검색 · 이슈 목록이 **기사 표(13만 행)를 통째로 읽던 것**을 공개 기사 부분 인덱스(Flyway V14, Jira S15P31A102-190)로 바꾼 **전 · 후**를 본다 (Jira S15P31A102-189).\n\n- **위 세 칸 — 사용자 요청**: 입구(Envoy) 접근 로그의 `duration`(입구에 들어와 응답을 다 보낼 때까지), 응답 200 만, 1시간 창. 측정 스크립트 요청(User-Agent `newlearn-bench` 또는 없음)은 뺐다. 요청이 적은 시간대는 p95 가 몇 건에 흔들리니 요청 수를 같이 본다\n- **아래 세 칸 — DB 통계**(postgres_exporter, 기사 표만): 통째 읽기 횟수 · 통째로 읽은 행 수가 인덱스 뒤 0 근처로 떨어져야 한다\n- **주황 세로선**: backend 가 DB 판을 올린 시각(Flyway 로그)\n- 측정 방법 · 전후 표 · 쿼리 원문: 저장소 `infra/server/perf/`"
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "사용자 요청 — 입구(Envoy) 접근 로그",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "응답 시간 p95 (1시간 창)",
+      "description": "요청 20개 중 가장 느린 1개 근처. 입구 로그 duration",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/articles\" | json | x_envoy_origin_path=~`/api/v1/articles(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A7 기사 목록",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/categories\" | json | x_envoy_origin_path=~`/api/v1/categories(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A1 분야 수",
+          "refId": "B",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/search\" | json | x_envoy_origin_path=~`/api/v1/search(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A13 통합 검색",
+          "refId": "C",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/issues\" | json | x_envoy_origin_path=~`/api/v1/issues(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A2 이슈 목록",
+          "refId": "D",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/mindmap\" | json | x_envoy_origin_path=~`/api/v1/articles/[0-9]+/mindmap` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A9 기사 마인드맵",
+          "refId": "E",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h"
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "응답 시간 p50 (1시간 창)",
+      "description": "가운데 값. 입구 로그 duration",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.5, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/articles\" | json | x_envoy_origin_path=~`/api/v1/articles(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A7 기사 목록",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.5, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/categories\" | json | x_envoy_origin_path=~`/api/v1/categories(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A1 분야 수",
+          "refId": "B",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.5, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/search\" | json | x_envoy_origin_path=~`/api/v1/search(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A13 통합 검색",
+          "refId": "C",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.5, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/issues\" | json | x_envoy_origin_path=~`/api/v1/issues(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A2 이슈 목록",
+          "refId": "D",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.5, {namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/mindmap\" | json | x_envoy_origin_path=~`/api/v1/articles/[0-9]+/mindmap` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` | unwrap duration | __error__=\"\" [1h]) by ()",
+          "legendFormat": "A9 기사 마인드맵",
+          "refId": "E",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h"
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "요청 수 (시간당)",
+      "description": "전 · 후 부하가 비슷한지 본다. 측정 스크립트 요청은 뺐다",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/articles\" | json | x_envoy_origin_path=~`/api/v1/articles(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` [1h]))",
+          "legendFormat": "A7 기사 목록",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/categories\" | json | x_envoy_origin_path=~`/api/v1/categories(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` [1h]))",
+          "legendFormat": "A1 분야 수",
+          "refId": "B",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/search\" | json | x_envoy_origin_path=~`/api/v1/search(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` [1h]))",
+          "legendFormat": "A13 통합 검색",
+          "refId": "C",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/api/v1/issues\" | json | x_envoy_origin_path=~`/api/v1/issues(\\?.*)?` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` [1h]))",
+          "legendFormat": "A2 이슈 목록",
+          "refId": "D",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= \"/mindmap\" | json | x_envoy_origin_path=~`/api/v1/articles/[0-9]+/mindmap` | response_code=\"200\" | user_agent!=\"\" | user_agent!~`newlearn-bench.*` [1h]))",
+          "legendFormat": "A9 기사 마인드맵",
+          "refId": "E",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 60,
+            "spanNulls": false,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h"
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "기사 표 — DB 통계 (postgres_exporter)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "통째 읽기 vs 인덱스 읽기 (분당 횟수)",
+      "description": "pg_stat_user_tables 의 seq_scan · idx_scan 증가 속도",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_stat_user_tables_seq_scan{relname=\"article\"}[$__rate_interval])) * 60",
+          "legendFormat": "통째 읽기",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_stat_user_tables_idx_scan{relname=\"article\"}[$__rate_interval])) * 60",
+          "legendFormat": "인덱스 읽기",
+          "refId": "B",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "통째로 읽은 행 수 (분당)",
+      "description": "pg_stat_user_tables 의 seq_tup_read 증가 속도 — 한 번 통째로 읽을 때마다 13만 행",
+      "gridPos": {
+        "x": 8,
+        "y": 22,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_stat_user_tables_seq_tup_read{relname=\"article\"}[$__rate_interval])) * 60",
+          "legendFormat": "통째로 읽은 행",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "기사 표에서 읽은 양 (초당)",
+      "description": "pg_statio_user_tables — DB 메모리(shared_buffers)에 없어 운영체제에서 가져온 블록(OS 캐시 포함)과 DB 메모리에서 찾은 블록, 8KB 블록을 바이트로",
+      "gridPos": {
+        "x": 16,
+        "y": 22,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_statio_user_tables_heap_blocks_read{relname=\"article\"}[$__rate_interval])) * 8192",
+          "legendFormat": "운영체제에서 읽음",
+          "refId": "A",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(pg_statio_user_tables_heap_blocks_hit{relname=\"article\"}[$__rate_interval])) * 8192",
+          "legendFormat": "DB 메모리에서 찾음",
+          "refId": "B",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}
