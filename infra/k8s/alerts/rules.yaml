@@ -144,11 +144,21 @@ spec:
         #   어느 쪽이든 책갈피가 사라졌거나 Loki 가 막혔다는 뜻이라 기다리지 않는다
         #   Alloy 는 시작할 때 사유 다섯 줄(batch_too_large · ingester_error · queue_is_full · rate_limited · stream_limited)을 0 으로 만들어 둔다 —
         #   그래서 같은 Pod 안의 증가는 위 상한 경보(Envoy)와 달리 increase() 가 놓치지 않는다 (2026-11-11 Alloy /metrics 로 확인).
-        #   다만 Pod 가 새로 떠 이름이 바뀌면 새 시계열이라, 첫 수집(30초 안쪽) 전에 센 몫은 놓친다
+        #   그러나 Pod 가 새로 떠 이름이 바뀌면 새 시계열이라, 첫 수집(30초 안쪽) 전에 센 몫은 increase() 가 0 으로 본다 —
+        #   2026-11-11 워커 Alloy 를 지운 실험에서 다시 보내기가 15초 안에 끝나 첫 수집 값이 이미 123,167 이었고 경보가 안 울렸다.
+        #   그래서 둘째 갈래: 지금 0 이 아닌데 10분 전에는 그 줄이 없었다(새 Pod) → 나타난 뒤 10분 동안 울린다
+        #   한계: Prometheus 가 10분 넘게 못 모았다가 다시 모으면, 옛 Pod 의 0 이 아닌 누적값도 새 줄처럼 보여 한 번 울릴 수 있다
         #   한계: 수집 대상이 통째로 사라지면 조용하다 — job 이름이 반영 뒤에 정해져 absent 를 쓰지 않았다.
         #   Loki 가 멈추면 Alloy 가 재시도를 다 쓴 뒤에야(몇 분) 여기로 보인다
         - alert: NewlearnLogsDropped
-          expr: sum by (pod, reason) (increase(loki_write_dropped_entries_total[10m])) > 0
+          expr: |
+            sum by (pod, reason) (increase(loki_write_dropped_entries_total[10m])) > 0
+            or
+            (
+              sum by (pod, reason) (loki_write_dropped_entries_total) > 0
+              unless on (pod, reason)
+              sum by (pod, reason) (loki_write_dropped_entries_total offset 10m)
+            )
           labels:
             notify: mattermost
             severity: warning

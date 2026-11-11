@@ -463,3 +463,31 @@ tests:
             exp_annotations:
               summary: "monitoring/alloy-a 의 alloy 가 15분 안에 3번쯤 다시 떴다"
               description: "kubectl -n monitoring logs alloy-a -c alloy --previous 로 죽기 전 로그를 본다. 지나간 로그는 Grafana › Explore › Loki"
+
+  # Pod 가 새로 떠 다시 보내기가 첫 수집(30초) 전에 끝나면, 첫 표본부터 값이 있어 increase() 는 0 이다
+  # 2026-11-11 운영에서 그대로 겪었다 — 워커 Alloy 를 지운 뒤 15초 안에 123,167줄을 셌고 첫 수집 값이 이미 그 수였다 (Jira S15P31A102-192)
+  - name: 새 Pod 가 첫 수집 전에 버림
+    interval: 30s
+    input_series:
+      # 5분에 처음 나타날 때 이미 500
+      - series: loki_write_dropped_entries_total{job="alloy", pod="alloy-new", reason="ingester_error"}
+        values: "_x10 500x40"
+      - series: loki_write_dropped_entries_total{job="alloy", pod="alloy-new", reason="rate_limited"}
+        values: "_x10 0x40"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: NewlearnLogsDropped
+      - eval_time: 5m30s
+        alertname: NewlearnLogsDropped
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              pod: alloy-new
+              reason: ingester_error
+            exp_annotations:
+              summary: "로그 수집 alloy-new — Loki 로 못 보냈다고 센 로그가 10분 동안 500줄쯤 (사유 ingester_error)"
+              description: *logs
+      # 나타난 지 10분이 지나면 10분 전 값이 생기고 더 늘지 않아 풀림
+      - eval_time: 16m
+        alertname: NewlearnLogsDropped

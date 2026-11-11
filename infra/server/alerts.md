@@ -53,6 +53,7 @@ Alertmanager 가 우리 경보 열(`infra/k8s/alerts/rules.yaml`)만 Mattermost 
   - `rate_limited`: Loki 상한(속도 · 스트림 수 — Loki 기본값이라 `loki-values.yaml` 에는 없다)에 걸려 429 를 받고 재시도를 다 썼다. 이건 실제로 빠진 줄이다. 어느 Pod 가 갑자기 많이 찍나 Explore 에서 `sum by (namespace, container) (bytes_over_time({namespace=~".+"}[5m]))`
   - `stream_limited` · `queue_is_full` · `batch_too_large`: Alloy 쪽 보내기 한계(묶음 스트림 수 · 대기열 · 묶음 크기). 켠 뒤 지금까지 0 이다 — 울리면 Alloy 로그(`kubectl -n monitoring logs <Pod> -c alloy`)부터
   - Loki 가 멈춰도 Alloy 가 재시도를 다 쓴 뒤(몇 분) 여기로 온다 — `kubectl -n monitoring get pod loki-0`
+  - Alloy 가 비정상 종료(OOMKill)로 다시 떴다면 새 줄이 없는 오래된 파일을 처음부터 다시 읽어 `ingester_error` 가 수천 줄 생길 수 있다 — 실제 손실이 아니다(`logging.md` 「겪은 것」 2026-11-11 반영). 재시작 경보가 같이 왔는지 본다
   - 책갈피 자리 확인: `logging.md` 4절 「책갈피」 줄
 - **메모리 85%** — `kubectl -n monitoring top pod -l app.kubernetes.io/name=alloy`. 로그 양이 늘었으면 위 Explore 식으로 어디서 늘었나 본다. 상한을 올리려면 `alloy-values.yaml` 의 `resources.limits.memory` 를 고쳐 `logging.md` 3절 alloy 명령(Go 메모리 한도는 상한의 90% 로 따라온다)
 - **멈춤** — `kubectl -n monitoring get pod -l app.kubernetes.io/name=alloy -o wide` 로 어느 노드인지, `describe pod` · `logs --previous` 로 까닭. Pod 는 Running 인데 울리면 지표 수집 실패다 — Prometheus 화면 Status › Targets 의 `monitoring/alloy`
