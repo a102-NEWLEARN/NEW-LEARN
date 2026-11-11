@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Alloy 책갈피(읽은 위치)를 컨테이너 안 /tmp/alloy 에서 서버 디스크 /var/lib/newlearn/alloy 로 한 번 옮긴다 (Jira S15P31A102-192)
 # alloy-values.yaml 의 storagePath 를 서버 디스크로 바꾼 값을 helm 으로 올리기 *전에* 돌린다
-#   안 옮기고 올리면 새 Pod 가 빈 책갈피로 떠 노드 로그를 처음부터 다시 보낸다 — Loki 상한(429)에 걸려 새 로그가 늦게 들어가고
-#   버린 로그 경보가 울린다(infra/server/logging.md 「겪은 것」)
+#   안 옮기고 올리면 새 Pod 가 빈 책갈피로 떠 노드 로그를 처음부터 다시 보낸다 — 버린 로그 경보가 울리고,
+#   다시 보내는 양이 Loki 상한을 넘으면 새 로그가 늦어질 수 있다(infra/server/logging.md 「겪은 것」)
 #
 # 쓰는 법 (순서는 infra/server/logging.md 3절) — EC2 에서, sudo 없이
 #   bash infra/server/alloy-positions-seed.sh
