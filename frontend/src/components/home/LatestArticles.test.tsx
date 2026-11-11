@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { ArticleSummary, Page } from "@/api/types";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { server } from "@/mocks/node";
@@ -22,8 +22,10 @@ const fixture: ArticleSummary[] = Array.from({ length: 20 }, (_, at) => ({
   bookmarked: false,
 }));
 
-// A7 을 시험용 기사로 바꾸고, 받은 인자를 남긴다
-function serveArticles(items = fixture) {
+// A7 을 시험용 기사로 바꾸고, 받은 인자를 남긴다. 쪽마다 기사를 다르게 주려면 함수로 넘긴다
+function serveArticles(
+  items: ArticleSummary[] | ((page: number) => ArticleSummary[]) = fixture,
+) {
   const requests: URLSearchParams[] = [];
   server.use(
     http.get("/api/v1/articles", ({ request }) => {
@@ -32,7 +34,8 @@ function serveArticles(items = fixture) {
       const code = params.get("category");
       const page = Number(params.get("page") ?? 0);
       const size = Number(params.get("size") ?? 20);
-      const matched = items.filter(
+      const all = typeof items === "function" ? items(page) : items;
+      const matched = all.filter(
         (item) => code === null || item.category?.code === code,
       );
       return HttpResponse.json({
@@ -165,6 +168,149 @@ test("더 보기를 누르면 다음 8개를 아래에 붙이고 붙인 첫 기�
   // 붙은 행은 차례를 처음부터 센다 — 포커스를 받은 첫 행이 늦게 나오지 않게
   expect(enterDelay(added!.closest("li")!)).toBe(0);
   // 남은 기사는 4건
+  expect(
+    screen.getByRole("button", { name: "기사 4개 더 보기" }),
+  ).toBeDefined();
+});
+
+// 첫 쪽을 받은 뒤 15분 수집이 맨 앞에 넣는 새 기사 — id 가 클수록 최근이다
+const freshArticles = (count: number): ArticleSummary[] =>
+  Array.from({ length: count }, (_, at) => {
+    const id = 100 + count - at;
+    return {
+      ...fixture[0],
+      id,
+      title: `기사 ${id}`,
+      publishedAt: `2026-10-31T${String(count - at).padStart(2, "0")}:00:00+09:00`,
+      url: `https://news.example.com/a/${id}`,
+    };
+  });
+
+// React 가 같은 key 를 두 번 만났다는 경고
+const sameKeyErrors = (errors: { mock: { calls: unknown[][] } }) =>
+  errors.mock.calls.filter((call) => String(call[0]).includes("same key"));
+
+test("더 보기 사이에 새 기사가 앞에 들어와 다음 쪽이 밀려도 같은 기사는 한 번만 보인다", async () => {
+  // 새 기사 셋(101 ~ 103)이 맨 앞에 들어와 다음 쪽이 3칸 밀린다 — 95 · 94 · 93 이 다시 온다
+  serveArticles((page) =>
+    page === 0 ? fixture : [...freshArticles(3), ...fixture],
+  );
+  const errors = vi.spyOn(console, "error");
+  try {
+    renderSection();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "기사 8개 더 보기" }),
+    );
+
+    // 100 ~ 93 다음에 밀린 쪽의 새 기사 92 ~ 88 만 붙는다
+    await waitFor(async () =>
+      expect(await articleHrefs()).toEqual(
+        Array.from({ length: 13 }, (_, at) => `/articles/${100 - at}`),
+      ),
+    );
+    const added = screen
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href") === "/articles/92");
+    await waitFor(() => expect(document.activeElement).toBe(added));
+    expect(enterDelay(added!.closest("li")!)).toBe(0);
+    // 둘째 쪽을 받을 때 전체 23건, 받은 칸 16 — 다음 쪽은 87 ~ 81 의 7건
+    fireEvent.click(screen.getByRole("button", { name: "기사 7개 더 보기" }));
+
+    await waitFor(async () => expect(await articleHrefs()).toHaveLength(20));
+    expect(new Set(await articleHrefs()).size).toBe(20);
+    // 세 번째 쪽도 그 쪽 첫 행부터 차례를 센다
+    const third = screen
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href") === "/articles/87");
+    expect(enterDelay(third!.closest("li")!)).toBe(0);
+    expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+    expect(sameKeyErrors(errors)).toEqual([]);
+  } finally {
+    errors.mockRestore();
+  }
+});
+
+test("받은 다음 쪽이 모두 본 기사면 새 기사가 붙을 때까지 다음 쪽을 더 받는다", async () => {
+  // 새 기사 여덟이 맨 앞에 들어와 둘째 쪽이 첫 쪽(100 ~ 93)과 똑같아진다
+  const requests = serveArticles((page) =>
+    page === 0 ? fixture : [...freshArticles(8), ...fixture],
+  );
+  const errors = vi.spyOn(console, "error");
+  try {
+    renderSection();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "기사 8개 더 보기" }),
+    );
+
+    // 셋째 쪽의 92 ~ 85 가 붙고 그 첫 기사로 포커스를 옮긴다
+    await waitFor(async () =>
+      expect(await articleHrefs()).toEqual(
+        Array.from({ length: 16 }, (_, at) => `/articles/${100 - at}`),
+      ),
+    );
+    const added = screen
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href") === "/articles/92");
+    await waitFor(() => expect(document.activeElement).toBe(added));
+    expect(enterDelay(added!.closest("li")!)).toBe(0);
+    expect(requests.map((params) => params.get("page"))).toEqual([
+      "0",
+      "1",
+      "2",
+    ]);
+    // 셋째 쪽을 받을 때 전체 28건, 받은 칸 24 — 다음 쪽은 84 ~ 81 의 4건
+    expect(
+      screen.getByRole("button", { name: "기사 4개 더 보기" }),
+    ).toBeDefined();
+    expect(sameKeyErrors(errors)).toEqual([]);
+  } finally {
+    errors.mockRestore();
+  }
+});
+
+test("더 보기를 누르고 응답 전에 탭을 바꾸면 바뀐 탭은 누르지 않은 다음 쪽을 받지 않는다", async () => {
+  const requests = serveArticles();
+  // 「전체」의 둘째 쪽만 늦게 답한다. 그 사이에 이미 본 「경제」 탭으로 옮긴다
+  let answer: () => void = () => {};
+  const answered = new Promise<void>((resolve) => (answer = resolve));
+  let waiting = false;
+  server.use(
+    http.get("/api/v1/articles", async ({ request }) => {
+      const params = new URL(request.url).searchParams;
+      if (params.get("category") === null && params.get("page") === "1") {
+        waiting = true;
+        await answered;
+      }
+      return undefined;
+    }),
+  );
+  renderSection();
+  await articleHrefs();
+  fireEvent.click(screen.getByRole("tab", { name: "경제" }));
+  await waitFor(() => expect(selectedTab()?.textContent).toBe("경제"));
+  await articleHrefs();
+  fireEvent.click(screen.getByRole("tab", { name: "전체" }));
+  await waitFor(() => expect(selectedTab()?.textContent).toBe("전체"));
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "기사 8개 더 보기" }),
+  );
+  await waitFor(() => expect(waiting).toBe(true));
+  fireEvent.click(screen.getByRole("tab", { name: "경제" }));
+  await waitFor(() => expect(selectedTab()?.textContent).toBe("경제"));
+  answer();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  // 경제 탭은 첫 쪽 8건 그대로이고 둘째 쪽을 부르지 않았다
+  expect(await articleHrefs()).toHaveLength(8);
+  expect(
+    requests.filter(
+      (params) =>
+        params.get("category") === "economy" && params.get("page") !== "0",
+    ),
+  ).toEqual([]);
   expect(
     screen.getByRole("button", { name: "기사 4개 더 보기" }),
   ).toBeDefined();
