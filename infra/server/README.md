@@ -465,6 +465,34 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
    - 설정(`config.yml`)이나 대시보드(`ci-dashboard.json`)를 바꾼 뒤에도 같은 `apply -k` 한 줄. 설정이 바뀌면 ConfigMap 이름이 바뀌어 Pod 가 새로 뜨고 처음부터 다시 모은다. 옛 `gitlab-ci-exporter-config-<해시>` 는 남으니 `kubectl -n monitoring delete configmap` 으로 지운다
    - 토큰이 만료되거나 취소되면 로그에 401 이 찍힌다. 새 토큰으로 Secret 을 지우고 다시 만든 뒤 `kubectl -n monitoring rollout restart deploy/gitlab-ci-exporter`
 
+7. **DB 통계 · 대시보드 「조회 성능」** (Jira S15P31A102-189) — postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱스 읽기 · 블록)를 지표로 바꾼다. 대시보드는 이 지표와 입구(Envoy) 로그의 API 응답 시간을 같이 그린다. 값은 `infra/k8s/bootstrap/pg-exporter/`, 측정 방법 · 결과는 `infra/server/perf/`
+
+   ① **길 정책** — data 네임스페이스 `postgres-ingress` 에 exporter 항목이 있어야 5432 에 닿는다(`infra/k8s/services/data/netpol.yaml`). Argo CD 의 data 앱이 dev 를 따라 반영한다
+
+   ② **DB 역할 · 비밀번호 Secret** (EC2, 사람이 친다) — 읽기 전용 역할 `newlearn_monitor`(`pg_monitor`)를 만들고 무작위 비밀번호를 정해 monitoring 의 Secret `postgres-exporter` 에 넣는다. 평문은 화면 · 명령 줄 · DB 로그에 남지 않는다(스크립트 머리 주석). 다시 돌리면 비밀번호를 바꾸고 exporter 를 다시 띄운다
+
+   ```bash
+   bash infra/k8s/bootstrap/pg-exporter/make-secret.sh
+   ```
+
+   ③ **설치** (EC2)
+
+   ```bash
+   kubectl apply -k infra/k8s/bootstrap/pg-exporter
+   ```
+
+   ④ **확인**
+
+   | 무엇을 | 명령 (어디서) | 기대 |
+   |---|---|---|
+   | exporter | `kubectl -n monitoring logs deploy/postgres-exporter` (EC2) | `level=ERROR` 없음 |
+   | 수집 | 5번의 수집 대상 명령 (EC2) | `postgres-exporter` 까지 모두 up |
+   | DB 연결 | Grafana Explore 에서 `pg_up` | 1 |
+   | 값 | 대시보드 「조회 성능」 | 패널 여섯에 모두 선이 있다. 아래 세 칸은 설치한 뒤부터 쌓인다 |
+
+   - 대시보드(`query-perf-dashboard.json`)를 바꾼 뒤에도 같은 `apply -k` 한 줄
+   - 내리기: `kubectl delete -k infra/k8s/bootstrap/pg-exporter` → `kubectl -n monitoring delete secret postgres-exporter` → DB 에서 `drop role newlearn_monitor` → 길 정책 항목을 빼는 MR
+
 - StorageClass 를 이름으로만 적고 만들지 않으면 Prometheus 가 「storage class … does not exist」로 뜨지 않는다 — `prometheus-pv.yaml` 이 StorageClass 와 PV 를 같이 만든다 (2026-10-20 겪음)
 - Grafana 를 `/grafana` 하위 경로로 두면 Grafana 자기 지표도 `/grafana/metrics` 에 있다 — 값 파일의 `grafana.serviceMonitor.path` (2026-10-20 겪음)
 - 2026-10-22 공개했다(Jira 93): `grafana.ini` 의 `root_url` 을 `https://newlearn.io.kr/grafana/` 로, 프록시 로그인(`auth.proxy`)을 켜고 위 「설치」의 `helm upgrade` 를 같은 판으로 한 번 더. 입구 · 잠금은 Argo CD 의 admin-ui 앱(`infra/k8s/admin-ui/grafana.yaml`). Prometheus 는 공개하지 않는다
