@@ -55,7 +55,7 @@ Alertmanager 가 우리 경보 열(`infra/k8s/alerts/rules.yaml`)만 Mattermost 
   - Loki 가 멈춰도 Alloy 가 재시도를 다 쓴 뒤(몇 분) 여기로 온다 — `kubectl -n monitoring get pod loki-0`
   - Alloy 가 비정상 종료(OOMKill)로 다시 떴다면 새 줄이 없는 오래된 파일을 처음부터 다시 읽어 `ingester_error` 가 수천 줄 생길 수 있다 — 실제 손실이 아니다(`logging.md` 「겪은 것」 2026-11-11 반영). 재시작 경보가 같이 왔는지 본다
   - 책갈피 자리 확인: `logging.md` 4절 「책갈피」 줄
-- **메모리 85%** — `kubectl -n monitoring top pod -l app.kubernetes.io/name=alloy`. 로그 양이 늘었으면 위 Explore 식으로 어디서 늘었나 본다. 상한을 올리려면 `alloy-values.yaml` 의 `resources.limits.memory` 를 고쳐 `logging.md` 3절 alloy 명령(Go 메모리 한도는 상한의 90% 로 따라온다)
+- **메모리 85%** — 프로그램이 쓰는 메모리(RSS)로 본다. `kubectl top` 은 파일 캐시까지 센 working set 이라 더 크게 나온다(관리 서버 Alloy 는 실행 파일 캐시로 0.88 까지 보였다). 컨테이너 안 `/sys/fs/cgroup/memory.stat` 의 `anon` 이 이 경보의 값이다. 로그 양이 늘었으면 위 Explore 식으로 어디서 늘었나 본다. 상한을 올리려면 `alloy-values.yaml` 의 `resources.limits.memory` 를 고쳐 `logging.md` 3절 alloy 명령(Go 메모리 한도는 상한의 90% 로 따라온다)
 - **멈춤** — `kubectl -n monitoring get pod -l app.kubernetes.io/name=alloy -o wide` 로 어느 노드인지, `describe pod` · `logs --previous` 로 까닭. Pod 는 Running 인데 울리면 지표 수집 실패다 — Prometheus 화면 Status › Targets 의 `monitoring/alloy`
 - 한계: 수집 대상이 통째로 사라지면(ServiceMonitor 를 지움) 버린 로그 경보는 조용하다 — job 이름이 반영 뒤에 정해져 `absent()` 를 쓰지 않았다
 
