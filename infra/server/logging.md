@@ -43,7 +43,7 @@ helm repo add grafana https://grafana.github.io/helm-charts && helm repo update 
 helm upgrade --install loki grafana/loki --version 7.5.0 -n monitoring -f infra/k8s/bootstrap/loki-values.yaml --wait --timeout 10m
 ```
 
-Alloy 저장 경로를 처음 서버 디스크로 바꿀 때(Jira S15P31A102-192)만, 그 전에 지금 책갈피(읽은 위치)를 옮긴다. 안 옮기면 새 Pod 가 노드 로그를 처음부터 다시 보낸다 — Loki 상한에 걸려 새 로그가 늦게 들어가고 버린 로그 경보가 울린다(아래 「겪은 것」). 미리 보기는 앞에 `DRY_RUN=1`.
+Alloy 저장 경로를 처음 서버 디스크로 바꿀 때(Jira S15P31A102-192)만, 그 전에 지금 책갈피(읽은 위치)를 옮긴다. 안 옮기면 새 Pod 가 노드 로그를 처음부터 다시 보낸다 — 버린 로그 경보가 울리고, 다시 보내는 양이 Loki 상한(초당 4MB)을 넘으면 새 로그가 늦어질 수 있다(아래 「겪은 것」, 2026-11-11 우리 규모에서는 지연 없음). 미리 보기는 앞에 `DRY_RUN=1`.
 
 ```bash
 bash infra/server/alloy-positions-seed.sh
