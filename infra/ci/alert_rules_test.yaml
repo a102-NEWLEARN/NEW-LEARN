@@ -302,3 +302,164 @@ tests:
             exp_annotations:
               summary: "뉴스 수집 news-ingest — 마지막 예약 실행이 1d 1h 11m 0s 전인데 그 뒤 성공이 없거나 다음 예약 실행이 없다"
               description: *ingest
+
+  # 로그 수집(Alloy)이 Loki 로 못 보냈다고 센 줄 — Alloy 는 시작할 때 사유 다섯 줄을 0 으로 만들어 두므로 같은 Pod 의 첫 증가도 increase() 로 잡힌다 (Jira S15P31A102-192)
+  - name: 로그 버림
+    interval: 30s
+    input_series:
+      # 10분에 100줄 버림. 다른 사유는 계속 0
+      - series: loki_write_dropped_entries_total{job="alloy", pod="alloy-a", reason="ingester_error"}
+        values: "0x19 100x40"
+      - series: loki_write_dropped_entries_total{job="alloy", pod="alloy-a", reason="rate_limited"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: NewlearnLogsDropped
+      # 버린 로그는 되돌릴 수 없어 기다리지 않는다(for 없음)
+      - eval_time: 10m
+        alertname: NewlearnLogsDropped
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              pod: alloy-a
+              reason: ingester_error
+            exp_annotations:
+              summary: "로그 수집 alloy-a — Loki 로 못 보냈다고 센 로그가 10분 동안 100줄쯤 (사유 ingester_error)"
+              description: &logs "infra/server/alerts.md 「로그 경보가 오면」"
+      # 10분 창을 지나면 더 늘지 않아 풀림
+      - eval_time: 25m
+        alertname: NewlearnLogsDropped
+
+  # 로그 수집 메모리 85% 15분 — kube-state-metrics 상한 줄이 둘(Pod 가 바뀌는 동안)이어도 평가가 깨지지 않아야 한다
+  # 다른 컨테이너(설정 다시 읽기 보조)는 상한에 가까워도 보지 않는다
+  - name: 로그 수집 메모리 85% 넘김
+    interval: 30s
+    input_series:
+      # 0 ~ 9분 30초 128(50%), 10분부터 230(약 90%)
+      - series: container_memory_working_set_bytes{namespace="monitoring", pod="alloy-a", container="alloy", instance="node-a"}
+        values: "128x19 230x60"
+      - series: kube_pod_container_resource_limits{namespace="monitoring", pod="alloy-a", container="alloy", resource="memory", unit="byte", instance="ksm-1"}
+        values: "256x80"
+      - series: kube_pod_container_resource_limits{namespace="monitoring", pod="alloy-a", container="alloy", resource="memory", unit="byte", instance="ksm-2"}
+        values: "256x80"
+      - series: container_memory_working_set_bytes{namespace="monitoring", pod="alloy-a", container="config-reloader", instance="node-a"}
+        values: "250x80"
+      - series: kube_pod_container_resource_limits{namespace="monitoring", pod="alloy-a", container="config-reloader", resource="memory", unit="byte", instance="ksm-1"}
+        values: "256x80"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: NewlearnLogShipperMemoryHigh
+      # 10분부터 참, for 15m 이 아직 안 참
+      - eval_time: 24m
+        alertname: NewlearnLogShipperMemoryHigh
+      - eval_time: 26m
+        alertname: NewlearnLogShipperMemoryHigh
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              namespace: monitoring
+              pod: alloy-a
+              container: alloy
+            exp_annotations:
+              summary: "로그 수집 alloy-a 메모리가 상한의 89.84%"
+              description: *logs
+
+  # 노드 둘 중 하나의 로그 수집 Pod 가 준비되지 않음 — kube-state-metrics 줄이 둘이어도 하나로 본다
+  - name: 로그 수집 한 노드 멈춤
+    interval: 30s
+    input_series:
+      - series: kube_daemonset_status_desired_number_scheduled{namespace="monitoring", daemonset="alloy", instance="ksm-1"}
+        values: "2x80"
+      - series: kube_daemonset_status_desired_number_scheduled{namespace="monitoring", daemonset="alloy", instance="ksm-2"}
+        values: "2x80"
+      # 10분부터 준비된 Pod 1
+      - series: kube_daemonset_status_number_available{namespace="monitoring", daemonset="alloy", instance="ksm-1"}
+        values: "2x19 1x60"
+      - series: kube_daemonset_status_number_available{namespace="monitoring", daemonset="alloy", instance="ksm-2"}
+        values: "2x19 1x60"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: NewlearnLogShipperDown
+      - eval_time: 19m
+        alertname: NewlearnLogShipperDown
+      - eval_time: 21m
+        alertname: NewlearnLogShipperDown
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              namespace: monitoring
+              daemonset: alloy
+            exp_annotations:
+              summary: &down "로그 수집 Alloy 가 일부 노드에서 멈췄거나 그 지표를 못 모은다 — 그 노드 로그가 Loki 에 안 쌓일 수 있다"
+              description: *logs
+
+  # 값을 바꿔 노드마다 하나씩 다시 뜨는 동안(1분)은 울리지 않는다
+  - name: 로그 수집 차례로 다시 뜸
+    interval: 30s
+    input_series:
+      - series: kube_daemonset_status_desired_number_scheduled{namespace="monitoring", daemonset="alloy"}
+        values: "2x80"
+      - series: kube_daemonset_status_number_available{namespace="monitoring", daemonset="alloy"}
+        values: "2x19 1x1 2x2 1x1 2x55"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NewlearnLogShipperDown
+      - eval_time: 30m
+        alertname: NewlearnLogShipperDown
+
+  # Pod 는 준비됐는데 지표 수집이 실패 — 버린 로그 경보를 믿을 수 없다
+  - name: 로그 수집 지표 수집 실패
+    interval: 30s
+    input_series:
+      - series: kube_daemonset_status_desired_number_scheduled{namespace="monitoring", daemonset="alloy"}
+        values: "2x80"
+      - series: kube_daemonset_status_number_available{namespace="monitoring", daemonset="alloy"}
+        values: "2x80"
+      - series: up{namespace="monitoring", container="alloy", pod="alloy-a", job="alloy"}
+        values: "1x19 0x60"
+      - series: up{namespace="monitoring", container="alloy", pod="alloy-b", job="alloy"}
+        values: "1x80"
+    alert_rule_test:
+      - eval_time: 19m
+        alertname: NewlearnLogShipperDown
+      - eval_time: 21m
+        alertname: NewlearnLogShipperDown
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              namespace: monitoring
+              container: alloy
+              pod: alloy-a
+              job: alloy
+            exp_annotations:
+              summary: *down
+              description: *logs
+
+  # 재시작 경보는 monitoring 에서 로그 수집 · 창고(alloy · loki)만 본다 — Grafana 같은 나머지는 보지 않는다
+  - name: 로그 수집 되풀이 재시작
+    interval: 30s
+    input_series:
+      # 10분 · 10분 30초 · 11분에 다시 뜸(쌓인 수 1 · 2 · 3)
+      - series: kube_pod_container_status_restarts_total{namespace="monitoring", pod="alloy-a", container="alloy"}
+        values: "0x19 1 2 3x40"
+      - series: kube_pod_container_status_restarts_total{namespace="monitoring", pod="kps-grafana-a", container="grafana"}
+        values: "0x19 1 2 3x40"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: NewlearnPodRestarting
+      - eval_time: 12m
+        alertname: NewlearnPodRestarting
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              namespace: monitoring
+              pod: alloy-a
+              container: alloy
+            exp_annotations:
+              summary: "monitoring/alloy-a 의 alloy 가 15분 안에 3번쯤 다시 떴다"
+              description: "kubectl -n monitoring logs alloy-a -c alloy --previous 로 죽기 전 로그를 본다. 지나간 로그는 Grafana › Explore › Loki"
