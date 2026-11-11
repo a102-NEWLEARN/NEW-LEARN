@@ -115,10 +115,11 @@ create index article_public_category_published_idx
 
 | 쿼리 | 쓰는 인덱스 |
 |---|---|
-| A7 목록 본문 · 개수 | 첫째 |
+| A7 목록 본문 | 첫째 |
 | A7 분야 탭 본문 · 개수, A1 분야별 기사 수 | 둘째 |
 | A13 기사 검색 | 첫째를 최신순으로 훑으며 제목을 거른다 |
-| 「공개 기사가 있나」 조인 — A1 의 이슈 수, A2 이슈 목록 개수 · 카드, A13 의 사건 · 이슈 | 첫째(인덱스만 읽는다) |
+| A2 이슈 목록 카드(언론사 수) | 첫째(인덱스만 읽는다 — press_code) |
+| A7 목록 개수, 「공개 기사가 있나」 조인 — A1 의 이슈 수, A2 이슈 목록 개수, A13 의 사건 · 이슈 | 짐작은 첫째였으나 운영 플래너는 둘째를 인덱스만 읽기로 고름(11-11 개선 후 EXPLAIN, `infra/server/perf/results.md` ③) |
 
 - 정의가 실제 쿼리와 맞는 것은 reviewer 가 확인했다. A7 은 `ArticleService.java` 의 정렬, A1 은 `CategoryQueryRepository.java`, A13 은 `SearchQueryRepository.java` 다
 - A13 은 결과가 20건이 안 되면 공개 행 12,716개의 힙을 끝까지 읽는다. 그래도 지금(13만 행 전부)보다 적다. 인덱스 뒤에도 A13 이 다른 API 보다 눈에 띄게 느리면 trigram 은 따로 계획한다
