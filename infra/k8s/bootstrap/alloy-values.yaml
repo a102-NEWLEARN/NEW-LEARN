@@ -21,7 +21,8 @@ rbac:
 alloy:
   # 읽은 위치(책갈피, <storagePath>/loki.source.file.pods/positions.yml)를 서버 디스크에 둔다 (Jira S15P31A102-192)
   #   차트 기본 /tmp/alloy 는 컨테이너 안이라 컨테이너가 다시 뜨면 사라진다. 그러면 노드 로그를 처음부터 다시 보내
-  #   Loki 상한(429)에 걸리고, 재시도하는 동안 새 로그가 늦게 들어간다(재시도를 다 쓰면 빠진다). 경위는 infra/server/logging.md 「겪은 것」
+  #   Loki 로 몰려간다(2026-11-11 워커에서 15초에 13만 6천 줄). 상한(초당 4MB)을 넘으면 새 로그가 늦어지거나 빠질 수 있고,
+  #   11-11 측정에서는 상한 아래라 지연은 없었고 「버린 로그」 숫자만 크게 잡혔다. 경위는 infra/server/logging.md 「겪은 것」 · SSOT 10절
   #   서버 쪽 자리는 아래 controller.volumes.extra. 처음 바꿀 때는 infra/server/logging.md 3절대로 책갈피를 먼저 옮긴다
   storagePath: /var/lib/alloy
   mounts:
