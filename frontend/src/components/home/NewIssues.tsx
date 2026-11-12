@@ -137,7 +137,8 @@ function IssueTicker({
         if (!event.currentTarget.contains(event.relatedTarget as Node | null))
           setFocused(false);
       }}
-      className="grid min-w-0 overflow-hidden"
+      // 지나가는 제목은 줄 밖에서 잘라 낸다. 링크 포커스 윤곽선(바깥 4px)은 잘리지 않게 위아래 6px · 양옆 8px 여유를 둔다
+      className="grid min-w-0 [clip-path:inset(-6px_-8px)]"
     >
       {items.map((issue, index) => {
         const state = stateOf(index);

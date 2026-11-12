@@ -6,6 +6,7 @@ import {
   SAMPLE_BRANCHES,
   SAMPLE_EVENT,
   SAMPLE_EVENT_ARTICLES,
+  SAMPLE_ISSUE,
 } from "@/components/landing/landingSample";
 import { Reveal } from "@/components/landing/Reveal";
 import { formatFullDate, formatFullDateTime } from "@/lib/date";
@@ -72,12 +73,12 @@ function AiSummary() {
     <div>
       <div className="flex items-center gap-x2">
         <span className="text-[13px] font-bold text-fg-neutral-muted">
-          사건 요약
+          이슈 요약
         </span>
         <AiBadge />
       </div>
       <p className="mt-[8px] text-[clamp(16px,1.4vw,18px)] leading-[1.7] text-fg-neutral">
-        {SAMPLE_EVENT.summary}
+        {SAMPLE_ISSUE.summary}
       </p>
     </div>
   );

@@ -191,7 +191,7 @@ body {
   }
 }
 
-/* 랜딩 첫 화면 글 · 가입 질문이 아래에서 떠오른다. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+/* 가입 질문이 아래에서 떠오른다. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
 @keyframes newlearn-rise {
   from {
     transform: translateY(24px);

@@ -4,7 +4,10 @@ import { FaqSection } from "@/components/landing/FaqSection";
 import { HeadlineMarquee } from "@/components/landing/HeadlineMarquee";
 import { HowSection } from "@/components/landing/HowSection";
 import { IssueChartSection } from "@/components/landing/IssueChartSection";
-import { LandingClosing } from "@/components/landing/LandingClosing";
+import {
+  LandingClosing,
+  LandingFooter,
+} from "@/components/landing/LandingClosing";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { TrustSection } from "@/components/landing/TrustSection";
@@ -31,8 +34,9 @@ export function LandingPage() {
         <HowSection />
         <TrustSection />
         <FaqSection />
+        <LandingClosing start={start} />
       </main>
-      <LandingClosing start={start} />
+      <LandingFooter />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
   SAMPLE_ARTICLE,
   SAMPLE_EVENT,
+  SAMPLE_ISSUE,
 } from "@/components/landing/landingSample";
 import { TrustSection } from "@/components/landing/TrustSection";
 
@@ -45,7 +46,8 @@ test("칸마다 예시를 운영 데이터로 보인다", () => {
     item(1).getByText(`기사 ${SAMPLE_EVENT.articleCount}건`),
   ).toBeDefined();
   expect(item(2).getByText("AI 생성")).toBeDefined();
-  expect(item(2).getByText(SAMPLE_EVENT.summary)).toBeDefined();
+  // 01 칸 기사 제목(「8조원대」)과 금액이 어긋나지 않게, 금액이 없는 이슈 요약을 쓴다
+  expect(item(2).getByText(SAMPLE_ISSUE.summary)).toBeDefined();
   // 고른 말 · 말풍선 표제어
   expect(item(3).getAllByText("탈취")).toHaveLength(2);
   expect(item(3).getByText("의미")).toBeDefined();
