@@ -55,23 +55,25 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
 
   return (
     <header className="px-x5 pt-x6 pb-x5 md:px-x8 md:pt-x5 md:pb-x4">
-      {issue ? (
-        <p
-          className={`t2-regular text-fg-neutral-subtle tabular-nums ${RISE}`}
-          style={enterAt(HEADER_AT.category)}
-        >
-          {categoryLine(issue)}
-        </p>
-      ) : (
-        !failed && <Skeleton radius="8" width="x16" height="lineHeight.t2" />
-      )}
-      {/* 제목 바로 옆에 관심 이슈 별 (프로토타입 v21 IssueHeader). 제목이 길어 줄이 바뀌면 별은 첫 줄 높이에 남는다 */}
-      <div className="mt-x1_5 flex items-start gap-x1">
+      {/* 분야 줄 · 제목 | 관심 이슈 별. 좁은 화면은 별이 두 줄 오른쪽 위에 붙고 제목은 그 왼쪽 칸에서 꺾인다 — 기사 머리 북마크와 같은 자리.
+          32px 제목 줄과 40px 별의 위를 맞추면 별이 4px 내려가 보였다 (2026-11-12 사용자, Jira 195).
+          넓은 화면은 제목 바로 옆(프로토타입 v21 IssueHeader) — 첫 칸이 제목 폭만큼이라 별이 제목 끝에 붙고, 줄이 바뀌면 첫 줄 높이에 남는다 */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x2 md:grid-cols-[minmax(0,max-content)_auto] md:gap-x-x1">
+        {issue ? (
+          <p
+            className={`t2-regular col-start-1 row-start-1 text-fg-neutral-subtle tabular-nums ${RISE}`}
+            style={enterAt(HEADER_AT.category)}
+          >
+            {categoryLine(issue)}
+          </p>
+        ) : (
+          !failed && <Skeleton radius="8" width="x16" height="lineHeight.t2" />
+        )}
         <h1
           tabIndex={-1}
           onFocus={() => onTitleFocusChange?.(true)}
           onBlur={() => onTitleFocusChange?.(false)}
-          className={`t9-bold md:t11-bold min-w-0 text-fg-neutral outline-none ${issue ? "" : "flex-1"}`}
+          className="t9-bold md:t11-bold col-start-1 row-start-2 mt-x1_5 min-w-0 text-fg-neutral outline-none"
         >
           {issue ? (
             // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다. 드래그하면 용어사전 말풍선이 뜬다
@@ -97,7 +99,11 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           )}
         </h1>
         {issue && (
-          <InterestButton issueId={issue.id} interested={issue.interested} />
+          <InterestButton
+            issueId={issue.id}
+            interested={issue.interested}
+            className="col-start-2 row-start-1 -mt-[8px] -mr-[8px] self-start max-md:row-span-2 md:row-start-2 md:mt-x1 md:mr-0"
+          />
         )}
       </div>
       {failed && (

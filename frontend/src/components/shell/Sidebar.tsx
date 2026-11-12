@@ -114,37 +114,32 @@ function SidebarRail({ onExpand }: { onExpand: () => void }) {
   );
 }
 
-// 펼친 사이드바의 내용 — 빠른 이동과 이슈 탐색. 좁은 화면 서랍(SidebarDrawer)도 같은 내용을 쓴다.
-// 서랍에는 접기 버튼이 없어서 onCollapse 를 넘기지 않는다
-export function SidebarMenu({
+// 펼친 사이드바의 내용 — 빠른 이동과 이슈 탐색. 좁은 화면 서랍은 뺐다 (2026-11-12 사용자, Jira 195)
+function SidebarMenu({
   onCollapse,
   ...explorer
-}: IssueExplorerProps & { onCollapse?: () => void }) {
+}: IssueExplorerProps & { onCollapse: () => void }) {
   const quickSearch = useQuickSearch();
 
   return (
     <div className="flex flex-col gap-x3 p-x2_5">
       <div className="flex items-center gap-x1">
-        {/* 다른 화면(홈)으로 가서 서랍도 닫는다 — SidebarDrawer 가 data-navigates 를 본다 */}
         <button
           type="button"
-          data-navigates
           onClick={quickSearch}
           className="t4-medium flex h-x9 min-w-0 flex-1 items-center gap-x2 rounded-r2 px-x2_5 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
         >
           <IconMagnifyingglassLine size={16} aria-hidden />
           빠른 이동
         </button>
-        {onCollapse && (
-          <RailButton
-            label="사이드바 접기"
-            icon={<IconChevronLeftLine size={20} aria-hidden />}
-            onClick={onCollapse}
-            toggle
-            aria-expanded
-            aria-keyshortcuts={SHORTCUT}
-          />
-        )}
+        <RailButton
+          label="사이드바 접기"
+          icon={<IconChevronLeftLine size={20} aria-hidden />}
+          onClick={onCollapse}
+          toggle
+          aria-expanded
+          aria-keyshortcuts={SHORTCUT}
+        />
       </div>
       <section className="flex flex-col gap-x1">
         <h2 className="t2-bold px-x2 text-fg-neutral-muted">이슈 탐색</h2>

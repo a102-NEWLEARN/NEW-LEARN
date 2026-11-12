@@ -1,5 +1,6 @@
 import { type MouseEvent, useEffect, useId, useState } from "react";
 import type { MindmapBranch } from "@/api/mindmap";
+import { AiBadge } from "@/components/AiBadge";
 import { BRANCHES, type BranchInfo } from "@/components/article/branches";
 import {
   isTextDragClick,
@@ -44,6 +45,10 @@ type FlowViewProps = {
   title: string;
   /** A9 가지 — 내용이 있는 것만 온다 */
   branches: MindmapBranch[];
+  /** A9 aiGenerated — 맨 위 첫 줄에 AI 생성 표시를 붙인다 */
+  aiGenerated?: boolean;
+  /** 크게 보기 창 안 — 좁은 화면에서도 이 칸이 따로 스크롤한다 */
+  fill?: boolean;
 };
 
 // 강조한 잎 — 가지 종류와 가지 안 순서
@@ -53,7 +58,13 @@ const leafKey = (type: string, index: number) => `${type}:${index}`;
 // 읽는 목록 (프로토타입 v21 MindmapFlowMap · FlowCard, Jira S15P31A102-58).
 // 자리가 1024px 이상이면 가지 하나가 한 열인 가로, 아니면 세로다. 컨테이너 쿼리라 넓이를 재는 코드가 없다.
 // 잎을 누르면 강조만 한다 — 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
-export function FlowView({ articleId, title, branches }: FlowViewProps) {
+export function FlowView({
+  articleId,
+  title,
+  branches,
+  aiGenerated = false,
+  fill = false,
+}: FlowViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const idPrefix = useId();
 
@@ -84,11 +95,18 @@ export function FlowView({ articleId, title, branches }: FlowViewProps) {
       role="group"
       aria-label="기사 흐름지도"
       onClick={releaseOnEmpty}
-      // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다
-      className="@container min-h-0 flex-1 overflow-y-auto max-md:overflow-visible"
+      // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다. 크게 보기 창 안에서는 이 칸이 스크롤한다
+      className={`@container min-h-0 flex-1 overflow-y-auto ${fill ? "" : "max-md:overflow-visible"}`}
     >
       {/* 좁은 화면 — 좌우 20px, 맨 아래 96px (DESIGN.md Layout & Spacing 「스크롤 끝」) */}
       <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 @min-[1024px]:max-w-[1280px]">
+        {/* AI 생성 표시 — 탭 줄 오른쪽 끝이 아니라 그린 내용 맨 위 첫 줄. 기사 머리 가까이 두면 기사를 AI 가 쓴 것처럼 읽힌다
+            (2026-11-12 사용자, Jira 195) */}
+        {aiGenerated && (
+          <div className={`mb-x4 ${RISE}`} style={enterAt(0)}>
+            <AiBadge />
+          </div>
+        )}
         {/* 머리 줄 — 바로 위 h1 과 같은 글이라 낭독에서 뺀다 (마인드맵 보기의 가운데 원과 같다).
             자리가 좁으면(640px 미만) h1 이 바로 위에 보여서 같은 제목을 또 두지 않는다 */}
         <div

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Switch } from "seed-design/ui/switch";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
+import { AiBadge } from "@/components/AiBadge";
 import { BRANCHES } from "@/components/article/branches";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
 
@@ -33,6 +34,10 @@ type MindmapViewProps = {
   branches: MindmapBranch[];
   settings: MindmapSettings;
   onSettingsChange: Dispatch<SetStateAction<MindmapSettings>>;
+  /** A9 aiGenerated — 그래프 칸 왼쪽 위에 AI 생성 표시를 붙인다 */
+  aiGenerated?: boolean;
+  /** 크게 보기 창 안 — 좁은 화면에서도 창이 준 높이를 채운다 */
+  fill?: boolean;
 };
 
 // 기사 마인드맵의 마인드맵 보기 — 범례(가지 토글 · 전망 · 해석) · 그래프 · 탐색 설정 (Jira S15P31A102-58).
@@ -44,6 +49,8 @@ export function MindmapView({
   branches,
   settings,
   onSettingsChange,
+  aiGenerated = false,
+  fill = false,
 }: MindmapViewProps) {
   const { hidden, showLabels } = settings;
   const legendRef = useRef<HTMLDivElement>(null);
@@ -65,8 +72,11 @@ export function MindmapView({
   );
 
   return (
-    // 좁은 화면은 화면 전체가 스크롤해서 높이가 정해지지 않는다 — 위에 붙은 보기 탭 아래 남은 높이(앱 헤더 60 · 탭 44)를 채운다
-    <div className="flex min-h-0 flex-1 flex-col max-md:h-[calc(100dvh-104px)] max-md:flex-none">
+    // 좁은 화면은 화면 전체가 스크롤해서 높이가 정해지지 않는다 — 위에 붙은 보기 탭 아래 남은 높이(앱 헤더 60 · 탭 44)를 채운다.
+    // 크게 보기 창 안에서는 창이 준 높이를 채운다
+    <div
+      className={`flex min-h-0 flex-1 flex-col ${fill ? "" : "max-md:h-[calc(100dvh-104px)] max-md:flex-none"}`}
+    >
       {/* 좁은 화면은 범례를 한 줄로 두고 가로로 민다 — 두 줄로 꺾이면 그래프 자리를 먹는다. 오른쪽 끝을 흐려 더 있다는 것을 보인다 */}
       <div className="flex items-center gap-x2 overflow-x-auto border-b border-stroke-neutral-subtle px-x5 py-x2_5 [scrollbar-width:none] max-md:[mask-image:linear-gradient(to_right,#000_calc(100%-32px),transparent)] md:flex-wrap md:overflow-visible md:px-x8">
         <div
@@ -128,6 +138,12 @@ export function MindmapView({
         )}
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* AI 생성 표시 — 그래프 칸 왼쪽 위, 오른쪽 위 톱니와 마주 본다. 탭 줄 오른쪽 끝에서 옮겼다 (2026-11-12 사용자, Jira 195) */}
+        {aiGenerated && (
+          <div className="absolute top-[16px] left-[16px] z-10 flex h-x10 items-center">
+            <AiBadge />
+          </div>
+        )}
         {/* 탭 순서가 화면에서 읽는 순서와 같게 — 범례 다음에 설정, 그다음 그래프 */}
         <GraphSettings showLabels={showLabels} onShowLabels={setShowLabels} />
         <MindmapGraph
@@ -163,7 +179,7 @@ function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
     if (!open) return;
     panelRef.current?.querySelector<HTMLElement>("input")?.focus();
     // 캡처 단계 — 그래프의 Esc(포커스 · 강조 풀기)보다 먼저 이 창을 닫고 preventDefault 로 알린다.
-    // 서랍처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (Timeline TIP 과 같다)
+    // 크게 보기 · 사건 시트처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (Timeline TIP 과 같다)
     const onKeyDown = (key: KeyboardEvent) => {
       if (key.key !== "Escape" || key.isComposing) return;
       const layer = (key.target as Element | null)?.closest?.(
