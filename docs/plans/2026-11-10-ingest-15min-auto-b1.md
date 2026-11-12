@@ -83,7 +83,7 @@ AI 팀장 11-10 답(회차 몫, 읽기 전용 쿼리 `b1_state.sql` 을 운영�
 ### 6. 늦게 올라온 기사 · 30분 창의 같은 본문 → 재 보고 정한다 (추천)
 
 - 30분 창에서는 잘못된 본문 규칙 (a) · (c)(같은 본문 묶음)가 덜 잡히고(`infra/server/ingest.md`), 새 기사부터 걸어 새어 들어온 기사는 15분 안에 분석 · 공개될 수 있다. 발행 뒤 30분이 지나 올라온 기사는 받지 못한다. 둘 다 잰 적 없다
-- 11/14(토) 손 실행 한 번 — 11/13(첫 온전한 하루, 평일)을 넣기만으로(35시간 창). `b2.created` = 놓친 기사, 「본문 불일치로 뺌」 URL 중 운영에 있던 것 = 새어 들어온 잘못된 본문. NewsData 약 240 ~ 330요청
+- 11/15(일) 10:20 손 실행 한 번 — 11/14(15분 수집이 하루 내내 도는 첫날, 토요일이라 평일보다 기사가 적다)를 넣기만으로(35시간 창). `b2.created` = 놓친 기사, 「본문 불일치로 뺌」 URL 중 운영에 있던 것 = 새어 들어온 잘못된 본문. NewsData 약 240 ~ 330요청(평일 어림)
 - 그 수로 사용자가 정한다(고르면 따로 계획): 매일 「전날 쓸어 담기」(하루 약 240 ~ 330요청), 후보 SQL 에 같은 본문 빼기, 「발행 뒤 15분이 지난 후보만」
 - 그 전까지는 매일 확인 SQL(같은 언론사 · 같은 본문 500자 이상 · 제목 둘 이상)로 찾아 라벨 X
 
@@ -234,7 +234,7 @@ Jira 156 설명은 남은 일을 이 계획 순서로 고친다.
 - [x] MR ⑤ — 시험 먼저 → 구현 → infra 검사 → 로컬 E2E → Draft (!818)
 - [x] 11/11 받기만 30분 창 한 번 — `timeframe=30m` 을 처음 보낸다(1요청) → 받아 줌(`SSOT.md` 10절 2026-11-11)
 - [ ] 11/12 적재 · 확인 직후 게이트 → MR ⑤ 머지 → 첫 회차 · 1시간 확인 → `SSOT.md` 10절 · Jira
-- [ ] 11/13 · 11/14 확인 · 24 ~ 48시간 실측 정리(AI 팀장과 60 조정) · 11/14 재기 → `SSOT.md` 10절 · Jira
+- [ ] 11/13 · 11/14 확인 · 24 ~ 48시간 실측 정리(AI 팀장과 60 조정) · 11/15 재기 → `SSOT.md` 10절 · Jira
 
 ## 날짜별 실행 카드
 
@@ -277,7 +277,7 @@ Jira 156 설명은 남은 일을 이 계획 순서로 고친다.
 ### 11/14(토) · 11/15(일)
 
 - 오전, Claude(읽기): 11/13 과 같은 확인
-- 11/14 10:20, Claude(권한 검사가 막으면 사용자), EC2 셸 — 11/13 하루를 넣기만으로 한 번 더 받아 늦은 기사 · 같은 본문을 잰다: `kubectl -n app create job --from=cronjob/news-ingest news-ingest-1113-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_MODE=load-only INGEST_DAYS=2026-11-13 INGEST_TIMEFRAME=35 INGEST_MAX_REQUESTS=500 INGEST_MAX_ARTICLES=20000 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0,"activeDeadlineSeconds":3600}}' -o yaml | kubectl -n app create -f -` — 끝 표시: `created`, 결과 줄(Loki): 종료 0 · `b2.created`(놓친 수) · 「본문 불일치로 뺌」 중 운영에 있던 수 → `SSOT.md` 10절 · Jira, 사용자가 고를 것 6 의 뒷일을 정함
+- 11/15(일) 10:20, Claude(권한 검사가 막으면 사용자), EC2 셸 — 11/14(토) 하루를 넣기만으로 한 번 더 받아 늦은 기사 · 같은 본문을 잰다: `kubectl -n app create job --from=cronjob/news-ingest news-ingest-1114-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_MODE=load-only INGEST_DAYS=2026-11-14 INGEST_TIMEFRAME=35 INGEST_MAX_REQUESTS=500 INGEST_MAX_ARTICLES=20000 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0,"activeDeadlineSeconds":3600}}' -o yaml | kubectl -n app create -f -` — 끝 표시: `created`, 결과 줄(Loki): 종료 0 · `b2.created`(놓친 수) · 「본문 불일치로 뺌」 중 운영에 있던 수 → `SSOT.md` 10절(잰 날 · 토요일 표시) · Jira, 사용자가 고를 것 6 의 뒷일을 정함
 - 24 ~ 48시간 실측(11/12 저녁 ~ 11/14) 정리 → AI 팀장과 대기 상한 60 다시 정하기(사용자 전달)
 
 ### 11/16(월) ~ 11/18(수)
@@ -354,3 +354,7 @@ AI 팀장 11-10 답(1.5판 → 2판)
 사용자 11-11 오후 · 11-12(3판 → 3.1판)
 
 - 안내문뿐인 본문 거르기를 MR ⑤ 에 더함 — 새 칸 `skipped.notice_only`, 규칙 `screen_text`(경향 화면 문구로 시작) · `video_only`(SBS 동영상 안내로 끝남), 둘 다 600자 이하. AI 팀장 11/10 파일 확인 답 · 11-12 제안, 사용자 「내일 수집스크립트 적용하자」(11-11) · 「156 세션에 넘겨」(11-12). 15분 수집은 묶음 규칙이 덜 잡아 자동 투입 후보에 그대로 들어갈 기사였다. 까닭 · 잰 값은 `SSOT.md` 9절 2026-11-12
+
+인프라 담당 11-13(3.1판 → 3.2판)
+
+- 늦은 기사 재기 11/14 10:20(11/13 분) → 11/15(일) 10:20(11/14 분). 적재 날 10:00 수집을 멈추고(!896) 전환이 11/13 적재 · 확인 뒤로 밀려, 11/13 은 0시 ~ 전환 시각 기사가 15분 수집에 들어가지 않는다 — 다시 받으면 모두 「놓친 기사」로 잡혀 수가 부푼다. 11/14 는 15분 수집이 하루 내내 도는 첫날이고 11/15 10:20 은 11/14 0시에서 약 34시간이라 latest 48시간 창 안이다. 토요일이라 평일보다 기사가 적다. 11/14 에 따로 재지는 않는다(전환 뒤 발행분만 골라 세는 SQL 은 만들지 않음)
