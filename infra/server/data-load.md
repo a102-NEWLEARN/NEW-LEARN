@@ -213,7 +213,7 @@ scp newlearn:known-urls.txt C:/tmp/load-152/known-urls.txt
 ```
 
 ```bash
-python -X utf8 -I infra/server/classified_to_load.py data/classified_with_articles_1021_1108.sqlite C:/tmp/load-152/load.sql --known-urls C:/tmp/load-152/known-urls.txt
+python -X utf8 -I infra/server/classified_to_load.py data/classified_with_articles_1021_1111.sqlite C:/tmp/load-152/load.sql --known-urls C:/tmp/load-152/known-urls.txt
 ```
 
 - 다시 적재(아래) 때는 목록에서 앞 적재가 넣은 기사를 뺀다 — 한 트랜잭션 안에서 되돌리기가 그 기사를 먼저 지우니 본문이 묶음에 있어야 한다. 위 첫 명령의 SQL 만 `select url from public.article where id not in (select id from load_undo.new_article) order by id` 로 바꾼다
