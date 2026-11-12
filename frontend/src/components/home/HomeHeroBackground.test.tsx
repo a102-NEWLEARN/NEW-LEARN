@@ -1,46 +1,10 @@
 import { render } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
+import { holdFrames, stubOnScreen } from "@/test/frames";
 import { expectMotionSafe } from "@/test/motion";
 
 // 홈 첫 화면 뒤 마인드맵 모양 배경 — 프로토타입 v21 HomeHeroBg (Jira 168)
-
-// requestAnimationFrame 을 붙잡아 두었다가 시험이 정한 시각으로 한 번씩 부른다
-function holdFrames() {
-  let pending: FrameRequestCallback | null = null;
-  const request = vi
-    .spyOn(window, "requestAnimationFrame")
-    .mockImplementation((callback) => {
-      pending = callback;
-      return 1;
-    });
-  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
-  return {
-    request,
-    runAt: (ms: number) => {
-      const callback = pending;
-      pending = null;
-      callback?.(ms);
-    },
-  };
-}
-
-// 배경이 화면에 보이는지 알리는 IntersectionObserver — jsdom 에는 없다
-function stubOnScreen(visible: boolean) {
-  vi.stubGlobal(
-    "IntersectionObserver",
-    class {
-      callback: (entries: { isIntersecting: boolean }[]) => void;
-      constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
-        this.callback = callback;
-      }
-      observe() {
-        this.callback([{ isIntersecting: visible }]);
-      }
-      disconnect() {}
-    },
-  );
-}
 
 afterEach(() => {
   vi.restoreAllMocks();
