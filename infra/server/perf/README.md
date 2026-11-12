@@ -7,6 +7,35 @@
 | `bench.py` | API 마다 100번 요청해 p50 · p95 · 평균 | `ssh newlearn 'python3 - <이름표> <사건 id>' < infra/server/perf/bench.py` |
 | `explain.sql` | 기사 표 행 수, 운영에서 실제로 나가는 쿼리 15개의 실행 계획 · 읽은 블록 | `ssh newlearn 'kubectl -n data exec -i postgres-0 -- psql -X -U newlearn -d newlearn' < infra/server/perf/explain.sql` |
 | `stats.sql` | 기사 표 통째 읽기 · 인덱스 읽기 · 블록 누적값, 표 · 인덱스 크기 | 위와 같고 파일만 `stats.sql` |
+| `load.py` | 단계 부하 시험 — 동시 요청을 1 → 128 로 1분씩 올려 포화 지점 · 먼저 막히는 층을 잰다 (Jira S15P31A102-193). 결과 `load-results.md` | 아래 「부하 시험」 |
+
+## 부하 시험 (load.py)
+
+관리 서버에서 tmux 안에 돌린다(관리 PC 와이파이가 끊겨도 실행이 이어진다). 비밀번호는 서버 터미널에서만 묻는다.
+
+```bash
+scp infra/server/perf/load.py newlearn:load.py
+```
+
+```bash
+ssh newlearn
+```
+
+서버에서 `tmux new -s load` 뒤:
+
+```bash
+python3 load.py check <시험 계정 아이디>
+```
+
+```bash
+python3 load.py run <이름표> <시험 계정 아이디> --until <HH:MM>
+```
+
+- `check` 는 부하 없이 로그인 · 내 정보 · 로그아웃 한 번 — `{"login": 200, "me": 200, "logout": 204}` 면 된다. 같은 아이디로 5번 틀리면 1분 잠긴다
+- 요청은 실제 사용자 요청 비율(`MIX`, 입구 로그 7일)대로 고른다. 워커 넷 중 셋은 회원 — 로그인은 한 명씩 차례로(같은 아이디 동시 로그인은 잠긴다), 끝나면 로그아웃
+- 스스로 멈추는 때(0.5초마다 따로 도는 지킴이): 최근 5초 p95 500ms · 5xx 1건 · 오류 1% · health(1초 시간 초과) 500ms 나 200 아님 · 보내는 쪽 CPU 5초 평균 70% · `--until`(한국 시각, 서버는 UTC) · Ctrl-C. backend readiness(1초 · 5초마다 · 2번)가 빠지기 전에 멈추려는 값이다. 그 밖에 회원 로그인이 200 이 아니면 다시 시도하지 않고 멈추고, 단계 전체 p95 가 1초를 넘으면 다음 단계로 가지 않는다
+- 결과는 단계마다 한 줄과 `~/load-<이름표>.jsonl`. 가져온 뒤 서버의 `load.py` · 결과 파일을 지운다
+- 수집 회차(10:00 · 15분마다)와 DB 덤프(04:00)를 피한다. User-Agent `newlearn-bench-load/1` 이라 대시보드 「조회 성능」 사용자 요청에서 빠진다
 
 ## exporter 올리기
 
