@@ -41,7 +41,9 @@ test("헤더에 분야 · 연도 · 제목 · 요약, 도구줄에 기간 · 사
   renderRoute("/issues/12");
 
   const header = (await title()).closest("header")!;
-  expect(within(header).getByText("경제 · 2026")).toBeDefined();
+  expect(within(header).getByText("경제").closest("p")!.textContent).toBe(
+    "경제 · 2026",
+  );
   expect(
     within(header).getByText("한빛반도체가 텍사스 공장 투자를 늘리고 착공했다"),
   ).toBeDefined();
