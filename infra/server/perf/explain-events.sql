@@ -1,6 +1,6 @@
 -- 사건 · 이슈 쪽 쿼리 실행 계획 — Jira S15P31A102-194 개선 전 · 후에 같은 파일을 돌린다. 돌리는 법은 README.md
 -- explain.sql(11-11, 운영에서 받은 문장 15개)과 따로 둔다 — 그 표와 견줄 수 있게. 여기 A2 · A1 · A3 · A25 · A13 은 JdbcClient 문장 그대로이고,
--- A4 · A5 · A6 은 JPQL(EventRepository · ArticleEventRepository · ArticleRepository)과 같은 뜻의 SQL 이다(Hibernate 가 만든 문장이 아니라 계획 모양을 보려는 것)
+-- A4 · A5 는 JPQL(EventRepository · ArticleEventRepository)과 같은 뜻의 SQL 이다(Hibernate 가 만든 문장이 아니라 계획 모양을 보려는 것). A6 는 explain.sql 의 앱 문장 그대로
 -- A2 목록은 옛 SQL(AGGREGATE) · 새 SQL(LIST) 둘 다 둔다. 배포 뒤 앱이 보내는 것은 새 SQL — pg_stat_activity 로 확인
 -- 사건 · 이슈 값은 데이터에서 고른다: issue = 공개 사건이 가장 많은 이슈, event = 공개 기사가 가장 많은 사건, ids = 최근 사건순 첫 쪽 이슈 다섯
 \pset pager off
