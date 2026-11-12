@@ -7,12 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { ApiError } from "@/api/error";
 import { eventQuery } from "@/api/event";
 import { type IssueDetail, issueQuery } from "@/api/issue";
@@ -24,9 +19,7 @@ import { TimelineList } from "@/components/issue/TimelineList";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
-import { isSidebarEventPick } from "@/components/shell/IssueExplorer";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
-import { useShell } from "@/components/shell/useShell";
 import { usePageTitle } from "@/components/usePageTitle";
 import { formatPeriod } from "@/lib/date";
 import { toId } from "@/lib/id";
@@ -58,11 +51,8 @@ function IssueView({ issueId }: { issueId: number }) {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = toId(searchParams.get("event"));
-  // 화면 안에서 사건을 골랐나 — 그때만 패널을 열며 패널 제목으로 포커스를 옮긴다.
-  // 사이드바 사건 링크로 고른 것도 같다 — 패널이 열리며 사이드바가 접혀 누른 링크가 사라지므로 포커스를 패널로 넘긴다
-  const [pickedHere, setPicked] = useState(false);
-  const { state } = useLocation();
-  const picked = pickedHere || isSidebarEventPick(state);
+  // 화면 안에서 사건을 골랐나 — 그때만 패널을 열며 패널 제목으로 포커스를 옮긴다
+  const [picked, setPicked] = useState(false);
   // 고르기는 기록을 쌓지 않는다 — 뒤로 가기는 앞 화면으로 간다
   const setEvent = useCallback(
     (eventId: number | null) => {
@@ -79,19 +69,14 @@ function IssueView({ issueId }: { issueId: number }) {
     [setSearchParams],
   );
 
-  // 사건 패널 — 고른 사건이 있으면 열린다. 열리면 사이드바를 접는다 (EXPERIENCE.md 앱 셸 「오른쪽 패널」)
+  // 사건 패널 — 고른 사건이 있으면 열린다 (EXPERIENCE.md 앱 셸 「오른쪽 패널」)
   const narrow = useMediaQuery(NARROW_SCREEN);
   // 좁은 화면 시트는 닫히며 미끄러져 내려가는 동안(SEED) 마지막 사건을 그대로 보인다
   const [sheetEventId, setSheetEventId] = useState(selectedId);
   if (selectedId !== null && selectedId !== sheetEventId)
     setSheetEventId(selectedId);
-  const shell = useShell();
-  // 닫혀 있다가 열릴 때만 — 연 채 사이드바를 펼친 뒤 다른 사건으로 가도 다시 접지 않는다
   const panelOpen = selectedId !== null;
-  useEffect(() => {
-    if (panelOpen) shell?.collapseSidebar();
-  }, [panelOpen, shell]);
-  // 주소의 사건이 다른 이슈의 사건이면 그 이슈 주소로 바꾼다 — 사이드바 · 검색 링크가 어긋나도 맞는 타임라인이 열리게
+  // 주소의 사건이 다른 이슈의 사건이면 그 이슈 주소로 바꾼다 — 검색 · 기사 링크가 어긋나도 맞는 타임라인이 열리게
   const navigate = useNavigate();
   const selectedEvent = useQuery({
     ...eventQuery(selectedId ?? 0),
