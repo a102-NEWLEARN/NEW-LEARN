@@ -81,6 +81,7 @@ postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱�
 
 - `explain.sql` 의 SQL 은 운영에서 실제로 나간 문장을 `pg_stat_activity` 에서 받아 매개변수만 값으로 바꾼 것이다(2026-11-11). backend 코드가 바뀌면 다시 받는다 — 사이트에 요청을 보내는 동안 `pg_stat_activity` 의 `query` 를 짧은 간격으로 모은다
 - A7 기사 목록 `GET /api/v1/articles` · A6 사건 관련 기사 `GET /api/v1/events/{eventId}/articles` 는 Spring Data JPA 가 만든 문장이다. 본문(body)까지 읽고 언론사 · 분야를 조인한다. `select id` 로 줄여 재면 인덱스 뒤 표를 안 읽는 계획이 나와 실제보다 좋게 보인다
+- Jira 194 배포 뒤로는 `explain.sql` 의 「A2 이슈 목록 — 카드 3장」이 앱이 더는 보내지 않는 옛 SQL 이다. 지금 앱 문장은 `explain-events.sql` 의 「A2 목록 새」(`IssueQueryRepository.LIST`)
 
 ## 입구 로그 쿼리 (LogQL)
 

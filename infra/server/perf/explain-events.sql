@@ -13,7 +13,7 @@ select occurred_at as occ from event where id = :event \gset
 select string_agg(id::text, ',') as ids from (select i.id from issue i join event e on e.issue_id = i.id join article_event ae on ae.event_id = e.id
  join article a on a.id = ae.article_id and a.released_at is not null group by i.id order by max(e.occurred_at) desc nulls last, i.id desc limit 5) t \gset
 select string_agg(id::text, ',') as evs from (select id from event where issue_id in (:ids)) t \gset
-\echo 'issue =' :issue 'event =' :event 'ids =' :ids
+\echo 'event =' :event 'issue =' :issue 'ids =' :ids '— bench.py 인자는 이 순서: <이름표> <event> <issue>'
 
 \echo '== A2 개수 (분야 없음)'
 explain (analyze, buffers, timing off, summary on)
@@ -84,9 +84,9 @@ select distinct p.* from article_event l join article a on a.id = l.article_id j
 \echo '== A6 사건 관련 기사 개수'
 explain (analyze, buffers, timing off, summary on)
 select count(*) from article a1_0 where a1_0.released_at is not null and exists(select ae1_0.article_id from article_event ae1_0 where ae1_0.article_id=a1_0.id and ae1_0.event_id=:event);
-\echo '== A6 사건 관련 기사 첫 쪽 (본문 빼고)'
+\echo '== A6 사건 관련 기사 첫 쪽 (앱 문장 — explain.sql 과 같음)'
 explain (analyze, buffers, timing off, summary on)
-select a1_0.id, a1_0.title, a1_0.published_at from article a1_0 where a1_0.released_at is not null and exists(select ae1_0.article_id from article_event ae1_0 where ae1_0.article_id=a1_0.id and ae1_0.event_id=:event) order by a1_0.published_at desc, a1_0.id desc limit 5;
+select a1_0.id,a1_0.body,c1_0.code,c1_0.name,c1_0.sort_order,a1_0.created_at,p1_0.code,p1_0.name,a1_0.published_at,a1_0.released_at,a1_0.reporter,a1_0.source,a1_0.source_categories,a1_0.source_tags,a1_0.title,a1_0.url from article a1_0 left join category c1_0 on c1_0.code=a1_0.category_code left join press p1_0 on p1_0.code=a1_0.press_code where a1_0.released_at is not null and exists(select ae1_0.article_id from article_event ae1_0 where ae1_0.article_id=a1_0.id and ae1_0.event_id=:event) order by a1_0.published_at,a1_0.id fetch first 5 rows only;
 \echo '== A13 사건 (반도체)'
 explain (analyze, buffers, timing off, summary on)
 select id, title, issue_id from event e where issue_id is not null and strpos(lower(title), lower('반도체')) > 0 and exists (select 1 from article_event public_link join article public_article on public_article.id = public_link.article_id where public_link.event_id = e.id and public_article.released_at is not null) order by occurred_at desc, id desc limit 20;

@@ -2,6 +2,8 @@
 -- 정렬 2 × (분야 없음 + 5개 분야) × 크기 3 · 5 · 20 · 50 의 0쪽 ~ 끝 너머 한 쪽. 행마다 순번을 붙여 양쪽 except all 이 비어야 하고,
 -- 모든 쪽 행 수 합이 개수 SQL(total)과 같아야 한다
 \set ON_ERROR_STOP on
+-- 한 스냅숏으로 본다 — 도는 동안 수집 · 분석이 커밋해도 거짓 「다름」이 안 나오고, read only 라 DB 가 쓰기를 막는다
+begin transaction isolation level repeatable read, read only;
 do $$
 declare
     old_sql constant text := $q$
@@ -70,3 +72,4 @@ begin
     end loop;
     raise notice '결과: 본 쪽 % · 다른 쪽 % · total 이 안 맞는 조합 % · 본 행 %', pages_checked, pages_bad, totals_bad, rows_all;
 end $$;
+commit;
