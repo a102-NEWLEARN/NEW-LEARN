@@ -236,15 +236,22 @@ test("모르는 판이라 그리지 않으면 「AI 생성」을 붙이지 않�
   expect(screen.queryByText("AI 생성")).toBeNull();
 });
 
-test("두 보기 모두 그렸으면 「AI 생성」을 붙인다", async () => {
+// 「AI 생성」은 탭 줄이 아니라 그린 보기 맨 위에 하나 — 기사 머리 가까이 두면 기사를 AI 가 쓴 것처럼 읽힌다 (2026-11-12 사용자, Jira 195)
+test("두 보기 모두 그렸으면 그 보기 안에 「AI 생성」을 하나 붙인다", async () => {
   renderRoute(PATH);
   await flow();
-  expect(screen.getByText("AI 생성")).toBeDefined();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("AI 생성"),
+  ).toBeDefined();
+  expect(screen.getAllByText("AI 생성")).toHaveLength(1);
 
   fireEvent.click(tab("마인드맵"));
 
   await map();
-  expect(screen.getByText("AI 생성")).toBeDefined();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("AI 생성"),
+  ).toBeDefined();
+  expect(screen.getAllByText("AI 생성")).toHaveLength(1);
 });
 
 test("보기 탭을 오가도 마인드맵의 숨긴 가지 · 라벨 표시는 남는다", async () => {

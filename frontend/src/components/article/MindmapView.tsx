@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Switch } from "seed-design/ui/switch";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
+import { AiBadge } from "@/components/AiBadge";
 import { BRANCHES } from "@/components/article/branches";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
 
@@ -33,6 +34,8 @@ type MindmapViewProps = {
   branches: MindmapBranch[];
   settings: MindmapSettings;
   onSettingsChange: Dispatch<SetStateAction<MindmapSettings>>;
+  /** A9 aiGenerated — 그래프 칸 왼쪽 위에 AI 생성 표시를 붙인다 */
+  aiGenerated?: boolean;
 };
 
 // 기사 마인드맵의 마인드맵 보기 — 범례(가지 토글 · 전망 · 해석) · 그래프 · 탐색 설정 (Jira S15P31A102-58).
@@ -44,6 +47,7 @@ export function MindmapView({
   branches,
   settings,
   onSettingsChange,
+  aiGenerated = false,
 }: MindmapViewProps) {
   const { hidden, showLabels } = settings;
   const legendRef = useRef<HTMLDivElement>(null);
@@ -128,6 +132,12 @@ export function MindmapView({
         )}
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* AI 생성 표시 — 그래프 칸 왼쪽 위, 오른쪽 위 톱니와 마주 본다. 탭 줄 오른쪽 끝에서 옮겼다 (2026-11-12 사용자, Jira 195) */}
+        {aiGenerated && (
+          <div className="absolute top-[16px] left-[16px] z-10 flex h-x10 items-center">
+            <AiBadge />
+          </div>
+        )}
         {/* 탭 순서가 화면에서 읽는 순서와 같게 — 범례 다음에 설정, 그다음 그래프 */}
         <GraphSettings showLabels={showLabels} onShowLabels={setShowLabels} />
         <MindmapGraph

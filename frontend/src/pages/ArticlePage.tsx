@@ -12,7 +12,6 @@ import { useParams, useSearchParams } from "react-router";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ApiError } from "@/api/error";
 import { type Mindmap, mindmapQuery } from "@/api/mindmap";
-import { AiBadge } from "@/components/AiBadge";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
 import { FlowView } from "@/components/article/FlowView";
 import {
@@ -38,11 +37,6 @@ const toView = (raw: string | null): View =>
 
 const isArticleNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "ARTICLE_NOT_FOUND";
-// 그릴 수 있는 마인드맵인가 — 아는 판이고 가지가 하나 이상
-const drawable = (mindmap: Mindmap | undefined): mindmap is Mindmap =>
-  mindmap !== undefined &&
-  mindmap.schemaVersion === KNOWN_SCHEMA &&
-  mindmap.branches.length > 0;
 
 const isMindmapNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "MINDMAP_NOT_FOUND";
@@ -100,7 +94,7 @@ function ArticleView({ articleId }: { articleId: number }) {
         className="flex min-h-0 flex-1 flex-col"
       >
         <div className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8">
-          {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다(AI 생성 표시는 오른쪽 끝 그대로) */}
+          {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다 */}
           <TabsList
             aria-label="보기"
             className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none max-md:flex-1 max-md:gap-0"
@@ -113,12 +107,6 @@ function ArticleView({ articleId }: { articleId: number }) {
             </TabsTrigger>
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
-          {/* AI 가 만든 마인드맵 — 어느 보기든 그렸으면 AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
-          {drawable(mindmap.data) && mindmap.data.aiGenerated && (
-            <span className="ml-auto">
-              <AiBadge />
-            </span>
-          )}
         </div>
         {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
         <TabsContent value="flow" className={PANEL}>
@@ -129,11 +117,12 @@ function ArticleView({ articleId }: { articleId: number }) {
               query={mindmap}
               skeleton={<FlowSkeleton />}
             >
-              {({ title, branches }) => (
+              {({ title, branches, aiGenerated }) => (
                 <FlowView
                   articleId={articleId}
                   title={title}
                   branches={branches}
+                  aiGenerated={aiGenerated}
                 />
               )}
             </MindmapBody>
@@ -147,11 +136,12 @@ function ArticleView({ articleId }: { articleId: number }) {
               query={mindmap}
               skeleton={<MindmapSkeleton />}
             >
-              {({ title, branches }) => (
+              {({ title, branches, aiGenerated }) => (
                 <MindmapView
                   articleId={articleId}
                   title={title}
                   branches={branches}
+                  aiGenerated={aiGenerated}
                   settings={mapSettings}
                   onSettingsChange={setMapSettings}
                 />
@@ -262,12 +252,13 @@ function MindmapSkeleton() {
   );
 }
 
-// 흐름지도 자리 — 머리 줄과 가지 넷. FlowView 처럼 자리가 1024px 이상이면 4열이라 그릴 때 모양이 튀지 않는다
+// 흐름지도 자리 — AI 생성 표시 줄 · 머리 줄과 가지 넷. FlowView 처럼 자리가 1024px 이상이면 4열이라 그릴 때 모양이 튀지 않는다
 function FlowSkeleton() {
   return (
     <LoadingState label="마인드맵 불러오는 중">
       <div className="@container">
         <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 md:px-x8 md:pt-x7 @min-[1024px]:max-w-[1280px]">
+          <Skeleton radius="full" width="x14" height="x5" className="mb-x4" />
           <Skeleton
             radius="8"
             width="full"
