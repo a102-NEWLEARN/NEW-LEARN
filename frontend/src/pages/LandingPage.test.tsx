@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { afterEach, expect, test, vi } from "vitest";
 import { server } from "@/mocks/node";
@@ -114,7 +114,8 @@ test("첫 화면 글은 한 줄 소개 → NEW:LEARN → 설명 → 버튼 차�
   renderRoute("/");
   const title = await heading();
 
-  const kicker = screen.getByText(/뉴스를 넘어,/);
+  const hero = within(title.closest("section")!);
+  const kicker = hero.getByText(/뉴스를 넘어,/);
   const word = title.querySelector("[aria-hidden]")!;
   const lead = screen.getByText(
     "흩어진 뉴스를 연결해, 새로운 맥락을 배울 수 있는 뉴스 플랫폼",
@@ -147,5 +148,55 @@ test("첫 화면 아래로 소개 섹션이 차례로 이어진다", async () =>
     .map((h) => h.textContent);
   expect(sections).toEqual([
     "기사 한 편만으로는 사건의 전체 전개를 알기 어려워요.",
+    "요약보다 근거를 먼저, 판단은 읽는 사람에게.",
+    "자주 묻는 질문",
+    "뉴스를 읽는 서비스를 넘어, 뉴스를 이해하는 경험으로.",
   ]);
+  // MVP 밖 기능(F10 근거 기반 변화 카드의 UPDATE)은 랜딩 어디에도 말하지 않는다
+  expect(document.body.textContent).not.toMatch(/UPDATE/);
+});
+
+test("서비스 시작하기는 첫 화면과 마지막 권유에 하나씩 있다", async () => {
+  asGuest();
+  renderRoute("/");
+  await heading();
+
+  await waitFor(() =>
+    expect(startLinks().map((link) => link.getAttribute("href"))).toEqual([
+      "/login?next=/home",
+      "/login?next=/home",
+    ]),
+  );
+});
+
+test("머리 메뉴를 누르면 그 섹션으로 머리 높이만큼 덜 부드럽게 내린다", async () => {
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  renderRoute("/");
+  await heading();
+  const menu = screen.getByRole("navigation", { name: "랜딩 메뉴" });
+  const trust = document.getElementById("trust")!;
+  vi.spyOn(trust, "getBoundingClientRect").mockReturnValue({
+    top: 1500,
+  } as DOMRect);
+
+  fireEvent.click(within(menu).getByRole("button", { name: "근거와 신뢰" }));
+
+  expect(scrollTo).toHaveBeenCalledWith({ top: 1500 - 64, behavior: "smooth" });
+  expect(
+    within(menu).getByRole("button", { name: "자주 묻는 질문" }),
+  ).toBeDefined();
+});
+
+test("바닥글에 약관(준비 중)과 안내가 있고, 로고를 누르면 맨 위로 올라간다", async () => {
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  renderRoute("/");
+  await heading();
+  const footer = screen.getByRole("contentinfo");
+
+  expect(within(footer).getByText("이용약관 (준비 중)")).toBeDefined();
+  expect(within(footer).getByText("© 2026 NEW:LEARN")).toBeDefined();
+  fireEvent.click(
+    within(footer).getByRole("button", { name: "NEW:LEARN 맨 위로" }),
+  );
+  expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
 });

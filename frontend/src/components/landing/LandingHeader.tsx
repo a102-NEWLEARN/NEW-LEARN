@@ -11,6 +11,25 @@ export const LANDING_HEADER_HEIGHT = 64;
 export const scrollBehavior = (): ScrollBehavior =>
   prefersReducedMotion() ? "auto" : "smooth";
 
+/** 같은 페이지 안의 그 섹션으로 내린다 — 머리에 가리지 않게 머리 높이만큼 덜 */
+export function scrollToSection(id: string) {
+  const section = document.getElementById(id);
+  if (!section) return;
+  window.scrollTo({
+    top:
+      section.getBoundingClientRect().top +
+      window.scrollY -
+      LANDING_HEADER_HEIGHT,
+    behavior: scrollBehavior(),
+  });
+}
+
+/** 머리 메뉴 — 누르면 그 섹션으로 내린다 (EXPERIENCE.md IA 랜딩) */
+const MENU: readonly [id: string, label: string][] = [
+  ["trust", "근거와 신뢰"],
+  ["faq", "자주 묻는 질문"],
+];
+
 type LandingHeaderProps = {
   /** *로그인* 이 갈 곳 — 회원이면 홈, 손님이면 로그인 화면 (LandingPage) */
   start: string;
@@ -46,6 +65,22 @@ export function LandingHeader({ start }: LandingHeaderProps) {
       >
         <Logo height={26} />
       </Link>
+      {/* 좁은 화면에서는 숨긴다 — 머리에 다 들어가지 않는다 (프로토타입 v21) */}
+      <nav
+        aria-label="랜딩 메뉴"
+        className="flex items-center gap-x1 max-md:hidden"
+      >
+        {MENU.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => scrollToSection(id)}
+            className="h-[36px] rounded-r2 px-x3 text-[14px] font-medium text-fg-neutral-muted transition-colors hover:bg-bg-neutral-weak hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
       <div className="ml-auto flex items-center">
         <ActionButton asChild variant="ghost" size="small">
           <Link to={start}>로그인</Link>
