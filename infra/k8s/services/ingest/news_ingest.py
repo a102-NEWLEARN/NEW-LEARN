@@ -82,8 +82,8 @@ FAILING_MIN = 10
 HEALTH_URL_RE = re.compile(r"https?://[^\s/]+/\S*")
 # 거르는 순서 — 범위 밖(10시 실행의 그날 0 ~ 10시) 기사가 기사 상한을 먹지 않게 out_of_range 가 over_limit 보다 앞이다.
 # marked_duplicate 는 NewsData 가 duplicate=true 로 표시한 기사(팀원 수집과 같게), duplicate 는 같은 실행 안에서 링크 · article_id 가 겹친 기사.
-# wrong_body 는 다 받은 뒤 기사끼리 견주어 뺀 기사(drop_wrong_bodies)
-SKIP_REASONS = ("bad_item", "no_body", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit", "wrong_body")
+# notice_only 는 본문이 언론사 안내문뿐인 기사(notice_rule), wrong_body 는 다 받은 뒤 기사끼리 견주어 뺀 기사(drop_wrong_bodies)
+SKIP_REASONS = ("bad_item", "no_body", "notice_only", "category", "marked_duplicate", "timezone", "bad_date", "out_of_range", "duplicate", "over_limit", "wrong_body")
 # 다른 기사 본문을 달고 온 기사 — NewsData content 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음 · 안내문을 준다(Jira S15P31A102-183)
 # 문턱 · 까닭 · 잰 값은 docs/plans/2026-11-05-ingest-wrong-body.md, 제목 2개 짝은 docs/plans/2026-11-09-ingest-wrong-body-pair.md
 SAME_BODY_MIN_CHARS = 500
@@ -93,10 +93,15 @@ SAME_BODY_PAIR_TITLES = 2
 SAME_BODY_PAIR_MAX_SHARE = 0.2
 LONG_BRIEF_MIN_CHARS = 5000
 LONG_BRIEF_MAX_SHARE = 0.5
-# 본문이 언론사 화면 문구(설정 · 뉴스레터 · 개인정보 안내)뿐인 기사 — 경향 날씨 · 만평이 11/2 ~ 11/10 에 7번, 모두 478자로 왔다.
-# 같은 문구가 실제 본문 뒤에 붙어 오는 단신 · 사진 기사가 많아, 본문이 이 문구로 시작하고 짧을 때만 뺀다(2026-11-11 AI 팀장 제보)
+# 본문이 언론사 안내문뿐인 기사(notice_only) — 다른 기사 본문(wrong_body)과 결과 줄에서 따로 센다. 기사 하나만 보고 판단한다
+# screen_text: 경향 날씨 · 만평이 화면 문구(설정 · 뉴스레터 · 개인정보 안내) 478자만 달고 온다(11/2 ~ 11/10 에 7번, 2026-11-11 AI 팀장 제보).
+#   같은 문구가 실제 본문 뒤에 붙어 오는 경향 단신 · 사진 기사가 51건이라 본문이 이 문구로 「시작」할 때만
+# video_only: SBS 「클로징」 · 「여담야담」이 RSS 안내 + 구분선 + 동영상 안내만 달고 온다(운영 7건, 430 ~ 495자, 2026-11-12 AI 팀장 제안).
+#   같은 안내 뒤에 본문이 이어지는 SBS 기사가 72건이라 안내가 본문 「끝」일 때만
+# 둘 다 600자 이하만 — 긴 실제 본문에 같은 문구가 붙은 기사를 버리지 않게
+NOTICE_ONLY_MAX_CHARS = 600
 SCREEN_TEXT_PREFIXES = ("공유하기 보기 설정 글자 크기",)
-SCREEN_TEXT_MAX_CHARS = 600
+VIDEO_ONLY_RE = re.compile(r"-{10,} ?※ 자세한 내용은 동영상으로 확인하실 수 있습니다\. ?▶ 이 기사의 전체 내용 확인하기$")
 # 태그는 제목 맨 앞만 — 제목 뒤에 [영상] · [포토] 가 붙은 인터뷰 · 사진 기사는 단신이 아니다
 BRIEF_TITLE_RE = re.compile(r"^\s*\[(부고|부음|인사|포토|사진|속보|그래픽|영상|만평)\]|국민만평|부친상|모친상|빙부상|빙모상|시모상|장인상")
 TITLE_TAG_RE = re.compile(r"\[[^\]]*\]")
@@ -130,11 +135,25 @@ def redact(text, secrets):
     return re.sub(r"apikey=[^&\s\"'\\]+", "apikey=***", text)
 
 
+def notice_rule(content):
+    """본문이 언론사 안내문뿐이면 규칙 이름(screen_text · video_only), 아니면 None. 공백 · 줄바꿈은 한 칸으로 줄여 본다"""
+    if len(content.strip()) > NOTICE_ONLY_MAX_CHARS:
+        return None
+    body = " ".join(content.split())
+    if body.startswith(SCREEN_TEXT_PREFIXES):
+        return "screen_text"
+    if VIDEO_ONLY_RE.search(body):
+        return "video_only"
+    return None
+
+
 def skip_reason(item):
     """B2 를 부르기 전에 거를 까닭. 통과하면 None — 거르는 순서대로 하나만 센다"""
     content = item.get("content")
     if not isinstance(content, str) or not content.strip():
         return "no_body"
+    if notice_rule(content):
+        return "notice_only"
     categories = item.get("category")
     if isinstance(categories, list) and SKIP_CATEGORIES.intersection(c for c in categories if isinstance(c, str)):
         return "category"
@@ -206,9 +225,7 @@ def wrong_body_findings(articles):
         group = titles.get((article["pressSourceId"], body), ())
         same = len(group)
         share = title_word_share(article["title"], body)
-        if len(body) <= SCREEN_TEXT_MAX_CHARS and " ".join(body.split()).startswith(SCREEN_TEXT_PREFIXES):
-            found.append((article, "screen_text", share, same))
-        elif same >= SAME_BODY_MIN_TITLES:
+        if same >= SAME_BODY_MIN_TITLES:
             found.append((article, "same_body", share, same))
         elif BRIEF_TITLE_RE.search(article["title"]) and len(body) >= LONG_BRIEF_MIN_CHARS and share <= LONG_BRIEF_MAX_SHARE:
             found.append((article, "long_brief", share, same))
@@ -554,6 +571,8 @@ class Run:
                     reason = "over_limit"
                 if reason:
                     self.skipped[reason] += 1
+                    if reason == "notice_only":
+                        self.log_notice(item)
                     continue
                 links.add(item["link"])
                 if article_id:
@@ -573,6 +592,17 @@ class Run:
                 self.stopped_by = "end"
                 break
         return kept
+
+    def log_notice(self, item):
+        """안내문뿐이라 뺀 기사 하나 — 정상 기사가 걸렸는지 보게. 본문은 안 남긴다"""
+        self.log({
+            "msg": "안내문뿐이라 뺌",
+            "rule": notice_rule(item["content"]),
+            "url": item["link"],
+            "title": item.get("title"),
+            "pressSourceId": item.get("source_id"),
+            "bodyChars": len(item["content"]),
+        })
 
     def drop_wrong_bodies(self, kept):
         """다른 기사 본문을 달고 온 기사를 뺀다. 정상 기사가 걸렸는지 보게 기사마다 한 줄 남긴다 — 본문은 안 남긴다"""

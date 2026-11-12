@@ -482,7 +482,7 @@ class Limits(unittest.TestCase):
         self.assertEqual([json.loads(c[3])["url"] for c in net.b2_calls()], [item(4)["link"]])
         self.assertEqual(
             summary(lines)["skipped"],
-            {"bad_item": 0, "no_body": 1, "category": 1, "marked_duplicate": 0, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0, "wrong_body": 0},
+            {"bad_item": 0, "no_body": 1, "notice_only": 0, "category": 1, "marked_duplicate": 0, "timezone": 1, "bad_date": 0, "out_of_range": 0, "duplicate": 0, "over_limit": 0, "wrong_body": 0},
         )
 
 
@@ -1510,36 +1510,83 @@ class WrongBodyLongBrief(unittest.TestCase):
         self.assertEqual(self.sent("[부고] 김가람씨 별세", "가" * 4999 + " "), (1, 0))
 
 
-class WrongBodyScreenText(unittest.TestCase):
-    """(d) 본문이 언론사 화면 문구(설정 · 뉴스레터 · 개인정보 안내)뿐인 기사 — 경향 날씨 · 만평이 11/2 부터 거의 매일 478자로 온다"""
+class NoticeOnly(unittest.TestCase):
+    """본문이 언론사 안내문뿐인 기사 — skipped.notice_only 로 따로 센다(다른 기사 본문인 wrong_body 와 결과 줄에서 나뉘게)
+
+    screen_text: 경향 날씨 · 만평이 화면 문구(설정 · 뉴스레터 · 개인정보 안내) 478자만 달고 온다(11/2 ~ 11/10 에 7번)
+    video_only: SBS 「클로징」 · 「여담야담」이 RSS 안내 + 구분선 + 「자세한 내용은 동영상으로」만 달고 온다(운영 7건, 430 ~ 495자)
+    """
 
     SCREEN = "공유하기 보기 설정 글자 크기 보통 크게 아주 크게 컬러 모드 라이트 다크 베이지 그린 본문 요약 "
+    VIDEO_TAIL = "※ 자세한 내용은 동영상으로 확인하실 수 있습니다. ▶ 이 기사의 전체 내용 확인하기"
+
+    def video(self, before="ⓒ 가람방송 / RSS 피드 안내문 ", rule="-" * 42, gap=" "):
+        return before + rule + gap + self.VIDEO_TAIL
 
     def sent(self, content, **over):
         net = FakeNet([page([item(1, content=content, **over), item(2)])])
         code, lines, _ = run(env(INGEST_MODE="load-only"), net)
         self.assertEqual(code, 0)
-        dropped = [line for line in lines if line.get("msg") == "본문 불일치로 뺌"]
-        return len(net.b2_calls()), summary(lines)["skipped"]["wrong_body"], [d["rule"] for d in dropped]
+        dropped = [line for line in lines if line.get("msg") == "안내문뿐이라 뺌"]
+        skipped = summary(lines)["skipped"]
+        return len(net.b2_calls()), skipped["notice_only"], skipped["wrong_body"], [d["rule"] for d in dropped]
 
     def test_screen_text_only_dropped(self):
-        self.assertEqual(self.sent(self.SCREEN + filler(478 - len(self.SCREEN))), (1, 1, ["screen_text"]))
+        self.assertEqual(self.sent(self.SCREEN + filler(478 - len(self.SCREEN))), (1, 1, 0, ["screen_text"]))
 
     def test_one_article_is_enough(self):
         # 같은 본문 규칙과 달리 묶음이 필요 없다 — 15분 수집은 한 회차에 한두 건만 본다
-        self.assertEqual(self.sent(self.SCREEN + "뉴스레터 구독이 완료되었습니다."), (1, 1, ["screen_text"]))
+        self.assertEqual(self.sent(self.SCREEN + "뉴스레터 구독이 완료되었습니다."), (1, 1, 0, ["screen_text"]))
 
     def test_spaces_and_line_breaks_do_not_matter(self):
-        self.assertEqual(self.sent("\n " + self.SCREEN.replace(" ", "\n  ") + filler(300)), (1, 1, ["screen_text"]))
+        self.assertEqual(self.sent("\n " + self.SCREEN.replace(" ", "\n  ") + filler(300)), (1, 1, 0, ["screen_text"]))
+        self.assertEqual(self.sent(self.video(gap="\n\n").replace(" ", "\n ") + "\n"), (1, 1, 0, ["video_only"]))
 
     def test_real_text_before_screen_text_kept(self):
         # 경향 단신 · 사진 기사는 실제 본문 뒤에 같은 안내문이 붙어 온다 — 본문이 있으니 남긴다
-        self.assertEqual(self.sent("가람시청 앞에서 가을 축제가 열렸다. " + self.SCREEN + filler(400)), (2, 0, []))
+        self.assertEqual(self.sent("가람시청 앞에서 가을 축제가 열렸다. " + self.SCREEN + filler(400)), (2, 0, 0, []))
 
     def test_long_body_after_screen_text_kept(self):
         # 화면 문구 뒤에 긴 글이 이어지면 본문이 있는 것이다
-        self.assertEqual(self.sent(self.SCREEN + "가" * (600 - len(self.SCREEN))), (1, 1, ["screen_text"]))
-        self.assertEqual(self.sent(self.SCREEN + "가" * (601 - len(self.SCREEN))), (2, 0, []))
+        self.assertEqual(self.sent(self.SCREEN + "가" * (600 - len(self.SCREEN))), (1, 1, 0, ["screen_text"]))
+        self.assertEqual(self.sent(self.SCREEN + "가" * (601 - len(self.SCREEN))), (2, 0, 0, []))
+
+    def test_video_notice_only_dropped(self):
+        self.assertEqual(self.sent(self.video()), (1, 1, 0, ["video_only"]))
+        # 구분선 길이 · 구분선과 안내 사이 공백은 운영 본문마다 다를 수 있다
+        self.assertEqual(self.sent(self.video(rule="-" * 10, gap="")), (1, 1, 0, ["video_only"]))
+
+    def test_video_notice_not_at_the_end_kept(self):
+        # 같은 안내 뒤에 본문이 이어지는 SBS 기사가 72건 — 끝에 있을 때만 뺀다
+        self.assertEqual(self.sent(self.video() + " 가람시청 앞에서 가을 축제가 열렸다."), (2, 0, 0, []))
+
+    def test_video_notice_without_divider_kept(self):
+        self.assertEqual(self.sent("ⓒ 가람방송 " + self.VIDEO_TAIL), (2, 0, 0, []))
+        self.assertEqual(self.sent(self.video(rule="-" * 9)), (2, 0, 0, []))
+
+    def test_long_body_ending_with_video_notice_kept(self):
+        # 긴 실제 본문 끝에 같은 안내가 붙으면 본문이 있는 것이다 — 운영 7건은 모두 495자 이하
+        body = self.video(before="가" * (600 - len(self.video(before=""))))
+        self.assertEqual(len(body), 600)
+        self.assertEqual(self.sent(body), (1, 1, 0, ["video_only"]))
+        self.assertEqual(self.sent("가" + body), (2, 0, 0, []))
+
+    def test_log_line_has_url_and_title_but_no_body(self):
+        net = FakeNet([page([item(1, title="[클로징] 가람시 소식", content=self.video()), item(2)])])
+        _, lines, text = run(env(INGEST_MODE="load-only"), net)
+        dropped = [line for line in lines if line.get("msg") == "안내문뿐이라 뺌"]
+        self.assertEqual(len(dropped), 1)
+        self.assertEqual(dropped[0]["url"], item(1)["link"])
+        self.assertEqual(dropped[0]["title"], "[클로징] 가람시 소식")
+        self.assertEqual(dropped[0]["rule"], "video_only")
+        self.assertEqual(dropped[0]["bodyChars"], len(self.video()))
+        self.assertNotIn("가람방송", text)
+
+    def test_skip_reason_order(self):
+        # 본문 없음이 먼저, 안내문뿐이 분야 · 시간대보다 먼저
+        self.assertEqual(news_ingest.skip_reason(item(1, content=self.video())), "notice_only")
+        self.assertEqual(news_ingest.skip_reason(item(1, content=self.video(), category=["sports"], pubDateTZ="EST")), "notice_only")
+        self.assertEqual(news_ingest.skip_reason(item(1, content=" ")), "no_body")
 
 
 class WrongBodyFlow(unittest.TestCase):
