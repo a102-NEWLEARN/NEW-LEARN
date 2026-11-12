@@ -4,9 +4,11 @@
 
 | 파일 | 무엇을 | 돌리는 법 (이 PC, 저장소 루트) |
 |---|---|---|
-| `bench.py` | API 마다 100번 요청해 p50 · p95 · 평균 | `ssh newlearn 'python3 - <이름표> <사건 id>' < infra/server/perf/bench.py` |
+| `bench.py` | API 마다 100번 요청해 p50 · p95 · 평균. 사건 id 를 주면 A6, 이슈 id 까지 주면 A3 · A4 · A5 도 | `ssh newlearn 'python3 - <이름표> <사건 id> [이슈 id]' < infra/server/perf/bench.py` |
 | `explain.sql` | 기사 표 행 수, 운영에서 실제로 나가는 쿼리 15개의 실행 계획 · 읽은 블록 | `ssh newlearn 'kubectl -n data exec -i postgres-0 -- psql -X -U newlearn -d newlearn' < infra/server/perf/explain.sql` |
-| `stats.sql` | 기사 표 통째 읽기 · 인덱스 읽기 · 블록 누적값, 표 · 인덱스 크기 | 위와 같고 파일만 `stats.sql` |
+| `stats.sql` | 기사 표 통째 읽기 · 인덱스 읽기 · 블록 누적값, 표 · 인덱스 크기, 사건 · 이슈 쪽 인덱스 읽기, VACUUM 상태 | 위와 같고 파일만 `stats.sql` |
+| `explain-events.sql` | 사건 · 이슈 쪽 쿼리 26개의 실행 계획 — A2 목록 옛 · 새 SQL, 최근 사건, A1 · A3 · A4 · A5 · A6 · A25 · A13, 분석의 사건별 첫 기사 (Jira S15P31A102-194) | 위와 같고 파일만 `explain-events.sql` |
+| `list-equal.sql` | A2 목록 옛 SQL 과 새 SQL 이 모든 쪽(정렬 2 × 분야 6 × 크기 4)에서 같은 행 · 순서인지, 쪽 합 = total 인지. 끝 줄 `결과: … 다른 쪽 0 · total 이 안 맞는 조합 0` 이어야 한다 (Jira 194) | 위와 같고 파일만 `list-equal.sql` |
 | `load.py` | 단계 부하 시험 — 동시 요청을 1 → 128 로 1분씩 올려 포화 지점 · 먼저 막히는 층을 잰다 (Jira S15P31A102-193). 결과 `load-results.md` | 아래 「부하 시험」 |
 
 ## 부하 시험 (load.py)
@@ -69,6 +71,8 @@ postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱�
 
 1. `stats.sql` → `bench.py` → `stats.sql` — 두 번 찍은 통계의 차이가 bench 동안 일어난 일이다
 2. `explain.sql` — 첫 줄의 `A6 사건 =` 값을 다음 bench 의 사건 id 로 쓴다
+   - 사건 · 이슈 쪽을 볼 때는 `explain-events.sql` 도. 첫 줄의 `issue =` · `event =` 를 bench 의 이슈 · 사건 id 로 쓴다
+   - 공개 기사 인덱스만 읽기는 VACUUM 뒤 새로 들어온 기사가 끼어든 페이지만큼 표를 다시 본다(계획의 `Heap Fetches`). 전 · 후를 견줄 때는 `stats.sql` 의 VACUUM 상태를 같이 적는다
 3. 결과를 `results.md` 에 옮긴다. 시각과 그때 부하(수집이 돌았나)를 같이 적는다
 
 피할 때: 매일 10:00 수집, 04:00 DB 덤프, 15분 수집이 켜진 뒤의 회차(:00 · :15 · :30 · :45).
@@ -77,6 +81,7 @@ postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱�
 
 - `explain.sql` 의 SQL 은 운영에서 실제로 나간 문장을 `pg_stat_activity` 에서 받아 매개변수만 값으로 바꾼 것이다(2026-11-11). backend 코드가 바뀌면 다시 받는다 — 사이트에 요청을 보내는 동안 `pg_stat_activity` 의 `query` 를 짧은 간격으로 모은다
 - A7 기사 목록 `GET /api/v1/articles` · A6 사건 관련 기사 `GET /api/v1/events/{eventId}/articles` 는 Spring Data JPA 가 만든 문장이다. 본문(body)까지 읽고 언론사 · 분야를 조인한다. `select id` 로 줄여 재면 인덱스 뒤 표를 안 읽는 계획이 나와 실제보다 좋게 보인다
+- Jira 194 배포 뒤로는 `explain.sql` 의 「A2 이슈 목록 — 카드 3장」이 앱이 더는 보내지 않는 옛 SQL 이다. 지금 앱 문장은 `explain-events.sql` 의 「A2 목록 새」(`IssueQueryRepository.LIST`)
 
 ## 입구 로그 쿼리 (LogQL)
 
