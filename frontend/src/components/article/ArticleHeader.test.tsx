@@ -73,6 +73,15 @@ test("이슈가 없으면 분야만, 기자가 없으면 기자를 뺀다", asyn
   expect(screen.getByText("바른신문 · 2026.10.06 14:30")).toBeDefined();
 });
 
+// 까닭은 ArticleHeader 의 metaLine 주석
+test("기자 칸이 언론사 이름과 같으면 기자를 뺀다", async () => {
+  answer({ reporter: " 바른신문 " });
+  renderWithProviders(<Header />);
+
+  await title();
+  expect(screen.getByText("바른신문 · 2026.10.06 14:30")).toBeDefined();
+});
+
 test("원문 보기는 언론사 기사를 새 탭으로 연다", async () => {
   answer({});
   renderWithProviders(<Header />);

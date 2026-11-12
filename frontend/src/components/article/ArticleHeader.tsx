@@ -22,15 +22,18 @@ type ArticleHeaderProps = {
 const pathLine = (article: ArticleDetail) =>
   [article.category?.name, article.issue?.title].filter(Boolean).join(" · ");
 
-// 「바른신문 · 2026.10.06 14:30 · 김민정 기자」 — 기자가 없으면 뺀다
-const metaLine = (article: ArticleDetail) =>
-  [
+// 「바른신문 · 2026.10.06 14:30 · 김민정 기자」 — 기자가 없으면 뺀다. 수집한 기자 칸에 언론사 이름만 온 기사가 있어서
+// (운영 200건 중 12건, 2026-11-12) 언론사 이름과 같으면 기자로 보지 않는다
+const metaLine = (article: ArticleDetail) => {
+  const reporter = article.reporter?.trim();
+  return [
     article.publisher.name,
     formatFullDateTime(article.publishedAt),
-    article.reporter,
+    reporter === article.publisher.name.trim() ? null : reporter,
   ]
     .filter(Boolean)
     .join(" · ");
+};
 
 // 이 기사가 속한 이슈로 가는 길 — 이슈가 있으면 사건 패널이 열린 이슈 화면으로 가는 버튼, 사건을 찾는 중이거나
 // 이슈로 아직 묶이지 않았으면 그 문구, 그 밖(사건 찾기 전 · 실패 · 사건으로 묶지 않는 기사)은 아무것도 두지 않는다
