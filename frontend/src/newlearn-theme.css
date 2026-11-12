@@ -207,6 +207,14 @@ body {
   }
 }
 
+/* 랜딩 첫 화면 「어떻게 정리하나요」 화살표가 위아래로 까딱인다 (components/landing/LandingHero.tsx).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+@keyframes newlearn-bob {
+  50% {
+    transform: translateY(4px);
+  }
+}
+
 /* 홈 인사 줄을 타자 치듯 찍는 동안 · 다 찍은 뒤 잠깐, 끝의 막대 커서가 깜빡인다 (components/motion/useTypewriter.ts).
    동작 줄이기를 켜면 커서를 두지 않는다 */
 @keyframes newlearn-caret {

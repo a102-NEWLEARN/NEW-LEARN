@@ -26,6 +26,7 @@ export function scrollToSection(id: string) {
 
 /** 머리 메뉴 — 누르면 그 섹션으로 내린다 (EXPERIENCE.md IA 랜딩) */
 const MENU: readonly [id: string, label: string][] = [
+  ["how", "어떻게 정리하나요"],
   ["trust", "근거와 신뢰"],
   ["faq", "자주 묻는 질문"],
 ];

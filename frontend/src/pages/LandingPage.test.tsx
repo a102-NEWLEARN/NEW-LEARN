@@ -149,6 +149,7 @@ test("첫 화면 아래로 소개 섹션이 차례로 이어진다", async () =>
   expect(sections).toEqual([
     "기사 한 편만으로는 사건의 전체 전개를 알기 어려워요.",
     "뉴스는 넘쳐나는데,",
+    "어떻게 정리하나요",
     "요약보다 근거를 먼저, 판단은 읽는 사람에게.",
     "자주 묻는 질문",
     "뉴스를 읽는 서비스를 넘어, 뉴스를 이해하는 경험으로.",
@@ -184,8 +185,10 @@ test("머리 메뉴를 누르면 그 섹션으로 머리 높이만큼 덜 부드
 
   expect(scrollTo).toHaveBeenCalledWith({ top: 1500 - 64, behavior: "smooth" });
   expect(
-    within(menu).getByRole("button", { name: "자주 묻는 질문" }),
-  ).toBeDefined();
+    within(menu)
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual(["어떻게 정리하나요", "근거와 신뢰", "자주 묻는 질문"]);
 });
 
 test("바닥글에 약관(준비 중)과 안내가 있고, 로고를 누르면 맨 위로 올라간다", async () => {
@@ -200,4 +203,24 @@ test("바닥글에 약관(준비 중)과 안내가 있고, 로고를 누르면 �
     within(footer).getByRole("button", { name: "NEW:LEARN 맨 위로" }),
   );
   expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+});
+
+test("첫 화면 아래 「어떻게 정리하나요」를 누르면 그 섹션으로 내리고, 화살표는 까딱인다", async () => {
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  renderRoute("/");
+  const title = await heading();
+  const how = document.getElementById("how")!;
+  vi.spyOn(how, "getBoundingClientRect").mockReturnValue({
+    top: 2800,
+  } as DOMRect);
+  const button = within(title.closest("section")!).getByRole("button", {
+    name: "어떻게 정리하나요",
+  });
+
+  fireEvent.click(button);
+
+  expect(scrollTo).toHaveBeenCalledWith({ top: 2800 - 64, behavior: "smooth" });
+  expect(button.querySelector("svg")?.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-bob_1\.8s_ease-in-out_infinite\]/,
+  );
 });
