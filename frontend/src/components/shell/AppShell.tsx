@@ -4,7 +4,6 @@ import { MeaningBubble } from "@/components/meaning/MeaningBubble";
 import { SCREEN_RISE } from "@/components/motion/appMotion";
 import { Header } from "@/components/shell/Header";
 import { Sidebar } from "@/components/shell/Sidebar";
-import { SidebarDrawer } from "@/components/shell/SidebarDrawer";
 import {
   focusSearchRequest,
   useQuickSearch,
@@ -19,16 +18,14 @@ const fillsMain = (pathname: string) => /^\/(articles|issues)\//.test(pathname);
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
 // 화면 높이에 맞추고 본문만 스크롤해서 헤더가 늘 위에 붙어 있다.
-// 767px 이하에서는 사이드바가 서랍이 되고 헤더의 메뉴 버튼으로 연다. 본문의 글을 드래그하면 용어사전 말풍선이 뜬다(MeaningBubble)
+// 767px 이하에서는 사이드바를 두지 않는다 — 헤더 메뉴 버튼으로 여는 서랍이었는데, 폰에서는 빼고 로고를 맨 왼쪽에 둔다
+// (2026-11-12 사용자, Jira 195). 이슈는 홈 분야 탭 · 검색으로 찾는다. 본문의 글을 드래그하면 용어사전 말풍선이 뜬다(MeaningBubble)
 export function AppShell() {
   const mainRef = useRef<HTMLElement>(null);
   const narrow = useMediaQuery(NARROW_SCREEN);
   // 사이드바는 처음에 접혀 있다
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  // 넓은 화면이 되면 서랍은 사라진다. 열림 상태를 남기면 다시 좁아질 때 저절로 열려서 닫아 둔다
-  if (!narrow && drawerOpen) setDrawerOpen(false);
-  // 이슈 탐색에서 펼친 분야 — 사이드바를 접거나 서랍을 닫았다 열어도 그대로 둔다
+  // 이슈 탐색에서 펼친 분야 — 사이드바를 접었다 펴도 그대로 둔다
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const explorer = {
     openCode: openCategory,
@@ -42,8 +39,8 @@ export function AppShell() {
     [],
   );
 
-  // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면에서는 서랍을 열고 닫는다.
-  // ⌘/Ctrl+K 는 빠른 이동 — 홈 검색창으로 간다. 열린 서랍은 닫는다 (EXPERIENCE.md IA 통합 검색).
+  // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면은 사이드바가 없어 아무것도 하지 않는다.
+  // ⌘/Ctrl+K 는 빠른 이동 — 홈 검색창으로 간다 (EXPERIENCE.md IA 통합 검색).
   // 한글 입력기는 그 키를 「₩」 · 「ㅏ」로 내기도 해서 글자 대신 키 자리(Backslash · KeyK)로도 본다
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -56,12 +53,11 @@ export function AppShell() {
         !event.altKey &&
         (event.key.toLowerCase() === "k" || (!latin && event.code === "KeyK"));
       if (backslash) {
+        if (narrow) return;
         event.preventDefault();
-        if (narrow) setDrawerOpen((open) => !open);
-        else setSidebarExpanded((expanded) => !expanded);
+        setSidebarExpanded((expanded) => !expanded);
       } else if (k) {
         event.preventDefault();
-        setDrawerOpen(false);
         quickSearch();
       }
     };
@@ -88,20 +84,9 @@ export function AppShell() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <Header
-        narrow={narrow}
-        onLogoClick={scrollToTop}
-        onMenuClick={() => setDrawerOpen(true)}
-      />
+      <Header narrow={narrow} onLogoClick={scrollToTop} />
       <div className="flex min-h-0 flex-1">
-        {narrow ? (
-          <SidebarDrawer
-            open={drawerOpen}
-            onOpenChange={setDrawerOpen}
-            onLogoClick={scrollToTop}
-            {...explorer}
-          />
-        ) : (
+        {!narrow && (
           <Sidebar
             expanded={sidebarExpanded}
             onExpandedChange={setSidebarExpanded}

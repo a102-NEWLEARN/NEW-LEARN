@@ -46,7 +46,7 @@ export function EventDetailPane({
   }, [eventId]);
 
   // 넓은 화면의 Esc — 맨 위에 열린 것 하나만 닫는다. TIP(팝오버)은 캡처 단계에서 먼저 닫고 preventDefault 한다.
-  // 서랍 같은 다른 창 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
+  // 크게 보기 같은 다른 창 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
   useEffect(() => {
     if (narrow) return;
     const onKeyDown = (key: KeyboardEvent) => {

@@ -93,7 +93,11 @@ test("회원이면 관심 분야 탭을 앞에 두고 맨 앞 관심 분야를 �
       name: "김뉴런님을 위한 추천 이슈",
     }),
   ).toBeDefined();
-  expect(screen.getByText(/관심 분야예요/)).toBeDefined();
+  // 설명은 한 문장까지만 — 별 안내(「★는 관심 분야예요」)는 뺐다 (2026-11-12 사용자, Jira 195)
+  expect(
+    screen.getByText("여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요."),
+  ).toBeDefined();
+  expect(screen.queryByText(/관심 분야예요/)).toBeNull();
   await screen.findByRole("tablist", { name: "분야" });
   expect(tabNames()).toEqual([
     "경제, 관심 분야",
@@ -107,14 +111,16 @@ test("회원이면 관심 분야 탭을 앞에 두고 맨 앞 관심 분야를 �
   expect(await cardHrefs()).toEqual(["/issues/12", "/issues/15", "/issues/13"]);
 });
 
-test("손님이면 A1 순서대로 두고 별 안내를 빼고 첫 분야를 고른다", async () => {
+test("손님이면 A1 순서대로 두고 첫 분야를 고른다", async () => {
   const interestCalls = countInterestCalls();
   renderSection("/home", null);
 
   expect(
     screen.getByRole("heading", { level: 2, name: "추천 이슈" }),
   ).toBeDefined();
-  expect(screen.queryByText(/관심 분야예요/)).toBeNull();
+  expect(
+    screen.getByText("여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요."),
+  ).toBeDefined();
   await screen.findByRole("tablist", { name: "분야" });
   expect(tabNames()).toEqual(["정치", "사회", "경제", "국제", "IT·과학"]);
   expect(await cardHrefs()).toEqual(["/issues/21", "/issues/22"]);
@@ -283,12 +289,13 @@ test("A17 을 받는 동안에는 제목도 탭도 그리지 않고 자리만 �
   expect(screen.queryByRole("tablist")).toBeNull();
 });
 
-test("관심사 편집은 마이페이지로 간다", () => {
+test("관심사 편집은 마이페이지로 가고, 좁은 화면에서는 숨긴다", () => {
   renderSection();
 
-  expect(
-    screen.getByRole("link", { name: "관심사 편집" }).getAttribute("href"),
-  ).toBe("/me");
+  const edit = screen.getByRole("link", { name: "관심사 편집" });
+  expect(edit.getAttribute("href")).toBe("/me");
+  // 폰에서는 머리를 제목 · 설명만으로 둔다 (2026-11-12 사용자, Jira 195). jsdom 은 미디어 쿼리 CSS 를 안 풀어 클래스로 본다
+  expect(edit.className).toContain("max-md:hidden");
 });
 
 test("카드가 45ms 간격으로 떠오르고, 분야를 바꾸면 묶음을 새로 그려 다시 떠오른다", async () => {

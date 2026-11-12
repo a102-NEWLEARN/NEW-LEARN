@@ -34,7 +34,7 @@ export function useTimelineTip({ panelClassName, howTo }: TimelineTipOptions) {
     setOpen(false);
     buttonRef.current?.focus();
   };
-  // 열면 포커스를 창 안으로. 열려 있는 동안 누른 Esc 는 이 창을 닫는다. 다만 서랍처럼 다른 창(dialog) 안에서 누른
+  // 열면 포커스를 창 안으로. 열려 있는 동안 누른 Esc 는 이 창을 닫는다. 다만 크게 보기 · 사건 시트처럼 다른 창(dialog) 안에서 누른
   // Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
   useEffect(() => {
     if (!open) return;

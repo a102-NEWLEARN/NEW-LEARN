@@ -30,7 +30,10 @@ export function MyPage() {
         ])
       : null;
   return (
-    <div className="mx-auto max-w-[760px] px-x5 pt-x9 pb-[96px] md:px-x6 md:pb-x16">
+    // 회원이면 맨 끝이 화면 아래에 붙는 저장 줄이라 끝 여백을 두지 않는다 — 두면 다 내렸을 때 줄 아래가 빈다
+    <div
+      className={`mx-auto max-w-[760px] px-x5 pt-x9 md:px-x6 ${member ? "" : "pb-[96px] md:pb-x16"}`}
+    >
       {/* 이름 줄 — 아바타 · 이름 · 개수 */}
       <div className="flex items-center gap-x3_5">
         {member && (
@@ -52,8 +55,8 @@ export function MyPage() {
           )}
         </div>
       </div>
-      {/* 개인정보 → 관심 분야 → 관심 이슈 — 카드마다(MyPageSection). 관심 분야 저장은 그 카드 제목 오른쪽 */}
-      <div className="mt-x6 flex flex-col gap-x3">
+      {/* 개인정보 → 관심 분야 → 관심 이슈 — 섹션마다 위 1px 줄(MyPageSection). 관심 분야 저장은 화면 아래에 붙은 줄 하나 */}
+      <div className="mt-x6 flex flex-col">
         <MyPageSection title="개인정보">
           <QueryState
             query={me}
@@ -65,7 +68,7 @@ export function MyPage() {
           >
             {(data) =>
               data && (
-                // 이름 · 아이디는 바꿀 수 없다 (EXPERIENCE.md IA 마이페이지 행). 행 사이는 카드 안 구분선
+                // 이름 · 아이디는 바꿀 수 없다 (EXPERIENCE.md IA 마이페이지 행). 행 사이는 옅은 구분선
                 <dl className="divide-y divide-stroke-neutral-subtle">
                   {[
                     ["이름", data.name],
@@ -85,8 +88,14 @@ export function MyPage() {
             }
           </QueryState>
         </MyPageSection>
-        {member && <InterestSettings member={member} />}
-        <InterestIssues />
+        {/* 관심 이슈는 관심 분야와 저장 줄 사이에 둔다 — 저장 줄이 맨 아래에 오게. 내 정보를 못 받았으면 관심 이슈만 */}
+        {member ? (
+          <InterestSettings member={member}>
+            <InterestIssues />
+          </InterestSettings>
+        ) : (
+          <InterestIssues />
+        )}
       </div>
     </div>
   );

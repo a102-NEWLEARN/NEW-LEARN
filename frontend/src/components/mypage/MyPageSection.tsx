@@ -5,19 +5,16 @@ type MyPageSectionProps = {
   description?: string;
   /** 제목 id — 안의 묶음이 제목으로 이름을 받을 때 바깥에서 준다 (관심 분야 칩) */
   headingId?: string;
-  /** 제목 줄 오른쪽 버튼 — 관심 분야 *저장* */
-  action?: ReactNode;
   children: ReactNode;
 };
 
-// 마이페이지 섹션 — 흰 카드에 제목과 한 줄 설명 (DESIGN.md Components 「카드 · 패널」, Shapes 16px).
-// 줄로만 나누면 섹션 넷의 무게가 같아 밋밋했다 (2026-11-05 UI 점검, S15P31A102-182).
-// 좁은 화면 안쪽 여백 16px — 20px 이면 393 폭에서 관심 분야 칩이 4px 모자라 한 줄 더 꺾였다
+// 마이페이지 섹션 — 위 1px 줄로 나누고 제목 · 한 줄 설명 · 내용. 상자(카드)는 두지 않는다 —
+// 상자가 늘어선 것이 예쁘지 않았다 (2026-11-12 사용자, Jira 195. 11-05 S15P31A102-182 에서 넣은 카드를 되돌렸다).
+// 줄만으로 밋밋하지 않게 제목을 한 단계 키우고(18px) 섹션 위아래를 24px 띄운다
 export function MyPageSection({
   title,
   description,
   headingId,
-  action,
   children,
 }: MyPageSectionProps) {
   const ownId = useId();
@@ -25,18 +22,15 @@ export function MyPageSection({
   return (
     <section
       aria-labelledby={id}
-      className="rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default p-x4 md:p-x6"
+      className="border-t border-stroke-neutral-weak py-x6"
     >
-      <div className="flex items-center justify-between gap-x3">
-        <h2 id={id} className="t5-bold text-fg-neutral">
-          {title}
-        </h2>
-        {action}
-      </div>
+      <h2 id={id} className="t6-bold text-fg-neutral">
+        {title}
+      </h2>
       {description && (
         <p className="t3-regular mt-x1 text-fg-neutral-muted">{description}</p>
       )}
-      <div className="mt-x3">{children}</div>
+      <div className="mt-x4">{children}</div>
     </section>
   );
 }

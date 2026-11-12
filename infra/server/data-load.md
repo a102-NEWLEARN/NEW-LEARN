@@ -190,7 +190,7 @@ AI 팀이 이슈 · 사건 분류를 pg_dump 대신 SQLite(`data/classified_with
 | 파일 | 하는 일 |
 |---|---|
 | `classified_to_load.py` | SQLite 검사(칸 · 건수 · 시각 · 역할 · 참조 · 마인드맵 JSON · 임베딩) → `load` 스키마를 채우는 COPY 묶음. 운영 URL 목록을 주면 그 기사는 본문 대신 md5 만 싣는다 |
-| `classified-load.sql` | 판(13 또는 14 — V14 는 기사 부분 인덱스만 더해 표 · 칸이 같다, Jira S15P31A102-190) · 이전 기록 검사 → 시험 기사 1 ~ 3 지우기 → 분석 표 일곱이 빈지 → URL 로 맞춤(발행 시각 · 본문 md5) → 새 기사 · 이슈 · 사건 · 기사-사건 · 마인드맵 · 임베딩 · 작업 → 마인드맵 있는 기사 공개 |
+| `classified-load.sql` | 판(13 · 14 · 15 — V14 는 기사 부분 인덱스, V15 는 기사-사건 · 사건 인덱스와 기사 표 자동 VACUUM 기준만 더해 표 · 칸이 같다, Jira S15P31A102-190 · 194) · 이전 기록 검사 → 시험 기사 1 ~ 3 지우기 → 분석 표 일곱이 빈지 → URL 로 맞춤(발행 시각 · 본문 md5) → 새 기사 · 이슈 · 사건 · 기사-사건 · 마인드맵 · 임베딩 · 작업 → 마인드맵 있는 기사 공개 |
 | `category-labels-apply.sql` | 라벨 다시 적용 · 이슈 분야 계산 — 그대로 부른다 |
 | `classified-load-finish.sql` | 사건 없는 공개 기사 내리기 → 사건 · 이슈 시퀀스 → 단언 → `load_undo` 마무리 → `load` 지움 |
 | `classified-undo.sql` | `load_undo` 로 되돌리기. 뒤에 라벨 적용을 붙인다 |
@@ -213,7 +213,7 @@ scp newlearn:known-urls.txt C:/tmp/load-152/known-urls.txt
 ```
 
 ```bash
-python -X utf8 -I infra/server/classified_to_load.py data/classified_with_articles_1021_1108.sqlite C:/tmp/load-152/load.sql --known-urls C:/tmp/load-152/known-urls.txt
+python -X utf8 -I infra/server/classified_to_load.py data/classified_with_articles_1021_1111.sqlite C:/tmp/load-152/load.sql --known-urls C:/tmp/load-152/known-urls.txt
 ```
 
 - 다시 적재(아래) 때는 목록에서 앞 적재가 넣은 기사를 뺀다 — 한 트랜잭션 안에서 되돌리기가 그 기사를 먼저 지우니 본문이 묶음에 있어야 한다. 위 첫 명령의 SQL 만 `select url from public.article where id not in (select id from load_undo.new_article) order by id` 로 바꾼다
