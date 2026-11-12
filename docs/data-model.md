@@ -253,7 +253,7 @@ erDiagram
 - 필수 값이 빠진 기사는 저장하지 않고 이유를 돌려준다(PRD FR-1) — B2 가 400 과 `errors[]` 로 답하고, 배치가 세어 Job 로그에 남긴다(`docs/api-internal.md` 2절, Jira 153)
 - NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 실제 응답(2026-10-22, 한국어 최신 50건, AI 확인)에서는 49건에 오고 1건은 비었다. 본문에 줄바꿈이 없어 문단이 하나라 근거의 `paragraphIndex` 는 늘 0이다. 저작권 · 안내 문구가 본문 앞뒤에 붙어 오지만 원문 그대로 저장한다(워커가 문장을 나눌 때 그 구간을 뺀다). `pubDate` 에는 시간대가 없고 `pubDateTZ` 가 50건 모두 UTC 라 배치가 UTC 오프셋(`Z`)을 붙여 B2 에 보낸다(`docs/api-internal.md` 2절, 2026-11-03 최신 50건도 모두 UTC). `duplicate: true` 가 2건 있었다. 2024 데이터셋 필드는 아직 못 봤다
 - 언제 공개하나(무엇이 끝나야 화면에 보이나)는 정했다(2026-10-26 사용자, Jira 34) — 분석이 끝난 뒤(EXTRACT 결과를 처음 저장할 때). 적재할 때는 `released_at` 을 비워 둔다
-- 인덱스: 기본 키 · `url` 고유에 더해, 공개 기사(`released_at` 이 있는 행)만 담는 인덱스 둘을 둔다(V14, 2026-11-11, Jira S15P31A102-190). `(published_at desc, id desc) include (press_code)` 와 `(category_code, published_at desc, id desc)` 이다. 목록 · 개수 · 분야 수 · 검색 · 이슈 카드가 기사 표 전체 대신 이것을 읽는다. 무엇을 바꿨나와 잰 값은 마이그레이션 머리 주석 · `infra/server/perf/results.md`
+- 인덱스: 기본 키 · `url` 고유에 더해, 공개 기사(`released_at` 이 있는 행)만 담는 인덱스 둘을 둔다(V14, 2026-11-11, Jira S15P31A102-190). `(published_at desc, id desc) include (press_code)` 와 `(category_code, published_at desc, id desc)` 이다. 목록 · 개수 · 분야 수 · 검색 · 이슈 카드가 기사 표 전체 대신 이것을 읽는다. 무엇을 바꿨나와 잰 값은 마이그레이션 머리 주석 · `infra/server/perf/results.md`. 이 인덱스만 읽기가 VACUUM 뒤 바뀐 페이지를 표에서 다시 읽는 몫을 줄이려고 기사 표만 자동 VACUUM 을 넣은 행 · 죽은 행 1,000건마다 돌린다(V15, 2026-11-12, Jira S15P31A102-194)
 
 ### ingest_run — 수집 실행 기록 (F01, 2026-10-19)
 
@@ -316,6 +316,7 @@ erDiagram
 
 - `article` 에 `event_id` 칸을 두지 않고 연결 테이블로 뺐다. 여러 사건에 속하게 바뀌면 테이블은 기본 키를 (`article_id`, `event_id`)로 바꾸는 마이그레이션 하나면 된다. 다만 기사 상세(A8)의 `event` · `issue` 와 판정 결과(W1)의 `eventId` 가 하나에서 여럿으로 바뀐다. 그 응답 모양은 FE · AI 와 같은 MR 에서 고친다
 - 판정 점수 · 근거를 남길지, 기사가 몇 개 모여야 사건으로 보일지는 실험으로 정한다(5절)
+- 인덱스: 기본 키(`article_id`)에 더해 `event_id` 인덱스를, `event` 에는 `issue_id` 인덱스를 둔다(V15, 2026-11-12, Jira S15P31A102-194). 사건 몇 개의 기사, 이슈 하나 · 몇 개의 사건을 표 전체 대신 이것으로 찾는다 — 로컬에서 A5 사건 패널 · A6 · A4 사건별 수는 통째 읽기가 없어지고, A3 · A4 타임라인 · A2 최근 사건 · A25 는 한 표만 덜 읽는다. 무엇을 바꿨나와 잰 값은 마이그레이션 머리 주석 · `docs/plans/2026-11-12-issue-list-query.md`
 
 ### event_relation — 사건 사이 관계 (P1, Q25)
 

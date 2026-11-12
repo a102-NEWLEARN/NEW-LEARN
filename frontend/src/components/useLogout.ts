@@ -5,6 +5,15 @@ import { meQuery } from "@/api/members";
 import { errorDescription } from "@/components/state/ErrorState";
 import { useSnackbar } from "@/components/useSnackbar";
 
+/** 로그아웃으로 떠나는 이동에 다는 표시 — 이미 세션이 끝났으니 「저장하지 않고 나갈까요?」로 막지 않는다(마이페이지 관심 분야) */
+const LOGGING_OUT = { loggingOut: true } as const;
+
+/** 이 이동이 로그아웃으로 떠나는 것인가 — 이동의 location.state 를 본다 */
+export const isLogoutNavigation = (state: unknown) =>
+  typeof state === "object" &&
+  state !== null &&
+  (state as { loggingOut?: unknown }).loggingOut === true;
+
 /**
  * 로그아웃(A16) — 헤더 프로필 메뉴가 쓴다. 마이페이지 이름 줄에서 옮겼다 (2026-11-05, S15P31A102-182).
  * 로그아웃하면 손님이 처음 서는 랜딩으로 간다. 손님은 셸 안 화면에 남을 수 없다(RequireMember).
@@ -18,7 +27,7 @@ export function useLogout({ onError }: { onError?: () => void } = {}) {
   const mutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
-      navigate("/", { replace: true });
+      navigate("/", { replace: true, state: LOGGING_OUT });
       // 이전 회원이 받아 둔 응답을 모두 버린다 — 기사 · 이슈 응답의 bookmarked · interested 가 회원 기준이다.
       // 그다음 내 정보만 손님(null)으로 둔다. 순서를 바꾸면 null 도 지워져 랜딩이 A17 을 다시 부른다
       queryClient.removeQueries();

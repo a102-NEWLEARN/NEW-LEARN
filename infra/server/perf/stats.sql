@@ -17,3 +17,15 @@ order by relname;
 select pg_size_pretty(pg_table_size('article')) as table_size, relpages from pg_class where relname = 'article';
 select indexrelname, pg_size_pretty(pg_relation_size(indexrelid)) as size, idx_scan
 from pg_stat_user_indexes where relname = 'article' order by indexrelname;
+\echo '== 사건 · 이슈 쪽 인덱스 읽기 (누적, Jira 194 — V15 뒤 article_event_event_id_idx · event_issue_id_idx 가 bench 동안 늘어야 앱이 쓰는 것)'
+select relname, indexrelname, pg_size_pretty(pg_relation_size(indexrelid)) as size, idx_scan, idx_tup_read
+from pg_stat_user_indexes where relname in ('article_event', 'event', 'issue', 'issue_category') order by relname, indexrelname;
+\echo '== VACUUM 상태 — 공개 기사 인덱스만 읽기가 표를 다시 보러 가는 몫(Heap Fetches)이 여기서 갈린다. relallvisible 은 마지막 VACUUM · ANALYZE 때 값'
+select c.relname, c.relpages, c.relallvisible, s.n_live_tup, s.n_dead_tup, s.n_ins_since_vacuum, s.n_mod_since_analyze,
+       s.last_vacuum, s.last_autovacuum, s.autovacuum_count, s.total_autovacuum_time, s.last_analyze, s.last_autoanalyze
+from pg_class c join pg_stat_user_tables s on s.relid = c.oid
+where c.relname in ('article', 'article_event', 'event') order by c.relname;
+\echo '== 기사 표 자동 VACUUM 기준(V15 뒤 다섯) · 오래 열린 트랜잭션 — 있으면 VACUUM 이 돌아도 페이지를 다 보임으로 못 바꾼다'
+select coalesce(array_to_string(reloptions, ', '), '(없음 — 기본값)') as article_reloptions from pg_class where oid = 'article'::regclass;
+select pid, state, now() - xact_start as xact_age, backend_xmin from pg_stat_activity
+where backend_xmin is not null and pid <> pg_backend_pid() order by xact_start nulls last limit 5;

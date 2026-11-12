@@ -89,6 +89,18 @@ test("요약이 없으면 AI 생성 표시도 두지 않는다", async () => {
   expect(screen.queryByText("AI 생성")).toBeNull();
 });
 
+// 폰에서 별이 제목 첫 줄보다 4px 내려가 보였다(32px 줄과 40px 버튼의 위를 맞췄다) → 좁은 화면은 머리 오른쪽 위에 붙인다
+// (2026-11-12 사용자, Jira 195). 넓은 화면은 제목 옆 그대로. jsdom 은 미디어 쿼리 CSS 를 안 풀어 칸 자리 클래스로 본다
+test("관심 이슈 별은 좁은 화면에서 분야 줄 · 제목 오른쪽 위 칸에, 넓은 화면에서 제목 줄 옆에 둔다", async () => {
+  renderWithProviders(<Header />);
+
+  const star = await screen.findByRole("button", { name: /관심 이슈로 저장/ });
+  const heading = screen.getByRole("heading", { level: 1 });
+  expect(star.parentElement).toBe(heading.parentElement);
+  expect(star.className).toContain("max-md:row-span-2");
+  expect(star.className).toContain("md:row-start-2");
+});
+
 test("이슈를 받으면 분야 · 제목 · 요약이 차례로 떠오른다 — 움직임은 동작 줄이기를 켜면 빠진다", async () => {
   withSummary("텍사스 공장 투자를 늘리고 착공했다");
   renderWithProviders(<Header />);
@@ -96,7 +108,7 @@ test("이슈를 받으면 분야 · 제목 · 요약이 차례로 떠오른다 �
   const heading = await screen.findByRole("heading", { level: 1 });
   await screen.findByText("텍사스 공장 투자를 늘리고 착공했다");
   const order = [
-    screen.getByRole("banner").firstElementChild!,
+    screen.getByRole("banner").querySelector("p")!,
     heading.firstElementChild!,
     screen.getByText("텍사스 공장 투자를 늘리고 착공했다").parentElement!,
   ].map(enterDelay);
