@@ -27,14 +27,28 @@ export function ExpandedView({
   children,
 }: ExpandedViewProps) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next, details) => {
+        // 창 안의 탐색 설정 · 용어사전 말풍선이 먼저 받아 막은(preventDefault) Esc 는 그쪽 몫이다 — 창은 그대로 둔다.
+        // SEED 는 막힌 Esc 도 창을 닫으라고 알려서 둘이 함께 닫혔다 (EXPERIENCE.md 닫는 순서, 리뷰 Jira 195)
+        if (
+          !next &&
+          details?.reason === "escapeKeyDown" &&
+          details.event.defaultPrevented
+        )
+          return;
+        onOpenChange(next);
+      }}
+    >
       {createPortal(
         <Dialog.Positioner className="p-0">
+          {/* SEED 는 창 글을 글자마다 끊는다(break-all) — 앱 규칙(DESIGN.md Typography)대로 단어 단위로 되돌린다 */}
           <Dialog.Content
             data-drawer
             width="100vw"
             maxWidth="100vw"
-            className="h-dvh max-h-none rounded-none bg-bg-layer-default break-normal"
+            className="h-dvh max-h-none rounded-none bg-bg-layer-default break-keep [overflow-wrap:break-word]"
           >
             <div className="flex h-[52px] shrink-0 items-center gap-x2 border-b border-stroke-neutral-weak pr-x2 pl-x5 md:pl-x8">
               <Dialog.Title className="t5-bold min-w-0 flex-1 truncate text-fg-neutral">

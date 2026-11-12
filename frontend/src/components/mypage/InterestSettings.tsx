@@ -47,14 +47,18 @@ export function InterestSettings({ member, children }: InterestSettingsProps) {
   const [error, setError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
 
   const mutation = useMutation({
     mutationFn: changeCategories,
     onSuccess: (updated) => {
+      // 저장하면 바꾼 것이 없어져 버튼이 꺼진다 — 버튼에 있던 포커스가 body 로 떨어지지 않게 칩 묶음으로 옮긴다 (리뷰, Jira 195)
+      const hadFocus = document.activeElement === saveRef.current;
       queryClient.setQueryData(meQuery.queryKey, updated);
       snackbar.show("관심사를 저장했어요", "positive");
+      if (hadFocus) chipsRef.current?.focus();
     },
     onError: (cause) => {
       // 세션이 끝났다 — QueryClient 가 손님으로 바꿔 로그인 화면으로 보낸다(query-client.ts). 로그인하면 여기로 돌아온다
@@ -131,6 +135,7 @@ export function InterestSettings({ member, children }: InterestSettingsProps) {
           </p>
         )}
         <ActionButton
+          ref={saveRef}
           variant="brandSolid"
           size="large"
           className="w-full"

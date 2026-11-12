@@ -257,3 +257,42 @@ test("바꾼 채 로그아웃하면 묻지 않고 랜딩으로 간다", async ()
   await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   expect(leaveDialog()).toBeNull();
 });
+
+// 확인 창이 닫힐 때 SEED(Radix FocusScope)가 열기 전 포커스 자리(눌렀던 헤더 링크)로 포커스를 돌려준다 —
+// 다른 화면으로 갔으면 그 화면 제목(h1)에 있어야 한다 (EXPERIENCE.md Accessibility Floor, 리뷰 Jira 195)
+test("확인 창에서 나가기를 누르면 포커스가 새 화면 제목에 남는다", async () => {
+  const { section } = await openSettings();
+  fireEvent.click(chip(section, "정치"));
+  const bookmarks = within(screen.getByRole("banner")).getByRole("link", {
+    name: "나의 뉴스함",
+  });
+  bookmarks.focus();
+  fireEvent.click(bookmarks);
+  fireEvent.click(
+    within(await screen.findByRole("alertdialog")).getByRole("button", {
+      name: "나가기",
+    }),
+  );
+
+  const heading = await within(screen.getByRole("main")).findByRole("heading", {
+    level: 1,
+    name: "나의 뉴스함",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.activeElement).toBe(heading);
+});
+
+// 저장하면 버튼이 꺼진다(바꾼 것이 없다) — 버튼에 있던 포커스가 body 로 떨어지지 않게 칩 묶음으로 옮긴다 (리뷰, Jira 195)
+test("키보드로 저장하면 꺼진 버튼 대신 관심 분야 칩 묶음에 포커스가 간다", async () => {
+  saveAnswers((codes) => HttpResponse.json(saved(codes)));
+  const { section } = await openSettings();
+  fireEvent.click(chip(section, "정치"));
+  saveButton().focus();
+
+  fireEvent.click(saveButton());
+
+  await waitFor(() => expect(saveButton().disabled).toBe(true));
+  expect(document.activeElement).toBe(
+    within(section).getByRole("group", { name: "관심 분야" }),
+  );
+});

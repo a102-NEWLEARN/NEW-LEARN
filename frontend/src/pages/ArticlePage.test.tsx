@@ -399,3 +399,27 @@ test("그리지 못한 마인드맵이면 크게 보기를 두지 않는다", as
   await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요");
   expect(screen.queryByRole("button", { name: "크게 보기" })).toBeNull();
 });
+
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 크게 보기 안의 탐색 설정 창이 먼저다.
+// SEED Dialog 는 먼저 받은 쪽이 막은(preventDefault) Esc 도 받아서 창이 같이 닫혔다 (리뷰, Jira 195)
+test("크게 보기 안에서 탐색 설정을 연 채 Esc 를 누르면 설정 창만 닫히고 크게 보기는 남는다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  fireEvent.click(expandButton());
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "탐색 설정" }));
+  const settings = within(dialog).getByRole("dialog", { name: "탐색 설정" });
+
+  fireEvent.keyDown(within(settings).getByRole("switch"), { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      within(dialog).queryByRole("dialog", { name: "탐색 설정" }),
+    ).toBeNull(),
+  );
+  expect(
+    screen.getByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+  ).toBeDefined();
+});
