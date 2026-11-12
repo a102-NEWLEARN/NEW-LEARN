@@ -55,7 +55,7 @@ export const interestIssuesQuery = queryOptions({
 });
 
 // 받아 둔 응답 하나에서 이 이슈의 interested 를 바꾼다. 이슈 머리(A3)는 그 자체, 이슈 목록(A2)은 items 안에 있다.
-// 모양이 다른 응답(타임라인 등)은 그대로 둔다
+// 분야별 이슈 화면은 A2 를 쪽 넘김(pages)으로 쌓아 둔다. 모양이 다른 응답(타임라인 등)은 그대로 둔다
 function patchIssue(
   value: unknown,
   issueId: number,
@@ -75,11 +75,20 @@ function patchIssue(
       ? { ...record, items }
       : value;
   }
+  const pages: unknown = record.pages;
+  if (Array.isArray(pages)) {
+    const next = pages.map((page: unknown) =>
+      patchIssue(page, issueId, interested),
+    );
+    return next.some((page, index) => page !== pages[index])
+      ? { ...record, pages: next }
+      : value;
+  }
   return value;
 }
 
 /**
- * 별을 누른 뒤 받아 둔 이슈 응답 — 이슈 머리(A3) · 이슈 목록(A2: 홈 추천 · 사이드바) — 에서 이 이슈의 interested 를
+ * 별을 누른 뒤 받아 둔 이슈 응답 — 이슈 머리(A3) · 이슈 목록(A2: 홈 추천 · 분야별 이슈) — 에서 이 이슈의 interested 를
  * 응답대로 바꾼다. 다시 받지 않는다. 관심 이슈 목록(A25)은 들고 나는 이슈가 달라져서 새로 받게 한다 (북마크의 setBookmarked 와 같은 꼴)
  */
 export function setInterested(

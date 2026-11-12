@@ -7,7 +7,8 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { UPCOMING_CATEGORIES } from "@/api/categories";
+import { type Category, UPCOMING_CATEGORIES } from "@/api/categories";
+import type { Member } from "@/api/members";
 import { useUpcomingCategory } from "@/components/useSnackbar";
 
 export type CategoryTab = {
@@ -16,6 +17,24 @@ export type CategoryTab = {
   /** 관심 분야면 별을 붙인다 */
   marked?: boolean;
 };
+
+// 관심 분야(별) → 나머지 분야. 둘 다 A1 순서다. 준비 중 분야는 CategoryTabs 가 끝에 붙인다.
+// 홈 추천 이슈와 분야별 이슈 화면이 같은 순서를 쓴다 (EXPERIENCE.md Component Patterns 「분야 탭」)
+export function orderCategoryTabs(
+  categories: readonly Category[],
+  member: Member | null,
+): CategoryTab[] {
+  const interests = new Set(member?.categories.map((item) => item.code));
+  const toTab = (category: Category): CategoryTab => ({
+    code: category.code,
+    name: category.name,
+    marked: interests.has(category.code),
+  });
+  return [
+    ...categories.filter((item) => interests.has(item.code)).map(toTab),
+    ...categories.filter((item) => !interests.has(item.code)).map(toTab),
+  ];
+}
 
 type CategoryTabsProps = {
   /** 탭 묶음의 이름. 예: 「분야」 */
