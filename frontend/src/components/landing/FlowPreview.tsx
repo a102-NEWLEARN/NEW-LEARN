@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { BRANCHES } from "@/components/article/branches";
 import {
   SAMPLE_ARTICLE,
@@ -5,6 +6,7 @@ import {
 } from "@/components/landing/landingSample";
 import { PreviewDetail } from "@/components/landing/PreviewDetail";
 import { useCycle } from "@/components/landing/useCycle";
+import { useOnScreen } from "@/components/landing/useOnScreen";
 import { enterAt } from "@/components/motion/screenMotion";
 
 /** 강조한 잎이 바뀌는 간격 (프로토타입 v21) */
@@ -14,13 +16,16 @@ const LEAVES = SAMPLE_BRANCHES.flatMap((branch, b) =>
 );
 
 // 흐름지도 미리보기 — 기사 핵심 점 · 제목 아래 가지 넷을 번호 · 질문으로 잇고, 가지마다 잎 둘을 칩으로 둔다.
-// 2.6초마다 강조한 잎이 바뀌고 아래에 그 잎을 보인다. 칩에 마우스를 올리면 그 잎에서 멈춘다 (프로토타입 v21 LandingFlowPreview)
+// 2.6초마다 강조한 잎이 바뀌고 아래에 그 잎을 보인다. 칩에 마우스 · 포커스가 오거나 누르면 그 잎에서 멈춘다. 화면 밖이면 넘기지 않는다
+// (프로토타입 v21 LandingFlowPreview)
 export function FlowPreview() {
-  const { active, hold, release } = useCycle(LEAVES.length, CYCLE_MS);
+  const ref = useRef<HTMLDivElement>(null);
+  const onScreen = useOnScreen(ref);
+  const { active, hold, release } = useCycle(LEAVES.length, CYCLE_MS, onScreen);
   const current = LEAVES[active];
 
   return (
-    <div className="pt-x1">
+    <div ref={ref} className="pt-x1">
       <div className="flex items-center gap-x2 text-[13px]">
         <span className="font-bold text-fg-neutral">기사 흐름지도</span>
         <span className="min-w-0 truncate text-fg-neutral-muted">
@@ -73,11 +78,12 @@ export function FlowPreview() {
                         key={text}
                         type="button"
                         aria-pressed={on}
+                        onClick={() => hold(index)}
                         onMouseEnter={() => hold(index)}
                         onMouseLeave={release}
                         onFocus={() => hold(index)}
                         onBlur={release}
-                        className={`inline-flex h-[30px] max-w-full items-center gap-[6px] rounded-[8px] border-[1.5px] px-[10px] text-[12px] text-fg-neutral transition-[background-color,border-color] duration-200 ${
+                        className={`inline-flex h-[30px] max-w-full items-center gap-[6px] rounded-[8px] border-[1.5px] px-[10px] text-[12px] text-fg-neutral transition-[background-color,border-color] duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${
                           on
                             ? `font-bold ${tone.cardOn}`
                             : "border-stroke-neutral-weak bg-bg-layer-default font-semibold"

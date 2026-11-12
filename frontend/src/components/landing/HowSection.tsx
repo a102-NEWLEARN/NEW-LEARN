@@ -1,4 +1,4 @@
-import { type ReactNode, useRef } from "react";
+import { Fragment, useRef, useState } from "react";
 import { FlowPreview } from "@/components/landing/FlowPreview";
 import {
   howScene,
@@ -32,40 +32,37 @@ const SCATTER = [
   [44, 90, 2.2],
   [-10, 180, -1.6],
 ] as const;
-const STEPS = ["사건 추출", "사건 연결", "흐름지도·마인드맵"] as const;
+/** 단계 이름과 「…로 이동」 꼴(받침에 따라 로 · 으로) */
+const STEPS = [
+  ["사건 추출", "사건 추출로"],
+  ["사건 연결", "사건 연결로"],
+  ["흐름지도·마인드맵", "흐름지도·마인드맵으로"],
+] as const;
 
 // 단계마다 문장 — 프로토타입의 「달라진 주장에는 UPDATE」(F10) · 「원문 근거 문장」(F05)은 MVP 밖이라 지웠다
-const CAPTIONS: readonly [string, ReactNode, string][] = [
+const CAPTIONS: readonly [
+  eyebrow: string,
+  title: string[],
+  description: string,
+][] = [
   [
     "같은 사건, 여러 언론사의 기사",
-    `기사 ${SAMPLE_EVENT.articleCount}건이`,
+    [`기사 ${SAMPLE_EVENT.articleCount}건이`],
     "언론사마다 제목과 관점은 달라도, 모두 바이낸스 해킹이라는 같은 사건을 다룬 기사예요.",
   ],
   [
     "1단계 · 사건 추출",
-    <>
-      사건 하나로
-      <br />
-      묶이고
-    </>,
+    ["사건 하나로", "묶이고"],
     "AI가 기사에서 사건을 추출하고, 같은 사건을 다룬 기사는 하나로 묶어요. 사건을 누르면 그 기사들을 발행 순으로 볼 수 있어요.",
   ],
   [
     "2단계 · 사건 연결",
-    <>
-      이슈의 흐름 위에
-      <br />
-      놓여요
-    </>,
+    ["이슈의 흐름 위에", "놓여요"],
     "사건을 날짜순으로 이어 이슈 흐름을 만들어요. 큰 줄기는 메인 흐름, 곁가지는 서브 흐름으로 나눠 보여줘요.",
   ],
   [
     "3단계 · 흐름지도 / 마인드맵",
-    <>
-      기사 하나도
-      <br />
-      한눈에 펼쳐요
-    </>,
+    ["기사 하나도", "한눈에 펼쳐요"],
     "기사를 무슨 일이? · 왜 일어났나? · 누가 뭐라고 했나? · 앞으로는? 순서의 흐름지도와 마인드맵으로 보여줘요. AI가 만든 내용에는 ‘AI 생성’ 표시가 붙어요.",
   ],
 ];
@@ -75,14 +72,19 @@ const EASE_OUT = "cubic-bezier(.2,.8,.2,1)";
 // 스크롤 연출 ② 「어떻게 정리하나요」 — 화면에 붙은 채(410svh) 내리는 만큼: 흩어진 기사 카드 다섯이 겹쳐 모이고 →
 // 사건 카드 하나가 되고(1단계 사건 추출) → 이슈 흐름 위에 놓이고(2단계 사건 연결) → 기사 흐름지도 · 마인드맵 미리보기가
 // 나온다(3단계). 왼쪽은 단계 막대와 문장, 오른쪽은 그림 (프로토타입 v21 · 예시 사건 1450 · 기사 55961, 2026-11-12 Jira 32).
-// 단계 번호와 미리보기 탭을 누르면 그 자리로 내린다. 동작 줄이기면 붙이지 않고 마지막 장면(3단계 · 마인드맵)을 보인다
+// 단계 번호와 보기 버튼을 누르면 그 자리로 내린다. 동작 줄이기면 붙이지 않고 마지막 장면(3단계 · 마인드맵)을 보이며, 그때 보기 버튼은
+// 미리보기를 바로 바꾸고 단계 번호는 누르지 않는 표시다(옮길 장면이 없다). 화면 문장은 스크롤에 따라 바뀌어 화면 읽기에서 빼고,
+// 네 단계 문장을 처음부터 다 읽히는 숨은 목록으로 둔다 — 화면 읽기는 스크롤과 상관없이 차례로 읽는다
 export function HowSection() {
   const ref = useRef<HTMLElement>(null);
   const { progress, pinned } = useScrollProgress(ref);
   const s = howScene(progress);
+  // 붙이지 않을 때 보기 버튼으로 고른 미리보기
+  const [chosenView, setChosenView] = useState<"flow" | "map">("map");
+  const view = pinned ? s.view : chosenView;
   const jump = (target: number) => {
     const section = ref.current;
-    if (!section) return;
+    if (!section || !pinned) return;
     const top = section.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({
       top: top + target * (section.offsetHeight - window.innerHeight),
@@ -99,7 +101,7 @@ export function HowSection() {
     Math.min(
       0.92,
       (size.width || 560) / 560,
-      (height - 58) / (s.view === "map" ? 440 : 525),
+      (height - 58) / (view === "map" ? 440 : 525),
     ),
   );
 
@@ -114,6 +116,13 @@ export function HowSection() {
       <h2 id="landing-how" className="sr-only">
         어떻게 정리하나요
       </h2>
+      <ol aria-label="정리하는 차례" className="sr-only">
+        {CAPTIONS.map(([eyebrow, title, description]) => (
+          <li key={eyebrow}>
+            {eyebrow} — {title.join(" ")}. {description}
+          </li>
+        ))}
+      </ol>
       <div
         className={
           pinned
@@ -139,9 +148,14 @@ export function HowSection() {
                 className="absolute top-[13px] left-[14px] h-[3px] rounded-[2px] bg-bg-brand-accent"
                 style={{ width: `calc((100% - 28px) * ${s.track})` }}
               />
-              {STEPS.map((label, i) => {
+              {STEPS.map(([label, toLabel], i) => {
                 const reached = s.step >= i + 1;
                 const on = s.step === i + 1;
+                const circle = `inline-flex size-[29px] items-center justify-center rounded-full border-[2.5px] text-[13px] font-extrabold transition-[background-color,border-color,color,box-shadow] duration-[250ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${
+                  reached
+                    ? "border-bg-brand-accent bg-bg-brand-accent text-palette-static-white"
+                    : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-subtle"
+                } ${on ? "shadow-[0_0_0_5px_color-mix(in_srgb,var(--color-bg-brand-accent)_18%,transparent)]" : ""}`;
                 return (
                   <li
                     key={label}
@@ -153,18 +167,18 @@ export function HowSection() {
                       alignItems: ["flex-start", "center", "flex-end"][i],
                     }}
                   >
-                    <button
-                      type="button"
-                      aria-label={`${i + 1}단계 ${label}로 이동`}
-                      onClick={() => jump(STEP_TARGETS[i])}
-                      className={`inline-flex size-[29px] items-center justify-center rounded-full border-[2.5px] text-[13px] font-extrabold transition-[background-color,border-color,color,box-shadow] duration-[250ms] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring ${
-                        reached
-                          ? "border-bg-brand-accent bg-bg-brand-accent text-palette-static-white"
-                          : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-subtle"
-                      } ${on ? "shadow-[0_0_0_5px_color-mix(in_srgb,var(--color-bg-brand-accent)_18%,transparent)]" : ""}`}
-                    >
-                      {i + 1}
-                    </button>
+                    {pinned ? (
+                      <button
+                        type="button"
+                        aria-label={`${i + 1}단계 ${toLabel} 이동`}
+                        onClick={() => jump(STEP_TARGETS[i])}
+                        className={circle}
+                      >
+                        {i + 1}
+                      </button>
+                    ) : (
+                      <span className={circle}>{i + 1}</span>
+                    )}
                     <span
                       className={`text-[14px] font-bold whitespace-nowrap transition-colors duration-[250ms] ${
                         on
@@ -184,7 +198,7 @@ export function HowSection() {
               {CAPTIONS.map(([eyebrow, title, description], i) => (
                 <div
                   key={i}
-                  aria-hidden={s.step !== i}
+                  aria-hidden
                   className={i ? "absolute inset-x-0 top-0" : "relative"}
                   style={{
                     opacity: s.step === i ? 1 : 0,
@@ -200,7 +214,12 @@ export function HowSection() {
                     {eyebrow}
                   </p>
                   <p className="mt-[14px] text-[clamp(32px,4.8vw,64px)] leading-[1.18] font-extrabold tracking-[-0.045em] text-fg-neutral">
-                    {title}
+                    {title.map((line, k) => (
+                      <Fragment key={line}>
+                        {k > 0 && <br />}
+                        {line}
+                      </Fragment>
+                    ))}
                   </p>
                   <p className="mt-[20px] max-w-[460px] text-[17px] leading-[1.7] text-fg-neutral-muted max-md:mt-x3 max-md:text-[15px]">
                     {description}
@@ -371,36 +390,39 @@ export function HowSection() {
                 style={{ opacity: s.preview }}
               >
                 <div
-                  role="tablist"
+                  role="group"
                   aria-label="보기 방식"
                   className="flex shrink-0 gap-[2px] rounded-[12px] bg-bg-neutral-weak p-[3px]"
                 >
-                  {(["flow", "map"] as const).map((view) => (
+                  {(["flow", "map"] as const).map((option) => (
                     <button
-                      key={view}
+                      key={option}
                       type="button"
-                      role="tab"
-                      aria-selected={s.view === view}
-                      onClick={() => jump(VIEW_TARGETS[view])}
+                      aria-pressed={view === option}
+                      onClick={() =>
+                        pinned
+                          ? jump(VIEW_TARGETS[option])
+                          : setChosenView(option)
+                      }
                       className={`h-[34px] rounded-[9px] px-x4 text-[14px] font-bold transition-[background-color,color] duration-200 focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
-                        s.view === view
+                        view === option
                           ? "bg-bg-layer-default text-fg-neutral shadow-[0_1px_3px_rgba(17,24,39,.12)]"
                           : "text-fg-neutral-muted"
                       }`}
                     >
-                      {view === "flow" ? "흐름지도" : "마인드맵"}
+                      {option === "flow" ? "흐름지도" : "마인드맵"}
                     </button>
                   ))}
                 </div>
                 <div className="relative min-h-0 w-full flex-1">
                   <div
-                    key={s.view}
+                    key={view}
                     className="absolute top-0 left-1/2 w-[560px] origin-top motion-safe:animate-[newlearn-fade-in_260ms_var(--seed-timing-function-enter)_backwards]"
                     style={{
                       transform: `translateX(-50%) translateY(${lerp(24, 0, s.preview)}px) scale(${previewScale})`,
                     }}
                   >
-                    {s.view === "flow" ? <FlowPreview /> : <MindmapPreview />}
+                    {view === "flow" ? <FlowPreview /> : <MindmapPreview />}
                   </div>
                 </div>
               </div>

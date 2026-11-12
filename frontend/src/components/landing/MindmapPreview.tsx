@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BranchType } from "@/api/mindmap";
 import { BRANCHES } from "@/components/article/branches";
 import {
@@ -7,6 +7,7 @@ import {
 } from "@/components/landing/landingSample";
 import { PreviewDetail } from "@/components/landing/PreviewDetail";
 import { useCycle } from "@/components/landing/useCycle";
+import { useOnScreen } from "@/components/landing/useOnScreen";
 import { enterAt } from "@/components/motion/screenMotion";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -73,16 +74,20 @@ const FADE =
   "motion-safe:animate-[newlearn-fade-in_400ms_var(--seed-timing-function-enter)_backwards]";
 
 // 마인드맵 미리보기 — 가운데 기사 제목에서 가지 넷 · 잎이 차례로 그려지고, 노드는 몇 px 씩 떠다닌다.
-// 2.8초마다 강조한 잎이 바뀌고 아래에 그 잎을 보인다. 잎에 마우스를 올리면 멈춘다 (프로토타입 v21 LandingMindmapHero).
-// 떠다니는 좌표는 React 밖에서 바로 고친다(랜딩 노드 그물과 같은 방식). 동작 줄이기면 멈춘 그림이고 저절로 바뀌지 않는다
+// 2.8초마다 강조한 잎이 바뀌고 아래에 그 잎을 보인다. 잎에 마우스 · 키보드 포커스가 오면 멈춘다 (프로토타입 v21 LandingMindmapHero).
+// 떠다니는 좌표는 React 밖에서 바로 고친다(랜딩 노드 그물과 같은 방식). 화면 밖이면 떠다니지도 바뀌지도 않고,
+// 동작 줄이기면 멈춘 그림이고 저절로 바뀌지 않는다
 export function MindmapPreview() {
-  const { active, hold, release } = useCycle(LEAVES.length, CYCLE_MS);
-  const current = LEAVES[active];
   const svgRef = useRef<SVGSVGElement>(null);
+  const onScreen = useOnScreen(svgRef);
+  const { active, hold, release } = useCycle(LEAVES.length, CYCLE_MS, onScreen);
+  const current = LEAVES[active];
+  // 키보드로 온 잎 — 포커스 고리를 그린다(SVG 안 g 는 브라우저 윤곽선이 고르지 않다)
+  const [focused, setFocused] = useState<number | null>(null);
 
   useEffect(() => {
     const svg = svgRef.current;
-    if (!svg || prefersReducedMotion()) return;
+    if (!svg || !onScreen || prefersReducedMotion()) return;
     const root = svg.querySelector<SVGGElement>("[data-root]");
     const branches = svg.querySelectorAll<SVGGElement>("[data-branch]");
     const leaves = svg.querySelectorAll<SVGGElement>("[data-leaf]");
@@ -125,7 +130,7 @@ export function MindmapPreview() {
     return () => {
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [onScreen]);
 
   return (
     <div className="pt-x1">
@@ -138,7 +143,7 @@ export function MindmapPreview() {
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
-        role="img"
+        role="group"
         aria-label={`${SAMPLE_ARTICLE.title} 기사를 네 갈래로 나눈 마인드맵 미리보기`}
         className="mt-x1 block w-full"
         onMouseLeave={release}
@@ -248,9 +253,30 @@ export function MindmapPreview() {
               key={`f${i}`}
               data-leaf
               transform={`translate(${leaf.x},${leaf.y})`}
-              className="cursor-pointer"
+              role="button"
+              tabIndex={0}
+              aria-label={leaf.text}
+              aria-pressed={on}
+              className="cursor-pointer outline-none"
               onMouseEnter={() => hold(i)}
+              onClick={() => hold(i)}
+              onFocus={() => {
+                setFocused(i);
+                hold(i);
+              }}
+              onBlur={() => {
+                setFocused(null);
+                release();
+              }}
             >
+              {focused === i && (
+                <circle
+                  data-focus-ring
+                  r={19}
+                  strokeWidth={2}
+                  className="fill-none stroke-stroke-focus-ring"
+                />
+              )}
               <g className={POP} style={enterAt(960 + i * 80)}>
                 <circle r={16} className="fill-transparent" />
                 <circle

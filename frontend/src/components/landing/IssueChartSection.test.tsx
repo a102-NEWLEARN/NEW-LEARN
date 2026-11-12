@@ -17,12 +17,17 @@ test("화면에 붙는 긴 구간이고, 처음에는 「뉴스는 넘쳐나는�
   const section = container.querySelector("section")!;
 
   expect(section.style.height).toBe("330svh");
-  expect(section.firstElementChild?.className).toMatch(/sticky/);
+  expect(section.lastElementChild?.className).toMatch(/sticky/);
   expect(
     screen.getByRole("heading", { level: 2, name: "뉴스는 넘쳐나는데," }),
   ).toBeDefined();
-  // 둘째 문장은 아직 화면 읽기에서도 빠져 있다
-  expect(screen.queryByRole("heading", { level: 2, name: SECOND })).toBeNull();
+  // 화면 읽기는 진행도와 상관없이 둘째 문장까지 읽는다 — 화면 문장은 스크롤로 바뀌어 늘 뺀다
+  expect(screen.getByText(SECOND).closest("[aria-hidden]")).toBeNull();
+  expect(
+    screen.getByText(
+      /기사가 가장 많은 사건은 10.30 바이낸스 가상자산 해킹 발생/,
+    ),
+  ).toBeDefined();
   expect(bars()).toHaveLength(12);
   expect(document.querySelector("[data-highlight]")).toBeNull();
 });
@@ -34,10 +39,10 @@ test("동작 줄이기를 켜면 화면에 붙이지 않고 마지막 장면 —
 
   expect(section.style.height).toBe("");
   // 차트 칸은 높이가 정해져 있다 — flex-1 이면 높이 0 으로 접혔다(11-12 화면 확인)
-  const chart = bars()[0].parentElement!.parentElement!;
+  const chart = document.querySelector("[data-chart]")!;
   expect(chart.className).toContain("h-[420px]");
   expect(chart.className).not.toContain("flex-1");
-  expect(screen.getByRole("heading", { level: 2, name: SECOND })).toBeDefined();
+  expect(screen.getByText(SECOND)).toBeDefined();
   expect(bars().at(-1)?.textContent).toContain("354건");
   const highlight = document.querySelector("[data-highlight]")!;
   expect(highlight.textContent).toContain("바이낸스 가상자산 해킹 발생");

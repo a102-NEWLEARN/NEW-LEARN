@@ -7,7 +7,7 @@ import { formatEventDate } from "@/lib/date";
 const PAD_X = "clamp(16px,3vw,32px)";
 
 type CaptionProps = {
-  /** 지금 보이는 문장인가 — 아니면 화면 읽기 · 누르기에서 뺀다 */
+  /** 지금 보이는 문장인가 — 아니면 누르기에서 뺀다 */
   current: boolean;
   /** 둘째 문장은 첫 문장 자리에 겹친다 */
   layered?: boolean;
@@ -25,7 +25,7 @@ function Caption({
 }: CaptionProps) {
   return (
     <div
-      aria-hidden={!current}
+      aria-hidden
       className={layered ? "absolute" : "relative"}
       style={{
         ...style,
@@ -39,9 +39,9 @@ function Caption({
           : {}),
       }}
     >
-      <h2 className="text-[clamp(30px,4.2vw,54px)] leading-[1.25] font-extrabold tracking-[-0.04em] text-fg-neutral">
+      <p className="text-[clamp(30px,4.2vw,54px)] leading-[1.25] font-extrabold tracking-[-0.04em] text-fg-neutral">
         {title}
-      </h2>
+      </p>
       <p className="mx-auto mt-[20px] max-w-[720px] text-[clamp(18px,1.8vw,23px)] leading-[1.6] font-medium text-fg-neutral-muted">
         {description}
       </p>
@@ -52,10 +52,21 @@ function Caption({
 const { events, cumulative, total, highlight: hi } = CHART;
 const brand = (text: string) => <span className="text-fg-brand">{text}</span>;
 
+const FIRST = {
+  title: "뉴스는 넘쳐나는데,",
+  description: "너무 많고 복잡해서, 한 이슈의 흐름을 한눈에 이해하기 어려워요.",
+};
+const SECOND = {
+  title: `기사 ${total}건, 다 읽지 않아도 사건 ${events.length}개로 정리해 흐름을 보여줘요.`,
+  // 예시 이슈는 10.30 ~ 11.08 — 열흘
+  description: "하나의 이슈를 열흘 동안 다룬 기사들을 시간 순서로 정리했어요.",
+};
+
 // 스크롤 연출 ① — 화면에 붙은 채(330svh) 내리는 만큼: 「뉴스는 넘쳐나는데,」 → 가운데 모인 막대가 펼쳐져 사건별 누적 기사 수
 // 계단이 되고 → 「기사 354건, 다 읽지 않아도 사건 12개로 정리해 흐름을 보여줘요.」 → 기사가 가장 많은 사건을 점선 · 알약으로
 // 강조한다 (프로토타입 v21 · 예시 이슈 80, 2026-11-12 Jira 32). 프로토타입의 UPDATE 강조(F10, MVP 밖)는 바꿨다.
-// 막대 그림은 장식이라 화면 읽기에서 빼고 문장이 같은 뜻을 말한다. 동작 줄이기면 붙이지 않고 마지막 장면을 보인다
+// 화면 문장 · 막대 그림은 스크롤에 따라 바뀌어 화면 읽기에서 빼고, 같은 뜻의 두 문장 · 강조 사건을 처음부터 다 읽히는 숨은 글로 둔다 —
+// 화면 읽기는 스크롤과 상관없이 차례로 읽는다. 동작 줄이기면 붙이지 않고 마지막 장면을 보인다
 export function IssueChartSection() {
   const ref = useRef<HTMLElement>(null);
   const { progress, pinned } = useScrollProgress(ref);
@@ -70,6 +81,16 @@ export function IssueChartSection() {
       className="relative border-t border-stroke-neutral-weak bg-bg-layer-default"
       style={{ height: pinned ? "330svh" : undefined }}
     >
+      <div className="sr-only">
+        <h2>{FIRST.title}</h2>
+        <p>{FIRST.description}</p>
+        <p>{SECOND.title}</p>
+        <p>{SECOND.description}</p>
+        <p>
+          기사가 가장 많은 사건은 {formatEventDate(hiEvent.occurredAt)}{" "}
+          {hiEvent.title}, 기사 {hiEvent.articleCount}건이에요.
+        </p>
+      </div>
       <div
         className={
           pinned
@@ -90,8 +111,8 @@ export function IssueChartSection() {
               opacity: 1 - frame.captionOut,
               transform: `translateY(${-32 * frame.captionOut}px)`,
             }}
-            title="뉴스는 넘쳐나는데,"
-            description="너무 많고 복잡해서, 한 이슈의 흐름을 한눈에 이해하기 어려워요."
+            title={FIRST.title}
+            description={FIRST.description}
           />
           <Caption
             current={frame.step === 1}
@@ -107,12 +128,12 @@ export function IssueChartSection() {
                 보여줘요.
               </>
             }
-            // 예시 이슈는 10.30 ~ 11.08 — 열흘
-            description="하나의 이슈를 열흘 동안 다룬 기사들을 시간 순서로 정리했어요."
+            description={SECOND.description}
           />
         </div>
         <div
           aria-hidden
+          data-chart
           // 붙이지 않을 때는 높이를 정해 둔다 — flex-1 의 기준 크기(0)가 높이를 이겨 차트가 접힌다
           className={`relative mx-auto w-full max-w-[1180px] ${pinned ? "flex-1" : "h-[420px]"}`}
         >

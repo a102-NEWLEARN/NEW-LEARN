@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { FlowPreview } from "@/components/landing/FlowPreview";
 import { SAMPLE_BRANCHES } from "@/components/landing/landingSample";
 import { MindmapPreview } from "@/components/landing/MindmapPreview";
-import { holdFrames } from "@/test/frames";
+import { holdFrames, stubOnScreen } from "@/test/frames";
 import { stubReducedMotion } from "@/test/media";
 import { expectMotionSafe } from "@/test/motion";
 
@@ -12,6 +12,7 @@ import { expectMotionSafe } from "@/test/motion";
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const LEAVES = SAMPLE_BRANCHES.flatMap((branch) => branch.items);
@@ -72,5 +73,33 @@ test("동작 줄이기를 켜면 미리보기가 저절로 바뀌지 않고 마�
 
   act(() => vi.advanceTimersByTime(2800 * 2));
   expect(detail().textContent).toContain(LEAVES[0]);
+  expect(frames.request).not.toHaveBeenCalled();
+});
+
+test("마인드맵 미리보기 — 잎에 키보드로 오면 그 잎을 강조하고 멈추며, 포커스 고리를 그린다", () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  holdFrames();
+  render(<MindmapPreview />);
+  const leaf = screen.getByRole("button", { name: LEAVES[4] });
+
+  act(() => (leaf as unknown as HTMLElement).focus());
+  expect(detail().textContent).toContain(LEAVES[4]);
+  expect(leaf.getAttribute("aria-pressed")).toBe("true");
+  expect(leaf.querySelector("[data-focus-ring]")).not.toBeNull();
+  act(() => vi.advanceTimersByTime(2800 * 2));
+  expect(detail().textContent).toContain(LEAVES[4]);
+});
+
+test("미리보기가 화면 밖이면 잎이 바뀌지 않고 마인드맵도 떠다니지 않는다 — 랜딩을 아래로 내린 때", () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  stubOnScreen(false);
+  const frames = holdFrames();
+  render(<MindmapPreview />);
+  render(<FlowPreview />);
+
+  act(() => vi.advanceTimersByTime(2800 * 2));
+  document
+    .querySelectorAll("[data-detail]")
+    .forEach((panel) => expect(panel.textContent).toContain(LEAVES[0]));
   expect(frames.request).not.toHaveBeenCalled();
 });
