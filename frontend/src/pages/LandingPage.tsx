@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { meQuery } from "@/api/members";
 import { FaqSection } from "@/components/landing/FaqSection";
 import { HeadlineMarquee } from "@/components/landing/HeadlineMarquee";
+import { IssueChartSection } from "@/components/landing/IssueChartSection";
 import { LandingClosing } from "@/components/landing/LandingClosing";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingHero } from "@/components/landing/LandingHero";
@@ -25,6 +26,7 @@ export function LandingPage() {
       <main>
         <LandingHero start={start} />
         <HeadlineMarquee />
+        <IssueChartSection />
         <TrustSection />
         <FaqSection />
       </main>
