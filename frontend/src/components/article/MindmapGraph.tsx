@@ -343,7 +343,7 @@ export function MindmapGraph({
   };
 
   // Esc — 포커스 · 강조를 푼다. 설정 팝오버처럼 먼저 받은 쪽이 preventDefault 했거나,
-  // 서랍처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
+  // 크게 보기 · 사건 시트처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
   const active = focusType !== null || selectedLeaf !== null;
   const releaseRef = useRef(releaseAll);
   useLayoutEffect(() => {

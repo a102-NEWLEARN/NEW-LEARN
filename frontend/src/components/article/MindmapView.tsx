@@ -179,7 +179,7 @@ function GraphSettings({ showLabels, onShowLabels }: GraphSettingsProps) {
     if (!open) return;
     panelRef.current?.querySelector<HTMLElement>("input")?.focus();
     // 캡처 단계 — 그래프의 Esc(포커스 · 강조 풀기)보다 먼저 이 창을 닫고 preventDefault 로 알린다.
-    // 서랍처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (Timeline TIP 과 같다)
+    // 크게 보기 · 사건 시트처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 — 맨 위에 열린 것 하나만 닫는다 (Timeline TIP 과 같다)
     const onKeyDown = (key: KeyboardEvent) => {
       if (key.key !== "Escape" || key.isComposing) return;
       const layer = (key.target as Element | null)?.closest?.(
