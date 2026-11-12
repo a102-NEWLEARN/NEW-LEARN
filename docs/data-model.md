@@ -247,12 +247,13 @@ erDiagram
 | `category_code` | text | 아니오 · 외래 키 | 대표 카테고리 하나(MVP 개요 2-2). `category_mapping` 으로 고르고, 정치로 고른 NewsData 기사는 제목 규칙을 본다. 맞출 값이 없으면 비운다. 제목을 읽은 분야 라벨이 오면 라벨로 덮는다(`infra/server/category-labels.md`) |
 | `source_categories` | text[] | 예 | 원본 분류 목록. 데이터셋 `category_str` 은 한 줄, NewsData `category` 는 여러 개. 대응 규칙을 바꾸면 다시 계산하려고 남긴다. 없으면 빈 목록 |
 | `source_tags` | text[] | 아니오 | NewsData `ai_tag`. 데이터셋은 비운다 |
-| `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 분야 라벨로 숨기는 기사는 손으로 비운다(무엇을 숨기는지는 `infra/server/category-labels.md`). 비운 기사의 EXTRACT 결과를 저장하면 다시 찬다. AI 결과 적재는 사건에 묶인 기사를 마인드맵 없이도 채운다(`SSOT.md` 9절 2026-11-10). 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |
+| `released_at` | timestamptz | 아니오 | 공개 시각 — 화면에 보이기 시작한 때. EXTRACT 결과를 처음 저장한 때 API 가 채운다(분석이 끝난 기사부터 보인다, 2026-10-26 사용자, Jira 34). 다시 분석해도 그대로다. 분야 라벨로 숨기는 기사는 손으로 비운다(무엇을 숨기는지는 `infra/server/category-labels.md`). 비운 기사의 EXTRACT 결과를 저장하면 다시 찬다. AI 결과 적재도 마인드맵이 있는 기사만 채운다(`SSOT.md` 9절 2026-11-10). 비어 있으면 모든 조회 · 집계 · 검색에서 없는 것으로 본다(`docs/api.md` 1절). 투입(B1)은 분석만 건다(`docs/api-internal.md` 2절) |
 | `created_at` | timestamptz | 예 | 적재 시각 |
 
 - 필수 값이 빠진 기사는 저장하지 않고 이유를 돌려준다(PRD FR-1) — B2 가 400 과 `errors[]` 로 답하고, 배치가 세어 Job 로그에 남긴다(`docs/api-internal.md` 2절, Jira 153)
 - NewsData Basic 요금제는 본문 전체(`content`)를 준다(가격표, 2026-10-19 확인). 실제 응답(2026-10-22, 한국어 최신 50건, AI 확인)에서는 49건에 오고 1건은 비었다. 본문에 줄바꿈이 없어 문단이 하나라 근거의 `paragraphIndex` 는 늘 0이다. 저작권 · 안내 문구가 본문 앞뒤에 붙어 오지만 원문 그대로 저장한다(워커가 문장을 나눌 때 그 구간을 뺀다). `pubDate` 에는 시간대가 없고 `pubDateTZ` 가 50건 모두 UTC 라 배치가 UTC 오프셋(`Z`)을 붙여 B2 에 보낸다(`docs/api-internal.md` 2절, 2026-11-03 최신 50건도 모두 UTC). `duplicate: true` 가 2건 있었다. 2024 데이터셋 필드는 아직 못 봤다
 - 언제 공개하나(무엇이 끝나야 화면에 보이나)는 정했다(2026-10-26 사용자, Jira 34) — 분석이 끝난 뒤(EXTRACT 결과를 처음 저장할 때). 적재할 때는 `released_at` 을 비워 둔다
+- 인덱스: 기본 키 · `url` 고유에 더해, 공개 기사(`released_at` 이 있는 행)만 담는 인덱스 둘을 둔다(V14, 2026-11-11, Jira S15P31A102-190). `(published_at desc, id desc) include (press_code)` 와 `(category_code, published_at desc, id desc)` 이다. 목록 · 개수 · 분야 수 · 검색 · 이슈 카드가 기사 표 전체 대신 이것을 읽는다. 무엇을 바꿨나와 잰 값은 마이그레이션 머리 주석 · `infra/server/perf/results.md`
 
 ### ingest_run — 수집 실행 기록 (F01, 2026-10-19)
 

@@ -1,6 +1,6 @@
 # 경보 — Alertmanager → Mattermost
 
-Alertmanager 가 우리 경보 일곱(`infra/k8s/alerts/rules.yaml`)만 Mattermost 「A102 배포알림」 채널로 보낸다. 차트 기본 경보는 평가만 하고 채널로는 안 보낸다 — 받는 길은 `infra/k8s/bootstrap/monitoring-values.yaml` 의 `alertmanager.config`. 왜 · 무엇을 고르나는 계획 `docs/plans/2026-10-30-alertmanager-mattermost.md`(Jira S15P31A102-138). 모니터링 설치는 `infra/server/README.md` 「모니터링」.
+Alertmanager 가 우리 경보 열(`infra/k8s/alerts/rules.yaml`)만 Mattermost 「A102 배포알림」 채널로 보낸다. 차트 기본 경보는 평가만 하고 채널로는 안 보낸다 — 받는 길은 `infra/k8s/bootstrap/monitoring-values.yaml` 의 `alertmanager.config`. 왜 · 무엇을 고르나는 계획 `docs/plans/2026-10-30-alertmanager-mattermost.md`(Jira S15P31A102-138). 모니터링 설치는 `infra/server/README.md` 「모니터링」.
 
 ## 켜는 순서
 
@@ -30,7 +30,7 @@ Alertmanager 가 우리 경보 일곱(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 |---|---|---|
 | Pod | `kubectl -n monitoring get pod -l app.kubernetes.io/name=alertmanager` | Running, 재시작 0 |
 | 이어짐 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-prometheus:9090/proxy/api/v1/alertmanagers"` | `activeAlertmanagers` 하나 — 서비스 목록으로 채우는 값이라 실제로 닿는지는 아래 「보냄」으로 본다 |
-| 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 일곱이 `health: ok` |
+| 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 열이 `health: ok` |
 | 받는 곳 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts/groups"` | 기본 경보(Watchdog 등)는 `receiver.name` 이 `null` |
 | 들어오는 길 정책 | `kubectl -n monitoring get cnp alertmanager-ingress` | `VALID` True |
 | 보냄 | 「이어짐」과 같은 길의 `/api/v1/query?query=sum(increase(prometheus_notifications_errors_total%5B10m%5D))` · 같은 식의 `…_sent_total` | 오류 0 · 보냄 0 보다 큼(늘 울리는 Watchdog 도 보낸다) — 정책의 Prometheus 이름표가 틀리면 경보가 소리 없이 끊긴다(`infra/k8s/alerts/alertmanager-netpol.yaml`) |
@@ -43,6 +43,21 @@ Alertmanager 가 우리 경보 일곱(`infra/k8s/alerts/rules.yaml`)만 Mattermo
 2. 이미지 — 어떤 컨테이너도 안 쓰고 CI · 매니페스트가 부르지 않는 것만 이름으로 지운다(`sudo crictl rmi <이름>`). 다이제스트로 고정한 CI 잡 이미지(`.gitlab-ci.yml` 의 node · uv · gradle · buildpack-deps · terraform · python · kaniko · services 의 redis · pgvector)는 잡이 끝나면 「안 씀」으로 보이지만 다음 잡이 다시 받는다. 백업 CronJob 의 `amazon/aws-cli`(주 1회라 엿새는 「안 씀」으로 보인다) · `pgvector/pgvector`(`infra/k8s/services/data/postgres-backup.yaml`), pause · 러너 helper · webhook-certgen 도 남긴다. `crictl rmi --prune` 은 이것들까지 지워 쓰지 않는다
 3. Prometheus — `prometheus_tsdb_storage_blocks_bytes` 가 보존 안에서 멈춰 있나 본다. 수집 대상이 늘면 하루 증가분이 커진다
 4. 그래도 모자라면 디스크를 늘린다 — `infra/README.md` 「루트 디스크 늘리기」. 지금 크기는 `infra/terraform/variables.tf` 의 `root_volume_gb`
+
+## 로그 경보가 오면 (`NewlearnLogsDropped` · `NewlearnLogShipperMemoryHigh` · `NewlearnLogShipperDown`)
+
+셋 다 로그 수집기 Alloy(서버마다 하나) 이야기다. 구성은 `infra/server/logging.md`, 식과 까닭은 `rules.yaml` 주석(Jira S15P31A102-192). 서비스는 멀쩡하다. 로그가 Grafana › Explore 에 늦게 오거나 빠질 수 있다.
+
+- **버린 로그** — 사유(`reason`)부터 본다. 이 수는 Alloy 가 「Loki 가 받지 않았다」고 센 묶음의 줄 수다. 실제로 빠진 줄은 Loki 쪽 `kubectl get --raw /api/v1/namespaces/monitoring/services/loki:3100/proxy/metrics | grep loki_discarded_samples_total`
+  - `ingester_error`: Loki 가 429 · 5xx 가 아닌 오류(대개 400)로 답했다. Loki 는 그래도 받을 수 있는 줄은 저장하고 받는 창 밖(1시간 · 7일보다 오래된) 줄만 빼므로 실제로 빠진 줄보다 크다. 책갈피가 사라져 노드 로그를 처음부터 다시 보낼 때 흔하다
+  - `rate_limited`: Loki 상한(속도 · 스트림 수 — Loki 기본값이라 `loki-values.yaml` 에는 없다)에 걸려 429 를 받고 재시도를 다 썼다. 이건 실제로 빠진 줄이다. 어느 Pod 가 갑자기 많이 찍나 Explore 에서 `sum by (namespace, container) (bytes_over_time({namespace=~".+"}[5m]))`
+  - `stream_limited` · `queue_is_full` · `batch_too_large`: Alloy 쪽 보내기 한계(묶음 스트림 수 · 대기열 · 묶음 크기). 켠 뒤 지금까지 0 이다 — 울리면 Alloy 로그(`kubectl -n monitoring logs <Pod> -c alloy`)부터
+  - Loki 가 멈춰도 Alloy 가 재시도를 다 쓴 뒤(몇 분) 여기로 온다 — `kubectl -n monitoring get pod loki-0`
+  - Alloy 가 비정상 종료(OOMKill)로 다시 떴다면 새 줄이 없는 오래된 파일을 처음부터 다시 읽어 `ingester_error` 가 수천 줄 생길 수 있다 — 실제 손실이 아니다(`logging.md` 「겪은 것」 2026-11-11 반영). 재시작 경보가 같이 왔는지 본다
+  - 책갈피 자리 확인: `logging.md` 4절 「책갈피」 줄
+- **메모리 85%** — 프로그램이 쓰는 메모리(RSS)로 본다. `kubectl top` 은 파일 캐시까지 센 working set 이라 더 크게 나온다(관리 서버 Alloy 는 실행 파일 캐시로 0.88 까지 보였다). 컨테이너 안 `/sys/fs/cgroup/memory.stat` 의 `anon` 이 이 경보의 값이다. 로그 양이 늘었으면 위 Explore 식으로 어디서 늘었나 본다. 상한을 올리려면 `alloy-values.yaml` 의 `resources.limits.memory` 를 고쳐 `logging.md` 3절 alloy 명령(Go 메모리 한도는 상한의 90% 로 따라온다)
+- **멈춤** — `kubectl -n monitoring get pod -l app.kubernetes.io/name=alloy -o wide` 로 어느 노드인지, `describe pod` · `logs --previous` 로 까닭. Pod 는 Running 인데 울리면 지표 수집 실패다 — Prometheus 화면 Status › Targets 의 `monitoring/alloy`
+- 한계: 수집 대상이 통째로 사라지면(ServiceMonitor 를 지움) 버린 로그 경보는 조용하다 — job 이름이 반영 뒤에 정해져 `absent()` 를 쓰지 않았다
 
 ## 바꿀 때
 

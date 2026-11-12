@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { formatEventDate, formatFullDate } from "@/lib/date";
+import { uniqueById, uniqueCount } from "@/lib/uniqueById";
 
 type EventPanelProps = {
   eventId: number;
@@ -268,8 +269,18 @@ type RelatedArticlesProps = {
 // 관련 기사 — 발행 순 처음 5건, 더 있으면 *더 보기* 로 다음 쪽을 붙인다 (EXPERIENCE.md Component Patterns 「기사 행」)
 function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
   const pages = articles.data?.pages ?? [];
-  const items = pages.flatMap((page) => page.items);
-  const total = pages[0]?.totalElements ?? 0;
+  // 늦게 분석 · 공개된 기사가 중간에 끼면 다음 쪽이 밀려 본 기사가 다시 온다 — 처음 것만 남긴다
+  const chunks = uniqueById(pages.map((page) => page.items));
+  const items = chunks.flat();
+  // 다음 쪽이 돌려줄 수 — 마지막으로 받은 쪽 기준이라 진행 중인 사건 끝에 기사가 붙어도 음수가 되지 않는다.
+  // 그 쪽에 이미 본 기사가 다시 오면 실제로 붙는 수는 이보다 적다
+  const last = pages.at(-1);
+  const nextCount = last
+    ? Math.min(
+        last.totalElements - (last.page + 1) * last.size,
+        EVENT_ARTICLES_SIZE,
+      )
+    : 0;
 
   // *더 보기* 로 붙인 첫 기사로 포커스를 옮긴다 — 마지막 쪽이면 버튼이 사라져 포커스를 잃는다
   const listRef = useRef<HTMLUListElement>(null);
@@ -283,9 +294,27 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
     );
     links?.[from]?.focus();
   }, [items.length]);
-  const loadMore = () => {
-    focusFrom.current = items.length;
-    void articles.fetchNextPage();
+  // 사건이 바뀌면 이 목록을 새로 그린다. 같은 쿼리 관찰자가 새 사건을 가리키므로, 받던 *더 보기* 를 멈춰 새 사건의 다음 쪽을 받지 않게 한다
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  // 받은 쪽이 모두 본 기사면 새 기사가 붙을 때까지 다음 쪽을 더 받는다 (최신 기사와 같다)
+  const loadMore = async () => {
+    const from = items.length;
+    focusFrom.current = from;
+    let result = await articles.fetchNextPage();
+    while (
+      mounted.current &&
+      uniqueCount(result.data) <= from &&
+      result.hasNextPage &&
+      !result.isError
+    )
+      result = await articles.fetchNextPage();
+    if (uniqueCount(result.data) <= from) focusFrom.current = null;
   };
 
   let body: ReactNode;
@@ -300,16 +329,15 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
           className="mt-x1 divide-y divide-stroke-neutral-subtle"
         >
           {/* 한 줄씩 떠오른다 — *더 보기* 로 붙인 쪽도 그 쪽 첫 줄부터 다시 센다 */}
-          {items.map((article, index) => (
-            <ArticleRow
-              key={article.id}
-              article={article}
-              enterDelay={
-                ROW_AFTER +
-                Math.min(index % EVENT_ARTICLES_SIZE, ROW_STAGGER_MAX) * ROW_GAP
-              }
-            />
-          ))}
+          {chunks.flatMap((chunk) =>
+            chunk.map((article, at) => (
+              <ArticleRow
+                key={article.id}
+                article={article}
+                enterDelay={ROW_AFTER + Math.min(at, ROW_STAGGER_MAX) * ROW_GAP}
+              />
+            )),
+          )}
         </ul>
       );
   } else if (articles.isError && !pending) {
@@ -356,9 +384,9 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
           size="small"
           className="mt-x1"
           loading={articles.isFetchingNextPage}
-          onClick={loadMore}
+          onClick={() => void loadMore()}
         >
-          {`기사 ${Math.min(total - items.length, EVENT_ARTICLES_SIZE)}개 더 보기`}
+          {`기사 ${nextCount}개 더 보기`}
           <IconChevronDownLine aria-hidden size={14} />
         </ActionButton>
       )}

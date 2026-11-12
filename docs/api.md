@@ -14,7 +14,7 @@
 |---|---|
 | `docs/api.md` (이 문서) | 계약 지도, 공통 규칙, 오류 코드, 엔드포인트 목록과 흐름, 질문, Jira 대조 |
 | `docs/api-screen.md` | 화면용 A1 ~ A9 · A13 ~ A25 의 인자 · 응답 필드(용도 · 어디서 오나) · 예시, 마인드맵 `content` 모양 |
-| `docs/api-internal.md` | 수집 배치 적재(B2) · 투입(B1) · 작업 큐 · 워커 결과(W1)의 필드, 작업 상태 |
+| `docs/api-internal.md` | 수집 배치 적재(B2) · 투입(B1) · 자동 투입 판단 자료(B3) · 작업 큐 · 워커 결과(W1)의 필드, 작업 상태 |
 
 번호 A10 · A11 · A12 는 지운 사용자 URL 분석이 쓰던 번호라 비워 둔다. 옛 문서 · Jira 의 번호와 헷갈리지 않게 새 엔드포인트는 A14 부터 붙였다.
 
@@ -53,7 +53,7 @@ flowchart LR
 | 공개 전 기사 | `released_at` 이 빈 기사(`data-model.md` 2절)는 모든 조회 · 집계 · 검색에서 없는 것으로 본다. 단건 조회도 404 다. 투입(B1)했어도 EXTRACT 결과가 처음 저장되기 전까지는 공개 전이다(2026-10-26, Jira 34). 분야 라벨로 숨긴 기사도 같다 — 무엇을 숨기는지는 `infra/server/category-labels.md`(2026-11-05, Jira 177) |
 | 공개 기사가 없는 이슈 · 사건 | 공개 기사가 하나도 없는 사건, 그런 사건뿐인(또는 사건이 없는) 이슈는 화면 조회 · 집계 · 검색에서 없는 것으로 본다. 단건 조회는 404 다(A3 · A4 `ISSUE_NOT_FOUND`, A5 · A6 `EVENT_NOT_FOUND`). A23 관심 이슈 저장도 404 이고 A24 해제는 그대로 200 이다. 일부 기사만 숨겨진 사건은 그대로 두고 숨긴 기사만 셈에서 뺀다. 행은 지우지 않아 기사가 다시 공개되면 이슈 · 사건 · 관심 이슈가 돌아온다(2026-11-09, Jira S15P31A102-179). 판정 조각은 `backend/src/main/java/kr/io/newlearn/common/PublicEventSql.java` |
 | 오류 | RFC 9457 Problem Details(`application/problem+json`) + `code`. Spring 의 `ProblemDetail` 타입을 쓴다. 컨트롤러 예외는 `@RestControllerAdvice`, 인증 · 권한 오류는 Security 진입점에서 같은 모양으로 만든다 — 그래야 모든 오류에 `code` 가 붙는다 |
-| 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) · 북마크 · 관심 이슈(A20 ~ A25)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 번호표 쿠키가 없는 요청이면 어느 응답에든 새 번호표 쿠키가 붙는다 — 화면은 앱이 뜰 때 부르는 GET(A1 · A17 등) 응답으로 첫 번호표를 받고, 가입 · 로그인 · 로그아웃 때 번호표가 새로 바뀐다. 세션 쿠키 이름은 `SESSION`(`HttpOnly`)이고 로그인한 때부터 하루 남는다(쿠키 `Max-Age` 1일 · Redis 세션 비활동 만료 1일) — 브라우저를 닫아도 하루는 로그인이 남는다. 두 쿠키 모두 `SameSite=Lax` 이고 사이트에서는 `Secure` 다(2026-10-26 Jira 62). 어느 주소를 로그인 없이 여는지는 `backend` 의 `SecurityConfig` 한 곳에 있다(Jira 100). Swagger 화면(`/swagger-ui.html`)과 OpenAPI 문서(`/v3/api-docs`)도 개발하는 동안 로그인 없이 연다 — 코드에서 만든 사본이라 계약의 원본은 이 문서다. 내부 API 는 문서에서도 뺀다. 다시 잠글지는 `SSOT.md` 8절(Jira 107). 로그인 실패 잠금(5번 틀리면 1분)은 `api-screen.md` A15. 내부 API(`/internal/v1`)는 세션 · CSRF 번호표 없이 출입증 두 장으로 연다 — 워커 키는 W1, 배치 키는 B2 · B1 만 열고(2026-11-03 Jira 153), `X-Internal-Key` 헤더로 보낸다. 출입증이 없거나 틀리면 401, 남의 문 출입증이면 403 이다. 키는 env `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` 로 받는다 — 사이트는 봉인 Secret `internal-api` 를 Jira 30 의 Infra 작업에서 넣고, 넣기 전에는 비어 모두 막힌다(2026-10-26 Jira 30, `backend` 의 `InternalApiSecurityConfig`). 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전은 입구(Envoy)가 손님 IP 마다 1분 100 · 300 · 100건으로 막는다(가입 · 로그인은 처음 10 · 20, 2026-10-30 Jira 137) — 넘으면 429 `RATE_LIMITED`(2절, `SSOT.md` 6절 「외부 입구」, 2026-10-29 Jira 135) |
+| 인증 | 둘러보기(A1 ~ A9 · A13) · 가입 · 로그인 · 용어사전은 로그인 없이 쓴다. 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) · 북마크 · 관심 이슈(A20 ~ A25)는 로그인이 필요하다. 로그인 유지는 세션 쿠키이고 세션은 Redis 에 둔다 — 배포로 API Pod 가 바뀌어도 로그인이 남는다. JWT 는 쓰지 않는다: 화면이 하나 · 주소가 같고, 로그아웃하면 바로 끊겨야 해서다(2026-10-21). CSRF 는 번호표 쿠키(Spring Security `csrf.spa()`)로 막는다 — 서버가 `XSRF-TOKEN` 쿠키를 주고, 화면은 POST · PUT · DELETE 때 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보낸다. axios 기본값과 같은 이름이라 화면이 헤더를 직접 붙이지 않는다. 번호표가 없거나 틀리면 403 이다. 번호표 쿠키가 없는 요청이면 어느 응답에든 새 번호표 쿠키가 붙는다 — 화면은 앱이 뜰 때 부르는 GET(A1 · A17 등) 응답으로 첫 번호표를 받고, 가입 · 로그인 · 로그아웃 때 번호표가 새로 바뀐다. 세션 쿠키 이름은 `SESSION`(`HttpOnly`)이고 로그인한 때부터 하루 남는다(쿠키 `Max-Age` 1일 · Redis 세션 비활동 만료 1일) — 브라우저를 닫아도 하루는 로그인이 남는다. 두 쿠키 모두 `SameSite=Lax` 이고 사이트에서는 `Secure` 다(2026-10-26 Jira 62). 어느 주소를 로그인 없이 여는지는 `backend` 의 `SecurityConfig` 한 곳에 있다(Jira 100). Swagger 화면(`/swagger-ui.html`)과 OpenAPI 문서(`/v3/api-docs`)도 개발하는 동안 로그인 없이 연다 — 코드에서 만든 사본이라 계약의 원본은 이 문서다. 내부 API 는 문서에서도 뺀다. 다시 잠글지는 `SSOT.md` 8절(Jira 107). 로그인 실패 잠금(5번 틀리면 1분)은 `api-screen.md` A15. 내부 API(`/internal/v1`)는 세션 · CSRF 번호표 없이 출입증 두 장으로 연다 — 워커 키는 W1, 배치 키는 B2 · B1 · B3 만 열고(2026-11-03 Jira 153, B3 는 2026-11-11 Jira 156), `X-Internal-Key` 헤더로 보낸다. 출입증이 없거나 틀리면 401, 남의 문 출입증이면 403 이다. 키는 env `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` 로 받는다 — 사이트는 봉인 Secret `internal-api` 를 Jira 30 의 Infra 작업에서 넣고, 넣기 전에는 비어 모두 막힌다(2026-10-26 Jira 30, `backend` 의 `InternalApiSecurityConfig`). 로그인 없이 부르는 A14 가입 · A15 로그인 · A19 용어사전은 입구(Envoy)가 손님 IP 마다 1분 100 · 300 · 100건으로 막는다(가입 · 로그인은 처음 10 · 20, 2026-10-30 Jira 137) — 넘으면 429 `RATE_LIMITED`(2절, `SSOT.md` 6절 「외부 입구」, 2026-10-29 Jira 135) |
 | 내 상태 칸 | 기사 응답(A6 · A7 · A8 · A22)의 `bookmarked`, 이슈 응답(A2 · A3 · A25)의 `interested` 는 세션 회원 기준이고 손님이면 false 다(2026-10-26 Jira 114). 같은 주소라도 로그인 여부로 응답이 다르다. 응답을 캐시하게 되면 회원 공통 부분만 캐시하고 두 칸은 캐시 밖에서 덧씌운다 |
 
 목록 응답
@@ -182,6 +182,7 @@ flowchart LR
   R --> D["/dictionary — A19 용어사전(화면은 안 씀) · /dictionary/meaning A26 문맥 뜻"]
   R2["/internal/v1 (배치 · 워커만)"] --> B2["/articles — B2 적재"]
   R2 --> B1["/articles/{articleId}/release — B1 투입"]
+  R2 --> B3["/articles/release-candidates — B3 자동 투입 판단 자료"]
   R2 --> W1["/analysis-jobs/{jobId}/result — W1 결과 전달"]
 ```
 
@@ -212,6 +213,7 @@ flowchart LR
 | A26 | `POST /api/v1/dictionary/meaning` | 드래그한 말의 문맥 뜻 하나 — 기사 · 이슈 · 사건 화면의 「의미」 말풍선, SSAFY GMS (F13 용어사전, Jira 187) |
 | B2 | `POST /internal/v1/articles` | 수집 배치의 기사 적재 — `docs/api-internal.md` (F01 뉴스 데이터 적재·조회, Jira 153) |
 | B1 | `POST /internal/v1/articles/{articleId}/release` | 수집 배치의 기사 투입 — `docs/api-internal.md` |
+| B3 | `GET /internal/v1/articles/release-candidates` | 수집 배치의 자동 투입 판단 자료(오늘 건 수 · EXTRACT 대기 · 후보) — `docs/api-internal.md` (Jira 156) |
 | W1 | `POST /internal/v1/analysis-jobs/{jobId}/result` | 워커의 분석 결과 전달 — `docs/api-internal.md` |
 
 흐름 A — 카테고리에서 시작 (MVP 개요 5장). 둥근 상자는 사용자 행동, 네모 상자는 그때 화면이 부르는 API 와 받는 것이다. 홈은 따로 두지 않고 A1 · A2 · A7 을 쓴다.
