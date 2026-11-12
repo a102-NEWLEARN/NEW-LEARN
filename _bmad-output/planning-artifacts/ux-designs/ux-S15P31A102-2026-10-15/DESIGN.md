@@ -271,12 +271,13 @@ SEED 원래 값은 `@seed-design/css` 3.0.2 의 라이트 값이다 (2026-10-19 
 
 ## Typography
 
-**글꼴과 텍스트 스타일 체계는 SEED 그대로다.** SEED 에 없는 텍스트 스타일은 아래 두 가지뿐이다.
+**글꼴과 텍스트 스타일 체계는 SEED 그대로다.** SEED 에 없는 텍스트 스타일은 아래 세 가지뿐이다.
 
 | 텍스트 스타일 | 값 | SEED 와 다른 점 | 쓰는 곳 |
 | --- | --- | --- | --- |
 | `pattern-body-sm` | 14px / 줄 높이 20px | SEED t4 는 줄 높이 19px | 이슈 카드 최근 사건, 좁은 기사 목록 제목, 타임라인 설명 · 곁가지 제목(곁가지 제목만 굵기 500) |
 | `status-label` | 11px / 15px / 700, 자간 0.02em | SEED t1Bold 에 자간을 더함 | 상태 라벨 NEW · REPEAT · UPDATE · CONFLICT |
+| 랜딩 큰 글자 | 화면 폭에 따라 크기가 변한다(`clamp`) — 첫 화면 NEW:LEARN 56 ~ 128px / 1.08, 섹션 제목 28 ~ 72px / 1.18 ~ 1.3, 스크롤 연출 문장 30 ~ 64px. 굵기 800, 자간 −0.03 ~ −0.05em | SEED 최대 t14(48px)보다 크고 폭에 따라 변한다 | 랜딩만 (프로토타입 v21 값, 2026-11-12 S15P31A102-32). NEW:LEARN 의 쌍점은 `fg-brand-accent` |
 
 글꼴은 SEED 의 시스템 글꼴 순서를 쓴다. macOS · iOS · Android 는 시스템 기본 글꼴, Windows 는 Pretendard 다.
 SEED 는 글꼴 파일을 함께 주지 않고 `body` 에 자동으로 걸지도 않는다. 웹 서비스라서 Pretendard 웹폰트를 직접 불러오고 `body` 에 SEED 글꼴 순서를 건다.

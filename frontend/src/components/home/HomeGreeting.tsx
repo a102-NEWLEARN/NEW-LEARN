@@ -1,5 +1,6 @@
 import { Skeleton } from "@seed-design/react";
 import type { Member } from "@/api/members";
+import { useTypewriter } from "@/components/motion/useTypewriter";
 import { formatLongDate, kstHour } from "@/lib/date";
 
 type HomeGreetingProps = {
@@ -16,10 +17,49 @@ function greetingFor(hour: number) {
   return "오늘 하루도 수고했어요";
 }
 
+// 찍는 동안 · 다 찍은 뒤 잠깐 끝에 깜빡이는 막대 커서. 장식이라 화면 읽기에서 뺀다
+const CARET =
+  "ml-px inline-block h-[1em] w-[2px] bg-fg-neutral-muted align-[-0.15em] motion-safe:animate-[newlearn-caret_800ms_steps(1,end)_infinite]";
+
+// 인사 줄을 타자 치듯 찍는다 (useTypewriter, 2026-11-12 사용자). 가운데 맞춤이라 글자가 늘 때 줄이 흔들리지 않게
+// 전체 문장을 투명하게 깔아 자리를 잡고 그 위에 찍히는 글을 겹친다. 투명한 문장이 화면 읽기에 전체 문장을 준다
+function TypedLine({ text }: { text: string }) {
+  const { shown, typing, caret } = useTypewriter(text);
+  const cursor = caret && <span aria-hidden data-caret className={CARET} />;
+
+  return (
+    <p className="t3-medium text-fg-neutral-muted">
+      {typing ? (
+        <span className="inline-grid">
+          <span className="col-start-1 row-start-1 pr-[3px] opacity-0">
+            {text}
+          </span>
+          <span
+            aria-hidden
+            data-typing
+            className="col-start-1 row-start-1 text-left"
+          >
+            {shown}
+            {cursor}
+          </span>
+        </span>
+      ) : (
+        <>
+          {text}
+          {cursor}
+        </>
+      )}
+    </p>
+  );
+}
+
 // 홈 맨 위 — 인사 줄 · 제목 · 안내 한 줄 (프로토타입 v21). 검색창은 그 아래 SearchBox
 export function HomeGreeting({ member, pending }: HomeGreetingProps) {
   const now = new Date();
   const today = formatLongDate(now);
+  const line = member
+    ? `${member.name}님, ${greetingFor(kstHour(now))} · ${today}`
+    : today;
 
   return (
     <>
@@ -31,11 +71,8 @@ export function HomeGreeting({ member, pending }: HomeGreetingProps) {
           className="mx-auto"
         />
       ) : (
-        <p className="t3-medium text-fg-neutral-muted">
-          {member
-            ? `${member.name}님, ${greetingFor(kstHour(now))} · ${today}`
-            : today}
-        </p>
+        // 글이 바뀌면(시간대 인사가 넘어가면) 처음부터 다시 찍는다
+        <TypedLine key={line} text={line} />
       )}
       {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell).
           제목 · 부제는 줄 길이를 고르게 꺾는다 — 좁은 화면에서 「보세요.」 한 단어만 다음 줄로 넘어갔다 */}

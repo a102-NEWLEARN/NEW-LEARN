@@ -183,35 +183,42 @@ body {
   }
 }
 
-/* 랜딩 인사 문구 — 아래에서 떠올라 머물다 위로 사라진다 (does.kr 채용 화면 참고).
-   2초 가까운 연출이라 「큰 움직임 250~300ms」의 예외다. 동작 줄이기를 켜면 인사 자체를 띄우지 않는다 (GreetingIntro) */
-@keyframes newlearn-greeting-text {
-  0% {
-    transform: translateY(32px);
-    opacity: 0;
-  }
-  30%,
-  72% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-32px);
-    opacity: 0;
+/* 랜딩 첫 화면 NEW:LEARN 글자가 줄 아래에서 올라온다 — 줄을 감싼 칸이 넘친 부분을 가린다 (components/landing/LandingHero.tsx).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+@keyframes newlearn-line-up {
+  from {
+    transform: translateY(105%);
   }
 }
 
-/* 인사가 끝나면 브랜드 색 막이 위로 걷힌다 */
-@keyframes newlearn-greeting-lift {
-  to {
-    transform: translateY(-100%);
-  }
-}
-
-/* 랜딩 첫 화면 글 · 가입 질문이 아래에서 떠오른다. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+/* 가입 질문이 아래에서 떠오른다. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
 @keyframes newlearn-rise {
   from {
     transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+/* 랜딩 기사 제목 띠 — 같은 제목을 두 번 이어 둔 줄을 절반만큼 옮겨 끊김 없이 돈다 (components/landing/HeadlineMarquee.tsx).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+@keyframes newlearn-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* 랜딩 첫 화면 「어떻게 정리하나요」 화살표가 위아래로 까딱인다 (components/landing/LandingHero.tsx).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+@keyframes newlearn-bob {
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+/* 홈 인사 줄을 타자 치듯 찍는 동안 · 다 찍은 뒤 잠깐, 끝의 막대 커서가 깜빡인다 (components/motion/useTypewriter.ts).
+   동작 줄이기를 켜면 커서를 두지 않는다 */
+@keyframes newlearn-caret {
+  50% {
     opacity: 0;
   }
 }
