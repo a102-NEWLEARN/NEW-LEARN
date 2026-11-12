@@ -1,3 +1,4 @@
+import { IconArrowUpRightArrowDownLeftLine } from "@karrotmarket/react-monochrome-icon";
 import {
   Skeleton,
   TabsContent,
@@ -19,6 +20,7 @@ import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ApiError } from "@/api/error";
 import { type Mindmap, mindmapQuery } from "@/api/mindmap";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
+import { ExpandedView } from "@/components/article/ExpandedView";
 import { FlowView } from "@/components/article/FlowView";
 import {
   INITIAL_MINDMAP_SETTINGS,
@@ -45,6 +47,12 @@ const toView = (raw: string | null): View =>
 
 const isArticleNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "ARTICLE_NOT_FOUND";
+
+// 그릴 수 있는 마인드맵인가 — 아는 판이고 가지가 하나 이상
+const drawable = (mindmap: Mindmap | undefined): mindmap is Mindmap =>
+  mindmap !== undefined &&
+  mindmap.schemaVersion === KNOWN_SCHEMA &&
+  mindmap.branches.length > 0;
 
 const isMindmapNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "MINDMAP_NOT_FOUND";
@@ -102,6 +110,35 @@ function ArticleView({ articleId }: { articleId: number }) {
     });
   }, [view]);
 
+  // 크게 보기 — 그린 보기가 있을 때만 탭 줄 오른쪽 끝에 버튼을 두고, 누르면 지금 보기를 화면을 꽉 채운 창으로 다시 그린다
+  // (2026-11-12 사용자, Jira 195). 숨긴 가지 · 라벨 표시는 여기서 들고 있어 창에서도 같다. 확대 · 포커스 · 강조는 창에서 새로 시작한다
+  const [expanded, setExpanded] = useState(false);
+  const drawn = drawable(mindmap.data) ? mindmap.data : null;
+  const renderView = (
+    which: View,
+    { title, branches, aiGenerated }: Mindmap,
+    fill = false,
+  ) =>
+    which === "flow" ? (
+      <FlowView
+        articleId={articleId}
+        title={title}
+        branches={branches}
+        aiGenerated={aiGenerated}
+        fill={fill}
+      />
+    ) : (
+      <MindmapView
+        articleId={articleId}
+        title={title}
+        branches={branches}
+        aiGenerated={aiGenerated}
+        settings={mapSettings}
+        onSettingsChange={setMapSettings}
+        fill={fill}
+      />
+    );
+
   if (notFound)
     return <NotFoundPage title={NOT_FOUND_TITLE} focusTitle={titleFocused} />;
 
@@ -134,6 +171,23 @@ function ArticleView({ articleId }: { articleId: number }) {
             </TabsTrigger>
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
+          {drawn && (
+            <button
+              type="button"
+              aria-label="크게 보기"
+              title="크게 보기"
+              aria-haspopup="dialog"
+              // 창을 닫으면 SEED(Radix FocusScope)가 열기 전 포커스 자리로 돌려준다 — 사파리는 눌러도 버튼에 포커스를 주지 않아
+              // 직접 준다. 그래야 닫은 뒤 이 버튼으로 돌아온다
+              onClick={(click) => {
+                click.currentTarget.focus();
+                setExpanded(true);
+              }}
+              className="ml-auto flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+            >
+              <IconArrowUpRightArrowDownLeftLine aria-hidden size={18} />
+            </button>
+          )}
         </div>
         {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
         <TabsContent value="flow" className={PANEL}>
@@ -144,14 +198,7 @@ function ArticleView({ articleId }: { articleId: number }) {
               query={mindmap}
               skeleton={<FlowSkeleton />}
             >
-              {({ title, branches, aiGenerated }) => (
-                <FlowView
-                  articleId={articleId}
-                  title={title}
-                  branches={branches}
-                  aiGenerated={aiGenerated}
-                />
-              )}
+              {(drawing) => renderView("flow", drawing)}
             </MindmapBody>
           )}
         </TabsContent>
@@ -163,20 +210,20 @@ function ArticleView({ articleId }: { articleId: number }) {
               query={mindmap}
               skeleton={<MindmapSkeleton />}
             >
-              {({ title, branches, aiGenerated }) => (
-                <MindmapView
-                  articleId={articleId}
-                  title={title}
-                  branches={branches}
-                  aiGenerated={aiGenerated}
-                  settings={mapSettings}
-                  onSettingsChange={setMapSettings}
-                />
-              )}
+              {(drawing) => renderView("map", drawing)}
             </MindmapBody>
           )}
         </TabsContent>
       </TabsRoot>
+      {drawn && (
+        <ExpandedView
+          open={expanded}
+          onOpenChange={setExpanded}
+          title={article.data?.title ?? drawn.title}
+        >
+          {renderView(view, drawn, true)}
+        </ExpandedView>
+      )}
     </div>
   );
 }

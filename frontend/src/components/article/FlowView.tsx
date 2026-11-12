@@ -47,6 +47,8 @@ type FlowViewProps = {
   branches: MindmapBranch[];
   /** A9 aiGenerated — 맨 위 첫 줄에 AI 생성 표시를 붙인다 */
   aiGenerated?: boolean;
+  /** 크게 보기 창 안 — 좁은 화면에서도 이 칸이 따로 스크롤한다 */
+  fill?: boolean;
 };
 
 // 강조한 잎 — 가지 종류와 가지 안 순서
@@ -61,6 +63,7 @@ export function FlowView({
   title,
   branches,
   aiGenerated = false,
+  fill = false,
 }: FlowViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const idPrefix = useId();
@@ -92,8 +95,8 @@ export function FlowView({
       role="group"
       aria-label="기사 흐름지도"
       onClick={releaseOnEmpty}
-      // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다
-      className="@container min-h-0 flex-1 overflow-y-auto max-md:overflow-visible"
+      // 좁은 화면은 화면 전체가 스크롤한다(기사 화면) — 이 칸은 따로 스크롤하지 않는다. 크게 보기 창 안에서는 이 칸이 스크롤한다
+      className={`@container min-h-0 flex-1 overflow-y-auto ${fill ? "" : "max-md:overflow-visible"}`}
     >
       {/* 좁은 화면 — 좌우 20px, 맨 아래 96px (DESIGN.md Layout & Spacing 「스크롤 끝」) */}
       <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 @min-[1024px]:max-w-[1280px]">

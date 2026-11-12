@@ -330,3 +330,72 @@ test("보기 탭을 오가도 마인드맵의 숨긴 가지 · 라벨 표시는 
   expect(chip("원인·배경").getAttribute("aria-pressed")).toBe("false");
   expect(labels().checked).toBe(false);
 });
+
+// 크게 보기 — 흐름지도 · 마인드맵을 화면을 꽉 채운 창으로 다시 그린다 (2026-11-12 사용자, Jira 195).
+// 아이폰 사파리는 Fullscreen API 를 영상에만 허락해서 브라우저 전체 화면 대신 화면을 덮는 창이다
+const expandButton = () => screen.getByRole("button", { name: "크게 보기" });
+
+test("흐름지도를 크게 보기로 열면 기사 제목을 이름으로 한 창에 흐름지도를 다시 그리고, 작게 보기로 닫으면 버튼으로 포커스가 돌아온다", async () => {
+  renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(expandButton());
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  expect(
+    within(dialog).getByRole("group", { name: "기사 흐름지도" }),
+  ).toBeDefined();
+  expect(within(dialog).getByText("AI 생성")).toBeDefined();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "작게 보기" }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+    ).toBeNull(),
+  );
+  await waitFor(() => expect(document.activeElement).toBe(expandButton()));
+});
+
+test("마인드맵을 크게 보기로 열면 숨긴 가지가 그대로이고, Esc 로 닫힌다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  fireEvent.click(
+    within(screen.getByRole("group", { name: "가지 보기" })).getByRole(
+      "button",
+      { name: "원인·배경" },
+    ),
+  );
+
+  fireEvent.click(expandButton());
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  expect(
+    within(dialog).getByRole("group", { name: "기사 마인드맵" }),
+  ).toBeDefined();
+  expect(
+    within(within(dialog).getByRole("group", { name: "가지 보기" }))
+      .getByRole("button", { name: "원인·배경" })
+      .getAttribute("aria-pressed"),
+  ).toBe("false");
+
+  fireEvent.keyDown(dialog, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+    ).toBeNull(),
+  );
+});
+
+test("그리지 못한 마인드맵이면 크게 보기를 두지 않는다", async () => {
+  mindmapWith({ schemaVersion: "mindmap-v9" });
+  renderRoute(PATH);
+
+  await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요");
+  expect(screen.queryByRole("button", { name: "크게 보기" })).toBeNull();
+});
