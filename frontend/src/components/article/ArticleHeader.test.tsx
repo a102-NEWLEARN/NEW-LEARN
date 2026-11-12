@@ -73,7 +73,7 @@ test("이슈가 없으면 분야만, 기자가 없으면 기자를 뺀다", asyn
   expect(screen.getByText("바른신문 · 2026.10.06 14:30")).toBeDefined();
 });
 
-// 운영 기사 200건 중 12건이 기자 칸에 언론사 이름을 담아 온다(2026-11-12, Jira 32) — 「바른신문 · … · 바른신문」이 되지 않게
+// 까닭은 ArticleHeader 의 metaLine 주석
 test("기자 칸이 언론사 이름과 같으면 기자를 뺀다", async () => {
   answer({ reporter: " 바른신문 " });
   renderWithProviders(<Header />);
