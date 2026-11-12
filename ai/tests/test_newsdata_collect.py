@@ -523,5 +523,7 @@ def test_collect_notebook_bundles_its_modules_and_compiles(tmp_path):
     notebook = json.loads(out.read_text(encoding="utf-8"))
     sources = ["".join(c["source"]) for c in notebook["cells"]]
     assert "newsdata_daily.py" in sources[1] and "newsdata_dataset.py" in sources[1]
-    assert "issue_grouping.py" not in sources[1]
+    # 받은 날의 선정 기사 벡터를 같은 노트북에서 만든다(2026-11-12) — 묶기와 같은 입력 글 · 해시
+    assert "issue_grouping.py" in sources[1]
+    assert "issue_summary.py" not in sources[1]
     assert not any("pub_" in s for s in sources)
