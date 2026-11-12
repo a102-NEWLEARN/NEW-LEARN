@@ -305,3 +305,17 @@ test("기사 · 이슈 화면은 본문 높이를 채우고 화면 떠오름에�
   expect(stage.getAttribute("class")).toMatch(/(^|\s)h-full(\s|$)/);
   expect(stage.getAttribute("class")).not.toMatch(/animate-/);
 });
+
+test("분야별 이슈(/issues)는 이슈 화면(/issues/:id)과 달리 다른 화면처럼 떠오른다", async () => {
+  renderRoute("/issues?category=economy");
+
+  await within(screen.getByRole("main")).findByRole("heading", {
+    level: 1,
+    name: "분야별 이슈",
+  });
+  const stage = screen.getByRole("main").firstElementChild!;
+  expect(stage.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_300ms_/,
+  );
+  expect(stage.getAttribute("class")).not.toMatch(/(^|\s)h-full(\s|$)/);
+});
