@@ -8,7 +8,7 @@ import {
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test } from "vitest";
 import { server } from "@/mocks/node";
-import { stubScreen } from "@/test/media";
+import { resizeScreen, stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 이슈 화면 — 앱과 같은 라우트(src/routes.tsx)로 연다. 12번 이슈는 가짜 사건 8개를 가진다 (src/mocks/handlers.ts)
@@ -246,8 +246,9 @@ test("도구줄 개수가 0이면 그 항목을 뺀다", async () => {
 });
 
 // 좁은 화면의 메뉴 버튼 · 서랍(이슈 탐색)은 뺐다 — 로고가 맨 왼쪽 (2026-11-12 사용자, Jira 195).
-// 이슈는 홈 분야 탭 · 검색으로 찾는다. Ctrl/⌘+\ 도 좁은 화면에서는 아무것도 열지 않는다
-test("좁은 화면에는 메뉴 버튼 · 사이드바 · 서랍이 없고 Ctrl+\\ 도 아무것도 열지 않는다", async () => {
+// 이슈는 홈 분야 탭 · 검색으로 찾는다. Ctrl/⌘+\ 도 좁은 화면에서는 아무것도 하지 않는다 —
+// 숨은 사이드바를 몰래 펴 두면 넓어졌을 때 펼친 채로 나온다
+test("좁은 화면에는 메뉴 버튼 · 사이드바가 없고, Ctrl+\\ 를 눌러도 넓어졌을 때 사이드바는 접힌 그대로다", async () => {
   stubScreen("narrow");
   renderRoute("/issues/12");
   await title();
@@ -255,7 +256,12 @@ test("좁은 화면에는 메뉴 버튼 · 사이드바 · 서랍이 없고 Ctrl
   expect(screen.queryByRole("button", { name: "메뉴 열기" })).toBeNull();
   expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
   fireEvent.keyDown(window, { key: "\\", ctrlKey: true });
-  expect(screen.queryByRole("dialog", { name: "메뉴" })).toBeNull();
+  act(() => resizeScreen("wide"));
+
+  const sidebar = await screen.findByRole("navigation", { name: "사이드바" });
+  expect(
+    within(sidebar).getByRole("button", { name: "사이드바 펼치기" }),
+  ).toBeDefined();
 });
 
 test("넓은 화면에서 TIP 만 열려 있으면 타임라인 밖(이슈 제목)에서 누른 Esc 도 TIP 을 닫는다", async () => {
