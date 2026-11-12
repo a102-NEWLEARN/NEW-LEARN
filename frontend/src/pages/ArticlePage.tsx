@@ -122,7 +122,7 @@ function ArticleView({ articleId }: { articleId: number }) {
     which === "flow" ? (
       <FlowView
         articleId={articleId}
-        title={title}
+        summary={article.data?.summary ?? null}
         branches={branches}
         aiGenerated={aiGenerated}
         fill={fill}

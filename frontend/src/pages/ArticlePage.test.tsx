@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test, vi } from "vitest";
+import { fetchArticle } from "@/api/article";
 import type { MindmapStatus } from "@/api/types";
 import { server } from "@/mocks/node";
 import { stubScreen } from "@/test/media";
@@ -68,6 +69,17 @@ test("셸 안에 기사 헤더와 흐름지도 보기(기본)를 띄우고 탭 �
   await waitFor(() =>
     expect(document.title).toBe("한빛반도체 텍사스 공장 착공식 | NEW:LEARN"),
   );
+});
+
+// 흐름지도 머리 줄이 h1 과 같은 기사 제목이라 같은 글이 두 번 보였다 (2026-11-12 사용자 QA, Jira 197)
+test("흐름지도 머리 줄은 기사 제목이 아니라 이 기사의 AI 한 줄 요지(A8 summary)다", async () => {
+  const article = await fetchArticle(11901);
+  renderRoute(PATH);
+
+  const view = await flow();
+  expect(article.summary).toBeTruthy();
+  expect(within(view).getByText(article.summary!)).toBeDefined();
+  expect(within(view).queryByText(article.title)).toBeNull();
 });
 
 test("마인드맵 탭을 고르면 주소에 ?view=map 을 남기고 기록은 쌓지 않는다", async () => {
