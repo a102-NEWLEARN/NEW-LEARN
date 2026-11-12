@@ -118,7 +118,8 @@ test("셸 없이 첫 단계로 이름 칸과 진행 막대를 띄운다", async 
   expect(progress()).toBe("4단계 중 1단계");
   // 첫 단계에는 돌아갈 곳이 없다
   expect(screen.queryByRole("button", { name: "이전" })).toBeNull();
-  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+  // 셸(헤더) 없이 뜬다
+  expect(screen.queryByRole("link", { name: "나의 뉴스함" })).toBeNull();
   await waitFor(() => expect(document.title).toBe("회원가입 | NEW:LEARN"));
 });
 

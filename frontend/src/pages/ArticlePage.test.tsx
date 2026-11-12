@@ -1,8 +1,9 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import type { MindmapStatus } from "@/api/types";
 import { server } from "@/mocks/node";
+import { stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 앱과 같은 라우트로 연다 — 셸 · 손님 가드까지 함께 본다.
@@ -60,7 +61,7 @@ test("셸 안에 기사 헤더와 흐름지도 보기(기본)를 띄우고 탭 �
   renderRoute(PATH);
 
   expect(await heading()).toBeDefined();
-  expect(screen.getByRole("navigation", { name: "사이드바" })).toBeDefined();
+  expect(screen.getByRole("link", { name: "나의 뉴스함" })).toBeDefined();
   expect(await flow()).toBeDefined();
   expect(tab("흐름지도").getAttribute("aria-selected")).toBe("true");
   expect(screen.getByText("AI 생성")).toBeDefined();
@@ -90,6 +91,55 @@ test("주소의 ?view=map 으로 열면 마인드맵 탭이 골라져 있다", a
 
   expect(await map()).toBeDefined();
   expect(tab("마인드맵").getAttribute("aria-selected")).toBe("true");
+});
+
+// 폰에서 마인드맵 칸이 기사 머리 아래에서 시작해 가운데 원이 화면 아래 끝에 놓였다 →
+// 마인드맵 탭을 누르면 탭 줄이 맨 위에 붙을 때까지 내려 그래프 칸 전체를 보인다 (2026-11-12 사용자, Jira 195).
+// jsdom 에는 scrollIntoView 가 없어 흉내 낸다
+function spyScrollIntoView() {
+  const spy = vi.fn();
+  Element.prototype.scrollIntoView = spy;
+  onTestFinished(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+  return spy;
+}
+
+test("좁은 화면에서 마인드맵 탭을 누르면 탭 줄이 맨 위에 오게 내린다", async () => {
+  stubScreen("narrow");
+  const scroll = spyScrollIntoView();
+  renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(tab("마인드맵"));
+  await map();
+
+  await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+  expect(scroll.mock.contexts[0]).toBe(
+    screen.getByRole("tablist", { name: "보기" }).parentElement,
+  );
+  expect(scroll.mock.calls[0][0]).toMatchObject({ block: "start" });
+});
+
+test.each([
+  ["넓은 화면에서 마인드맵 탭을 눌러도", "wide", PATH, true],
+  [
+    "좁은 화면이어도 주소로 바로 연 마인드맵은",
+    "narrow",
+    `${PATH}?view=map`,
+    false,
+  ],
+] as const)("%s 내리지 않는다", async (_, width, path, click) => {
+  stubScreen(width);
+  const scroll = spyScrollIntoView();
+  renderRoute(path);
+  if (click) {
+    await flow();
+    fireEvent.click(tab("마인드맵"));
+  }
+  await map();
+
+  expect(scroll).not.toHaveBeenCalled();
 });
 
 test("마인드맵 탭에서도 같은 상태 문구를 둔다", async () => {
@@ -236,15 +286,22 @@ test("모르는 판이라 그리지 않으면 「AI 생성」을 붙이지 않�
   expect(screen.queryByText("AI 생성")).toBeNull();
 });
 
-test("두 보기 모두 그렸으면 「AI 생성」을 붙인다", async () => {
+// 「AI 생성」은 탭 줄이 아니라 그린 보기 맨 위에 하나 — 기사 머리 가까이 두면 기사를 AI 가 쓴 것처럼 읽힌다 (2026-11-12 사용자, Jira 195)
+test("두 보기 모두 그렸으면 그 보기 안에 「AI 생성」을 하나 붙인다", async () => {
   renderRoute(PATH);
   await flow();
-  expect(screen.getByText("AI 생성")).toBeDefined();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("AI 생성"),
+  ).toBeDefined();
+  expect(screen.getAllByText("AI 생성")).toHaveLength(1);
 
   fireEvent.click(tab("마인드맵"));
 
   await map();
-  expect(screen.getByText("AI 생성")).toBeDefined();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("AI 생성"),
+  ).toBeDefined();
+  expect(screen.getAllByText("AI 생성")).toHaveLength(1);
 });
 
 test("보기 탭을 오가도 마인드맵의 숨긴 가지 · 라벨 표시는 남는다", async () => {
@@ -272,4 +329,97 @@ test("보기 탭을 오가도 마인드맵의 숨긴 가지 · 라벨 표시는 
 
   expect(chip("원인·배경").getAttribute("aria-pressed")).toBe("false");
   expect(labels().checked).toBe(false);
+});
+
+// 크게 보기 — 흐름지도 · 마인드맵을 화면을 꽉 채운 창으로 다시 그린다 (2026-11-12 사용자, Jira 195).
+// 아이폰 사파리는 Fullscreen API 를 영상에만 허락해서 브라우저 전체 화면 대신 화면을 덮는 창이다
+const expandButton = () => screen.getByRole("button", { name: "크게 보기" });
+
+test("흐름지도를 크게 보기로 열면 기사 제목을 이름으로 한 창에 흐름지도를 다시 그리고, 작게 보기로 닫으면 버튼으로 포커스가 돌아온다", async () => {
+  renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(expandButton());
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  expect(
+    within(dialog).getByRole("group", { name: "기사 흐름지도" }),
+  ).toBeDefined();
+  expect(within(dialog).getByText("AI 생성")).toBeDefined();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "작게 보기" }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+    ).toBeNull(),
+  );
+  await waitFor(() => expect(document.activeElement).toBe(expandButton()));
+});
+
+test("마인드맵을 크게 보기로 열면 숨긴 가지가 그대로이고, Esc 로 닫힌다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  fireEvent.click(
+    within(screen.getByRole("group", { name: "가지 보기" })).getByRole(
+      "button",
+      { name: "원인·배경" },
+    ),
+  );
+
+  fireEvent.click(expandButton());
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  expect(
+    within(dialog).getByRole("group", { name: "기사 마인드맵" }),
+  ).toBeDefined();
+  expect(
+    within(within(dialog).getByRole("group", { name: "가지 보기" }))
+      .getByRole("button", { name: "원인·배경" })
+      .getAttribute("aria-pressed"),
+  ).toBe("false");
+
+  fireEvent.keyDown(dialog, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+    ).toBeNull(),
+  );
+});
+
+test("그리지 못한 마인드맵이면 크게 보기를 두지 않는다", async () => {
+  mindmapWith({ schemaVersion: "mindmap-v9" });
+  renderRoute(PATH);
+
+  await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요");
+  expect(screen.queryByRole("button", { name: "크게 보기" })).toBeNull();
+});
+
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 크게 보기 안의 탐색 설정 창이 먼저다.
+// SEED Dialog 는 먼저 받은 쪽이 막은(preventDefault) Esc 도 받아서 창이 같이 닫혔다 (리뷰, Jira 195)
+test("크게 보기 안에서 탐색 설정을 연 채 Esc 를 누르면 설정 창만 닫히고 크게 보기는 남는다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  fireEvent.click(expandButton());
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "탐색 설정" }));
+  const settings = within(dialog).getByRole("dialog", { name: "탐색 설정" });
+
+  fireEvent.keyDown(within(settings).getByRole("switch"), { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      within(dialog).queryByRole("dialog", { name: "탐색 설정" }),
+    ).toBeNull(),
+  );
+  expect(
+    screen.getByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+  ).toBeDefined();
 });

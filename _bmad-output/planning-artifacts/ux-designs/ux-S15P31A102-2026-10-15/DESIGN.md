@@ -292,7 +292,7 @@ SEED 는 글꼴 파일을 함께 주지 않고 `body` 에 자동으로 걸지도
 | 스케일 | `t1`(11px) ~ `t14`(48px) × Regular · Medium · Bold | t1–t5 본문 · 보조, t6–t10 제목, t11–t14 큰 화면 대형 제목 |
 
 크기는 rem 단위(1rem = 16px)라 사용자 글자 크기 설정을 따라 커진다. 패턴마다 쓰는 단계는 각 패턴 README 에 있다.
-한글 줄은 단어 단위로 바꾼다 — `body` 에 `word-break: keep-all` 을 건다. 좁은 화면에서 「외/환당국」「시/연」처럼 단어 중간에서 끊기던 것을 막는다. 띄어쓰기 없이 칸보다 긴 말(주소 · 영문)은 `overflow-wrap: break-word` 로 칸 안에서 끊는다. SEED 아래 시트 · 옆 패널 본문은 글자 단위(`break-all`)로 끊어서 사건 시트 · 서랍에도 단어 단위를 다시 건다. 화면마다 따로 걸던 `break-keep` 은 지웠다 (2026-11-05 모바일 총점검, S15P31A102-175).
+한글 줄은 단어 단위로 바꾼다 — `body` 에 `word-break: keep-all` 을 건다. 좁은 화면에서 「외/환당국」「시/연」처럼 단어 중간에서 끊기던 것을 막는다. 띄어쓰기 없이 칸보다 긴 말(주소 · 영문)은 `overflow-wrap: break-word` 로 칸 안에서 끊는다. SEED 아래 시트 · 창(Dialog · AlertDialog) 본문은 글자 단위(`break-all`)로 끊어서 사건 시트 · 크게 보기 · 확인 창에도 단어 단위를 다시 건다(좁은 화면 서랍은 2026-11-12 뺐다, S15P31A102-195). 화면마다 따로 걸던 `break-keep` 은 지웠다 (2026-11-05 모바일 총점검, S15P31A102-175).
 가운데 맞춘 짧은 제목 · 부제(홈 인사)는 줄 길이를 고르게 꺾는다(`text-wrap: balance`) — 한 단어만 다음 줄로 넘어가지 않게. 「사건 4 · 기사 12」 같은 개수 묶음은 줄바꿈 없는 칸으로 이어 숫자만 넘어가지 않게 하고, 항목 사이 점으로 줄이 시작하지 않게 한다. 항목을 나란히 늘어놓는 줄(「새로운 이슈」)은 사이 점 대신 항목마다 앞에 4px 민트 점을 붙인다 (2026-11-05 UI 점검, S15P31A102-182).
 숫자가 세로로 줄을 맞춰야 하는 곳(카드 메타의 개수, 타임라인 날짜, 변화 카드 날짜)은 고정폭 숫자를 쓴다 (`font-variant-numeric: tabular-nums`). 변화 카드는 F10(추후 논의) 기능이다.
 
@@ -320,7 +320,7 @@ SEED 는 글꼴 파일을 함께 주지 않고 `body` 에 자동으로 걸지도
 
 | 모서리 | 쓰는 곳 |
 | --- | --- |
-| 16px `radius-r4` | 이슈 카드 · 사건 상세 패널 · 카드로 감싼 기사 리스트 · 마이페이지 섹션 |
+| 16px `radius-r4` | 이슈 카드 · 사건 상세 패널 · 카드로 감싼 기사 리스트 (마이페이지 섹션은 상자 없이 줄로 나눈다 — 2026-11-12, S15P31A102-195) |
 | 12px `radius-r3` | 원문 근거 박스 · 변화 카드(F10, 추후 논의) |
 | 8px `radius-r2` | 필터 칩 · 기사 썸네일 · 아이콘 버튼 · 변화 카드 안 근거 칸 |
 | 4px `radius-r1` | 상태 라벨 · 태그 · 선택된 타임라인 노드 |
@@ -339,7 +339,7 @@ SEED 컴포넌트(Action Button · Tabs · Chip · Dialog · Side Panel · Snack
 | 요소 | 배경 | 글자 · 테두리 | frontmatter 키 |
 | --- | --- | --- | --- |
 | 주요 버튼(CTA) | `bg-brand-solid` → 눌림 `bg-brand-solid-pressed` | 글자 `fg-on-brand-solid`(흰색) | `button-primary` · `button-primary-pressed` |
-| 보조 버튼 | `bg-layer-default` | 글자 `fg-neutral`, 테두리 `stroke-neutral-weak` (SEED `neutralOutline`). 가입 · 로그인 · 마이페이지 · 기사 머리가 모두 이 모양이다 — 회색 채움(`neutralWeak`) · 글자만(`ghost`)으로 화면마다 달랐다 (2026-11-05 UI 점검). 글자만인 버튼은 *더 보기* · *관심사 편집* 같은 작은 보조 동작에만 | — |
+| 보조 버튼 | `bg-layer-default` | 글자 `fg-neutral`, 테두리 `stroke-neutral-weak` (SEED `neutralOutline`). 가입 · 로그인 · 기사 머리(*원문 보기*) · 확인 창의 머무는 버튼(*계속 고치기*)이 모두 이 모양이다 — 회색 채움(`neutralWeak`) · 글자만(`ghost`)으로 화면마다 달랐다 (2026-11-05 UI 점검). 글자만인 버튼은 *더 보기* · *관심사 편집* 같은 작은 보조 동작에만 | — |
 | 텍스트 링크 | — | `fg-brand`, 굵기 500, 평소에는 밑줄 없음 | `text-link` |
 | 선택된 필터 칩 | `bg-brand-weak` → 눌림 `bg-brand-weak-pressed` | 글자 `fg-brand-contrast` + 16px 체크 아이콘, 1px 테두리 `stroke-brand-solid` | `filter-chip-selected` · `filter-chip-selected-pressed` |
 | 선택된 리스트 행 · 타임라인 본문 | `bg-brand-weak` | 글자색 그대로, 테두리 없음 | `list-row-selected` |

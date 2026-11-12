@@ -1,17 +1,14 @@
-import {
-  IconChevronRightSmallLine,
-  IconStarFill,
-} from "@karrotmarket/react-monochrome-icon";
+import { IconChevronRightSmallLine } from "@karrotmarket/react-monochrome-icon";
 import { Skeleton, SuffixIcon } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { Link, useSearchParams } from "react-router";
-import { type Category, categoriesQuery } from "@/api/categories";
+import { categoriesQuery } from "@/api/categories";
 import { interestIssuesQuery } from "@/api/interestIssues";
 import { type IssueSummary, issuesQuery } from "@/api/issues";
 import type { Member } from "@/api/members";
 import type { Page } from "@/api/types";
-import { type CategoryTab, CategoryTabs } from "@/components/CategoryTabs";
+import { CategoryTabs, orderCategoryTabs } from "@/components/CategoryTabs";
 import { IssueCard } from "@/components/IssueCard";
 import { CARD_RISE, cardAt, GROUP_RISE } from "@/components/motion/appMotion";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -46,21 +43,6 @@ function pickRecommended(
   ].slice(0, ISSUES_PER_TAB);
 }
 
-// 관심 분야(별) → 나머지 분야. 둘 다 A1 순서다. 준비 중 분야는 CategoryTabs 가 끝에 붙인다
-// (EXPERIENCE.md Component Patterns 「분야 탭」)
-function orderTabs(categories: Category[], member: Member | null) {
-  const interests = new Set(member?.categories.map((item) => item.code));
-  const toTab = (category: Category): CategoryTab => ({
-    code: category.code,
-    name: category.name,
-    marked: interests.has(category.code),
-  });
-  return [
-    ...categories.filter((item) => interests.has(item.code)).map(toTab),
-    ...categories.filter((item) => !interests.has(item.code)).map(toTab),
-  ];
-}
-
 // 추천 이슈 — 분야 탭과 그 분야 이슈 카드 3장 (프로토타입 v21).
 // 고른 분야는 주소 `?category=` 에 남긴다. 같은 화면 안의 선택이라 기록을 쌓지 않고 주소만 바꾼다
 // (EXPERIENCE.md 이동 규칙). 모르는 코드면 맨 앞 탭을 고른다
@@ -69,10 +51,13 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
   const categories = useQuery(categoriesQuery);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const tabs = categories.data ? orderTabs(categories.data, member) : [];
+  const tabs = categories.data
+    ? orderCategoryTabs(categories.data, member)
+    : [];
   const requested = searchParams.get("category");
-  const selected =
-    tabs.find((tab) => tab.code === requested)?.code ?? tabs[0]?.code;
+  const selectedTab = tabs.find((tab) => tab.code === requested) ?? tabs[0];
+  const selected = selectedTab?.code;
+  const selectedName = selectedTab?.name;
 
   const issues = useQuery({
     ...issuesQuery({ category: selected, size: ISSUES_PER_TAB }),
@@ -98,8 +83,6 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
       },
       { replace: true },
     );
-
-  const hasInterests = (member?.categories.length ?? 0) > 0;
 
   // A17 을 받는 동안에는 제목(「OO님을 위한」)도 탭 순서도 정해지지 않아 자리만 둔다.
   // 인사 줄(HomeGreeting)처럼, 글자가 눈앞에서 바뀌지 않게 한다
@@ -128,8 +111,8 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
 
   return (
     <section aria-labelledby={headingId}>
-      {/* 제목 · 설명 | 관심사 편집. 좁은 화면은 제목이 한 줄을 다 쓰고 그 아래에 설명 | 버튼 —
-          버튼이 제목 옆을 차지하면 360px 에서 제목이 두 줄로 꺾인다. 읽는 순서는 제목 → 설명 → 버튼 그대로다 */}
+      {/* 제목 · 설명 | 관심사 편집. 설명은 한 문장까지만, 좁은 화면은 관심사 편집을 숨겨 제목 · 설명만 둔다
+          (2026-11-12 사용자, Jira 195 — 폰 첫 화면에 글이 많았다). 관심사 편집은 마이페이지(헤더 프로필 메뉴)로도 간다 */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x3">
         <h2
           id={headingId}
@@ -137,26 +120,15 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
         >
           {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
         </h2>
-        <p className="t4-regular col-start-1 row-start-2 mt-x1 text-fg-neutral-muted">
+        <p className="t4-regular col-span-2 row-start-2 mt-x1 text-fg-neutral-muted md:col-span-1">
           여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
-          {hasInterests && (
-            <>
-              {" "}
-              <IconStarFill
-                aria-hidden
-                size={12}
-                className="inline align-baseline text-fg-brand"
-              />
-              <span className="sr-only">별표</span>는 관심 분야예요.
-            </>
-          )}
         </p>
-        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 좁은 화면 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다 */}
+        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다 */}
         <ActionButton
           asChild
           variant="ghost"
           size="small"
-          className="col-start-2 row-start-2 shrink-0 self-end md:row-span-2 md:row-start-1"
+          className="col-start-2 row-span-2 row-start-1 shrink-0 self-end max-md:hidden"
         >
           <Link to="/me">
             관심사 편집
@@ -195,20 +167,40 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                     }}
                   >
                     {(page) => (
-                      // 분야를 바꾸면 CategoryTabs 가 그 탭 칸에 새로 그려 묶음이 떠오르고 카드가 차례로 나온다 (appMotion.ts)
-                      <ul
-                        className={`mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4 ${GROUP_RISE}`}
-                      >
-                        {pick(page).map((issue, index) => (
-                          <li
-                            key={issue.id}
-                            className={CARD_RISE}
-                            style={cardAt(index)}
+                      <>
+                        {/* 분야를 바꾸면 CategoryTabs 가 그 탭 칸에 새로 그려 묶음이 떠오르고 카드가 차례로 나온다 (appMotion.ts) */}
+                        <ul
+                          className={`mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4 ${GROUP_RISE}`}
+                        >
+                          {pick(page).map((issue, index) => (
+                            <li
+                              key={issue.id}
+                              className={CARD_RISE}
+                              style={cardAt(index)}
+                            >
+                              <IssueCard issue={issue} />
+                            </li>
+                          ))}
+                        </ul>
+                        {/* 그 분야 이슈를 모두 보는 화면으로 — 카드 다음 차례에 떠오른다. N 은 A2 의 그 분야 이슈 수다
+                            (2026-11-12 사용자, Jira 196). 좁은 화면은 엄지로 누르기 쉽게 한 줄을 다 쓴다 */}
+                        <div
+                          className={`mt-x5 flex justify-center ${CARD_RISE}`}
+                          style={cardAt(pick(page).length)}
+                        >
+                          <ActionButton
+                            asChild
+                            variant="neutralOutline"
+                            size="small"
+                            className="border-stroke-neutral-weak max-md:h-[44px] max-md:w-full"
                           >
-                            <IssueCard issue={issue} />
-                          </li>
-                        ))}
-                      </ul>
+                            <Link to={`/issues?category=${selected}`}>
+                              {`${selectedName} 이슈 ${page.totalElements}개 전체보기`}
+                              <SuffixIcon svg={<IconChevronRightSmallLine />} />
+                            </Link>
+                          </ActionButton>
+                        </div>
+                      </>
                     )}
                   </QueryState>
                 )}

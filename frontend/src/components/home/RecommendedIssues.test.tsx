@@ -93,7 +93,11 @@ test("회원이면 관심 분야 탭을 앞에 두고 맨 앞 관심 분야를 �
       name: "김뉴런님을 위한 추천 이슈",
     }),
   ).toBeDefined();
-  expect(screen.getByText(/관심 분야예요/)).toBeDefined();
+  // 설명은 한 문장까지만 — 별 안내(「★는 관심 분야예요」)는 뺐다 (2026-11-12 사용자, Jira 195)
+  expect(
+    screen.getByText("여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요."),
+  ).toBeDefined();
+  expect(screen.queryByText(/관심 분야예요/)).toBeNull();
   await screen.findByRole("tablist", { name: "분야" });
   expect(tabNames()).toEqual([
     "경제, 관심 분야",
@@ -107,14 +111,16 @@ test("회원이면 관심 분야 탭을 앞에 두고 맨 앞 관심 분야를 �
   expect(await cardHrefs()).toEqual(["/issues/12", "/issues/15", "/issues/13"]);
 });
 
-test("손님이면 A1 순서대로 두고 별 안내를 빼고 첫 분야를 고른다", async () => {
+test("손님이면 A1 순서대로 두고 첫 분야를 고른다", async () => {
   const interestCalls = countInterestCalls();
   renderSection("/home", null);
 
   expect(
     screen.getByRole("heading", { level: 2, name: "추천 이슈" }),
   ).toBeDefined();
-  expect(screen.queryByText(/관심 분야예요/)).toBeNull();
+  expect(
+    screen.getByText("여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요."),
+  ).toBeDefined();
   await screen.findByRole("tablist", { name: "분야" });
   expect(tabNames()).toEqual(["정치", "사회", "경제", "국제", "IT·과학"]);
   expect(await cardHrefs()).toEqual(["/issues/21", "/issues/22"]);
@@ -169,6 +175,26 @@ test("분야에 이슈가 없으면 빈 문구를 둔다", async () => {
   renderSection();
 
   expect(await screen.findByText("이 분야의 이슈가 아직 없어요")).toBeDefined();
+  // 볼 이슈가 없으면 분야별 이슈 화면으로 보내지 않는다
+  expect(screen.queryByRole("link", { name: /전체보기/ })).toBeNull();
+});
+
+test("카드 아래 *OO 이슈 N개 전체보기* 는 고른 분야의 분야별 이슈 화면으로 간다 — N 은 그 분야 이슈 수", async () => {
+  renderSection();
+
+  // 가짜 A2 의 경제 이슈는 4개다 — 카드는 3장만 보인다
+  const all = await screen.findByRole("link", {
+    name: "경제 이슈 4개 전체보기",
+  });
+  expect(all.getAttribute("href")).toBe("/issues?category=economy");
+  expect(await cardHrefs()).toHaveLength(3);
+
+  fireEvent.click(screen.getByRole("tab", { name: "국제" }));
+
+  const world = await screen.findByRole("link", {
+    name: "국제 이슈 1개 전체보기",
+  });
+  expect(world.getAttribute("href")).toBe("/issues?category=world");
 });
 
 test("추천 이슈만 못 불러오면 탭은 두고 그 자리에 다시 시도를 둔다", async () => {
@@ -283,12 +309,13 @@ test("A17 을 받는 동안에는 제목도 탭도 그리지 않고 자리만 �
   expect(screen.queryByRole("tablist")).toBeNull();
 });
 
-test("관심사 편집은 마이페이지로 간다", () => {
+test("관심사 편집은 마이페이지로 가고, 좁은 화면에서는 숨긴다", () => {
   renderSection();
 
-  expect(
-    screen.getByRole("link", { name: "관심사 편집" }).getAttribute("href"),
-  ).toBe("/me");
+  const edit = screen.getByRole("link", { name: "관심사 편집" });
+  expect(edit.getAttribute("href")).toBe("/me");
+  // 폰에서는 머리를 제목 · 설명만으로 둔다 (2026-11-12 사용자, Jira 195). jsdom 은 미디어 쿼리 CSS 를 안 풀어 클래스로 본다
+  expect(edit.className).toContain("max-md:hidden");
 });
 
 test("카드가 45ms 간격으로 떠오르고, 분야를 바꾸면 묶음을 새로 그려 다시 떠오른다", async () => {

@@ -1,5 +1,6 @@
+import { QueryClient } from "@tanstack/react-query";
 import { expect, test } from "vitest";
-import { fetchIssues } from "@/api/issues";
+import { fetchIssues, ISSUES_PAGE_SIZE, issuesPagesQuery } from "@/api/issues";
 
 // 가짜 API 가 docs/api-screen.md A2 대로 답하는지 — 화면 테스트가 이 응답에 기댄다
 
@@ -39,4 +40,25 @@ test("없는 분야 코드는 404 CATEGORY_NOT_FOUND 다", async () => {
     status: 404,
     code: "CATEGORY_NOT_FOUND",
   });
+});
+
+test("분야별 이슈 화면 쿼리는 12개씩 받고, 마지막 쪽이면 다음 쪽이 없다", async () => {
+  const queryClient = new QueryClient();
+  const data = await queryClient.fetchInfiniteQuery(
+    issuesPagesQuery("economy"),
+  );
+
+  expect(ISSUES_PAGE_SIZE).toBe(12);
+  expect(data.pages[0].size).toBe(12);
+  expect(data.pages[0].items.map((issue) => issue.id)).toEqual([
+    15, 13, 12, 14,
+  ]);
+  expect(
+    issuesPagesQuery("economy").getNextPageParam?.(
+      data.pages[0],
+      data.pages,
+      0,
+      [0],
+    ),
+  ).toBeUndefined();
 });

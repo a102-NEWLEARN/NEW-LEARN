@@ -59,7 +59,6 @@ import {
   isTextDragClick,
   meaningProps,
 } from "@/components/meaning/meaningProps";
-import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -70,8 +69,6 @@ const ZOOM_IN = 1.25;
 // 화면에 맞추기는 여백 24 · 1.15배까지, 가지 포커스는 여백 64 · 1.7배까지 (프로토타입 v21)
 const FIT_ALL = { padding: 24, max: 1.15 };
 const FIT_BRANCH = { padding: 64, max: 1.7 };
-// 좁은 화면에서 전체에 맞출 때의 배율 범위 — 다 넣으려고 줄이면 글자를 못 읽는다 (모바일 프로토타입 v1)
-const NARROW_FIT = { min: 0.72, max: 1 };
 // 잴 수 없을 때(jsdom) 쓰는 그래프 자리 크기
 const FALLBACK_SIZE = { width: 960, height: 560 };
 // 키보드로 옮긴 노드가 가장자리에서 이만큼 안쪽에 있어야 보인다고 친다
@@ -122,6 +119,13 @@ function fitTransform(
   return zoomIdentity
     .translate(size.width / 2 - k * cx, size.height / 2 - k * cy)
     .scale(k);
+}
+
+/** 원점(가운데 기사 제목)을 가운데 둔 채 상자를 다 담는 대칭 상자 — 전체에 맞추면 가운데 원이 칸 가운데 온다 */
+function aroundOrigin(box: Box): Box {
+  const x = Math.max(-box.x0, box.x1);
+  const y = Math.max(-box.y0, box.y1);
+  return { x0: -x, y0: -y, x1: x, y1: y };
 }
 
 type MindmapGraphProps = {
@@ -213,18 +217,15 @@ export function MindmapGraph({
     (hover.type === type && (hover.leaf === null || hover.leaf === key));
   const selectedBranch = selectedLeaf ? branchOfLeaf(selectedLeaf) : null;
 
-  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 포커스 · 좁은 화면인지. 그린 뒤 옮겨 둔다
-  const narrow = useMediaQuery(NARROW_SCREEN);
+  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 포커스. 그린 뒤 옮겨 둔다
   const sizeRef = useRef<Size>({ width, height });
   const layoutRef = useRef(layout);
   const focusRef = useRef(focusType);
-  const narrowRef = useRef(narrow);
   useLayoutEffect(() => {
     sizeRef.current = { width, height };
     layoutRef.current = layout;
     focusRef.current = focusType;
-    narrowRef.current = narrow;
-  }, [width, height, layout, focusType, narrow]);
+  }, [width, height, layout, focusType]);
 
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown>>(null);
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
@@ -297,18 +298,17 @@ export function MindmapGraph({
           if (targetScale.current === next) targetScale.current = null;
         });
   };
-  // 전체나 그 가지가 다 들어오게 맞춘다.
-  // 좁은 화면의 전체는 배율을 NARROW_FIT 으로 묶고 가운데 기사 제목(원점)을 화면 가운데에 둔다 — 다 안 들어올 수 있다
+  // 전체나 그 가지가 다 들어오게 맞춘다. 전체는 어느 폭에서나 가운데 기사 제목(원점)을 칸 가운데 두고 다 담는다 —
+  // 폰에서 글자가 작아져도 전체가 보이게 (2026-11-12 사용자 「메인이 가장 가운데로」 「모두 보이게」, Jira 195).
+  // 전에는 폰에서 72% 아래로 줄이지 않아 가장자리가 잘렸고, 넓은 화면은 상자 가운데에 맞춰 원이 조금 내려가 있었다
   const fitTo = (type: BranchType | null, duration = 300) => {
-    const fitted = fitTransform(
-      boundsOf(layoutRef.current, type ?? undefined),
-      sizeRef.current,
-      type ? FIT_BRANCH : FIT_ALL,
+    const box = boundsOf(layoutRef.current, type ?? undefined);
+    apply(
+      type
+        ? fitTransform(box, sizeRef.current, FIT_BRANCH)
+        : fitTransform(aroundOrigin(box), sizeRef.current, FIT_ALL),
+      duration,
     );
-    if (type || !narrowRef.current) return apply(fitted, duration);
-    const k = Math.min(NARROW_FIT.max, Math.max(NARROW_FIT.min, fitted.k));
-    const { width: w, height: h } = sizeRef.current;
-    apply(zoomIdentity.translate(w / 2, h / 2).scale(k), duration);
   };
 
   // 처음 그릴 때와 그래프 자리 크기가 바뀔 때 — 지금 보는 것(전체 · 포커스한 가지)에 다시 맞춘다
@@ -343,7 +343,7 @@ export function MindmapGraph({
   };
 
   // Esc — 포커스 · 강조를 푼다. 설정 팝오버처럼 먼저 받은 쪽이 preventDefault 했거나,
-  // 서랍처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
+  // 크게 보기 · 사건 시트처럼 다른 창(dialog) 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
   const active = focusType !== null || selectedLeaf !== null;
   const releaseRef = useRef(releaseAll);
   useLayoutEffect(() => {

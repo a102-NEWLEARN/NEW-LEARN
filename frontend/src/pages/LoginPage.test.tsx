@@ -80,7 +80,8 @@ test("셸 없이 아이디 · 비밀번호 칸과 로그인 버튼을 띄운다"
   expect(idField().getAttribute("autocomplete")).toBe("username");
   expect(passwordField().getAttribute("type")).toBe("password");
   expect(passwordField().getAttribute("autocomplete")).toBe("current-password");
-  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+  // 셸(헤더) 없이 뜬다
+  expect(screen.queryByRole("link", { name: "나의 뉴스함" })).toBeNull();
   await waitFor(() => expect(document.title).toBe("로그인 | NEW:LEARN"));
 });
 

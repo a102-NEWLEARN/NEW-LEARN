@@ -49,8 +49,8 @@ test("/ 를 열면 셸 없이, 인사 막 없이 첫 화면을 바로 띄운다"
       "흩어진 뉴스를 연결해, 새로운 맥락을 배울 수 있는 뉴스 플랫폼",
     ),
   ).toBeDefined();
-  expect(screen.queryByText("안녕하세요!")).toBeNull();
-  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+  // 셸(헤더) 없이 뜬다
+  expect(screen.queryByRole("link", { name: "나의 뉴스함" })).toBeNull();
 });
 
 test("손님이면 서비스 시작하기 · 로그인이 로그인 화면으로 간다", async () => {
