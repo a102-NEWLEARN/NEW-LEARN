@@ -33,6 +33,10 @@ test("동작 줄이기를 켜면 화면에 붙이지 않고 마지막 장면 —
   const section = container.querySelector("section")!;
 
   expect(section.style.height).toBe("");
+  // 차트 칸은 높이가 정해져 있다 — flex-1 이면 높이 0 으로 접혔다(11-12 화면 확인)
+  const chart = bars()[0].parentElement!.parentElement!;
+  expect(chart.className).toContain("h-[420px]");
+  expect(chart.className).not.toContain("flex-1");
   expect(screen.getByRole("heading", { level: 2, name: SECOND })).toBeDefined();
   expect(bars().at(-1)?.textContent).toContain("354건");
   const highlight = document.querySelector("[data-highlight]")!;

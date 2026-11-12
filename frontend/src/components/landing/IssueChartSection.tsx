@@ -113,8 +113,8 @@ export function IssueChartSection() {
         </div>
         <div
           aria-hidden
-          className="relative mx-auto w-full max-w-[1180px] flex-1"
-          style={pinned ? undefined : { height: 420 }}
+          // 붙이지 않을 때는 높이를 정해 둔다 — flex-1 의 기준 크기(0)가 높이를 이겨 차트가 접힌다
+          className={`relative mx-auto w-full max-w-[1180px] ${pinned ? "flex-1" : "h-[420px]"}`}
         >
           <div className="absolute inset-x-[clamp(28px,8vw,128px)] top-[28px] bottom-0">
             {frame.highlight > 0.02 && (
@@ -137,6 +137,8 @@ export function IssueChartSection() {
               const last = i === events.length - 1;
               // 좁은 화면(막대 폭 30px 안팎)에서는 마지막 막대의 숫자 · 날짜만 남긴다. 그 숫자는 막대 위 바깥에 오른쪽 맞춤
               const narrowHidden = last ? "" : "max-md:hidden";
+              // 너무 낮은 막대(첫 사건 12건 ≈ 3%)는 숫자를 막대 위, 날짜 위에 올린다 — 안에 두면 바닥선 아래로 삐져나온다
+              const short = (cumulative[i] / total) * 86 < 12;
               return (
                 <div
                   key={events[i].id}
@@ -153,7 +155,7 @@ export function IssueChartSection() {
                   }}
                 >
                   <div
-                    className={`absolute top-[clamp(8px,1.2vw,16px)] right-[8px] left-[clamp(8px,1vw,16px)] ${narrowHidden} ${
+                    className={`absolute right-[8px] left-[clamp(8px,1vw,16px)] ${short ? "bottom-[calc(100%+24px)]" : "top-[clamp(8px,1.2vw,16px)]"} ${narrowHidden} ${
                       last
                         ? "max-md:top-auto max-md:right-0 max-md:bottom-[calc(100%+6px)] max-md:left-auto max-md:text-right"
                         : ""
