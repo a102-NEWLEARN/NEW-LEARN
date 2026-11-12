@@ -216,6 +216,14 @@ body {
   }
 }
 
+/* 홈 인사 줄을 타자 치듯 찍는 동안 · 다 찍은 뒤 잠깐, 끝의 막대 커서가 깜빡인다 (components/motion/useTypewriter.ts).
+   동작 줄이기를 켜면 커서를 두지 않는다 */
+@keyframes newlearn-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* 기사 마인드맵 두 보기 · 기사 머리의 등장 · 호버 · 강조 (프로토타입 v21 im-node-in · im-draw · im-rise · im-pulse 를 키웠다).
    쓰는 곳과 길이는 components/motion/screenMotion.ts. 동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
 
