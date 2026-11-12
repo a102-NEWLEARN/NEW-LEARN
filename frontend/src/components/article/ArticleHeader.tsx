@@ -7,7 +7,6 @@ import type { ArticleDetail } from "@/api/article";
 import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { meaningProps } from "@/components/meaning/meaningProps";
-import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { errorDescription } from "@/components/state/ErrorState";
 import { formatFullDateTime } from "@/lib/date";
 
@@ -35,12 +34,13 @@ const metaLine = (article: ArticleDetail) => {
     .join(" · ");
 };
 
+// 좁은 화면에서 원문 보기 · 이슈 보기가 줄을 반씩 나눈 40px 두 칸이 된다. 넓은 화면은 글자 폭만큼
+const ACTION = "max-md:h-x10 max-md:flex-1";
+
 // 이 기사가 속한 이슈로 가는 길 — 이슈가 있으면 사건 패널이 열린 이슈 화면으로 가는 버튼, 사건을 찾는 중이거나
 // 이슈로 아직 묶이지 않았으면 그 문구, 그 밖(사건 찾기 전 · 실패 · 사건으로 묶지 않는 기사)은 아무것도 두지 않는다
 // (EXPERIENCE.md State Patterns 「사건 연결 상태」 [가정])
 function IssueLink({ article }: { article: ArticleDetail }) {
-  // 좁은 화면은 한 줄을 꽉 채운 44px 버튼 — 엄지로 누르기 쉽게 (모바일 프로토타입 v1)
-  const narrow = useMediaQuery(NARROW_SCREEN);
   if (article.issue) {
     const to = article.event
       ? `/issues/${article.issue.id}?event=${article.event.id}`
@@ -50,7 +50,7 @@ function IssueLink({ article }: { article: ArticleDetail }) {
         asChild
         variant="brandSolid"
         size="small"
-        className={narrow ? "col-span-2 h-[44px] w-full" : undefined}
+        className={ACTION}
       >
         <Link to={to}>이 기사가 속한 이슈 보기</Link>
       </ActionButton>
@@ -64,15 +64,16 @@ function IssueLink({ article }: { article: ArticleDetail }) {
         : null;
   return (
     message && (
-      <p className="t3-regular col-span-2 text-fg-neutral-muted">{message}</p>
+      <p className="t3-regular min-w-0 text-fg-neutral-muted">{message}</p>
     )
   );
 }
 
-// 기사를 받으면 분야 · 제목 · 정보 · 버튼이 이 차례(ms)로 떠오른다 (components/motion/screenMotion.ts)
+// 기사를 받으면 분야 · 제목(북마크) · 정보 · 버튼이 이 차례(ms)로 떠오른다 (components/motion/screenMotion.ts)
 const HEADER_AT = { path: 0, title: 70, meta: 140, actions: 210 };
 
-// 기사 헤더 — 분야 · 이슈, 제목, 언론사 · 일시 · 기자, 북마크 · 원문 보기 · 이슈 보기 (프로토타입 v21 MindmapScreen).
+// 기사 헤더 — 분야 · 이슈, 제목, 언론사 · 일시 · 기자, 그 오른쪽 위 북마크 아이콘, 아래 원문 보기 · 이슈 보기 (프로토타입 v21 MindmapScreen).
+// 북마크 · 원문 보기 · 이슈 보기가 폰에서 두 줄의 큰 버튼이었다 → 북마크는 이슈 머리 별과 같은 자리의 아이콘으로 (2026-11-12 사용자, Jira 195).
 // h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
 export function ArticleHeader({
   query,
@@ -82,9 +83,11 @@ export function ArticleHeader({
   const failed = !article && query.isError;
 
   return (
-    // 좁은 화면은 좌우 20px · 위아래를 넓히고 제목 묶음과 버튼 사이를 20px 띄운다 (DESIGN.md Layout & Spacing)
-    <header className="flex flex-wrap items-end gap-x3 gap-y-x5 px-x5 pt-x6 pb-x5 md:gap-y-x3 md:px-x8 md:pt-x5 md:pb-x4">
-      <div className="min-w-[260px] flex-1">
+    // 칸 셋 — 글 묶음 · 북마크 · 버튼 줄. 좁은 화면은 [글 | 북마크] 아래에 버튼 줄이 한 줄을 다 쓴다 — 북마크는 오른쪽 위에 붙고
+    // 제목은 그 왼쪽 칸에서 꺾인다. 넓은 화면은 [글 | 북마크 | 버튼 줄] 을 아래로 맞춰 북마크가 원문 보기 앞에 온다.
+    // 좁은 화면은 좌우 20px · 위아래를 넓히고 글과 버튼 사이를 16px 띄운다 (DESIGN.md Layout & Spacing)
+    <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x2 gap-y-x4 px-x5 pt-x6 pb-x5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end md:px-x8 md:pt-x5 md:pb-x4">
+      <div className="col-start-1 row-start-1 min-w-0">
         {article ? (
           <p
             className={`t2-regular truncate text-fg-neutral-subtle ${RISE}`}
@@ -148,22 +151,26 @@ export function ArticleHeader({
           </div>
         )}
       </div>
+      {/* 좁은 화면은 40px 버튼의 아이콘이 분야 줄과 제목 첫 줄 사이에 오게 위 · 오른쪽으로 조금 뺀다 */}
       {article && (
         <div
-          // 좁은 화면 — 북마크 · 원문 보기를 반씩 나눈 44px 두 칸, 그 아래 이슈 보기 한 줄 (엄지로 누르기 쉽게)
-          className={`grid w-full grid-cols-2 gap-x2 md:flex md:w-auto md:flex-wrap md:items-center ${RISE}`}
+          className={`col-start-2 row-start-1 -mt-x2 -mr-x2 self-start md:m-0 md:self-end ${RISE}`}
+          style={enterAt(HEADER_AT.title)}
+        >
+          <BookmarkButton article={article} size="large" />
+        </div>
+      )}
+      {article && (
+        <div
+          className={`col-span-2 row-start-2 flex items-center gap-x2 md:col-span-1 md:col-start-3 md:row-start-1 ${RISE}`}
           style={enterAt(HEADER_AT.actions)}
         >
-          <BookmarkButton
-            article={article}
-            variant="text"
-            className="max-md:h-[44px] max-md:w-full"
-          />
           <ActionButton
             asChild
             variant="neutralOutline"
             size="small"
-            className="border-stroke-neutral-weak max-md:h-[44px] max-md:w-full"
+            // 이슈 보기가 없으면(안내 문구뿐이면) 반으로 늘리지 않고 글자 폭만큼
+            className={`border-stroke-neutral-weak ${article.issue ? ACTION : "max-md:h-x10"}`}
           >
             <a href={article.url} target="_blank" rel="noopener noreferrer">
               원문 보기
