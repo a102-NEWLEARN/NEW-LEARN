@@ -1,4 +1,4 @@
--- 기사-사건 연결 · 사건 인덱스 둘 (Jira S15P31A102-194)
+-- 기사-사건 연결 · 사건 인덱스 둘, 기사 표 자동 VACUUM 기준 (Jira S15P31A102-194)
 --
 -- 사건 몇 개나 이슈 하나만 보는 쿼리도 연결 표(article_event, 운영 1만 2천 행)와 사건 표(825행)를 통째로 엮었다.
 -- 두 표의 인덱스는 기본 키(article_id · id)뿐이라 event_id · issue_id 로 찾을 길이 없었다(V2)
@@ -20,3 +20,15 @@ set local lock_timeout = '5s';
 create index article_event_event_id_idx on article_event (event_id);
 
 create index event_issue_id_idx on event (issue_id);
+
+-- 기사 표만 넣은 행 · 죽은 행 1,000건마다 자동 VACUUM, 회차마다 로그.
+-- 공개 기사 인덱스만 읽기(V14)는 VACUUM 뒤 바뀐 페이지의 행을 표에서 다시 읽는다(Heap Fetches). 11-12 운영: 11-11 VACUUM 뒤
+-- 들어온 12,422건이 5,719페이지에 흩어져 그 페이지의 공개 기사 3,262건을 다시 읽었고, 쿼리 블록의 9할이 그 몫이었다.
+-- 기본값(PG18: 넣은 행 1,000 + 0.2 × 행 수 × 얼지 않은 페이지 비율 ≈ 1만 5천 6백, 죽은 행 ≈ 2만 8천 5백)이면 하루 넘게 한 번이다.
+-- 1,000 이면 15분 수집 약 8회차마다다. 표가 작아(592MB) 싸다 — 다만 바뀐 페이지만 고르는 건 32페이지 넘게 이어진 구간뿐이라
+-- 흩어지면 사이 페이지도 읽는다. 공개 표시 UPDATE 의 죽은 행은 그 페이지가 2% 를 넘어야 인덱스 정리와 함께 치워진다(PG14 이후 기본)
+-- 잠금은 SHARE UPDATE EXCLUSIVE 라 읽기 · 쓰기를 막지 않는다. 같은 판의 lock_timeout 안에 든다
+-- 되돌리기: alter table article reset (아래 다섯) — docs/plans/2026-11-12-issue-list-query.md 「계획에 더한 것」
+alter table article set (autovacuum_vacuum_insert_threshold = 1000, autovacuum_vacuum_insert_scale_factor = 0,
+                         autovacuum_vacuum_threshold = 1000, autovacuum_vacuum_scale_factor = 0,
+                         log_autovacuum_min_duration = 0);

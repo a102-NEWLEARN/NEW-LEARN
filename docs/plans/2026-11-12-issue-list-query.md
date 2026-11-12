@@ -25,7 +25,7 @@
     - `InterestIssueSchemaTest` 버전 목록에 "15"
     - 새 시험: 이슈 밖(issue_id 가 빈) 공개 사건이 가장 최근일 때 size=1 lastEventAt 첫 카드가 진짜 이슈다. 운영에 이런 사건이 있다(집계 163묶음, 이슈 밖 공개 기사 1,389건). 옛 SQL 에서 초록, 빈 묶음이 칸을 먹는 잘못된 모양(자른 뒤 붙이기)에서 빨강인지 되돌림 확인
   - 목록 쿼리를 지키는 지금 시험: `CategoryIssueQueryTest`(동점 · createdAt · 분야 · 끝 너머 쪽 total), `CategoryIssueApiIntegrationTest`(createdAt size 1), `IssueTimelineQueryTest` 54 ~ 58행(목록 카드 = 머리 카드), `HiddenIssueEventApiIntegrationTest`(숨긴 이슈)
-  - `V15__event_issue_indexes.sql`: 머리에 `set local lock_timeout` (적재 · 분석이 표를 잡고 있으면 기다리며 사건 쓰기를 막지 않고 실패 → 새 파드만 못 뜨고 옛 파드가 계속 받음), `create index ... on article_event (event_id)` · `create index ... on event (issue_id)`. concurrently 없이(1만 행대라 순간)
+  - `V15__event_issue_indexes_article_autovacuum.sql`(처음 이름 `V15__event_issue_indexes.sql`, 기사 표 자동 VACUUM 기준은 아래 「계획에 더한 것」): 머리에 `set local lock_timeout` (적재 · 분석이 표를 잡고 있으면 기다리며 사건 쓰기를 막지 않고 실패 → 새 파드만 못 뜨고 옛 파드가 계속 받음), `create index ... on article_event (event_id)` · `create index ... on event (issue_id)`. concurrently 없이(1만 행대라 순간)
   - `IssueQueryRepository.findCards` 의 목록 SQL 만 바꾼다: issue 칸 없이 `e.issue_id` 로 집계(빈 issue_id 빼기), 그 결과에 issue 를 inner join, 정렬(createdAt 은 issue 칸) · limit · offset 은 바깥에서 한 번. 개수 SQL · `findHeader` · `findCardsByIds` 의 `AGGREGATE` 는 그대로
 - [ ] **4. infra MR** (infra 브랜치로, backend MR 머지 **앞**) — `classified-load.sql` 판 검사에 15 를 더하고(인덱스만 더한 판이라 적재 SQL 은 그대로 맞음) `data-load.md` 193행 「판(13 또는 14 …)」도 같이, explain · bench · stats 스크립트. 판 검사는 Jira 152 세션이 쓰는 파일이라 그쪽에 먼저 알리고 152 최종 적재가 끝난 뒤 머지하고, 서버 사본(`~/infra/server/`)까지 바꾼다 — 배포 뒤에 적재를 다시 해야 할 때 막히지 않게
 - [ ] **5. VACUUM → 개선 전 재기** — 152 최종 다시 적재 · !818(15분 수집) 전환이 끝난 데이터에서
@@ -38,7 +38,7 @@
 
 ## 바꿀 파일
 
-- `backend/src/main/resources/db/migration/V15__event_issue_indexes.sql` — 새 인덱스 둘
+- `backend/src/main/resources/db/migration/V15__event_issue_indexes_article_autovacuum.sql` — 새 인덱스 둘 · 기사 표 자동 VACUUM 기준
 - `backend/src/test/java/kr/io/newlearn/EventIssueIndexSchemaTest.java` — 새 시험
 - `backend/src/test/java/kr/io/newlearn/InterestIssueSchemaTest.java` — 버전 목록 +15
 - `backend/src/main/java/kr/io/newlearn/issue/IssueQueryRepository.java` — `findCards` 목록 SQL
@@ -52,7 +52,7 @@
 
 - API 응답 · 정렬 규칙 · 「공개 기사가 있는 것만」 규칙(`PublicEventSql`). 숫자 하나도 달라지지 않아야 한다
 - A2 개수 SQL · A3 `findHeader` · 관심 이슈 `findCardsByIds` 의 SQL(인덱스 효과만 받는다)
-- postgres 설정(work_mem 4MB 그대로), 캐시 도입, 이슈 수를 미리 세어 두는 표
+- postgres 전체 설정(work_mem 4MB 그대로), 캐시 도입, 이슈 수를 미리 세어 두는 표. 기사 표 하나의 자동 VACUUM 기준만 아래 「계획에 더한 것」으로 바꾼다
 - 이미 적용된 V1 ~ V14, AI 워커 · 수집 배치 코드
 - 152 최종 적재 · !818 머지 순서 — 이 일은 그 뒤에 머지 · 배포한다
 
@@ -105,9 +105,91 @@
   - 임베딩 표가 로컬에 없어 분석의 거리 쿼리(`CandidateEventFinder.nearest` · `IssueCandidateFinder.find`)는 견주지 못했다. 둘 다 모든 사건의 임베딩을 훑는 모양이라 event_id 로 몇 개만 찾는 쿼리가 아니다
 - **운영 블록 수의 9할은 VACUUM 뒤 새로 들어온 기사 때문이다(새로 안 것).** 운영 쿼리마다 4,600 ~ 9,200블록, 같은 계획의 로컬은 150 ~ 250블록이다. 차이는 공개 기사 인덱스만 읽기의 Heap Fetches(3,267)다
   - 원인: 11-11 10:48 VACUUM 뒤 들어온 12,422건(오늘 10:00 수집)이 빈자리를 따라 5,719페이지(5 ~ 20,999번)에 흩어졌고, 그 페이지에 있던 공개 기사가 3,262건이다 — Heap Fetches 와 거의 같다(운영 읽기 쿼리로 확인)
-  - 자동 VACUUM 은 넣은 행이 1,000 + 0.2 × 15만 ≈ 3만 2천 건이 돼야 돈다(`autovacuum_vacuum_insert_*` 기본값). 15분 수집으로 바꾸면 그때까지 이 몫이 쌓인다
-  - 이 계획의 범위 밖이다(안 바꿀 것: postgres 설정). 기사 표만 자동 VACUUM 기준을 낮추는 안은 따로 승인받는다
+  - 자동 VACUUM 은 넣은 행이 PG18 기본값으로 1,000 + 0.2 × 행 수 × 얼지 않은 페이지 비율 ≈ 1만 5천 6백 건이 돼야 돈다(처음엔 3만 2천으로 잘못 셈 — 얼린 페이지 몫을 빠뜨림). 15분 수집으로 바꾸면 그때까지 이 몫이 쌓인다
+  - 처음 계획의 범위 밖이라 따로 승인받아 「계획에 더한 것」으로 넣었다(기사 표만 1,000건마다)
 - 측정 스크립트: explain.sql 에 더하는 대신 `explain-events.sql`(26개) · `list-equal.sql` 을 따로 둔다 — 11-11 의 15개 표와 견줄 수 있게. bench.py 는 A3 에 더해 A4 · A5 도(이슈 id 를 셋째 인자로)
 - `docs/data-model.md` 는 article_event 절에 인덱스 줄을 넣는다(V14 때와 같은 자리 방식)
 - MR reviewer 반영: 분야를 고른 목록의 카드 내용을 지키는 시험을 더함(옛 시험은 total 만 봄), 인덱스 효과 문장을 「통째 읽기가 없어진 쿼리 / 한 표만 덜 읽는 쿼리」로 나눠 바로잡음, list-equal.sql 을 한 스냅숏(repeatable read, read only)으로, explain-events.sql 의 A6 를 앱 문장(explain.sql)으로, bench 인자 순서를 첫 줄에 적음
 - `docs/data-model.md` 가 501줄이 되어 커밋 훅이 500줄 경고(막지는 않음)를 냈다 — ER 그림이 2절 표를 되풀이하는 몫을 덜어 내는 문서 MR 로 따로 한다
+
+## 계획에 더한 것 — 기사 표 자동 VACUUM 기준 (11-12, 사용자 「응, 계획에 더해」 → 승인)
+
+
+### 무엇을 / 왜
+
+운영 쿼리가 읽는 블록의 9할은 공개 기사 인덱스만 읽기의 Heap Fetches 다. 11-11 10:48 VACUUM 뒤 들어온 12,422건(오늘 10:00 수집)이 빈자리를 따라 5,719페이지에 흩어졌고, 그 페이지의 공개 기사 3,262건을 읽을 때마다 표를 다시 본다(Heap Fetches 3,267). 같은 계획이 로컬(VACUUM 된 상태)에서는 150 ~ 250블록, 운영에서는 4,600 ~ 9,200블록을 읽는다.
+
+자동 VACUUM 기준(운영 11-12, 읽기만):
+- 넣은 행: PG18 은 `1,000 + 0.2 × reltuples × 얼지 않은 페이지 비율` = 1,000 + 0.2 × 142,286 × (1 − 24,977 / 51,430) ≈ **1만 5천 6백**. 오늘 12,422건은 아직 못 미친다
+- 죽은 행: 50 + 0.2 × 142,286 ≈ **2만 8천 5백**
+- 15분 수집(회차마다 약 130건, 하루 약 1만 2천 건)과 자동 투입의 공개 표시 고치기(하루 최대 5,000건)로는 하루 넘게 한 번이고, 그사이 이 몫이 쌓인다
+
+**기사 표만** 넣은 행 · 죽은 행 1,000건마다 자동 VACUUM 이 돌게 하고, 회차마다 로그를 남긴다.
+
+그 밖의 운영 설정: `autovacuum = on`, naptime 60s, cost delay 2ms · cost limit 200, deadlock_timeout 1s, `log_autovacuum_min_duration` 10분, 기사 표 `reloptions` 없음 · 592MB · 51,430페이지, 지금 오래 열린 트랜잭션 없음.
+
+### 작업 순서
+
+- [ ] **1. 실패하는 시험 먼저** — `ArticleAutovacuumSettingTest`: `'article'::regclass` 의 `reloptions` 에 다섯 값(아래)이 있다(순서 상관없이). 다른 시험이 임시 스키마에 article 을 만들어도 현재 스키마 표만 본다. 설정 전에는 빈 값이라 빨강
+- [ ] **2. V15 에 넣기** — 아직 어디에도 적용되지 않은 V15 에 한 문장을 더하고 파일 이름을 `V15__event_issue_indexes_article_autovacuum.sql` 로 바꾼다(판 번호는 그대로라 판 검사 · 시험 목록은 안 바뀜)
+  ```sql
+  alter table article set (autovacuum_vacuum_insert_threshold = 1000, autovacuum_vacuum_insert_scale_factor = 0,
+                           autovacuum_vacuum_threshold = 1000, autovacuum_vacuum_scale_factor = 0,
+                           log_autovacuum_min_duration = 0);
+  ```
+  머리 주석: 왜(Heap Fetches 근거) · 값의 뜻(15분 수집 약 8회차마다, 회차마다 로그) · 싼 이유(표가 작다 — 592MB, 바뀐 페이지만 고르는 것은 32페이지 넘게 이어진 구간만 건너뛰므로 흩어지면 사이 페이지도 읽는다) · 되돌리기. 잠금은 SHARE UPDATE EXCLUSIVE 라 읽기 · 쓰기를 막지 않고, 같은 판의 `lock_timeout 5s` 안에 든다(자동 VACUUM 과 겹치면 1초 뒤 자동 VACUUM 쪽이 취소)
+- [ ] **3. 문서 · 스크립트 · 판 검사 문구** (infra MR)
+  - `stats.sql` VACUUM 절에 `n_ins_since_vacuum` · `autovacuum_count` · `total_autovacuum_time`(PG18) 을 더하고, 오래 열린 트랜잭션(`pg_stat_activity.backend_xmin`) 한 줄
+  - `classified-load.sql` · `data-load.md` 「V15 는 인덱스만」 → 「V15 는 인덱스 · 기사 표 자동 VACUUM 기준만(표 · 칸 같음)」
+  - `docs/data-model.md` article 인덱스 줄에 한 마디(줄 수는 안 늘림), 두 MR 본문
+  - 156 세션에 V15 를 이 일이 쓴다고 알린다(15분 수집 쪽이 새 마이그레이션을 쓰면 V16 부터)
+- [ ] **4. 확인 — 배포 다음 날** (배포 당일 값은 5단계 손 VACUUM 직후라 설정이 없어도 낮아 효과를 못 가른다)
+  - 배포 뒤 다음 날 확인 전까지 기사 표에 **손 VACUUM 을 하지 않는다**
+  - 다음 날 같은 시각에 `explain-events.sql` · `stats.sql` 을 돌리고, Heap Fetches 와 함께 `n_ins_since_vacuum` · `n_dead_tup` · `autovacuum_count` · `last_autovacuum` 을 적는다(Heap Fetches 는 VACUUM 직후 낮고 다음 VACUUM 직전에 가장 높다)
+  - 성공 기준: 하루 사이 자동 VACUUM 이 여러 번 돌았고(`autovacuum_count` 증가, DB 로그에 회차마다 `automatic vacuum of table "newlearn.public.article"`), A1 기사 수의 Heap Fetches 가 **수백 안쪽**이다. 넣은 행 몫의 상한은 1,000 / 12,422 × 3,262 ≈ 260 이고, 공개 표시 UPDATE 몫(아래 리스크)이 더해진다. 설정이 안 먹었다면 오늘처럼 3천대가 나온다
+  - 자동 VACUUM 이 돌았는데 Heap Fetches 가 크면 그때 오래 열린 트랜잭션이 있었는지(`backend_xmin`) · 로그의 인덱스 정리 건너뜀을 본다
+
+### 바꿀 파일
+
+- `backend/src/main/resources/db/migration/V15__event_issue_indexes.sql` → `V15__event_issue_indexes_article_autovacuum.sql` — 이름 바꾸고 한 문장 더함
+- `backend/src/test/java/kr/io/newlearn/ArticleAutovacuumSettingTest.java` — 새 시험
+- `docs/data-model.md` — article 인덱스 줄에 한 마디
+- `infra/server/perf/stats.sql` · `infra/server/classified-load.sql` · `infra/server/data-load.md` — VACUUM 칸 · V15 설명 문구
+- `docs/plans/2026-11-12-issue-list-query.md` — 이 절을 옮기고 맞지 않게 된 줄 고침
+- MR !885 · !886 본문
+
+### 안 바꿀 것
+
+- 다른 표(article_event · event · 회원 표)의 자동 VACUUM 기준, DB 전체 설정(postgresql.conf · StatefulSet), 자동 ANALYZE 기준, `vacuum_index_cleanup`
+- 손 VACUUM 순서(계획 5단계의 개선 전 VACUUM 은 그대로)
+- 원래 계획의 나머지(인덱스 둘 · 목록 쿼리 · 머지 순서)
+
+### 리스크
+
+| 리스크 | 대응 |
+|---|---|
+| 자동 VACUUM 이 잦아져 DB CPU · 디스크를 쓴다 | 하루 열몇 번, 한 번에 바뀐 페이지 근처만 읽는다(흩어지면 사이 페이지도). cost delay 는 이 크기에선 거의 묶지 않는다 — 싼 까닭은 표가 작아서(592MB)다. `total_autovacuum_time` · 로그의 걸린 시간으로 실제 쓴 시간을 본다 |
+| 공개 표시 UPDATE(released_at 이 V14 부분 인덱스 조건이라 HOT 이 안 됨)가 남긴 죽은 행은 1,000건 기준이어도 바로 안 치워진다 | 죽은 행이 있는 페이지가 전체의 2%(약 1,000페이지) 아래면 PG14 이후 기본값이 인덱스 정리를 건너뛰고 그 페이지는 all-visible 이 되지 않는다. 대략 2,000건마다 정리된다고 본다. 확인 때 이 몫이 크면 `vacuum_index_cleanup = on` 을 V16 후보로 |
+| 오래 열린 트랜잭션이 있으면 VACUUM 이 돌아도 페이지를 다 보임으로 못 바꾼다 | 확인 때 `backend_xmin` 을 같이 본다. 152 적재 같은 큰 트랜잭션은 배포 앞이라 겹치지 않는다 |
+| 1,000 이 너무 잦거나 드물다 | 근거는 오늘 값(12,422건 → 공개 3,262건 다시 읽음)뿐이라 추정이다. 확인(4단계)의 값 · 간격을 보고 V16 으로 고친다 |
+| 이름을 바꾼 V15 가 어딘가에 이미 적용됐다 | 원격 어느 브랜치 · 운영에도 V15 가 없다(reviewer 15:06 확인, 운영 판 14). Testcontainers · CI 는 매번 새 DB. 이 PC 의 꺼진 개발 DB(`newlearn-db-1`)에 이 브랜치로 V15 가 기록됐다면 그 볼륨만 지우면 된다 |
+| 5단계 손 VACUUM 과 배포가 겹친다 | 겹치면 ALTER 가 5초 뒤 V15 째 되돌아가고 새 파드가 다시 시도한다. 손 VACUUM 이 끝난 것을 보고 배포한다 |
+
+### 어떻게 검증하나
+
+- 새 시험이 설정 전 빨강 · 설정 뒤 초록, 나머지 backend 시험 통과(`.claude/stack.md` §3)
+- 배포 뒤 `select reloptions from pg_class where oid = 'article'::regclass` 에 다섯
+- 4단계의 다음 날 확인: `autovacuum_count` 증가 · 로그 회차, A1 기사 수 Heap Fetches 수백 안쪽(오늘 3,267), 함께 적은 넣은 행 · 죽은 행 카운터
+- MR reviewer 조수
+
+### 되돌리는 법
+
+- 사람이 `set lock_timeout = '5s'; alter table article reset (autovacuum_vacuum_insert_threshold, autovacuum_vacuum_insert_scale_factor, autovacuum_vacuum_threshold, autovacuum_vacuum_scale_factor, log_autovacuum_min_duration);` 를 치고, 기록을 맞추는 V16 을 같은 `reset` 으로 넣는다(판 검사에 16, 시험을 「설정 없음」으로). reset 은 설정이 없어도 오류가 나지 않는다. 데이터는 바뀌지 않는다
+
+### 계획에서 바뀐 것 (reviewer 검토 반영)
+
+- 검증을 「배포 다음 날」 하나로 — 당일은 손 VACUUM 직후라 못 가름. 그때까지 손 VACUUM 금지, 카운터를 같이 적기, 성공 기준 숫자(넣은 행 몫 ≈ 260 + UPDATE 몫)
+- 비용 근거를 바로잡음(32페이지 건너뛰기 기준, cost delay 는 거의 안 묶음, 싼 까닭은 표 크기)
+- 공개 표시 UPDATE 의 인덱스 정리 건너뜀(2%) 기대치, 오래 열린 트랜잭션 확인
+- 기본값 근거를 PG18 공식(얼지 않은 페이지 비율)과 운영 relallfrozen 으로 다시 계산 — 3만 2천 → 1만 5천 6백
+- 시험은 `'article'::regclass` 로 · 순서 상관없이, `log_autovacuum_min_duration = 0` 더함, 손 reset 에 `lock_timeout`, 156 세션에 V15 알림
