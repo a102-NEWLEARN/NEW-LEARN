@@ -18,7 +18,8 @@ import org.springframework.stereotype.Repository;
 // 복잡한 집계는 네이티브 SQL로 읽는다. 카테고리 조인 대신 EXISTS로 필터해 행이 늘어나지 않게 한다.
 @Repository
 public class IssueQueryRepository {
-    // A2 목록과 A3 단건이 같은 계산과 행 매핑을 공유한다. inner join 이라 공개 기사가 없는 사건은 수 · 기간에서 빠지고,
+    // A3 단건 · A25 관심 이슈가 쓰는 계산이다. A2 목록은 같은 수를 아래 LIST 모양으로 센다 — 행 매핑(mapCard)은 셋이 같다.
+    // inner join 이라 공개 기사가 없는 사건은 수 · 기간에서 빠지고,
     // 공개 사건이 하나도 없는 이슈는 행이 나오지 않는다(PublicEventSql 과 같은 규칙, 수를 세야 해서 이 모양이다)
     private static final String AGGREGATE = """
             select i.id, i.title, i.summary, i.created_at,
@@ -29,6 +30,30 @@ public class IssueQueryRepository {
             join event e on e.issue_id = i.id
             join article_event ae on ae.event_id = e.id
             join article a on a.id = ae.article_id and a.released_at is not null
+            """;
+    // A2 목록만 따로 — 사건을 이슈별로 먼저 세고, issue 를 붙인 뒤 정렬 · 자르기를 바깥에서 한 번 한다(Jira 194).
+    // AGGREGATE 처럼 issue 를 먼저 엮으면 집계 앞 정렬이 행마다 제목 · 요약을 달고 가서, 운영(1만 1천 행)에서 정렬 메모리를 넘겨 디스크를 썼다.
+    // 수 · 기간 · 순서는 AGGREGATE 와 같다(운영 11-12 에 정렬 2 × 분야 6 × 크기 4 의 모든 쪽을 견줘 같음). 이슈 밖 사건(issue_id 가 빈)은
+    // issue 와 붙지 않아 어차피 빠지지만 집계 일을 덜려고 미리 뺀다. 자른 뒤에 issue 를 붙이면 그 묶음이 칸을 먹는다(CategoryIssueQueryTest)
+    private static final String LIST = """
+            select i.id, i.title, i.summary, i.created_at,
+                c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at
+            from (
+                select e.issue_id,
+                    count(distinct e.id) as event_count, count(distinct a.id) as article_count,
+                    count(distinct a.press_code) as publisher_count,
+                    min(e.occurred_at) as first_event_at, max(e.occurred_at) as last_event_at
+                from event e
+                join article_event ae on ae.event_id = e.id
+                join article a on a.id = ae.article_id and a.released_at is not null
+                where e.issue_id is not null and (:category is null or exists (
+                    select 1 from issue_category ic where ic.issue_id = e.issue_id and ic.category_code = :category))
+                group by e.issue_id
+            ) c
+            join issue i on i.id = c.issue_id
+            order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
+                i.id desc
+            limit :limit offset :offset
             """;
     private static final String CATEGORY_FILTER = """
             (:category is null or exists (
@@ -46,12 +71,7 @@ public class IssueQueryRepository {
                 .param("category", category, Types.VARCHAR)
                 .query(Long.class)
                 .single();
-        List<CardRow> rows = jdbc.sql(AGGREGATE + " where " + CATEGORY_FILTER + """
-                group by i.id
-                order by case when :sort = 'createdAt' then i.created_at else max(e.occurred_at) end desc nulls last,
-                    i.id desc
-                limit :limit offset :offset
-                """)
+        List<CardRow> rows = jdbc.sql(LIST)
                 .param("category", category, Types.VARCHAR)
                 .param("sort", sort)
                 .param("limit", pageable.getPageSize())
@@ -144,7 +164,7 @@ public class IssueQueryRepository {
     }
 
     // JDBC 값은 null 표시가 없어 NullAway 가 늘 non-null 로 본다 — 비는 칸과 not null 칸을 나눠 읽는다
-    // 비는 칸: min · max(e.occurred_at). AGGREGATE 가 inner join 이라 지금은 비지 않지만 응답 타입이 null 을 허용해 그대로 읽는다
+    // 비는 칸: min · max(e.occurred_at). AGGREGATE · LIST 가 inner join 이라 지금은 비지 않지만 응답 타입이 null 을 허용해 그대로 읽는다
     private static @Nullable Instant nullableInstant(ResultSet rs, String column) throws SQLException {
         OffsetDateTime time = rs.getObject(column, OffsetDateTime.class);
         return time == null ? null : time.toInstant();

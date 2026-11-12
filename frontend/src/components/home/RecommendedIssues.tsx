@@ -1,7 +1,4 @@
-import {
-  IconChevronRightSmallLine,
-  IconStarFill,
-} from "@karrotmarket/react-monochrome-icon";
+import { IconChevronRightSmallLine } from "@karrotmarket/react-monochrome-icon";
 import { Skeleton, SuffixIcon } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
@@ -99,8 +96,6 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
       { replace: true },
     );
 
-  const hasInterests = (member?.categories.length ?? 0) > 0;
-
   // A17 을 받는 동안에는 제목(「OO님을 위한」)도 탭 순서도 정해지지 않아 자리만 둔다.
   // 인사 줄(HomeGreeting)처럼, 글자가 눈앞에서 바뀌지 않게 한다
   if (pending) {
@@ -128,8 +123,8 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
 
   return (
     <section aria-labelledby={headingId}>
-      {/* 제목 · 설명 | 관심사 편집. 좁은 화면은 제목이 한 줄을 다 쓰고 그 아래에 설명 | 버튼 —
-          버튼이 제목 옆을 차지하면 360px 에서 제목이 두 줄로 꺾인다. 읽는 순서는 제목 → 설명 → 버튼 그대로다 */}
+      {/* 제목 · 설명 | 관심사 편집. 설명은 한 문장까지만, 좁은 화면은 관심사 편집을 숨겨 제목 · 설명만 둔다
+          (2026-11-12 사용자, Jira 195 — 폰 첫 화면에 글이 많았다). 관심사 편집은 마이페이지(헤더 프로필 메뉴)로도 간다 */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x3">
         <h2
           id={headingId}
@@ -137,26 +132,15 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
         >
           {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
         </h2>
-        <p className="t4-regular col-start-1 row-start-2 mt-x1 text-fg-neutral-muted">
+        <p className="t4-regular col-span-2 row-start-2 mt-x1 text-fg-neutral-muted md:col-span-1">
           여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
-          {hasInterests && (
-            <>
-              {" "}
-              <IconStarFill
-                aria-hidden
-                size={12}
-                className="inline align-baseline text-fg-brand"
-              />
-              <span className="sr-only">별표</span>는 관심 분야예요.
-            </>
-          )}
         </p>
-        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 좁은 화면 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다 */}
+        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다 */}
         <ActionButton
           asChild
           variant="ghost"
           size="small"
-          className="col-start-2 row-start-2 shrink-0 self-end md:row-span-2 md:row-start-1"
+          className="col-start-2 row-span-2 row-start-1 shrink-0 self-end max-md:hidden"
         >
           <Link to="/me">
             관심사 편집

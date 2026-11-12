@@ -42,7 +42,7 @@ export type IssueExplorerProps = {
 };
 
 // 사이드바 이슈 탐색 — 분야 → 연도 → 이슈 → 사건 (EXPERIENCE.md 앱 셸, PRD FR-3).
-// 펼친 분야는 셸이 기억한다 — 사이드바를 접거나 서랍을 닫았다 열어도 그대로다.
+// 펼친 분야는 셸이 기억한다 — 사이드바를 접었다 펴도 그대로다.
 // 사건은 지금 보고 있는 이슈 아래에만 펼친다 (프로토타입 v21 Sidebar)
 export function IssueExplorer({
   openCode,

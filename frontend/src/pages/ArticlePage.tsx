@@ -1,3 +1,4 @@
+import { IconArrowUpRightArrowDownLeftLine } from "@karrotmarket/react-monochrome-icon";
 import {
   Skeleton,
   TabsContent,
@@ -7,23 +8,31 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useCallback, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useParams, useSearchParams } from "react-router";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ApiError } from "@/api/error";
 import { type Mindmap, mindmapQuery } from "@/api/mindmap";
-import { AiBadge } from "@/components/AiBadge";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
+import { ExpandedView } from "@/components/article/ExpandedView";
 import { FlowView } from "@/components/article/FlowView";
 import {
   INITIAL_MINDMAP_SETTINGS,
   MindmapView,
 } from "@/components/article/MindmapView";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { toId } from "@/lib/id";
+import { prefersReducedMotion } from "@/lib/motion";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 const NOT_FOUND_TITLE = "기사를 찾을 수 없어요";
@@ -38,6 +47,7 @@ const toView = (raw: string | null): View =>
 
 const isArticleNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "ARTICLE_NOT_FOUND";
+
 // 그릴 수 있는 마인드맵인가 — 아는 판이고 가지가 하나 이상
 const drawable = (mindmap: Mindmap | undefined): mindmap is Mindmap =>
   mindmap !== undefined &&
@@ -72,17 +82,62 @@ function ArticleView({ articleId }: { articleId: number }) {
   // 보기 바꾸기는 기록을 쌓지 않는다 — 뒤로 가기는 앞 화면으로 간다 (EXPERIENCE.md 이동 규칙)
   const [searchParams, setSearchParams] = useSearchParams();
   const view = toView(searchParams.get("view"));
+  // 좁은 화면에서 마인드맵 탭을 눌렀다 — 그린 뒤 탭 줄이 맨 위에 붙을 때까지 내린다. 그래프 칸은 탭 아래 남은 높이라
+  // 그래야 칸 전체가 보이고 가운데 원이 보이는 화면 가운데 온다 (2026-11-12 사용자, Jira 195).
+  // 주소로 바로 연 마인드맵은 기사 머리를 숨기지 않게 내리지 않는다
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const tabRowRef = useRef<HTMLDivElement>(null);
+  const revealMap = useRef(false);
   const setView = useCallback(
-    (next: string) =>
+    (next: string) => {
+      revealMap.current = next === "map" && narrow;
       setSearchParams(
         (params) => {
           params.set("view", next);
           return params;
         },
         { replace: true },
-      ),
-    [setSearchParams],
+      );
+    },
+    [setSearchParams, narrow],
   );
+  useEffect(() => {
+    if (view !== "map" || !revealMap.current) return;
+    revealMap.current = false;
+    tabRowRef.current?.scrollIntoView?.({
+      block: "start",
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  }, [view]);
+
+  // 크게 보기 — 그린 보기가 있을 때만 탭 줄 오른쪽 끝에 버튼을 두고, 누르면 지금 보기를 화면을 꽉 채운 창으로 다시 그린다
+  // (2026-11-12 사용자, Jira 195). 숨긴 가지 · 라벨 표시는 여기서 들고 있어 창에서도 같다. 확대 · 포커스 · 강조는 창에서 새로 시작한다
+  const [expanded, setExpanded] = useState(false);
+  const drawn = drawable(mindmap.data) ? mindmap.data : null;
+  const renderView = (
+    which: View,
+    { title, branches, aiGenerated }: Mindmap,
+    fill = false,
+  ) =>
+    which === "flow" ? (
+      <FlowView
+        articleId={articleId}
+        title={title}
+        branches={branches}
+        aiGenerated={aiGenerated}
+        fill={fill}
+      />
+    ) : (
+      <MindmapView
+        articleId={articleId}
+        title={title}
+        branches={branches}
+        aiGenerated={aiGenerated}
+        settings={mapSettings}
+        onSettingsChange={setMapSettings}
+        fill={fill}
+      />
+    );
 
   if (notFound)
     return <NotFoundPage title={NOT_FOUND_TITLE} focusTitle={titleFocused} />;
@@ -99,8 +154,11 @@ function ArticleView({ articleId }: { articleId: number }) {
         size="medium"
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8">
-          {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다(AI 생성 표시는 오른쪽 끝 그대로) */}
+        <div
+          ref={tabRowRef}
+          className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8"
+        >
+          {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다 */}
           <TabsList
             aria-label="보기"
             className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none max-md:flex-1 max-md:gap-0"
@@ -113,11 +171,22 @@ function ArticleView({ articleId }: { articleId: number }) {
             </TabsTrigger>
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
-          {/* AI 가 만든 마인드맵 — 어느 보기든 그렸으면 AI 생성 표시를 붙인다 (EXPERIENCE.md Voice and Tone) */}
-          {drawable(mindmap.data) && mindmap.data.aiGenerated && (
-            <span className="ml-auto">
-              <AiBadge />
-            </span>
+          {drawn && (
+            <button
+              type="button"
+              aria-label="크게 보기"
+              title="크게 보기"
+              aria-haspopup="dialog"
+              // 창을 닫으면 SEED(Radix FocusScope)가 열기 전 포커스 자리로 돌려준다 — 사파리는 눌러도 버튼에 포커스를 주지 않아
+              // 직접 준다. 그래야 닫은 뒤 이 버튼으로 돌아온다
+              onClick={(click) => {
+                click.currentTarget.focus();
+                setExpanded(true);
+              }}
+              className="ml-auto flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+            >
+              <IconArrowUpRightArrowDownLeftLine aria-hidden size={18} />
+            </button>
           )}
         </div>
         {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
@@ -129,13 +198,7 @@ function ArticleView({ articleId }: { articleId: number }) {
               query={mindmap}
               skeleton={<FlowSkeleton />}
             >
-              {({ title, branches }) => (
-                <FlowView
-                  articleId={articleId}
-                  title={title}
-                  branches={branches}
-                />
-              )}
+              {(drawing) => renderView("flow", drawing)}
             </MindmapBody>
           )}
         </TabsContent>
@@ -147,19 +210,20 @@ function ArticleView({ articleId }: { articleId: number }) {
               query={mindmap}
               skeleton={<MindmapSkeleton />}
             >
-              {({ title, branches }) => (
-                <MindmapView
-                  articleId={articleId}
-                  title={title}
-                  branches={branches}
-                  settings={mapSettings}
-                  onSettingsChange={setMapSettings}
-                />
-              )}
+              {(drawing) => renderView("map", drawing)}
             </MindmapBody>
           )}
         </TabsContent>
       </TabsRoot>
+      {drawn && (
+        <ExpandedView
+          open={expanded}
+          onOpenChange={setExpanded}
+          title={article.data?.title ?? drawn.title}
+        >
+          {renderView(view, drawn, true)}
+        </ExpandedView>
+      )}
     </div>
   );
 }
@@ -262,12 +326,13 @@ function MindmapSkeleton() {
   );
 }
 
-// 흐름지도 자리 — 머리 줄과 가지 넷. FlowView 처럼 자리가 1024px 이상이면 4열이라 그릴 때 모양이 튀지 않는다
+// 흐름지도 자리 — AI 생성 표시 줄 · 머리 줄과 가지 넷. FlowView 처럼 자리가 1024px 이상이면 4열이라 그릴 때 모양이 튀지 않는다
 function FlowSkeleton() {
   return (
     <LoadingState label="마인드맵 불러오는 중">
       <div className="@container">
         <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 md:px-x8 md:pt-x7 @min-[1024px]:max-w-[1280px]">
+          <Skeleton radius="full" width="x14" height="x5" className="mb-x4" />
           <Skeleton
             radius="8"
             width="full"

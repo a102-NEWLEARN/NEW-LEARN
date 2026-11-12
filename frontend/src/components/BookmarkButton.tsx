@@ -2,9 +2,7 @@ import {
   IconBookmarkFill,
   IconBookmarkLine,
 } from "@karrotmarket/react-monochrome-icon";
-import { PrefixIcon } from "@seed-design/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ActionButton } from "seed-design/ui/action-button";
 import { addBookmark, removeBookmark, setBookmarked } from "@/api/bookmarks";
 import { isSessionExpired } from "@/api/error";
 import { meQuery } from "@/api/members";
@@ -15,17 +13,20 @@ const FAILED = "북마크를 바꾸지 못했어요. 잠시 후 다시 시도해
 
 type BookmarkButtonProps = {
   article: Pick<ArticleSummary, "id" | "title" | "bookmarked">;
-  /** icon — 기사 행의 아이콘 버튼. text — 기사 마인드맵 머리의 「북마크」 · 「북마크됨」 */
-  variant?: "icon" | "text";
+  /** 아이콘 크기 — medium 16px(기사 행), large 22px(기사 마인드맵 머리 · 이슈 머리 별과 같다). 누르는 자리는 둘 다 40px */
+  size?: "medium" | "large";
   className?: string;
 };
 
+const ICON_SIZE = { medium: 16, large: 22 } as const;
+
 // 북마크 — 누르면 담기(A20) · 빼기(A21)하고, 아이콘은 응답의 bookmarked 로 맞춘다
 // (docs/api-screen.md A20 · A21 「화면이 할 일」, 프로토타입 v21 ScrapButton). 화면 이름은 「북마크」 · 「나의 뉴스함」이다.
-// 실패는 스낵바로 알린다 [가정] — 버튼 하나라 그 자리에 문장을 둘 곳이 없다 (관심 이슈 별과 같다)
+// 실패는 스낵바로 알린다 [가정] — 버튼 하나라 그 자리에 문장을 둘 곳이 없다 (관심 이슈 별과 같다).
+// 기사 머리의 글자 버튼(「북마크」 · 「북마크됨」)은 2026-11-12 아이콘으로 바꿨다 (사용자 「버튼이 너무 크다」, Jira 195)
 export function BookmarkButton({
   article,
-  variant = "icon",
+  size = "medium",
   className = "",
 }: BookmarkButtonProps) {
   const queryClient = useQueryClient();
@@ -57,26 +58,7 @@ export function BookmarkButton({
     mutation.mutate(!on);
   }
 
-  if (variant === "text") {
-    return (
-      <ActionButton
-        variant="neutralOutline"
-        size="small"
-        aria-pressed={on}
-        aria-busy={mutation.isPending || undefined}
-        onClick={toggle}
-        className={`${
-          on
-            ? "border-stroke-brand-weak bg-bg-brand-weak text-fg-brand-contrast"
-            : "border-stroke-neutral-weak"
-        } ${className}`}
-      >
-        <PrefixIcon svg={on ? <IconBookmarkFill /> : <IconBookmarkLine />} />
-        {on ? "북마크됨" : "북마크"}
-      </ActionButton>
-    );
-  }
-
+  const iconSize = ICON_SIZE[size];
   return (
     <button
       type="button"
@@ -91,9 +73,9 @@ export function BookmarkButton({
       } ${className}`}
     >
       {on ? (
-        <IconBookmarkFill aria-hidden size={16} />
+        <IconBookmarkFill aria-hidden size={iconSize} />
       ) : (
-        <IconBookmarkLine aria-hidden size={16} />
+        <IconBookmarkLine aria-hidden size={iconSize} />
       )}
     </button>
   );

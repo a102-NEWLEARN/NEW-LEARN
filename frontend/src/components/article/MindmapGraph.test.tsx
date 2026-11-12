@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { MindmapGraph } from "@/components/article/MindmapGraph";
+import { boundsOf, layoutMindmap } from "@/components/article/mindmapLayout";
 import { stubScreen } from "@/test/media";
 import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
@@ -529,24 +530,47 @@ function phoneSize() {
   };
 }
 
-test("좁은 화면에서는 전체에 맞추되 72% 아래로 줄이지 않는다 — 글자가 읽히게 (모바일 v1)", async () => {
-  stubScreen("narrow");
-  const restore = phoneSize();
-  try {
-    renderGraph();
-    await waitFor(() => expect(zoomLevel()).toBeGreaterThanOrEqual(72));
-    expect(zoomLevel()).toBeLessThanOrEqual(100);
-  } finally {
-    restore();
-  }
-});
+// 지도 전체를 옮기고 키우는 변환 — d3-zoom 이 맞춘 「translate(x,y) scale(k)」
+function viewTransform() {
+  const value = screen
+    .getByRole("group", { name: "기사 마인드맵" })
+    .querySelector(":scope > g")!
+    .getAttribute("transform")!;
+  const [x, y, k] = value.match(/-?[\d.]+(e-?\d+)?/g)!.map(Number);
+  return { x, y, k };
+}
 
-test("넓은 화면 규칙으로 폰 폭에 맞추면 72% 보다 작아진다 — 좁은 화면만 배율을 묶는다", async () => {
-  const restore = phoneSize();
-  try {
-    renderGraph();
-    await waitFor(() => expect(zoomLevel()).toBeLessThan(72));
-  } finally {
-    restore();
-  }
-});
+// 처음 열면 가운데 기사 제목이 칸 가운데, 지도 전체가 칸 안 (2026-11-12 사용자 「메인이 가장 가운데로」 「모두 보이게」, Jira 195).
+// 전에는 폰에서 글자를 읽게 72% 아래로 줄이지 않아 가장자리가 잘렸다
+test.each([
+  ["폰 폭(393 × 600)", "narrow", phoneSize],
+  ["넓은 화면(960 × 560)", "wide", () => () => {}],
+] as const)(
+  "%s — 처음 열면 가운데 기사 제목을 칸 가운데 두고 지도 전체가 들어오게 맞춘다",
+  async (_, screenWidth, size) => {
+    stubScreen(screenWidth);
+    const restore = size();
+    try {
+      renderGraph();
+      const [width, height] =
+        screenWidth === "narrow" ? [393, 600] : [960, 560];
+      await waitFor(() =>
+        expect(viewTransform()).toMatchObject({ x: width / 2, y: height / 2 }),
+      );
+      const { k } = viewTransform();
+      const bounds = boundsOf(
+        layoutMindmap("한빛반도체 텍사스 공장 착공", BRANCHES),
+      );
+      // 원점에서 가장 먼 가장자리까지 가로 · 세로 모두 칸 반쪽 안에 든다
+      expect(k * Math.max(-bounds.x0, bounds.x1)).toBeLessThanOrEqual(
+        width / 2,
+      );
+      expect(k * Math.max(-bounds.y0, bounds.y1)).toBeLessThanOrEqual(
+        height / 2,
+      );
+      expect(k).toBeLessThanOrEqual(1.15);
+    } finally {
+      restore();
+    }
+  },
+);

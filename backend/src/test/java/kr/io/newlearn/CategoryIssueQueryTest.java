@@ -82,4 +82,47 @@ class CategoryIssueQueryTest {
         assertThat(issues.findCategories(List.of())).isEmpty();
         assertThat(issues.findLastEvents(List.of())).isEmpty();
     }
+
+    // 분야를 고른 목록은 개수(total)만이 아니라 카드 자체도 그 분야 이슈만, 같은 수로 나온다 — 목록 SQL 의 분야 조건이
+    // 사건 쪽(e.issue_id)에서 걸리므로 그 조건이 틀리면 여기서 드러난다(Jira 194)
+    @Test
+    void categoryFilteredCardsKeepOnlyThatCategoryWithSameCounts() {
+        assertThat(issues.findCards("politics", "lastEventAt", PageRequest.of(0, 20))
+                        .getContent())
+                .extracting(IssueQueryRepository.CardRow::id)
+                .containsExactly(4102L, 4101L);
+        var economy = issues.findCards("economy", "lastEventAt", PageRequest.of(0, 20))
+                .getContent();
+        assertThat(economy).extracting(IssueQueryRepository.CardRow::id).containsExactly(4102L);
+        assertThat(economy.getFirst().eventCount()).isEqualTo(3);
+        assertThat(economy.getFirst().articleCount()).isEqualTo(4);
+        assertThat(economy.getFirst().publisherCount()).isEqualTo(1);
+        assertThat(issues.findCards("world", "createdAt", PageRequest.of(0, 20)).getContent())
+                .extracting(IssueQueryRepository.CardRow::id)
+                .containsExactly(4103L);
+    }
+
+    // 이슈 밖 사건(issue_id 가 빈)에도 공개 기사가 붙는다 — 운영 11-12 에 1,389건(Jira 194). 그런 사건이 가장 최근이어도
+    // 목록 칸을 차지하지 않는다. 사건을 이슈별로 먼저 묶어 자른 뒤 issue 를 붙이면 빈 이슈 묶음이 첫 칸을 먹고 빠진다
+    @Test
+    void issueLessPublicEventTakesNoSlot() {
+        jdbc.sql("""
+                insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
+                values (4199,null,'이슈 밖 사건','키워드','2026-10-25T00:00:00Z','EXTRACTED',now(),now(),'MAIN')
+                """).update();
+        jdbc.sql("""
+                insert into article(id,source,url,press_code,title,body,published_at,released_at,created_at)
+                values (4199,'NEWSDATA','https://fixture.invalid/41/loose','fixture41','기사','본문',now(),now(),now())
+                """).update();
+        jdbc.sql("insert into article_event values (4199,4199,now())").update();
+
+        var first = issues.findCards(null, "lastEventAt", PageRequest.of(0, 1));
+        assertThat(first.getContent())
+                .extracting(IssueQueryRepository.CardRow::id)
+                .containsExactly(4102L);
+        assertThat(first.getTotalElements()).isEqualTo(3);
+        assertThat(issues.findCards(null, "lastEventAt", PageRequest.of(0, 3)).getContent())
+                .extracting(IssueQueryRepository.CardRow::id)
+                .containsExactly(4102L, 4101L, 4103L);
+    }
 }
