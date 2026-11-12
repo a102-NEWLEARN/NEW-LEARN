@@ -16,7 +16,13 @@ NOTEBOOKS = {
     "issue_backfill": ("notebook_source.py", MODULES),
     "newsdata_collect": (
         "collect_source.py",
-        ("newsdata_fetch.py", "newsdata_daily.py", "newsdata_dataset.py"),
+        # issue_grouping: 받은 날 선정 기사의 벡터를 같은 노트북에서 만든다(묶기와 같은 입력 글 · 해시)
+        (
+            "newsdata_fetch.py",
+            "newsdata_daily.py",
+            "newsdata_dataset.py",
+            "issue_grouping.py",
+        ),
     ),
 }
 OLDEST_KERNEL = (3, 10)
