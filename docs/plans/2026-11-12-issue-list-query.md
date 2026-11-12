@@ -18,7 +18,7 @@
   - 쿼리(인덱스를 탈 수 있는 것 전부): A2 개수 · 목록(분야 없음 5 · createdAt 3 · politics 3 · 분야 50) · 최근 사건(`findLastEvents`) · 카테고리(`findCategories`), A1 이슈 수, A3 이슈 머리(`findHeader`), A4 타임라인(`EventRepository` 16행 · `findEventCounts`), A5 사건 패널(`EventRepository` 25 · 33행, `ArticleEventRepository` 14 · 18행), A6 사건 관련 기사(`ArticleRepository` 34행 — V14 때 12.6 → 17.3ms 로 나빠진 선례), A25 관심 이슈(`findCardsByIds`), A13 통합 검색의 사건 · 이슈, 분석 쪽 `CandidateEventFinder` 38 · 58행 · `IssueCandidateFinder` 82 ~ 103행
   - 새 목록 SQL 은 운영에서도 EXPLAIN ANALYZE 하고 옛 SQL 과 결과를 비교한다(읽기만): 정렬 2 × (분야 없음 + 5개 분야) × 크기 3 · 5 · 20 · 50 의 모든 쪽(마지막 반쪽 · 끝 너머 쪽 포함), 행마다 `row_number` 를 붙여 양쪽 `except all` 이 비고, 모든 쪽 행 수 합이 개수 SQL 의 total 과 같아야 한다
   - 넣는 기준: 인덱스는 위 쿼리 중 하나라도 읽은 블록이 줄고 나빠지는 쿼리가 없을 때. 목록 쿼리는 디스크 정렬이 사라지고 운영 비교가 모두 같을 때. 기준을 못 넘은 쪽은 빼고 계획의 「구현하며 바뀐 것」에 적는다
-- [ ] **2. 측정 스크립트** — `explain.sql` 에 A2 목록(분야 없음 5) **옛 SQL · 새 SQL 둘 다**(이름표로 구분), 최근 사건, A3 머리를 더한다. 개선 전 · 후에 같은 파일을 돌리고, 배포 뒤에는 `pg_stat_activity` 에서 앱이 실제로 보내는 목록 SQL 이 새 SQL 과 같은지 본다(README 「쿼리 출처」). `bench.py` 에 A3 을, `stats.sql` 에 새 인덱스의 `idx_scan`(`pg_stat_user_indexes`)을 더한다 — bench 앞뒤 차이로 앱(일반 계획 포함)이 인덱스를 실제로 쓰는지 본다
+- [x] **2. 측정 스크립트** — `explain.sql` 에 A2 목록(분야 없음 5) **옛 SQL · 새 SQL 둘 다**(이름표로 구분), 최근 사건, A3 머리를 더한다. 개선 전 · 후에 같은 파일을 돌리고, 배포 뒤에는 `pg_stat_activity` 에서 앱이 실제로 보내는 목록 SQL 이 새 SQL 과 같은지 본다(README 「쿼리 출처」). `bench.py` 에 A3 을, `stats.sql` 에 새 인덱스의 `idx_scan`(`pg_stat_user_indexes`)을 더한다 — bench 앞뒤 차이로 앱(일반 계획 포함)이 인덱스를 실제로 쓰는지 본다
 - [ ] **3. backend MR** (backend 브랜치로, **152 최종 적재가 끝나기 전에는 머지하지 않는다** — backend 브랜치는 BE 팀원과 같이 써서 머지되면 누구의 다음 배포에든 V15 가 실린다)
   - 먼저 둘 시험
     - 새 시험: V15 인덱스 둘의 `pg_indexes.indexdef` (V14 의 `ArticlePublicIndexSchemaTest` 방식) — V15 없이 빨강
@@ -100,7 +100,7 @@
 
 - **1단계 결과 — 둘 다 넣는다.** 원자료 `C:/tmp/194-steps/`(`compare-table.md` · `local-*.txt` · `prod-*.txt`), 같은 파일을 저장소 `infra/server/perf/explain-events.sql` · `list-equal.sql` 로 옮김
   - 목록 쿼리: 운영(읽기만)에서 디스크 정렬이 사라지고 분야 없음 5장 54.2 → 27.0ms, createdAt 3장 47.4 → 24.0ms, politics 3장 22.5 → 14.5ms, 분야 50장 20.5 → 10.8ms. 운영 · 로컬 모두 472쪽 다른 쪽 0 · total 이 안 맞는 조합 0(2,592행). 일부러 틀린 SQL(이슈 밖 묶음을 남김)은 110쪽에서 「다름」으로 잡혀 비교가 틀린 것을 잡는 것도 확인
-  - 인덱스(로컬, 운영과 같은 V14 상태 · 같은 메모리 설정): A5 앞 사건 256 → 33블록 · 4.08 → 0.07ms, A3 머리 191 → 163블록, A4 타임라인 188 → 160블록, 최근 사건 188 → 165블록, A5 공개 기사 수 · A6 개수 151 → 94블록, 분석 사건별 첫 기사 81 → 68블록. A25 관심 이슈(192 → 249블록) · A4 사건별 수(218 → 244블록)는 같은 인덱스 페이지를 되풀이해 읽어 블록은 늘었지만 시간은 1.83 → 1.23ms · 1.97 → 1.10ms 로 줄었다 — 「나빠짐」으로 보지 않는다. 다른 쿼리는 계획 모양이 같다
+  - 인덱스(로컬, 운영과 같은 V14 상태 · 같은 메모리 설정): A5 앞 사건 256 → 33블록 · 4.08 → 0.07ms, A3 머리 191 → 163블록, A4 타임라인 188 → 160블록, 최근 사건 188 → 165블록, A5 공개 기사 수 · A6 개수 151 → 94블록, 분석 사건별 첫 기사 81 → 68블록. A25 관심 이슈(192 → 249블록) · A4 사건별 수(218 → 244블록)는 같은 인덱스 페이지를 되풀이해 읽어 블록은 늘었지만 시간은 1.83 → 1.23ms · 1.97 → 1.10ms 로 줄었다 — 「나빠짐」으로 보지 않는다. 다른 쿼리는 계획 모양이 같다. 다만 새 목록 SQL 의 politics 3장 · 분야 50장은 인덱스 뒤 `event_issue_id_idx` 비트맵(`issue_id is not null`, 825 중 746행)으로 바뀌어 203 → 206블록이 됐다(시간은 비슷)
   - **남는 것**: A2 개수 · A1 이슈 수 · A13 사건 · 이슈는 인덱스가 있어도 계획이 그대로다(EXISTS 가 이슈마다 멈추는 반복으로 바뀌지 않음) — 공개 기사 · 연결 · 사건을 통째로 엮는다
   - 임베딩 표가 로컬에 없어 분석의 거리 쿼리(`CandidateEventFinder.nearest` · `IssueCandidateFinder.find`)는 견주지 못했다. 둘 다 모든 사건의 임베딩을 훑는 모양이라 event_id 로 몇 개만 찾는 쿼리가 아니다
 - **운영 블록 수의 9할은 VACUUM 뒤 새로 들어온 기사 때문이다(새로 안 것).** 운영 쿼리마다 4,600 ~ 9,200블록, 같은 계획의 로컬은 150 ~ 250블록이다. 차이는 공개 기사 인덱스만 읽기의 Heap Fetches(3,267)다
@@ -109,3 +109,5 @@
   - 이 계획의 범위 밖이다(안 바꿀 것: postgres 설정). 기사 표만 자동 VACUUM 기준을 낮추는 안은 따로 승인받는다
 - 측정 스크립트: explain.sql 에 더하는 대신 `explain-events.sql`(26개) · `list-equal.sql` 을 따로 둔다 — 11-11 의 15개 표와 견줄 수 있게. bench.py 는 A3 에 더해 A4 · A5 도(이슈 id 를 셋째 인자로)
 - `docs/data-model.md` 는 article_event 절에 인덱스 줄을 넣는다(V14 때와 같은 자리 방식)
+- MR reviewer 반영: 분야를 고른 목록의 카드 내용을 지키는 시험을 더함(옛 시험은 total 만 봄), 인덱스 효과 문장을 「통째 읽기가 없어진 쿼리 / 한 표만 덜 읽는 쿼리」로 나눠 바로잡음, list-equal.sql 을 한 스냅숏(repeatable read, read only)으로, explain-events.sql 의 A6 를 앱 문장(explain.sql)으로, bench 인자 순서를 첫 줄에 적음
+- `docs/data-model.md` 가 501줄이 되어 커밋 훅이 500줄 경고(막지는 않음)를 냈다 — ER 그림이 2절 표를 되풀이하는 몫을 덜어 내는 문서 MR 로 따로 한다

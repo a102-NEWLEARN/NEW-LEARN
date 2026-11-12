@@ -164,7 +164,7 @@ public class IssueQueryRepository {
     }
 
     // JDBC 값은 null 표시가 없어 NullAway 가 늘 non-null 로 본다 — 비는 칸과 not null 칸을 나눠 읽는다
-    // 비는 칸: min · max(e.occurred_at). AGGREGATE 가 inner join 이라 지금은 비지 않지만 응답 타입이 null 을 허용해 그대로 읽는다
+    // 비는 칸: min · max(e.occurred_at). AGGREGATE · LIST 가 inner join 이라 지금은 비지 않지만 응답 타입이 null 을 허용해 그대로 읽는다
     private static @Nullable Instant nullableInstant(ResultSet rs, String column) throws SQLException {
         OffsetDateTime time = rs.getObject(column, OffsetDateTime.class);
         return time == null ? null : time.toInstant();
