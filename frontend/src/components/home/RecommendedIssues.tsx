@@ -55,8 +55,9 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
     ? orderCategoryTabs(categories.data, member)
     : [];
   const requested = searchParams.get("category");
-  const selected =
-    tabs.find((tab) => tab.code === requested)?.code ?? tabs[0]?.code;
+  const selectedTab = tabs.find((tab) => tab.code === requested) ?? tabs[0];
+  const selected = selectedTab?.code;
+  const selectedName = selectedTab?.name;
 
   const issues = useQuery({
     ...issuesQuery({ category: selected, size: ISSUES_PER_TAB }),
@@ -166,20 +167,40 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                     }}
                   >
                     {(page) => (
-                      // 분야를 바꾸면 CategoryTabs 가 그 탭 칸에 새로 그려 묶음이 떠오르고 카드가 차례로 나온다 (appMotion.ts)
-                      <ul
-                        className={`mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4 ${GROUP_RISE}`}
-                      >
-                        {pick(page).map((issue, index) => (
-                          <li
-                            key={issue.id}
-                            className={CARD_RISE}
-                            style={cardAt(index)}
+                      <>
+                        {/* 분야를 바꾸면 CategoryTabs 가 그 탭 칸에 새로 그려 묶음이 떠오르고 카드가 차례로 나온다 (appMotion.ts) */}
+                        <ul
+                          className={`mt-x4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-x4 ${GROUP_RISE}`}
+                        >
+                          {pick(page).map((issue, index) => (
+                            <li
+                              key={issue.id}
+                              className={CARD_RISE}
+                              style={cardAt(index)}
+                            >
+                              <IssueCard issue={issue} />
+                            </li>
+                          ))}
+                        </ul>
+                        {/* 그 분야 이슈를 모두 보는 화면으로 — 카드 다음 차례에 떠오른다. N 은 A2 의 그 분야 이슈 수다
+                            (2026-11-12 사용자, Jira 196). 좁은 화면은 엄지로 누르기 쉽게 한 줄을 다 쓴다 */}
+                        <div
+                          className={`mt-x5 flex justify-center ${CARD_RISE}`}
+                          style={cardAt(pick(page).length)}
+                        >
+                          <ActionButton
+                            asChild
+                            variant="neutralOutline"
+                            size="small"
+                            className="border-stroke-neutral-weak max-md:h-[44px] max-md:w-full"
                           >
-                            <IssueCard issue={issue} />
-                          </li>
-                        ))}
-                      </ul>
+                            <Link to={`/issues?category=${selected}`}>
+                              {`${selectedName} 이슈 ${page.totalElements}개 전체보기`}
+                              <SuffixIcon svg={<IconChevronRightSmallLine />} />
+                            </Link>
+                          </ActionButton>
+                        </div>
+                      </>
                     )}
                   </QueryState>
                 )}
