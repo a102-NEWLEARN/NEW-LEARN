@@ -183,28 +183,11 @@ body {
   }
 }
 
-/* 랜딩 인사 문구 — 아래에서 떠올라 머물다 위로 사라진다 (does.kr 채용 화면 참고).
-   2초 가까운 연출이라 「큰 움직임 250~300ms」의 예외다. 동작 줄이기를 켜면 인사 자체를 띄우지 않는다 (GreetingIntro) */
-@keyframes newlearn-greeting-text {
-  0% {
-    transform: translateY(32px);
-    opacity: 0;
-  }
-  30%,
-  72% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-32px);
-    opacity: 0;
-  }
-}
-
-/* 인사가 끝나면 브랜드 색 막이 위로 걷힌다 */
-@keyframes newlearn-greeting-lift {
-  to {
-    transform: translateY(-100%);
+/* 랜딩 첫 화면 NEW:LEARN 글자가 줄 아래에서 올라온다 — 줄을 감싼 칸이 넘친 부분을 가린다 (components/landing/LandingHero.tsx).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+@keyframes newlearn-line-up {
+  from {
+    transform: translateY(105%);
   }
 }
 
