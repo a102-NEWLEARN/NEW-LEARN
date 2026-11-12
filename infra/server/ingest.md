@@ -307,11 +307,7 @@ auto 는 수집 쪽 코드와 자동 투입 쪽 코드 중 큰 값으로 끝난�
   kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -c "select a.press_code, count(*) as 기사, count(distinct a.title) as 제목, min(a.id) as 첫_id, max(a.id) as 끝_id, count(*) filter (where a.released_at is not null) as 공개 from article a where a.created_at >= now() - interval '1 day' and length(btrim(a.body)) >= 500 group by a.press_code, md5(btrim(a.body)) having count(distinct a.title) >= 2 order by 3 desc"
   ```
 
-**늦게 올라온 기사 · 같은 본문 재기**(2026-11-15 10:20 한 번, 2026-11-13 인프라 담당) — 15분 수집은 발행 뒤 30분이 지나 올라온 기사를 받지 못하고, 잘못된 본문 규칙 (a) · (c) 는 묶음이 한 회차에 다 안 모여 덜 잡힌다. 15분 수집이 하루 내내 도는 첫날(11/14, 토)을 넣기만으로 한 번 더 받아 `b2.created`(놓친 기사)와 「본문 불일치로 뺌」 URL 중 운영에 있던 수를 잰다(NewsData 약 240 ~ 330요청, 평일 기사 수로 어림). 11/13 은 0시 ~ 전환 시각 기사를 15분 수집이 받지 않아 놓친 수가 부풀어 쓰지 않는다. 토요일이라 평일보다 기사가 적다 — 기록에 잰 날 · 요일을 같이 적는다. 그 수로 매일 쓸어 담기 · 후보 SQL 의 같은 본문 빼기를 할지 정한다(계획 고를 것 6)
-
-```bash
-kubectl -n app create job --from=cronjob/news-ingest news-ingest-1114-$(date +%H%M) --dry-run=client -o yaml | kubectl set env --local -f - INGEST_MODE=load-only INGEST_DAYS=2026-11-14 INGEST_TIMEFRAME=35 INGEST_MAX_REQUESTS=500 INGEST_MAX_ARTICLES=20000 -o yaml | kubectl patch --local -f - --type merge -p '{"spec":{"backoffLimit":0,"activeDeadlineSeconds":3600}}' -o yaml | kubectl -n app create -f -
-```
+**늦게 올라온 기사 · 덜 잡힌 같은 본문은 따로 재지 않는다**(2026-11-13 사용자) — 15분 수집은 발행 뒤 30분이 지나 올라온 기사를 받지 못하고, 잘못된 본문 규칙 (a) · (c) 는 묶음이 한 회차에 다 안 모여 덜 잡힌다. 하루를 다시 받아 놓친 수를 세는 일도, 매일 쓸어 담기 · 후보 SQL 의 같은 본문 빼기도 하지 않는다 — 놓친 기사를 채워도 분석은 하루 상한 4,800건에 막히고(평일 수집은 하루 1만 건이 넘는다), 같은 본문은 위 확인 SQL 로 찾아 라벨 X 한다
 
 ## 급히 멈추기
 
