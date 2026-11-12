@@ -199,6 +199,14 @@ body {
   }
 }
 
+/* 랜딩 기사 제목 띠 — 같은 제목을 두 번 이어 둔 줄을 절반만큼 옮겨 끊김 없이 돈다 (components/landing/HeadlineMarquee.tsx).
+   동작 줄이기를 켜면 쓰지 않는다(motion-safe) */
+@keyframes newlearn-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 /* 홈 인사 줄을 타자 치듯 찍는 동안 · 다 찍은 뒤 잠깐, 끝의 막대 커서가 깜빡인다 (components/motion/useTypewriter.ts).
    동작 줄이기를 켜면 커서를 두지 않는다 */
 @keyframes newlearn-caret {

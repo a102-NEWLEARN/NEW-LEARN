@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { meQuery } from "@/api/members";
+import { HeadlineMarquee } from "@/components/landing/HeadlineMarquee";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { FollowCursor } from "@/components/motion/FollowCursor";
@@ -20,6 +21,7 @@ export function LandingPage() {
       <LandingHeader start={start} />
       <main>
         <LandingHero start={start} />
+        <HeadlineMarquee />
       </main>
     </div>
   );

@@ -137,3 +137,15 @@ test("동작 줄이기를 켜도 첫 화면을 바로 보인다", async () => {
   expect(await heading()).toBeDefined();
   expect(startLinks().length).toBeGreaterThan(0);
 });
+
+test("첫 화면 아래로 소개 섹션이 차례로 이어진다", async () => {
+  renderRoute("/");
+  await heading();
+
+  const sections = screen
+    .getAllByRole("heading", { level: 2 })
+    .map((h) => h.textContent);
+  expect(sections).toEqual([
+    "기사 한 편만으로는 사건의 전체 전개를 알기 어려워요.",
+  ]);
+});
