@@ -154,7 +154,7 @@ export function ArticleHeader({
       {/* 좁은 화면은 40px 버튼의 아이콘이 분야 줄과 제목 첫 줄 사이에 오게 위 · 오른쪽으로 조금 뺀다 */}
       {article && (
         <div
-          className={`col-start-2 row-start-1 -mt-x2 -mr-x2 self-start md:m-0 md:self-end ${RISE}`}
+          className={`col-start-2 row-start-1 -mt-[8px] -mr-[8px] self-start md:m-0 md:self-end ${RISE}`}
           style={enterAt(HEADER_AT.title)}
         >
           <BookmarkButton article={article} size="large" />

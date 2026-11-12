@@ -102,7 +102,7 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           <InterestButton
             issueId={issue.id}
             interested={issue.interested}
-            className="col-start-2 row-start-1 -mt-x2 -mr-x2 self-start max-md:row-span-2 md:row-start-2 md:mt-x1 md:mr-0"
+            className="col-start-2 row-start-1 -mt-[8px] -mr-[8px] self-start max-md:row-span-2 md:row-start-2 md:mt-x1 md:mr-0"
           />
         )}
       </div>
