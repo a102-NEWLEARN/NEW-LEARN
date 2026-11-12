@@ -87,6 +87,18 @@ test("사건 이름은 15px, 날짜 · 기사 수 줄은 13px 로 적는다", as
   );
 });
 
+// 용어사전 안내 — 이슈 화면은 도구줄 TIP 왼쪽 (2026-11-12 사용자 QA, Jira 197)
+test("도구줄 TIP 왼쪽에 용어사전 안내 아이콘을 둔다", async () => {
+  await renderTimeline();
+
+  const guide = screen.getByRole("button", { name: "용어사전 안내" });
+  const tip = screen.getByRole("button", { name: "TIP" });
+  expect(
+    guide.compareDocumentPosition(tip) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.getByRole("note", { name: "용어사전 안내" })).toBeDefined();
+});
+
 test("노드를 누르거나 Enter · Space 로 고른다", async () => {
   const { onSelect } = await renderTimeline();
 

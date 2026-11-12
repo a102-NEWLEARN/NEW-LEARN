@@ -29,6 +29,7 @@ import {
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
+import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { LoadingState } from "@/components/state/LoadingState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { toId } from "@/lib/id";
@@ -171,6 +172,8 @@ function ArticleView({ articleId }: { articleId: number }) {
             </TabsTrigger>
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
+          {/* 용어사전 안내 — 탭 줄 오른쪽, 크게 보기 왼쪽 (2026-11-12 사용자 QA, Jira 197) */}
+          <MeaningGuide className="ml-auto" />
           {drawn && (
             <button
               type="button"
@@ -183,7 +186,7 @@ function ArticleView({ articleId }: { articleId: number }) {
                 click.currentTarget.focus();
                 setExpanded(true);
               }}
-              className="ml-auto flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+              className="flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
             >
               <IconArrowUpRightArrowDownLeftLine aria-hidden size={18} />
             </button>

@@ -47,6 +47,7 @@ import {
   RISE,
   SPRING_IN,
 } from "@/components/motion/screenMotion";
+import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -419,6 +420,8 @@ export function Timeline({
         >
           전체 보기
         </ActionButton>
+        {/* 용어사전 안내 — TIP 왼쪽 (2026-11-12 사용자 QA, Jira 197) */}
+        <MeaningGuide />
         {tip.button}
       </div>
       <div

@@ -82,6 +82,21 @@ test("흐름지도 머리 줄은 기사 제목이 아니라 이 기사의 AI 한
   expect(within(view).queryByText(article.title)).toBeNull();
 });
 
+// 용어사전 안내 — 탭 줄 오른쪽에 ! 아이콘, 처음에는 말풍선이 떠 있다 (2026-11-12 사용자 QA, Jira 197)
+test("탭 줄에 용어사전 안내 아이콘을 두고, 처음에는 「드래그하면 뜻을 알려줘요」 말풍선이 떠 있다", async () => {
+  renderRoute(PATH);
+
+  await flow();
+  expect(
+    screen
+      .getByRole("button", { name: "용어사전 안내" })
+      .closest('[role="tablist"]'),
+  ).toBeNull();
+  expect(
+    screen.getByRole("note", { name: "용어사전 안내" }).textContent,
+  ).toContain("모르는 단어는 드래그하면 뜻을 알려줘요!");
+});
+
 test("마인드맵 탭을 고르면 주소에 ?view=map 을 남기고 기록은 쌓지 않는다", async () => {
   const { router } = renderRoute(PATH);
   await flow();
