@@ -71,6 +71,10 @@ const LABEL_AFTER = 120;
 const LANE_BAR_AT = 0;
 const LANE_TEXT_AT = 80;
 
+// 사건 이름 글자 크기(px) — 날짜 · 기사 수 줄은 13px. 읽기 어려워 13 · 12px 에서 키웠다 (2026-11-12 사용자 QA, Jira 197).
+// 라벨 높이는 timelineLayout 의 쌓는 간격 · 라벨 아래 끝과 맞물린다
+const NAME_SIZE = 15;
+
 // 노드 반지름 — 메인 흐름이 한 단계 크다 (DESIGN.md 타임라인 노드)
 const radiusOf = (event: PlacedEvent) => (event.lane === "MAIN" ? 10 : 8);
 
@@ -321,18 +325,18 @@ export function Timeline({
     // 메인 흐름 레인 선 위 사건은 라벨을 선 밑에 둔다. 선에서 벗어난 사건(쌓인 사건 · 서브 흐름)은 이름 줄을 사건 가운데에 맞춘다 —
     // 쌓였을 때 라벨이 자기 사건 옆에 오게 (Jira 188, 쌓는 간격은 timelineLayout 의 stackOffset)
     const onRail = event.lane === "MAIN" && event.y === railY;
-    if (room >= 64)
+    if (room >= 72)
       return {
         dx: r + 8,
         dy: onRail ? 6 : -8,
-        width: Math.min(room, 190),
+        width: Math.min(room, 210),
         below: false,
       };
     const nextX = neighbors.length ? Math.min(...neighbors) + 18 : width - 16;
     return {
       dx: -r - 4,
       dy: r + 10,
-      width: Math.max(40, Math.min(nextX - (x - r - 4), 170)),
+      width: Math.max(40, Math.min(nextX - (x - r - 4), 190)),
       below: true,
     };
   };
@@ -504,7 +508,7 @@ export function Timeline({
               const isHovered = event.id === hoverId;
               const isFocused = event.id === focusId;
               const label = labelOf(event);
-              const shown = fitText(event.label, label.width, 13);
+              const shown = fitText(event.label, label.width, NAME_SIZE);
               const meta = joined(dateText(event), articlesText(event));
               const enter = enterOf(event);
               return (
@@ -617,7 +621,7 @@ export function Timeline({
                         x={-4}
                         y={-3}
                         width={label.width + 8}
-                        height={36}
+                        height={40}
                         className="fill-transparent"
                       />
                       {label.below && (
@@ -625,7 +629,7 @@ export function Timeline({
                           x={-4}
                           y={-3}
                           width={label.width + 8}
-                          height={36}
+                          height={40}
                           rx={6}
                           className="fill-bg-layer-default opacity-95"
                         />
@@ -633,7 +637,7 @@ export function Timeline({
                       {/* 사건 이름은 드래그 대상이다(용어사전). 칸에 맞춰 「…」로 줄였으면 그 표시를 준다 */}
                       <text
                         dominantBaseline="hanging"
-                        className={`cursor-text stroke-bg-layer-default text-[0.8125rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
+                        className={`cursor-text stroke-bg-layer-default text-[0.9375rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
                         paintOrder="stroke"
                         strokeWidth={4}
                         strokeLinejoin="round"
@@ -646,14 +650,14 @@ export function Timeline({
                         {shown}
                       </text>
                       <text
-                        y={17}
+                        y={19}
                         dominantBaseline="hanging"
-                        className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.75rem] tabular-nums"
+                        className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.8125rem] tabular-nums"
                         paintOrder="stroke"
                         strokeWidth={4}
                         strokeLinejoin="round"
                       >
-                        {label.width >= 100 ? meta : dateText(event)}
+                        {label.width >= 110 ? meta : dateText(event)}
                       </text>
                     </g>
                   </g>

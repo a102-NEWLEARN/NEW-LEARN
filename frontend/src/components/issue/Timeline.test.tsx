@@ -75,6 +75,18 @@ test("사건 노드 옆에 키워드와 날짜 · 기사 수를 적는다", asyn
   expect(screen.getByText("10.09 추정 · 기사 4건")).toBeDefined();
 });
 
+// 사건 이름 · 날짜 줄이 작아 읽기 어려웠다 — 이름 13 → 15px, 날짜 · 기사 수 12 → 13px (2026-11-12 사용자 QA, Jira 197)
+test("사건 이름은 15px, 날짜 · 기사 수 줄은 13px 로 적는다", async () => {
+  await renderTimeline();
+
+  expect(screen.getByText("착공식").getAttribute("class")).toContain(
+    "text-[0.9375rem]",
+  );
+  expect(screen.getByText("10.06 · 기사 5건").getAttribute("class")).toContain(
+    "text-[0.8125rem]",
+  );
+});
+
 test("노드를 누르거나 Enter · Space 로 고른다", async () => {
   const { onSelect } = await renderTimeline();
 
