@@ -223,7 +223,7 @@ class RunTest(FakeSiteTest):
     def run_steps(self, steps, out):
         return load.run(
             host="127.0.0.1", port=self.port, scheme="http",
-            login_id="loadtest", password="right-password",
+            login_id="loadtest", password="right-password",  # secret-scan:allow — 가짜 사이트의 지어낸 비밀번호
             steps=steps, step_seconds=1.0, discard_seconds=0.2,
             until=load.parse_until("23:59", datetime.now(timezone.utc)),
             out=out, cpu_reader=lambda: 10.0, seed=3,
@@ -257,7 +257,7 @@ class RunTest(FakeSiteTest):
         # 지킴이 스레드가 CPU 를 읽어 멈춘다(메인 루프가 아니라) — 5초 평균이 70% 를 넘으면
         lines = []
         reason = load.run(
-            host="127.0.0.1", port=self.port, scheme="http", login_id="loadtest", password="right-password",
+            host="127.0.0.1", port=self.port, scheme="http", login_id="loadtest", password="right-password",  # secret-scan:allow
             steps=[1, 2], step_seconds=4.0, discard_seconds=0.2,
             until=load.parse_until("23:59", datetime.now(timezone.utc)),
             out=lines.append, cpu_reader=lambda: 95.0, seed=3,
@@ -270,7 +270,7 @@ class RunTest(FakeSiteTest):
         readings = iter([95.0] + [20.0] * 1000)
         lines = []
         reason = load.run(
-            host="127.0.0.1", port=self.port, scheme="http", login_id="loadtest", password="right-password",
+            host="127.0.0.1", port=self.port, scheme="http", login_id="loadtest", password="right-password",  # secret-scan:allow
             steps=[1], step_seconds=6.0, discard_seconds=0.2,
             until=load.parse_until("23:59", datetime.now(timezone.utc)),
             out=lines.append, cpu_reader=lambda: next(readings), seed=3,
