@@ -40,7 +40,8 @@ test("/ 를 열면 셸 없이 랜딩을 띄운다", async () => {
       name: "기사는 많아도, 이슈는 한 흐름으로.",
     }),
   ).toBeDefined();
-  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+  // 셸(헤더) 없이 뜬다
+  expect(screen.queryByRole("link", { name: "나의 뉴스함" })).toBeNull();
 });
 
 test("손님이면 서비스 시작하기 · 로그인이 로그인 화면으로 간다", async () => {

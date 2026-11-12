@@ -61,7 +61,7 @@ test("셸 안에 기사 헤더와 흐름지도 보기(기본)를 띄우고 탭 �
   renderRoute(PATH);
 
   expect(await heading()).toBeDefined();
-  expect(screen.getByRole("navigation", { name: "사이드바" })).toBeDefined();
+  expect(screen.getByRole("link", { name: "나의 뉴스함" })).toBeDefined();
   expect(await flow()).toBeDefined();
   expect(tab("흐름지도").getAttribute("aria-selected")).toBe("true");
   expect(screen.getByText("AI 생성")).toBeDefined();
