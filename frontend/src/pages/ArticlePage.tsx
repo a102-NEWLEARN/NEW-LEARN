@@ -7,7 +7,13 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useCallback, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useParams, useSearchParams } from "react-router";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ApiError } from "@/api/error";
@@ -18,11 +24,13 @@ import {
   INITIAL_MINDMAP_SETTINGS,
   MindmapView,
 } from "@/components/article/MindmapView";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { toId } from "@/lib/id";
+import { prefersReducedMotion } from "@/lib/motion";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 const NOT_FOUND_TITLE = "기사를 찾을 수 없어요";
@@ -66,17 +74,33 @@ function ArticleView({ articleId }: { articleId: number }) {
   // 보기 바꾸기는 기록을 쌓지 않는다 — 뒤로 가기는 앞 화면으로 간다 (EXPERIENCE.md 이동 규칙)
   const [searchParams, setSearchParams] = useSearchParams();
   const view = toView(searchParams.get("view"));
+  // 좁은 화면에서 마인드맵 탭을 눌렀다 — 그린 뒤 탭 줄이 맨 위에 붙을 때까지 내린다. 그래프 칸은 탭 아래 남은 높이라
+  // 그래야 칸 전체가 보이고 가운데 원이 보이는 화면 가운데 온다 (2026-11-12 사용자, Jira 195).
+  // 주소로 바로 연 마인드맵은 기사 머리를 숨기지 않게 내리지 않는다
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const tabRowRef = useRef<HTMLDivElement>(null);
+  const revealMap = useRef(false);
   const setView = useCallback(
-    (next: string) =>
+    (next: string) => {
+      revealMap.current = next === "map" && narrow;
       setSearchParams(
         (params) => {
           params.set("view", next);
           return params;
         },
         { replace: true },
-      ),
-    [setSearchParams],
+      );
+    },
+    [setSearchParams, narrow],
   );
+  useEffect(() => {
+    if (view !== "map" || !revealMap.current) return;
+    revealMap.current = false;
+    tabRowRef.current?.scrollIntoView?.({
+      block: "start",
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  }, [view]);
 
   if (notFound)
     return <NotFoundPage title={NOT_FOUND_TITLE} focusTitle={titleFocused} />;
@@ -93,7 +117,10 @@ function ArticleView({ articleId }: { articleId: number }) {
         size="medium"
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8">
+        <div
+          ref={tabRowRef}
+          className="flex items-center gap-x3 bg-bg-layer-default px-x5 shadow-[inset_0_-1px_var(--seed-color-stroke-neutral-weak)] max-md:sticky max-md:top-0 max-md:z-[3] md:px-x8"
+        >
           {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다 */}
           <TabsList
             aria-label="보기"

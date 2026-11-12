@@ -1,8 +1,9 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import type { MindmapStatus } from "@/api/types";
 import { server } from "@/mocks/node";
+import { stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 앱과 같은 라우트로 연다 — 셸 · 손님 가드까지 함께 본다.
@@ -90,6 +91,55 @@ test("주소의 ?view=map 으로 열면 마인드맵 탭이 골라져 있다", a
 
   expect(await map()).toBeDefined();
   expect(tab("마인드맵").getAttribute("aria-selected")).toBe("true");
+});
+
+// 폰에서 마인드맵 칸이 기사 머리 아래에서 시작해 가운데 원이 화면 아래 끝에 놓였다 →
+// 마인드맵 탭을 누르면 탭 줄이 맨 위에 붙을 때까지 내려 그래프 칸 전체를 보인다 (2026-11-12 사용자, Jira 195).
+// jsdom 에는 scrollIntoView 가 없어 흉내 낸다
+function spyScrollIntoView() {
+  const spy = vi.fn();
+  Element.prototype.scrollIntoView = spy;
+  onTestFinished(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+  return spy;
+}
+
+test("좁은 화면에서 마인드맵 탭을 누르면 탭 줄이 맨 위에 오게 내린다", async () => {
+  stubScreen("narrow");
+  const scroll = spyScrollIntoView();
+  renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(tab("마인드맵"));
+  await map();
+
+  await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+  expect(scroll.mock.contexts[0]).toBe(
+    screen.getByRole("tablist", { name: "보기" }).parentElement,
+  );
+  expect(scroll.mock.calls[0][0]).toMatchObject({ block: "start" });
+});
+
+test.each([
+  ["넓은 화면에서 마인드맵 탭을 눌러도", "wide", PATH, true],
+  [
+    "좁은 화면이어도 주소로 바로 연 마인드맵은",
+    "narrow",
+    `${PATH}?view=map`,
+    false,
+  ],
+] as const)("%s 내리지 않는다", async (_, width, path, click) => {
+  stubScreen(width);
+  const scroll = spyScrollIntoView();
+  renderRoute(path);
+  if (click) {
+    await flow();
+    fireEvent.click(tab("마인드맵"));
+  }
+  await map();
+
+  expect(scroll).not.toHaveBeenCalled();
 });
 
 test("마인드맵 탭에서도 같은 상태 문구를 둔다", async () => {
