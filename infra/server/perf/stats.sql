@@ -17,3 +17,11 @@ order by relname;
 select pg_size_pretty(pg_table_size('article')) as table_size, relpages from pg_class where relname = 'article';
 select indexrelname, pg_size_pretty(pg_relation_size(indexrelid)) as size, idx_scan
 from pg_stat_user_indexes where relname = 'article' order by indexrelname;
+\echo '== 사건 · 이슈 쪽 인덱스 읽기 (누적, Jira 194 — V15 뒤 article_event_event_id_idx · event_issue_id_idx 가 bench 동안 늘어야 앱이 쓰는 것)'
+select relname, indexrelname, pg_size_pretty(pg_relation_size(indexrelid)) as size, idx_scan, idx_tup_read
+from pg_stat_user_indexes where relname in ('article_event', 'event', 'issue', 'issue_category') order by relname, indexrelname;
+\echo '== VACUUM 상태 — 공개 기사 인덱스만 읽기가 표를 다시 보러 가는 몫(Heap Fetches)이 여기서 갈린다. relallvisible 은 마지막 VACUUM · ANALYZE 때 값'
+select c.relname, c.relpages, c.relallvisible, s.n_live_tup, s.n_dead_tup, s.n_mod_since_analyze,
+       s.last_vacuum, s.last_autovacuum, s.last_analyze, s.last_autoanalyze
+from pg_class c join pg_stat_user_tables s on s.relid = c.oid
+where c.relname in ('article', 'article_event', 'event') order by c.relname;
