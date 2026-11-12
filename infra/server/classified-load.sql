@@ -15,9 +15,9 @@ $$;
 -- 0. 판 · 이전 적재 기록
 do $$
 begin
-    -- V14(Jira S15P31A102-190) · V15(Jira S15P31A102-194)는 인덱스만 더해 표 · 칸이 V13 과 같다. 그 밖의 판이면 표 모양부터 다시 본다
+    -- V14(Jira S15P31A102-190) · V15(Jira S15P31A102-194)는 인덱스 · 기사 표 자동 VACUUM 기준만 더해 표 · 칸이 V13 과 같다. 그 밖의 판이면 표 모양부터 다시 본다
     if (select max(version::int) from public.flyway_schema_history where success and version is not null) not in (13, 14, 15) then
-        raise exception '운영 판이 13 · 14 · 15 가 아니다 — 이 적재 SQL 은 V13 표 모양 기준이다(V14 · V15 는 인덱스만)';
+        raise exception '운영 판이 13 · 14 · 15 가 아니다 — 이 적재 SQL 은 V13 표 모양 기준이다(V14 · V15 는 인덱스 · 자동 VACUUM 기준만)';
     end if;
     if to_regnamespace('load_undo') is not null then
         raise exception '이전 적재 기록(load_undo)이 남아 있다 — 되돌리기(classified-undo.sql)부터';
