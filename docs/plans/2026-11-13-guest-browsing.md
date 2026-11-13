@@ -41,6 +41,7 @@
 - **로그인 · 가입 화면의 닫기(X)는 브라우저 기록의 앞이 아니라 돌아올 곳(`next`)으로 간다.** 회원 화면이면 홈, `next` 가 없으면 랜딩이다. 손님이 `/bookmarks` 를 주소로 바로 열면 `RequireMember` 가 로그인 화면으로 바꿔 끼워서(`replace`) 키가 `"default"` 가 아니게 된다. 그러면 「앞 기록이 있다」고 잘못 보고 사이트 밖으로 나간다. 그래서 랜딩의 *서비스 시작하기* · *로그인* 은 `next` 없이 `/login` 으로 보낸다 — 닫으면 랜딩이고, 로그인하면 홈이다(전과 같다). `AuthClose.tsx` 를 새로 두었다
 - 화면 확인에서 본 것 — dev:mock 의 가짜 서버는 손님에게도 `interested` · `bookmarked` 를 회원 기준으로 준다(`mocks/handlers.ts` 「가짜 회원은 늘 로그인해 있어서」). 실제 API 는 손님에게 false 다(`docs/api.md` 1절 「내 상태 칸」). 이번 범위에서는 고치지 않았다
 - 확인 창이 1440 · 393 모두 제목이 두 줄로 꺾이고 버튼이 세로로 쌓인다. 202 의 확인 창 고침(340px · 가로 버튼)이 들어오면 다시 본다
+- **백엔드도 바꾼다 — 「안 바꿀 것」의 backend 를 거뒀다.** 리뷰에서 드래그 말풍선의 A26(문맥 뜻)이 회원 전용이라 손님에게 「일시적으로 서비스를 사용할 수 없어요」가 뜬다는 것을 찾았다. 사용자가 「가입 안 해도 사전 가능」으로 정해(2026-11-13) A26 을 손님에게 연다. 영역이 달라 브랜치를 따로 둔다 — `feat/common/S15P31A102-205-guest-meaning`(작업 폴더 `S15P31A102-205b`, dev 기준 · dev 로 MR): `SecurityConfig` 에 A26 POST 열기(번호표는 그대로), 시험(`SecurityRulesTest` · `DictionaryMeaningApiIntegrationTest` AC-10 · `OpenApiDocsTest`), 문서(api · api-screen A26 · F13 AC-10 · AC-18 · SSOT). 화면 코드는 그대로다. 두 MR 이 다 들어가야 손님이 「의미」를 쓴다
 
 ## 안 바꿀 것
 
