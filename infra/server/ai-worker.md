@@ -86,3 +86,50 @@ preStop 10초(이때도 큐를 읽는다) → 종료 신호 → 하던 작업을
 ### 키를 바꿀 때
 
 위 「GMS 키」 두 명령으로 봉인 파일을 바꾼 MR 을 반영한 뒤 `kubectl -n ai rollout restart deploy/ai`. Pod 는 env 를 시작할 때만 읽는다. 키가 틀려 `BLOCKED` 가 되면 워커는 새 메시지를 더 가져가지 않는다. 남는 것은 막힐 때 처리하던 한 건뿐이고, 마지막 전달 뒤 20분이 지나면 다시 띄운 Pod 가 그 메시지를 가져가 GMS 를 다시 부른다.
+
+## 실시간 연결 켜기 — EMBED · 판정 · 이슈 (2026-11-14, Jira S15P31A102-207)
+
+새 기사가 사건 · 이슈에 붙게 하는 세 워커다. 플래그는 `infra/k8s/services/ai/ai.yaml` 에 있고 Argo CD 가 따라가므로 **MR 로** 바꾼다.
+
+| 플래그 | 무엇 | 끄면 |
+|---|---|---|
+| `EMBED_WORKER_ENABLED` | 기사 벡터를 만든다(CPU 2스레드, 기사당 약 4.3초) | 벡터가 안 생겨 판정도 멈춘다 |
+| `MATCH_EVENT_WORKER_ENABLED` | 같은 사건인지 판정하고 새 사건을 짓는다(GMS) | 새 기사가 사건에 안 붙는다 |
+| `ISSUE_WORKER_ENABLED` | 새 사건을 이슈에 붙이거나 새 이슈를 만든다(GMS) | 새 사건이 이슈 밖에 남는다 |
+
+**판정은 한 번에 한 건씩만 돈다.** 같은 사건 기사 둘이 같이 판정되면 서로를 후보로 못 봐 사건이 갈라지기 때문이다(`MatchDispatcher`). 운영 GMS 한 번이 가운데 14초 · 상위 10% 24초(2026-11-13 EXTRACT 2,402건 실측)라 시간당 **약 240건**이 한계인데 15분 수집이 시간당 200건을 넣는다. 여유가 20% 안쪽이다.
+
+### 켜기 전에
+
+1. **기사 벡터가 들어가 있나** — `data-load.md` 10절. 없으면 새 기사가 후보 사건을 하나도 못 받아 모두 새 사건이 된다
+2. **밀린 EMBED 를 건너뛴다** — `embed-backlog-skip.sql`. 안 하면 발행이 이른 밀린 기사부터 집어서 **가장 새 기사가 가장 늦게 붙는다**
+3. **`embed` 그룹을 스트림 끝으로 옮긴다** — 건너뛴 작업의 옛 메시지를 워커가 읽지 않게
+
+   ```bash
+   kubectl -n data exec redis-0 -- redis-cli XGROUP SETID analysis.released embed '$'
+   kubectl -n data exec redis-0 -- redis-cli XINFO GROUPS analysis.released
+   ```
+
+4. **백업과 스냅숏** — `db-backup.md` 의 손 백업, 그리고 되돌릴 때 견줄 기준
+
+   ```bash
+   kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc \
+     "select max(id) from issue; select max(id) from event; select count(*) from article_event"
+   ```
+
+### 켜기 · 끄기
+
+`ai.yaml` 의 세 값을 `"true"` 로 바꾸는 MR 하나. 되돌릴 때는 **이름이 아니라 값**을 되돌린다(`"false"`).
+
+### 켠 뒤 보기
+
+```bash
+kubectl -n ai logs deploy/ai -c ai --since=10m | grep -E "EMBED job=|MATCH_EVENT job=|ISSUE job="
+kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -c \
+  "select stage, status, count(*) from analysis_job where finished_at > now() - interval '1 hour' group by 1,2 order by 1,2"
+kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -c \
+  "select count(*) from analysis_job where stage='MATCH_EVENT' and status='QUEUED'"
+```
+
+- 판정 줄이 막히면 backend 로그에 `판정 줄이 멈췄을 수 있다` WARN 이 뜬다(40분 넘게 `QUEUED`)
+- 판정이 시간당 200건을 못 따라가면 회차 몫 `INGEST_RELEASE_PER_RUN`(기본 50)을 낮춘다 — `ingest.md`
