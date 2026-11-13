@@ -43,8 +43,8 @@
 
 - [x] Jira 티켓, `origin/infra`(!818 머지 뒤 `5790757` 이상)에서 worktree `C:/tmp/wt-labels`(`GIT_LFS_SKIP_SMUDGE=1` — 데이터 1GB 를 받지 않게)
 - [x] apply 고정 절 · 문서 → 로컬 시험 DB `perf-pg` 로 검증 1 ~ 3 → 커밋, SSOT 8절 줄은 따로 커밋
-- [ ] reviewer 조수 → MR → infra → dev, 분야 브랜치 맞추기
-- [ ] **사용자**(서버): 서버 사본에 apply 한 파일만 보낸다 → 백업 → 끝이 `rollback;` 인 실행 → `commit;`
+- [x] reviewer 조수 → MR → infra → dev, 분야 브랜치 맞추기
+- [x] **사용자**(서버): 서버 사본에 apply 한 파일만 보낸다 → 백업 → 끝이 `rollback;` 인 실행 → `commit;`
 
   ```bash
   scp infra/server/category-labels-apply.sql newlearn:infra/server/
@@ -54,7 +54,7 @@
   { echo 'begin;'; echo 'create temp table ic_before on commit drop as select * from public.issue_category;'; cat infra/server/category-labels-apply.sql; echo 'select b.issue_id, b.category_code as 전, a.category_code as 후 from pg_temp.ic_before b join public.issue_category a using (issue_id) where a.category_code <> b.category_code order by 1;'; echo 'rollback;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
   ```
 
-- [ ] 사이트 확인 · SSOT 10절 · Jira · 기록(zoo_docs 결정 · 현황판)
+- [x] 사이트 확인 · SSOT 10절 · Jira · 기록(zoo_docs 결정 · 현황판)
 - [ ] 기사 라벨 매일: 15분 수집이 몇 시간 돈 뒤 오늘 오후 첫 실행(라벨 없는 공개 기사 뽑기 → Sonnet 조수 → 합치기 → 사용자가 넣기, 3절). 이때 apply 가 다시 돌아 고정이 그대로인지도 본다. 그 뒤 매일 아침 한 번
 
 ## 안 바꿀 것
@@ -92,6 +92,8 @@
 - 로컬 검증 — `perf-pg` 는 11-10 데이터(이슈 162개)인데, 그중 5개(#5 · #9 · #15 · #33 · #54)는 운영과 번호 · 제목이 같았다. 그래서 검증 1 · 2 를 한 번에 봤다: 옛 · 새 apply 를 같은 데이터에 `rollback` 으로 돌려 `issue_category` 를 견주니 **정확히 그 5개만** 고정 값으로 바뀌고 나머지 157개는 같았다(제목이 다른 23줄은 `제목_같음 f` 로 건너뜀). 두 번 돌려도 같았고, #47 을 숨김 코드 `C` 로 바꾼 사본은 「이슈 고정에 모르는 코드나 숨김 코드: 47 C」로 종료 3. perf-pg 에 `bookmark` 표가 없어 시험 트랜잭션 안에서 빈 표를 만들었다(끝은 rollback)
 - 끝 수 출력에 「분야별 이슈 수」를 더했다(운영 rollback 실행에서 정치 47 · 경제 51 · 사회 40 · 국제 40 · IT·과학 9 를 바로 보려고)
 - reviewer 반영(코드): `issue_pin` 번호 겹침 예외, 제목이 달라 건너뛴 줄 수 `NOTICE`, SQL 주석 · 7절에서 개수를 빼고 SSOT 9절을 가리킴, `ingest.md` 의 「그때그때」 → 3절만 가리킴, `category-labels.md` 2절 「10:00 ~ 10:30」 → 15분 회차, 7절 「바꾸는 법」을 rollback 먼저로, 6절 스키마 지우기 안내 바로잡음, `data-load.md` 77줄에 고정 한마디
+
+- 운영 반영(10:10 ~ 10:17): 사용자 결정 없이도 되는 맡긴 일이라, 오늘 첫 매일 기사 라벨 61줄(`daily-1113`)과 이슈 고정을 한 트랜잭션에 넣어 사용자 실행을 한 번으로 줄였다. rollback 실행에서 전 · 후 28줄 · 기사 분야 `UPDATE 34` 를 보고 commit. 잰 값은 `SSOT.md` 10절. 매일 라벨에서 고정이 그대로인지는 다음 날 아침 실행에서 다시 본다
 
 ## 고정 목록과 까닭
 
