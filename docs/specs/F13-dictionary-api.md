@@ -6,7 +6,7 @@
 
 계약 원본: [A26](../api-screen.md), [공통 규칙 · 오류 코드](../api.md). 화면 동작은 UX 문서(EXPERIENCE.md) 「용어사전 말풍선」.
 
-- AC-10: 로그인과 CSRF 번호표가 필요하다. 손님은 401, 번호표가 없으면 403 이고 GMS 를 부르지 않는다.
+- AC-10: 손님도 부른다(2026-11-13 사용자, Jira 205 — 손님도 둘러보기를 다 한다). CSRF 번호표는 있어야 한다 — 손님이든 회원이든 번호표가 없으면 403 이고 GMS 를 부르지 않는다. (2026-11-10 처음에는 「로그인이 필요하고 손님은 401」이었다)
 - AC-11: 응답은 `query`(다듬은 `term`) · `word` · `pos` · `definition` 하나다. 모델이 풀이할 수 없다고 하면(말 조각 · 문맥에 근거 없음 · 거절 · 내용 필터) 200 에 세 칸이 null 이다.
 - AC-12: `term`(비었음 · 글자 없음 · 50자 초과 · NUL), `around`(비었음 · 120자 초과), `contextType`(ARTICLE · ISSUE · EVENT 밖), `contextId`(없음)가 맞지 않으면 400 `VALIDATION_FAILED` 와 그 칸의 `errors[]`. `term` 이 `around` 안에, `around` 가 그 대상의 화면 글(기사 제목 · `content.title` · 잎, 이슈 제목 · 요약, 사건 제목 · 이름 · 요약) 안에 없어도 400 이다. 비교는 공백을 뺀 NFC 다. 기사 본문은 화면 글이 아니다. 400 이면 GMS 를 부르지 않는다.
 - AC-13: 대상의 공개 규칙은 각 화면과 같다 — 없거나 숨긴 기사 · 이슈 · 사건은 `ARTICLE_NOT_FOUND` · `ISSUE_NOT_FOUND` · `EVENT_NOT_FOUND`. 마인드맵이 없는 기사도 제목은 고를 수 있다. 모델에는 고른 말 · `around` · 제목 · 문맥(기사는 본문의 그 말 근처)을 준다.
@@ -14,7 +14,7 @@
 - AC-15: GMS 를 부르려 한 수를 한국 날짜로 세어 하루 한도(`newlearn.dictionary.meaning.daily-limit`, 기본 3,000)를 넘으면 502 `DICTIONARY_UNAVAILABLE`. 저장해 둔 답은 세지 않는다. 세는 키 `meaningquota:<날짜>` 에 만료(2일)가 있다. 세지 못하면(Redis 실패) 막는다. 한도 0 이면 부르지 않는다.
 - AC-16: GMS 키가 없거나 · 401 · 429 · 400 · 늦은 실패 · 읽을 수 없는 답(JSON 아님 · `found` 없음 · 표제어나 뜻풀이가 비었거나 50 · 200자 초과)이면 502 `DICTIONARY_UNAVAILABLE`. 2초 안에 실패한 연결 오류 · 5xx 만 한 번 더 부른다. 품사가 10자를 넘으면 null.
 - AC-17: 키 · 고른 말 · 문맥 · GMS 답(오류 본문 포함)은 로그에 남지 않는다.
-- AC-18: Swagger 에 `[확정] A26` · 요청 본문 칸 설명 · 400 · 401 · 403 · 404 · 502 와 null 이 될 수 있는 응답 칸이 있다.
+- AC-18: Swagger 에 `[확정] A26` · 요청 본문 칸 설명 · 400 · 403 · 404 · 502 와 null 이 될 수 있는 응답 칸이 있다. 401 은 없다(AC-10).
 
 시험: AC-10 ~ AC-15 는 `DictionaryMeaningApiIntegrationTest`, AC-15 의 Redis 실패 · 0 은 `dictionary/MeaningQuotaTest`, AC-16 · AC-17 은 `dictionary/GmsMeaningClientTest`, AC-18 은 `OpenApiDocsTest`. 화면 쪽 드래그 규칙은 `frontend/src/components/meaning/pickTerm.test.ts`, 말풍선은 `MeaningBubble.test.tsx`.
 
