@@ -374,6 +374,15 @@ test("머리 줄은 기사 제목이 아니라 AI 한 줄 요지다 — h1 과 �
   expect(header.className).not.toContain("hidden");
 });
 
+// 요지 줄도 드래그하면 용어사전 「의미」가 뜬다 — A26 이 기사 요지를 화면 글로 받는다 (2026-11-13 사용자, Jira 202)
+test("머리 줄 요지는 용어사전 드래그 대상이다 — 기사 대상, 글은 요지 그대로", () => {
+  renderFlow();
+
+  const summary = screen.getByText(SUMMARY);
+  expect(summary.getAttribute("data-meaning")).toBe("ARTICLE:409");
+  expect(summary.textContent).toBe(SUMMARY);
+});
+
 test("요지가 없거나 공백뿐이면 머리 줄을 두지 않는다", () => {
   renderFlow(BRANCHES, "   ");
   expect(screen.queryByText("기사 핵심")).toBeNull();
