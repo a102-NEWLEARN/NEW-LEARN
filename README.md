@@ -11,6 +11,7 @@ NEW:LEARN 은 뉴스 기사를 AI 로 **가지 4개(핵심 내용 · 원인·배
 | 서비스 | https://newlearn.io.kr |
 | 무엇을 만드나 | [`docs/mvp-overview.md`](docs/mvp-overview.md) |
 | 시스템 구성 · 정한 것 · 잰 것 | [`SSOT.md`](SSOT.md) |
+| 시험 · 검증 | [`docs/testing.md`](docs/testing.md) |
 
 ## 목차
 
@@ -139,7 +140,7 @@ flowchart LR
 |---|---|---|
 | AI 결과 적재가 반쯤 들어감 | SQL 이 중간에 실패해도 앞부분은 이미 바뀌어 있을 수 있음 | 한 트랜잭션, 끝이 `rollback;` 인 실행으로 수를 먼저 보고 `commit;`, 마이그레이션 판이 다르면 첫 단계에서 멈춤([`infra/server/data-load.md`](infra/server/data-load.md)) |
 | 수집 · 백업 · 로그가 멈춤 | 화면은 그대로라 아무도 모름 | 수집 누락 · 백업 누락 · 디스크 · 로그 버림 · 로그 수집기 멈춤 경보 → Mattermost, 경보 규칙은 CI 에서 시험([`infra/k8s/alerts/rules.yaml`](infra/k8s/alerts/rules.yaml)) |
-| null · 잘못된 SQL | 컴파일은 통과하고 운영에서 터짐 | Error Prone · NullAway, 실제 PostgreSQL 에 붙는 시험(로컬은 Testcontainers, CI 는 서비스 DB) |
+| null · 잘못된 SQL | 컴파일은 통과하고 운영에서 터짐 | Error Prone · NullAway, 실제 PostgreSQL 에 붙는 시험(로컬은 Testcontainers, CI 는 잡 옆에 띄운 PostgreSQL) |
 | 비밀값 커밋 | 빌드 · 동작은 멀쩡함 | 커밋 전 시크릿 스캔 · 영역별 포맷 · 린트 · 테스트 훅([`.claude/hooks/`](.claude/hooks/)) |
 | 배포 태그 MR 이 먼저 기다리던 영역의 태그를 지움 | 두 영역이 같은 배포 MR 을 덮어쓰면 늦게 온 쪽만 남음 | 열린 배포 MR 의 태그를 이어받아 갱신([`infra/ci/deploy_mr.py`](infra/ci/deploy_mr.py)) |
 | 고정한 이슈 분야가 엉뚱한 이슈에 붙음 | 다시 적재로 이슈 번호가 바뀌어도 SQL 은 성공함 | 번호와 제목이 둘 다 같을 때만 고정([`infra/server/category-labels.md`](infra/server/category-labels.md) 7절) |
