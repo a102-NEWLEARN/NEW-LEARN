@@ -25,6 +25,22 @@ import { formatPeriod } from "@/lib/date";
 import { toId } from "@/lib/id";
 import { metaLine } from "@/lib/meta";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { type CoachMark, CoachMarks } from "@/components/coach/CoachMarks";
+
+// 이슈 화면 안내 — 처음 들어오면 한 번 띄운다
+const ISSUE_COACH: CoachMark[] = [
+  {
+    target: "event",
+    title: "사건을 눌러 보세요",
+    body: "같은 사건을 다룬 기사와 흐름을 자세히 보여줘요",
+  },
+  {
+    target: "glossary",
+    title: "모르는 단어는?",
+    body: "드래그하면 뜻을 알려줘요",
+    side: "bottom",
+  },
+];
 
 const NOT_FOUND_TITLE = "이슈를 찾을 수 없어요";
 
@@ -116,7 +132,12 @@ function IssueView({ issueId }: { issueId: number }) {
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <IssueHeader query={issue} onTitleFocusChange={setTitleFocused} />
-        <div className="flex min-h-0 flex-1 flex-col border-t border-stroke-neutral-subtle">
+        <CoachMarks id="issue" marks={ISSUE_COACH} />
+        {/* 넓은 화면은 이슈 흐름을 머리와 같은 좌우 여백(32px) 안의 카드로 둔다 — 지도가 화면 끝에 붙어 보였다
+            (2026-11-13 사용자 「양쪽 패딩이 너무 좁다」, Jira 202). 좁은 화면은 세로 목록이 제 여백을 갖는다 */}
+        <div
+          className={`flex min-h-0 flex-1 flex-col ${narrow ? "border-t border-stroke-neutral-subtle" : "px-x8 pb-x6 lg:px-[64px]"}`}
+        >
           {timeline.data ? (
             timeline.data.events.length === 0 ? (
               <Centered>

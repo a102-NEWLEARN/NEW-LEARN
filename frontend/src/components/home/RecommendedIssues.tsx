@@ -13,10 +13,15 @@ import { IssueCard } from "@/components/IssueCard";
 import { CARD_RISE, cardAt, GROUP_RISE } from "@/components/motion/appMotion";
 import { LoadingState } from "@/components/state/LoadingState";
 import { QueryState } from "@/components/state/QueryState";
+import { useSignupPrompt } from "@/components/useSignupPrompt";
 import { ActionButton } from "seed-design/ui/action-button";
 
 // 탭마다 보일 이슈 수 (EXPERIENCE.md Information Architecture 홈 행)
 const ISSUES_PER_TAB = 3;
+
+// 머리 오른쪽 *관심사 편집* 자리 — 좁은 화면에서는 숨긴다 (2026-11-12 사용자, Jira 195)
+const EDIT_INTERESTS =
+  "col-start-2 row-span-2 row-start-1 shrink-0 self-end max-md:hidden";
 
 type RecommendedIssuesProps = {
   /** 회원이면 관심 분야 탭을 앞에 둔다. 손님이면 null */
@@ -48,6 +53,7 @@ function pickRecommended(
 // (EXPERIENCE.md 이동 규칙). 모르는 코드면 맨 앞 탭을 고른다
 export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
   const headingId = useId();
+  const signupPrompt = useSignupPrompt("categories");
   const categories = useQuery(categoriesQuery);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -116,25 +122,42 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x3">
         <h2
           id={headingId}
-          className="t7-bold col-span-2 row-start-1 text-fg-neutral md:col-span-1"
+          data-coach="recommended"
+          className="t7-bold col-span-2 row-start-1 justify-self-start text-fg-neutral md:col-span-1"
         >
           {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
         </h2>
         <p className="t4-regular col-span-2 row-start-2 mt-x1 text-fg-neutral-muted md:col-span-1">
           여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요.
         </p>
-        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다 */}
-        <ActionButton
-          asChild
-          variant="ghost"
-          size="small"
-          className="col-start-2 row-span-2 row-start-1 shrink-0 self-end max-md:hidden"
-        >
-          <Link to="/me">
+        {/* 글자를 오른쪽 끝에 맞추려 바깥으로 빼면(음수 여백) 보기 탭 내용 칸이 잘라 누를 때 바탕이 잘린다 — 빼지 않는다.
+            손님은 관심 분야가 없다 — 마이페이지 대신 가입 권유 창을 띄운다 (Jira 205) */}
+        {member === null ? (
+          <ActionButton
+            variant="ghost"
+            size="small"
+            className={EDIT_INTERESTS}
+            data-coach="interests"
+            onClick={(event) => signupPrompt.open(event.currentTarget)}
+          >
             관심사 편집
             <SuffixIcon svg={<IconChevronRightSmallLine />} />
-          </Link>
-        </ActionButton>
+          </ActionButton>
+        ) : (
+          <ActionButton
+            asChild
+            variant="ghost"
+            size="small"
+            className={EDIT_INTERESTS}
+            data-coach="interests"
+          >
+            <Link to="/me">
+              관심사 편집
+              <SuffixIcon svg={<IconChevronRightSmallLine />} />
+            </Link>
+          </ActionButton>
+        )}
+        {signupPrompt.dialog}
       </div>
       <div className="mt-x2_5">
         <QueryState
@@ -182,8 +205,9 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                             </li>
                           ))}
                         </ul>
-                        {/* 그 분야 이슈를 모두 보는 화면으로 — 카드 다음 차례에 떠오른다. N 은 A2 의 그 분야 이슈 수다
-                            (2026-11-12 사용자, Jira 196). 좁은 화면은 엄지로 누르기 쉽게 한 줄을 다 쓴다 */}
+                        {/* 그 분야 이슈를 모두 보는 화면으로 — 카드 다음 차례에 떠오른다. 글자는 「전체보기」만
+                            (2026-11-13 사용자, Jira 202), 화면 읽기 이름에는 어느 분야인지 남긴다.
+                            좁은 화면은 엄지로 누르기 쉽게 한 줄을 다 쓴다 */}
                         <div
                           className={`mt-x5 flex justify-center ${CARD_RISE}`}
                           style={cardAt(pick(page).length)}
@@ -194,8 +218,11 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                             size="small"
                             className="border-stroke-neutral-weak max-md:h-[44px] max-md:w-full"
                           >
-                            <Link to={`/issues?category=${selected}`}>
-                              {`${selectedName} 이슈 ${page.totalElements}개 전체보기`}
+                            <Link
+                              to={`/issues?category=${selected}`}
+                              aria-label={`${selectedName} 이슈 전체보기`}
+                            >
+                              전체보기
                               <SuffixIcon svg={<IconChevronRightSmallLine />} />
                             </Link>
                           </ActionButton>

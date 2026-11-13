@@ -74,7 +74,10 @@ export function MeaningGuide({ className = "" }: MeaningGuideProps) {
   };
 
   return (
-    <div className={`relative flex shrink-0 ${className}`}>
+    <div
+      data-coach="glossary"
+      className={`relative flex shrink-0 ${className}`}
+    >
       <button
         ref={iconRef}
         type="button"

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import type { Member, SignUpRequest } from "@/api/members";
@@ -295,6 +295,8 @@ test("가입하면 다듬은 값을 보내고, 알림을 띄우고 next 화면�
   ]);
   expect(queryClient.getQueryData(["members", "me"])).toEqual(newMember);
   expect(await screen.findByText("가입을 마쳤어요")).toBeDefined();
+  // 다음 홈에서 처음 가입한 사람 가이드를 띄운다 (Jira 204)
+  expect(localStorage.getItem("newlearn.onboarding")).toBe("pending");
 });
 
 test("사용 목적을 고르지 않아도 가입한다", async () => {
@@ -408,4 +410,58 @@ test("로그인 화면으로 가는 버튼은 첫 단계에만 있고 next 를 �
   fireEvent.click(nextButton());
   await onStep(STEP.account);
   expect(screen.queryByRole("link", { name: "로그인" })).toBeNull();
+});
+
+test("로그인 화면으로 갈 때는 기록을 쌓지 않고 바꿔 끼운다", async () => {
+  asGuest();
+  const { router } = renderRoute("/signup?next=/home");
+  await onStep(STEP.name);
+
+  fireEvent.click(screen.getByRole("link", { name: "로그인" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+// 닫기는 들어오기 전 화면, 곧 돌아올 곳(next)으로 — 가입 권유 창에서 온 손님이 닫으면 보던 화면으로 돌아온다
+// (EXPERIENCE.md 로그인 · 가입 폼, Jira 205)
+test("닫기를 누르면 들어오기 전 화면으로 돌아간다", async () => {
+  asGuest();
+  const { router } = renderRoute("/home");
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "오늘의 이슈를 탐색해 보세요",
+  });
+  await act(() => router.navigate("/signup?next=/home"));
+  await onStep(STEP.name);
+
+  fireEvent.click(screen.getByRole("link", { name: "닫기" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+});
+
+test("돌아올 곳이 없으면 닫기는 랜딩으로 가고, 로그인 화면에도 넘기지 않는다", async () => {
+  asGuest();
+  const { router } = renderRoute("/signup");
+  await onStep(STEP.name);
+  expect(
+    screen.getByRole("link", { name: "로그인" }).getAttribute("href"),
+  ).toBe("/login");
+
+  fireEvent.click(screen.getByRole("link", { name: "닫기" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+});
+
+test("가입하면 손님으로 받아 둔 응답을 버린다", async () => {
+  asGuest();
+  const { router, queryClient } = renderRoute("/signup?next=/home");
+  const articleKey = ["articles", 999];
+  queryClient.setQueryData(articleKey, { id: 999, bookmarked: false });
+  await fillToLastStep();
+
+  fireEvent.click(submit());
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+  expect(queryClient.getQueryData(articleKey)).toBeUndefined();
 });

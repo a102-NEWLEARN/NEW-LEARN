@@ -7,9 +7,8 @@ import {
   TabsTrigger,
 } from "@seed-design/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { type Category, UPCOMING_CATEGORIES } from "@/api/categories";
+import type { Category } from "@/api/categories";
 import type { Member } from "@/api/members";
-import { useUpcomingCategory } from "@/components/useSnackbar";
 
 export type CategoryTab = {
   code: string;
@@ -18,7 +17,7 @@ export type CategoryTab = {
   marked?: boolean;
 };
 
-// 관심 분야(별) → 나머지 분야. 둘 다 A1 순서다. 준비 중 분야는 CategoryTabs 가 끝에 붙인다.
+// 관심 분야(별) → 나머지 분야. 둘 다 A1 순서다. 준비 중 분야(스포츠 · 문화/연예)는 두지 않는다(2026-11-13 Jira 202).
 // 홈 추천 이슈와 분야별 이슈 화면이 같은 순서를 쓴다 (EXPERIENCE.md Component Patterns 「분야 탭」)
 export function orderCategoryTabs(
   categories: readonly Category[],
@@ -51,8 +50,6 @@ type CategoryTabsProps = {
 // 모양은 DESIGN.md · v2 CategoryTabs: 기본 fg-neutral-muted Medium, 고르면 fg-neutral Bold + 2px 청록 밑줄, 밑선 1px.
 // 좁은 화면은 14px — 바로 위 「추천 이슈 / 최신 기사」 보기 탭(16px)보다 한 단계 아래로 보인다.
 // 오른쪽으로 더 밀 탭이 남았으면 줄 끝을 흐린다 — 글자가 잘린 채 끝나 깨진 것처럼 보였다 (2026-11-05 UI 점검).
-// 준비 중 분야는 고를 수 없어서 탭이 아니라 탭 줄 끝의 버튼이다. SEED 의 disabled 탭은
-// 누를 수도 키보드로 닿을 수도 없어 안내를 못 띄운다
 export function CategoryTabs({
   label,
   tabs,
@@ -60,7 +57,6 @@ export function CategoryTabs({
   onValueChange,
   children,
 }: CategoryTabsProps) {
-  const notifyUpcoming = useUpcomingCategory();
   const rowRef = useRef<HTMLDivElement>(null);
   const [moreRight, setMoreRight] = useState(false);
 
@@ -99,7 +95,7 @@ export function CategoryTabs({
       triggerLayout="hug"
       size="medium"
     >
-      {/* 탭과 준비 중 버튼이 한 줄로 가로 스크롤한다. 밑선은 이 줄 전체에 긋는다 */}
+      {/* 탭 줄이 가로 스크롤한다. 밑선은 이 줄 전체에 긋는다 */}
       <div className="relative" data-more-right={moreRight || undefined}>
         <div
           ref={rowRef}
@@ -128,17 +124,6 @@ export function CategoryTabs({
             ))}
             <TabsIndicator className="border-b-bg-brand-solid" />
           </TabsList>
-          {UPCOMING_CATEGORIES.map((category) => (
-            <button
-              key={category.code}
-              type="button"
-              onClick={() => notifyUpcoming(category.name)}
-              className="t4-medium md:t5-medium flex min-h-[44px] shrink-0 items-end gap-x1 py-x2_5 whitespace-nowrap text-fg-neutral-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
-            >
-              {category.name}{" "}
-              <span className="t1-medium mb-[3px]">준비 중</span>
-            </button>
-          ))}
         </div>
         {/* 오른쪽 끝 흐림 — 밑선(아래 1px)은 덮지 않는다. SEED 테마에 위치 · 폭 토큰 클래스가 없어 px 로 쓴다 */}
         {moreRight && (

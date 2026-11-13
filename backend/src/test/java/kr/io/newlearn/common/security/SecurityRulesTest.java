@@ -181,6 +181,23 @@ class SecurityRulesTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    // A26 용어사전 문맥 뜻은 손님도 부른다 — 손님도 둘러보기를 다 한다 (2026-11-13 사용자, Jira 205).
+    // POST 라서 가입 · 로그인처럼 CSRF 번호표는 있어야 한다. 없으면 403
+    @Test
+    void dictionaryMeaningIsOpenToGuestsWithCsrfToken() throws Exception {
+        MvcResult withToken = mockMvc.perform(post("/api/v1/dictionary/meaning")
+                        .with(csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andReturn();
+        assertThat(withToken.getResponse().getStatus()).isNotIn(401, 403);
+        mockMvc.perform(post("/api/v1/dictionary/meaning")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
     @Test
     void signupAndLoginWithCsrfTokenPassSecurity() throws Exception {
         for (String path : new String[] {"/api/v1/members", "/api/v1/auth/login"}) {

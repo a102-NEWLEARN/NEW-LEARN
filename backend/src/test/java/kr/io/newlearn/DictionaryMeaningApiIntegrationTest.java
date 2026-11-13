@@ -128,20 +128,27 @@ class DictionaryMeaningApiIntegrationTest {
         return "meaningquota:" + LocalDate.now(ZoneId.of("Asia/Seoul"));
     }
 
-    // AC-10 — 손님은 부르지 못한다(GMS 비용, 화면도 회원 전용). 로그인은 해도 번호표가 없으면 403
+    // AC-10 — 손님도 부른다(2026-11-13 사용자, Jira 205 — 손님도 둘러보기를 다 한다). POST 라 번호표는 있어야 한다 —
+    // 손님이든 회원이든 번호표가 없으면 403 이고 GMS 를 부르지 않는다
     @Test
-    void guestsAndRequestsWithoutCsrfTokenAreRefused() throws Exception {
-        mvc.perform(post(URL)
-                        .with(csrfToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body("이자", LEAF, "ARTICLE", 4201)))
-                .andExpect(status().isUnauthorized());
+    void guestsMayAskButNotWithoutCsrfToken() throws Exception {
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(body("이자", LEAF, "ARTICLE", 4201)))
+                .andExpect(status().isForbidden());
         mvc.perform(post(URL)
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("이자", LEAF, "ARTICLE", 4201)))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(source);
+
+        when(source.explain(any())).thenReturn(INTEREST);
+        mvc.perform(post(URL)
+                        .with(csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("이자", LEAF, "ARTICLE", 4201)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.word").value("이자"));
+        verify(source, times(1)).explain(any());
     }
 
     // AC-11 — 뜻 하나를 사전 모양으로. 모델에는 고른 말 · 주변 조각 · 제목 · 본문의 그 말 근처를 준다
@@ -161,6 +168,18 @@ class DictionaryMeaningApiIntegrationTest {
         assertThat(prompt.getValue().around()).isEqualTo("동결하며 이자 부담이");
         assertThat(prompt.getValue().title()).isEqualTo("금리 동결에 이자 부담");
         assertThat(prompt.getValue().context()).contains("예금 이자를 내리고");
+    }
+
+    // 흐름지도 머리 줄은 AI 한 줄 요지(article_mindmap.summary)다 — 그 줄에서 고른 말도 받는다 (Jira 202)
+    @Test
+    void theAiSummaryOnTheFlowHeadlineIsAScreenText() throws Exception {
+        jdbc.sql("update article_mindmap set summary = '금리 동결로 가계 이자 부담이 커졌다' where article_id = 4201")
+                .update();
+        when(source.explain(any())).thenReturn(INTEREST);
+        ask("이자", "가계 이자 부담이", "ARTICLE", 4201).andExpect(status().isOk());
+        ArgumentCaptor<MeaningPrompt> prompt = ArgumentCaptor.forClass(MeaningPrompt.class);
+        verify(source).explain(prompt.capture());
+        assertThat(prompt.getValue().around()).isEqualTo("가계 이자 부담이");
     }
 
     // AC-11 — 뜻 단위가 아니거나 문맥으로도 모르면 200 에 세 칸이 null 이다(결과 없음과 같은 자리)

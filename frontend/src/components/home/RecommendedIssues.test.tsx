@@ -179,20 +179,21 @@ test("분야에 이슈가 없으면 빈 문구를 둔다", async () => {
   expect(screen.queryByRole("link", { name: /전체보기/ })).toBeNull();
 });
 
-test("카드 아래 *OO 이슈 N개 전체보기* 는 고른 분야의 분야별 이슈 화면으로 간다 — N 은 그 분야 이슈 수", async () => {
+test("카드 아래 *전체보기* 는 고른 분야의 분야별 이슈 화면으로 간다 — 글자는 「전체보기」, 화면 읽기 이름에는 분야를 남긴다", async () => {
   renderSection();
 
   // 가짜 A2 의 경제 이슈는 4개다 — 카드는 3장만 보인다
   const all = await screen.findByRole("link", {
-    name: "경제 이슈 4개 전체보기",
+    name: "경제 이슈 전체보기",
   });
+  expect(all.textContent).toBe("전체보기");
   expect(all.getAttribute("href")).toBe("/issues?category=economy");
   expect(await cardHrefs()).toHaveLength(3);
 
   fireEvent.click(screen.getByRole("tab", { name: "국제" }));
 
   const world = await screen.findByRole("link", {
-    name: "국제 이슈 1개 전체보기",
+    name: "국제 이슈 전체보기",
   });
   expect(world.getAttribute("href")).toBe("/issues?category=world");
 });
@@ -316,6 +317,26 @@ test("관심사 편집은 마이페이지로 가고, 좁은 화면에서는 숨�
   expect(edit.getAttribute("href")).toBe("/me");
   // 폰에서는 머리를 제목 · 설명만으로 둔다 (2026-11-12 사용자, Jira 195). jsdom 은 미디어 쿼리 CSS 를 안 풀어 클래스로 본다
   expect(edit.className).toContain("max-md:hidden");
+});
+
+// 손님은 관심 분야가 없다 — 마이페이지 대신 가입을 권한다 (EXPERIENCE.md Component Patterns 「가입 권유 창」, 2026-11-13 Jira 205)
+test("손님의 관심사 편집은 가입 권유 창을 띄우고, 좁은 화면에서는 숨긴다", async () => {
+  renderSection("/home", null);
+
+  expect(screen.queryByRole("link", { name: "관심사 편집" })).toBeNull();
+  const edit = screen.getByRole("button", { name: "관심사 편집" });
+  expect(edit.className).toContain("max-md:hidden");
+
+  fireEvent.click(edit);
+
+  const dialog = await screen.findByRole("alertdialog", {
+    name: "가입하면 더 편하게 이용할 수 있어요",
+  });
+  expect(
+    within(dialog).getByText(
+      "관심 분야를 고르면 그 분야 이슈부터 추천해 드려요.",
+    ),
+  ).toBeDefined();
 });
 
 test("카드가 45ms 간격으로 떠오르고, 분야를 바꾸면 묶음을 새로 그려 다시 떠오른다", async () => {

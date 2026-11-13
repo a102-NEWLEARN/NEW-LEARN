@@ -1,11 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { meQuery } from "@/api/members";
 import { HomeGreeting } from "@/components/home/HomeGreeting";
 import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
 import { type HomeView, HomeViewTabs } from "@/components/home/HomeViewTabs";
 import { LatestArticles } from "@/components/home/LatestArticles";
+import {
+  ONBOARDING_KEY,
+  OnboardingTour,
+} from "@/components/home/OnboardingTour";
+import { type CoachMark, CoachMarks } from "@/components/coach/CoachMarks";
 import { NewIssues } from "@/components/home/NewIssues";
 import { RecommendedIssues } from "@/components/home/RecommendedIssues";
 import { SearchBox } from "@/components/home/SearchBox";
@@ -13,10 +18,49 @@ import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { focusSearchRequest } from "@/components/shell/useQuickSearch";
 import { usePageTitle } from "@/components/usePageTitle";
 
+// 홈 화면 안내 — 처음 들어오면 한 번 띄운다. 대상은 data-coach · data-tour 로 찾는다
+const HOME_COACH: CoachMark[] = [
+  {
+    target: "bookmarks",
+    title: "나의 뉴스함",
+    body: "저장한 기사와 이슈를 모아 봐요",
+    side: "bottom",
+  },
+  {
+    target: "search",
+    title: "궁금한 건 검색!",
+    body: "이슈 · 사건 · 기사를 한 번에 찾아요",
+    side: "bottom",
+    at: 0.08,
+  },
+  {
+    target: "recommended",
+    title: "나를 위한 추천 이슈",
+    body: "같은 사건 기사를 묶어 흐름으로 보여줘요",
+    side: "right",
+  },
+  {
+    target: "interests",
+    title: "관심 분야 고르기",
+    body: "고른 분야로 추천이 바뀌어요",
+    side: "top",
+  },
+];
+
+// 가입 직후 단계식 가이드(OnboardingTour)가 뜨는 날은 화면 안내를 띄우지 않는다 — 막이 두 겹 뜨지 않게
+function touring() {
+  try {
+    return window.localStorage.getItem(ONBOARDING_KEY) === "pending";
+  } catch {
+    return false;
+  }
+}
+
 // 홈 — 인사 · 검색창 · 「새로운 이슈」 · 추천 이슈 · 최신 기사 (EXPERIENCE.md Information Architecture, 프로토타입 v21).
 // 좁은 화면은 추천 이슈 · 최신 기사를 탭으로 하나씩 보인다 (모바일 프로토타입 v1).
 // 셸이 <main> 을 줄 것이라 여기서는 쓰지 않는다
 export function HomePage() {
+  const [tour] = useState(touring);
   usePageTitle("홈");
   // A17 — 200 이면 회원, 401 이면 손님(null). 다른 오류로 실패해도 홈 전체를 막지 않고 손님 문구로 보인다
   const me = useQuery(meQuery);
@@ -47,7 +91,14 @@ export function HomePage() {
       { replace: true },
     );
   const recommended = (
-    <RecommendedIssues member={member} pending={me.isPending} />
+    <div data-tour="issues">
+      <RecommendedIssues member={member} pending={me.isPending} />
+    </div>
+  );
+  const latest = (
+    <div data-tour="articles">
+      <LatestArticles />
+    </div>
   );
 
   return (
@@ -60,7 +111,10 @@ export function HomePage() {
         <HomeHeroBackground />
         <div className="relative mx-auto max-w-[780px] px-x5 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
           <HomeGreeting member={member} pending={me.isPending} />
-          <SearchBox focusRequest={focusRequest} />
+          {/* 처음 가입한 사람 가이드가 비추는 자리(data-tour) — OnboardingTour */}
+          <div data-tour="search">
+            <SearchBox focusRequest={focusRequest} />
+          </div>
           <NewIssues />
         </div>
       </section>
@@ -73,15 +127,17 @@ export function HomePage() {
             value={view}
             onValueChange={setView}
             recommended={recommended}
-            latest={<LatestArticles />}
+            latest={latest}
           />
         ) : (
           <>
             {recommended}
-            <LatestArticles />
+            {latest}
           </>
         )}
       </div>
+      <OnboardingTour />
+      {!tour && <CoachMarks id="home" marks={HOME_COACH} />}
     </>
   );
 }
