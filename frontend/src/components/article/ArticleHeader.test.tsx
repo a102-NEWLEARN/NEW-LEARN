@@ -5,7 +5,6 @@ import { expect, test } from "vitest";
 import { type ArticleDetail, articleQuery } from "@/api/article";
 import { ArticleHeader } from "@/components/article/ArticleHeader";
 import { server } from "@/mocks/node";
-import { stubScreen } from "@/test/media";
 import { enterDelay, expectMotionSafe } from "@/test/motion";
 import { renderWithProviders } from "@/test/render";
 
@@ -70,6 +69,15 @@ test("이슈가 없으면 분야만, 기자가 없으면 기자를 뺀다", asyn
 
   await title();
   expect(screen.getByText("경제")).toBeDefined();
+  expect(screen.getByText("바른신문 · 2026.10.06 14:30")).toBeDefined();
+});
+
+// 까닭은 ArticleHeader 의 metaLine 주석
+test("기자 칸이 언론사 이름과 같으면 기자를 뺀다", async () => {
+  answer({ reporter: " 바른신문 " });
+  renderWithProviders(<Header />);
+
+  await title();
   expect(screen.getByText("바른신문 · 2026.10.06 14:30")).toBeDefined();
 });
 
@@ -158,23 +166,43 @@ test("불러오지 못하면 안내와 다시 시도를 두고, 다시 시도하
   expect(await title()).toBeDefined();
 });
 
-test("좁은 화면에서는 이슈 보기 버튼이 한 줄을 꽉 채운다 (모바일 v1)", async () => {
-  stubScreen("narrow");
+// 버튼 셋이 두 줄로 크게 놓였다 → 북마크는 제목 오른쪽 위 아이콘, 원문 보기 · 이슈 보기는 한 줄 (2026-11-12 사용자, Jira 195)
+test("북마크는 글자 버튼이 아니라 제목 옆 아이콘 하나이고, 원문 보기 · 이슈 보기와 따로 있다", async () => {
   answer({});
   renderWithProviders(<Header />);
   await title();
 
-  const link = screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" });
-  expect(link.className).toContain("w-full");
+  const bookmark = screen.getByRole("button", {
+    name: "한빛반도체 텍사스 공장 착공식 나의 뉴스함에 담기",
+  });
+  expect(bookmark.textContent).toBe("");
+  expect(screen.queryByText("북마크")).toBeNull();
+  const source = screen.getByRole("link", { name: /원문 보기/ });
+  const issue = screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" });
+  expect(source.parentElement).toBe(issue.parentElement);
+  expect(source.parentElement!.contains(bookmark)).toBe(false);
 });
 
-test("넓은 화면에서는 이슈 보기 버튼이 글자 폭만큼이다", async () => {
+test("좁은 화면에서는 원문 보기 · 이슈 보기가 한 줄을 반씩 나눈다", async () => {
   answer({});
   renderWithProviders(<Header />);
   await title();
 
-  const link = screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" });
-  expect(link.className).not.toContain("w-full");
+  // jsdom 은 미디어 쿼리 CSS 를 안 풀어 클래스로 본다
+  for (const link of [
+    screen.getByRole("link", { name: /원문 보기/ }),
+    screen.getByRole("link", { name: "이 기사가 속한 이슈 보기" }),
+  ])
+    expect(link.className).toContain("max-md:flex-1");
+});
+
+test("이슈가 없으면 원문 보기와 안내만 그 줄에 둔다", async () => {
+  answer({ eventMatchStatus: "QUEUED", event: null, issue: null });
+  renderWithProviders(<Header />);
+  await title();
+
+  const source = screen.getByRole("link", { name: /원문 보기/ });
+  expect(source.parentElement!.textContent).toContain("사건을 찾는 중이에요");
 });
 
 test("기사를 받으면 분야 · 제목 · 정보 · 버튼이 차례로 떠오른다 — 움직임은 동작 줄이기를 켜면 빠진다", async () => {

@@ -22,11 +22,18 @@ test("마이페이지는 프로필 메뉴를 여는 버튼이다", () => {
   expect(screen.queryByRole("link", { name: "마이페이지" })).toBeNull();
 });
 
-// 사이드바가 서랍이 되는 폭과 같은 판정(셸의 useMediaQuery)으로 글자를 숨긴다. 이름은 스크린 리더에 남는다
-test("좁은 화면에서는 메뉴 버튼을 두고 오른쪽 버튼 글자를 숨긴다", () => {
-  renderWithProviders(<Header narrow onLogoClick={noop} onMenuClick={noop} />);
+// 셸의 좁은 화면 판정(useMediaQuery)으로 글자를 숨긴다. 이름은 스크린 리더에 남는다.
+// 좁은 화면의 메뉴 버튼 · 서랍은 뺐다 — 로고가 맨 왼쪽 (2026-11-12 사용자, Jira 195)
+test("좁은 화면에서는 메뉴 버튼 없이 로고가 맨 앞이고 오른쪽 버튼 글자를 숨긴다", () => {
+  renderWithProviders(<Header narrow onLogoClick={noop} />);
 
-  expect(screen.getByRole("button", { name: "메뉴 열기" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "메뉴 열기" })).toBeNull();
+  expect(
+    screen
+      .getByRole("banner")
+      .querySelector("a, button")
+      ?.getAttribute("aria-label"),
+  ).toBe("NEW:LEARN 홈으로");
   expect(screen.getByText("나의 뉴스함").classList.contains("sr-only")).toBe(
     true,
   );
@@ -37,10 +44,9 @@ test("좁은 화면에서는 메뉴 버튼을 두고 오른쪽 버튼 글자를 
   expect(myPageLabel.classList.contains("sr-only")).toBe(true);
 });
 
-test("넓은 화면에서는 메뉴 버튼이 없고 글자가 보인다", () => {
-  renderWithProviders(<Header onLogoClick={noop} onMenuClick={noop} />);
+test("넓은 화면에서는 오른쪽 버튼 글자가 보인다", () => {
+  renderWithProviders(<Header onLogoClick={noop} />);
 
-  expect(screen.queryByRole("button", { name: "메뉴 열기" })).toBeNull();
   expect(screen.getByText("나의 뉴스함").classList.contains("sr-only")).toBe(
     false,
   );

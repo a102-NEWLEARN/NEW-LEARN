@@ -245,20 +245,17 @@ test("도구줄 개수가 0이면 그 항목을 뺀다", async () => {
   expect(screen.queryByText(/기사 0/)).toBeNull();
 });
 
-// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 서랍 안에서 누른 Esc 는 서랍만
-test("좁은 화면에서 TIP 을 연 채 서랍을 열고 Esc 를 누르면 서랍만 닫힌다", async () => {
+// 좁은 화면의 메뉴 버튼 · 서랍(이슈 탐색)은 뺐다 — 로고가 맨 왼쪽 (2026-11-12 사용자, Jira 195).
+// 이슈는 홈 분야 탭 · 검색으로 찾는다. Ctrl/⌘+\ 도 좁은 화면에서는 아무것도 열지 않는다
+test("좁은 화면에는 메뉴 버튼 · 사이드바 · 서랍이 없고 Ctrl+\\ 도 아무것도 열지 않는다", async () => {
   stubScreen("narrow");
   renderRoute("/issues/12");
-  fireEvent.click(await screen.findByRole("button", { name: "TIP" }));
-  fireEvent.click(await screen.findByRole("button", { name: "메뉴 열기" }));
-  const drawer = await screen.findByRole("dialog", { name: "메뉴" });
+  await title();
 
-  fireEvent.keyDown(drawer, { key: "Escape" });
-
-  await waitFor(() =>
-    expect(screen.queryByRole("dialog", { name: "메뉴" })).toBeNull(),
-  );
-  expect(screen.getByRole("dialog", { name: "타임라인 TIP" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "메뉴 열기" })).toBeNull();
+  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+  fireEvent.keyDown(window, { key: "\\", ctrlKey: true });
+  expect(screen.queryByRole("dialog", { name: "메뉴" })).toBeNull();
 });
 
 test("넓은 화면에서 TIP 만 열려 있으면 타임라인 밖(이슈 제목)에서 누른 Esc 도 TIP 을 닫는다", async () => {
