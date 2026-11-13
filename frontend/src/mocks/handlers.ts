@@ -899,7 +899,9 @@ export const handlers = [
     const query = new URL(request.url).searchParams;
     const page = Number(query.get("page") ?? 0);
     const size = Number(query.get("size") ?? 20);
-    const all = articlesOf(found);
+    // 기본은 오래된 순, sort=latest 면 뒤집는다(api-screen.md A6)
+    const oldest = articlesOf(found);
+    const all = query.get("sort") === "latest" ? oldest.toReversed() : oldest;
     return HttpResponse.json({
       items: all.slice(page * size, (page + 1) * size),
       page,

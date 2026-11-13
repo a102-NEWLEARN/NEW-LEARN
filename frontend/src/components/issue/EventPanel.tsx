@@ -13,11 +13,15 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
-import { type ReactNode, type Ref, useEffect, useRef } from "react";
+import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 import { ActionButton } from "seed-design/ui/action-button";
 import { ApiError } from "@/api/error";
 import { type EventDetail, eventQuery } from "@/api/event";
-import { EVENT_ARTICLES_SIZE, eventArticlesQuery } from "@/api/eventArticles";
+import {
+  EVENT_ARTICLES_SIZE,
+  type EventArticlesSort,
+  eventArticlesQuery,
+} from "@/api/eventArticles";
 import type { ArticleSummary, EventRef, Page } from "@/api/types";
 import { AiBadge } from "@/components/AiBadge";
 import { ArticleRow } from "@/components/ArticleRow";
@@ -65,7 +69,11 @@ export function EventPanel({
     ...eventQuery(eventId),
     placeholderData: keepPreviousData,
   });
-  const articles = useInfiniteQuery(eventArticlesQuery(eventId));
+  // 고른 정렬은 이전 · 다음 사건으로 넘겨도 유지한다 — 같은 기준으로 비교한다. 패널을 닫으면 처음(오래된 순)으로
+  const [sort, setSort] = useState<EventArticlesSort>("oldest");
+  const articles = useInfiniteQuery(eventArticlesQuery(eventId, sort));
+  // 「첫 기사」 날짜는 정렬과 상관없이 가장 오래된 기사다. 오래된 순일 때는 위와 같은 쿼리라 한 번만 부른다
+  const oldestFirst = useInfiniteQuery(eventArticlesQuery(eventId, "oldest"));
   const detail = event.data;
   const notFound = isEventNotFound(event.error);
   // 이전 · 다음으로 옮긴 뒤 누른 버튼이 없어졌으면(마지막 · 첫 사건) 남은 쪽 버튼으로 포커스를 옮긴다
@@ -87,8 +95,10 @@ export function EventPanel({
 
   // 앞 사건을 보이는 동안에는 새 사건의 관련 기사 · 첫 기사를 섞지 않는다
   const pending = event.isPlaceholderData;
-  // A6 는 발행 순이라 첫 쪽의 맨 앞이 첫 기사다
-  const firstArticle = pending ? undefined : articles.data?.pages[0]?.items[0];
+  // A6 오래된 순 첫 쪽의 맨 앞이 첫 기사다
+  const firstArticle = pending
+    ? undefined
+    : oldestFirst.data?.pages[0]?.items[0];
 
   // 사건이 바뀌면 key 를 바꿔 새로 그린다(떠오르는 애니메이션이 다시 돈다). 같은 부모 안 형제끼리 key 가 겹치면
   // 앞 사건 요소가 안 지워지고 쌓인다(운영에서 이슈 제목 줄이 쌓였다, Jira 188) — 자리마다 앞말을 붙인다
@@ -208,6 +218,8 @@ export function EventPanel({
           articles={articles}
           count={detail.articleCount}
           pending={pending}
+          sort={sort}
+          onSort={setSort}
         />
       )}
 
@@ -264,10 +276,24 @@ type RelatedArticlesProps = {
   count: EventDetail["articleCount"];
   /** 앞 사건을 보이는 중 — 기사 대신 자리만 둔다 */
   pending: boolean;
+  sort: EventArticlesSort;
+  onSort: (sort: EventArticlesSort) => void;
 };
 
-// 관련 기사 — 발행 순 처음 5건, 더 있으면 *더 보기* 로 다음 쪽을 붙인다 (EXPERIENCE.md Component Patterns 「기사 행」)
-function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
+const SORTS: { value: EventArticlesSort; label: string }[] = [
+  { value: "oldest", label: "오래된 순" },
+  { value: "latest", label: "최신 순" },
+];
+
+// 관련 기사 — 고른 정렬(오래된 순 · 최신 순)로 처음 5건, 더 있으면 *더 보기* 로 다음 쪽을 붙인다
+// (EXPERIENCE.md Component Patterns 「기사 행」). 정렬을 바꾸면 A6 를 그 순서로 처음부터 다시 받는다
+function RelatedArticles({
+  articles,
+  count,
+  pending,
+  sort,
+  onSort,
+}: RelatedArticlesProps) {
   const pages = articles.data?.pages ?? [];
   // 늦게 분석 · 공개된 기사가 중간에 끼면 다음 쪽이 밀려 본 기사가 다시 온다 — 처음 것만 남긴다
   const chunks = uniqueById(pages.map((page) => page.items));
@@ -302,13 +328,20 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
       mounted.current = false;
     };
   }, []);
+  // 받던 *더 보기* 도중 정렬을 바꾸면 멈춘다 — 같은 관찰자가 새 정렬을 가리켜 그 쪽을 이어 받지 않게
+  const sortNow = useRef(sort);
+  useEffect(() => {
+    sortNow.current = sort;
+  }, [sort]);
   // 받은 쪽이 모두 본 기사면 새 기사가 붙을 때까지 다음 쪽을 더 받는다 (최신 기사와 같다)
   const loadMore = async () => {
     const from = items.length;
+    const sortAt = sort;
     focusFrom.current = from;
     let result = await articles.fetchNextPage();
     while (
       mounted.current &&
+      sortNow.current === sortAt &&
       uniqueCount(result.data) <= from &&
       result.hasNextPage &&
       !result.isError
@@ -373,9 +406,34 @@ function RelatedArticles({ articles, count, pending }: RelatedArticlesProps) {
             {count}
           </span>
         )}
-        <span className="t2-regular ml-auto text-fg-neutral-subtle">
-          발행 순
-        </span>
+        <div
+          role="group"
+          aria-label="기사 정렬"
+          className="ml-auto flex items-center gap-x0_5 rounded-full bg-bg-neutral-weak p-x0_5"
+        >
+          {SORTS.map(({ value, label }) => {
+            const on = sort === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  if (on) return;
+                  focusFrom.current = null;
+                  onSort(value);
+                }}
+                className={`t2-medium h-x6 rounded-full px-x2_5 whitespace-nowrap transition-[color,background-color] duration-[var(--seed-duration-color-transition)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-stroke-focus-ring ${
+                  on
+                    ? "bg-bg-layer-default t2-bold text-fg-neutral shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
+                    : "text-fg-neutral-subtle hover:text-fg-neutral"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {body}
       {articles.hasNextPage && !pending && (
