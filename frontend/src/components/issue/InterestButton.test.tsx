@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import { issueQuery } from "@/api/issue";
@@ -157,4 +157,59 @@ test("보내는 동안 다시 눌러도 두 번 보내지 않는다", async () =
 
   await screen.findByText("관심 이슈로 저장했어요");
   expect(calls).toEqual(["PUT 13"]);
+});
+
+// 손님은 저장하지 않고 가입을 권한다 (EXPERIENCE.md Component Patterns 「가입 권유 창」, 2026-11-13 Jira 205)
+test("손님이 누르면 보내지 않고 가입 권유 창을 띄운다 — 가입하기는 이 이슈로 돌아오는 가입 화면이다", async () => {
+  server.use(
+    http.get("/api/v1/members/me", () => problem(401, "UNAUTHORIZED")),
+  );
+  const calls = interestAnswers((_, issueId) =>
+    HttpResponse.json(state(issueId, true)),
+  );
+  const { star, router } = await openIssue(13);
+  // 헤더에 *로그인* 이 뜨면 화면이 손님인 줄 안 것이다
+  await screen.findByRole("link", { name: "로그인" });
+
+  fireEvent.click(star);
+
+  const dialog = await screen.findByRole("alertdialog", {
+    name: "가입하면 더 편하게 이용할 수 있어요",
+  });
+  expect(
+    within(dialog).getByText(
+      "관심 이슈로 저장하면 홈 추천에서 먼저 보여 드려요.",
+    ),
+  ).toBeDefined();
+  expect(calls).toEqual([]);
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "가입하기" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/signup"));
+  expect(router.state.location.search).toBe("?next=/issues/13");
+});
+
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 넓은 화면의 사건 패널은 창 뒤에 남는다 (리뷰, Jira 205)
+test("사건 패널이 열린 채 손님의 가입 권유 창을 Esc 로 닫으면 창만 닫히고 패널은 남는다", async () => {
+  server.use(
+    http.get("/api/v1/members/me", () => problem(401, "UNAUTHORIZED")),
+  );
+  const { router } = renderRoute("/issues/12?event=117");
+  const star = await screen.findByRole("button", { name: "관심 이슈로 저장" });
+  await screen.findByRole("link", { name: "로그인" });
+  fireEvent.click(star);
+  const dialog = await screen.findByRole("alertdialog", {
+    name: "가입하면 더 편하게 이용할 수 있어요",
+  });
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("alertdialog", {
+        name: "가입하면 더 편하게 이용할 수 있어요",
+      }),
+    ).toBeNull(),
+  );
+  expect(router.state.location.search).toBe("?event=117");
 });

@@ -1,4 +1,3 @@
-import { IconXmarkLine } from "@karrotmarket/react-monochrome-icon";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
@@ -7,13 +6,14 @@ import { TextField, TextFieldInput } from "seed-design/ui/text-field";
 import { login } from "@/api/auth";
 import { ApiError } from "@/api/error";
 import { meQuery } from "@/api/members";
+import { AuthClose } from "@/components/AuthClose";
 import { AuthSwitch } from "@/components/AuthSwitch";
 import { Logo } from "@/components/Logo";
 import { GROUP_RISE, SCREEN_FADE } from "@/components/motion/appMotion";
 import { errorDescription } from "@/components/state/ErrorState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { useSnackbar } from "@/components/useSnackbar";
-import { nextPath, signupPath } from "@/lib/login-path";
+import { guestPath, nextPath, signupPath } from "@/lib/login-path";
 
 type Field = "loginId" | "password";
 type FieldErrors = Partial<Record<Field, string>>;
@@ -46,11 +46,14 @@ function serverFieldErrors(error: unknown): FieldErrors | null {
 }
 
 // 로그인 — 셸 없이 전체 화면으로 뜬다 (EXPERIENCE.md Information Architecture · Component Patterns 「로그인 · 가입 폼」).
-// 아래 *회원가입* 은 가입 화면으로 가며 돌아올 곳(next)을 넘긴다
+// 아래 *회원가입* 은 가입 화면으로 가며 돌아올 곳(next)을 넘긴다. 그 아래 *로그인 없이 시작하기* 는 손님인 채
+// next 로 간다 — 손님도 둘러보기는 다 한다 (EXPERIENCE.md 이동 규칙, 2026-11-13 Jira 205)
 export function LoginPage() {
   usePageTitle("로그인");
   const [params] = useSearchParams();
-  const next = nextPath(params.get("next"));
+  // 랜딩에서 오면 돌아올 곳이 없다 — 그때 닫기는 랜딩, 로그인하면 홈이다
+  const rawNext = params.get("next");
+  const next = nextPath(rawNext);
   const me = useQuery(meQuery);
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
@@ -64,8 +67,11 @@ export function LoginPage() {
 
   const mutation = useMutation({
     mutationFn: login,
-    // 내 정보를 새 회원으로 바꾸면 아래 「이미 로그인했으면」이 next 로 보낸다
+    // 내 정보를 새 회원으로 바꾸면 아래 「이미 로그인했으면」이 next 로 보낸다.
+    // 그 전에 손님으로 받아 둔 응답을 모두 버린다 — 기사 · 이슈 응답의 bookmarked · interested 가 손님 기준(false)이다.
+    // 순서를 바꾸면 새 내 정보도 지워진다 (useLogout 과 같다, Jira 205)
     onSuccess: (member) => {
+      queryClient.removeQueries();
       queryClient.setQueryData(meQuery.queryKey, member);
       snackbar.show("로그인했어요", "positive");
     },
@@ -115,13 +121,7 @@ export function LoginPage() {
     >
       <header className="flex h-[60px] shrink-0 items-center px-x5 md:px-x8">
         <Logo height={26} />
-        <Link
-          to="/"
-          aria-label="닫기"
-          className="ml-auto flex size-x10 items-center justify-center rounded-r2 text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
-        >
-          <IconXmarkLine size={20} aria-hidden />
-        </Link>
+        <AuthClose next={rawNext} />
       </header>
       <main className="flex-1">
         <form
@@ -187,9 +187,16 @@ export function LoginPage() {
           </ActionButton>
           <AuthSwitch
             question="아직 계정이 없나요?"
-            to={signupPath(next)}
+            to={rawNext === null ? "/signup" : signupPath(next)}
             label="회원가입"
           />
+          {/* 테두리 없는 글자 버튼 — 보조 버튼 *회원가입* 과 겨루지 않게 [가정] (EXPERIENCE.md IA 로그인 행).
+              닫기(AuthClose)와 같이 로그인 화면을 기록에서 뺀다 — 뒤로 가기로 다시 오지 않게 */}
+          <ActionButton asChild variant="ghost" size="large" className="w-full">
+            <Link to={guestPath(rawNext)} replace>
+              로그인 없이 시작하기
+            </Link>
+          </ActionButton>
         </form>
       </main>
     </div>

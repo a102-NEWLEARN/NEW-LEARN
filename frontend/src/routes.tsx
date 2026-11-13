@@ -13,19 +13,13 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorPage } from "@/pages/RouteErrorPage";
 import { SignupPage } from "@/pages/SignupPage";
 
-// 셸 안에 뜨는 화면들을 감싼다. 손님은 로그인 화면으로 보낸다(RequireMember).
+// 셸 안에 뜨는 화면들을 감싼다. 손님도 연다 — 회원 화면은 아래 목록에서 RequireMember 로 따로 감싼다.
 // 화면이 렌더 중 터지면 셸은 남기고 본문 자리에만 오류 화면을 둔다. 셸 자체가 터지면 바깥 errorElement 가 화면 전체에 뜬다
 export function shellRoute(pages: RouteObject[]): RouteObject {
   return {
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
-    children: [
-      {
-        element: <RequireMember />,
-        errorElement: <RouteErrorPage />,
-        children: pages,
-      },
-    ],
+    children: [{ errorElement: <RouteErrorPage />, children: pages }],
   };
 }
 
@@ -45,8 +39,14 @@ export const routes: RouteObject[] = [
     { path: "/issues", element: <IssuesPage /> },
     { path: "/issues/:issueId", element: <IssuePage /> },
     { path: "/articles/:articleId", element: <ArticlePage /> },
-    { path: "/me", element: <MyPage /> },
-    { path: "/bookmarks", element: <BookmarksPage /> },
+    // 회원 화면 — 손님은 로그인 화면으로 보낸다 (EXPERIENCE.md 이동 규칙, 2026-11-13 Jira 205)
+    {
+      element: <RequireMember />,
+      children: [
+        { path: "/me", element: <MyPage /> },
+        { path: "/bookmarks", element: <BookmarksPage /> },
+      ],
+    },
     // 그 밖의 주소
     { path: "*", element: <NotFoundPage /> },
   ]),

@@ -14,7 +14,7 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
 
 export function createQueryClient() {
   // 세션이 끝난 401 은 어느 조회 · 저장에서 받든 「내 정보」를 손님(null)으로 바꾼다.
-  // 그러면 가드(RequireMember)가 /login?next=<지금 주소> 로 보내고, 로그인하면 돌아온다 (EXPERIENCE.md 이동 규칙).
+  // 회원이던 사람이면 셸(SessionExpiredRedirect)이 /login?next=<지금 주소> 로 보내고, 로그인하면 돌아온다 (EXPERIENCE.md 이동 규칙).
   // 화면은 401 에 따로 안내를 띄우지 않는다 — 곧 로그인 화면으로 바뀐다
   const signOutIfExpired = (error: unknown) => {
     if (isSessionExpired(error)) client.setQueryData(meQuery.queryKey, null);
