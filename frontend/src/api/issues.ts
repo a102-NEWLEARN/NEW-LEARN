@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { Page } from "@/api/types";
 
@@ -45,4 +45,20 @@ export const issuesQuery = (params: IssuesParams = {}) =>
   queryOptions({
     queryKey: ["issues", params],
     queryFn: () => fetchIssues(params),
+  });
+
+/** 분야별 이슈 화면이 처음 보이고 *더 보기* 마다 더 붙이는 이슈 수 (EXPERIENCE.md IA 분야별 이슈 행) */
+export const ISSUES_PAGE_SIZE = 12;
+
+// 분야별 이슈 화면 — *더 보기* 마다 다음 쪽을 불러 아래에 붙인다. 쪽은 분야마다 따로 쌓인다.
+// 키에 "pages" 를 끼워 홈 추천의 한 쪽짜리 응답(["issues", {…}])과 모양이 섞이지 않게 한다.
+// 별을 누르면 setInterested 가 둘 다 고친다 (interestIssues.ts)
+export const issuesPagesQuery = (category: string) =>
+  infiniteQueryOptions({
+    queryKey: ["issues", "pages", { category }],
+    queryFn: ({ pageParam }) =>
+      fetchIssues({ category, page: pageParam, size: ISSUES_PAGE_SIZE }),
+    initialPageParam: 0,
+    getNextPageParam: (last) =>
+      last.page + 1 < last.totalPages ? last.page + 1 : undefined,
   });

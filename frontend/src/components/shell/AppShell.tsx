@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 import { MeaningBubble } from "@/components/meaning/MeaningBubble";
 import { SCREEN_RISE } from "@/components/motion/appMotion";
 import { Header } from "@/components/shell/Header";
-import { Sidebar } from "@/components/shell/Sidebar";
 import {
   focusSearchRequest,
   useQuickSearch,
 } from "@/components/shell/useQuickSearch";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
-import type { ShellContext } from "@/components/shell/useShell";
 
 // 기사 · 이슈 화면은 본문 높이를 채운다(h-full · min-h-full) — 본문 칸도 본문 높이로 둔다.
 // 이 두 화면은 화면 떠오름에서 뺀다. 본문 높이 칸을 10px 옮기면 그만큼 본문이 넘쳐 스크롤바가 잠깐 생겼다 사라지고,
@@ -18,52 +16,32 @@ const fillsMain = (pathname: string) => /^\/(articles|issues)\//.test(pathname);
 
 // 앱 셸 — 랜딩 · 로그인 · 가입을 뺀 화면이 이 안에 뜬다 (EXPERIENCE.md 앱 셸).
 // 화면 높이에 맞추고 본문만 스크롤해서 헤더가 늘 위에 붙어 있다.
-// 767px 이하에서는 사이드바를 두지 않는다 — 헤더 메뉴 버튼으로 여는 서랍이었는데, 폰에서는 빼고 로고를 맨 왼쪽에 둔다
-// (2026-11-12 사용자, Jira 195). 이슈는 홈 분야 탭 · 검색으로 찾는다. 본문의 글을 드래그하면 용어사전 말풍선이 뜬다(MeaningBubble)
+// 왼쪽 사이드바는 두지 않는다 — 좁은 화면 서랍은 Jira 195, 넓은 화면 레일 · 이슈 탐색은 Jira 196 에서 뺐다 (2026-11-12 사용자).
+// 분야별 이슈는 홈 추천 이슈의 *전체보기*(/issues), 이슈 · 사건 · 기사는 검색으로 찾는다.
+// 본문의 글을 드래그하면 용어사전 말풍선이 뜬다(MeaningBubble)
 export function AppShell() {
   const mainRef = useRef<HTMLElement>(null);
   const narrow = useMediaQuery(NARROW_SCREEN);
-  // 사이드바는 처음에 접혀 있다
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  // 이슈 탐색에서 펼친 분야 — 사이드바를 접었다 펴도 그대로 둔다
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const explorer = {
-    openCode: openCategory,
-    onOpenCodeChange: setOpenCategory,
-  };
-
   const quickSearch = useQuickSearch();
-  // 화면에 건네는 일 — 사건 패널이 열리면 사이드바를 접는다 (useShell)
-  const shell = useMemo<ShellContext>(
-    () => ({ collapseSidebar: () => setSidebarExpanded(false) }),
-    [],
-  );
 
-  // ⌘/Ctrl+\ 로 사이드바를 접고 편다 (PRD FR-3). 좁은 화면은 사이드바가 없어 아무것도 하지 않는다.
   // ⌘/Ctrl+K 는 빠른 이동 — 홈 검색창으로 간다 (EXPERIENCE.md IA 통합 검색).
-  // 한글 입력기는 그 키를 「₩」 · 「ㅏ」로 내기도 해서 글자 대신 키 자리(Backslash · KeyK)로도 본다
+  // 한글 입력기는 그 키를 「ㅏ」로 내기도 해서 글자 대신 키 자리(KeyK)로도 본다
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
-      const backslash = event.key === "\\" || event.code === "Backslash";
       // K 는 Shift · Alt 없이만. 라틴 글자가 왔으면 그 글자로만 본다 — Dvorak 의 Ctrl+T(K 자리)가 걸리지 않게
       const latin = /^[a-z]$/i.test(event.key);
       const k =
         !event.shiftKey &&
         !event.altKey &&
         (event.key.toLowerCase() === "k" || (!latin && event.code === "KeyK"));
-      if (backslash) {
-        if (narrow) return;
-        event.preventDefault();
-        setSidebarExpanded((expanded) => !expanded);
-      } else if (k) {
-        event.preventDefault();
-        quickSearch();
-      }
+      if (!k) return;
+      event.preventDefault();
+      quickSearch();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [narrow, quickSearch]);
+  }, [quickSearch]);
 
   // 다른 화면으로 가면 포커스를 본문 맨 위 제목(h1)으로 옮긴다 (EXPERIENCE.md Accessibility Floor).
   // 처음 열 때와 같은 화면에서 쿼리(?category= 등)만 바뀔 때는 옮기지 않는다.
@@ -86,13 +64,6 @@ export function AppShell() {
     <div className="flex h-dvh flex-col">
       <Header narrow={narrow} onLogoClick={scrollToTop} />
       <div className="flex min-h-0 flex-1">
-        {!narrow && (
-          <Sidebar
-            expanded={sidebarExpanded}
-            onExpandedChange={setSidebarExpanded}
-            {...explorer}
-          />
-        )}
         {/* isolate — 본문 안의 z-index(검색 목록 · TIP)가 본문 밖에 뜨는 것(용어사전 말풍선 · 시트) 위로 새지 않게 */}
         <main ref={mainRef} className="isolate min-w-0 flex-1 overflow-y-auto">
           {/* 다른 화면으로 가면 새 칸을 그려 본문이 떠오른다(appMotion.ts). 쿼리만 바뀌면 그대로 둔다 */}
@@ -100,7 +71,7 @@ export function AppShell() {
             key={pathname}
             className={fillsMain(pathname) ? "h-full" : SCREEN_RISE}
           >
-            <Outlet context={shell} />
+            <Outlet />
           </div>
         </main>
       </div>

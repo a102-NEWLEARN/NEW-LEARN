@@ -31,6 +31,18 @@ test("/home 을 열면 셸 안에 홈을 띄운다", async () => {
     }),
   ).toBeDefined();
   expect(router.state.location.pathname).toBe("/home");
+  // 왼쪽 사이드바는 뺐다 — 분야별 이슈는 홈 추천 이슈의 전체보기로 간다 (2026-11-12, Jira 196)
+  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+});
+
+test("Ctrl+\\ 는 셸이 가로채지 않는다 — 접고 펼 사이드바가 없다", async () => {
+  renderRoute("/home");
+  await within(screen.getByRole("main")).findByRole("heading", { level: 1 });
+
+  // fireEvent 는 preventDefault 되지 않았으면 true 다
+  expect(
+    fireEvent.keyDown(window, { key: "\\", code: "Backslash", ctrlKey: true }),
+  ).toBe(true);
 });
 
 test("손님이 랜딩 밖 화면을 열면 로그인 화면으로 보내고 그 주소를 next 로 남긴다", async () => {
@@ -58,7 +70,8 @@ test("손님이 랜딩 밖 화면을 열면 로그인 화면으로 보내고 그
   expect(new URLSearchParams(router.state.location.search).get("next")).toBe(
     "/issues/12?event=3",
   );
-  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
+  // 셸(헤더) 없이 뜬다
+  expect(screen.queryByRole("link", { name: "나의 뉴스함" })).toBeNull();
 });
 
 test("A17 이 손님 말고 다른 오류로 실패하면 막지 않고 화면을 띄운다", async () => {
@@ -304,4 +317,18 @@ test("기사 · 이슈 화면은 본문 높이를 채우고 화면 떠오름에�
   const stage = screen.getByRole("main").firstElementChild!;
   expect(stage.getAttribute("class")).toMatch(/(^|\s)h-full(\s|$)/);
   expect(stage.getAttribute("class")).not.toMatch(/animate-/);
+});
+
+test("분야별 이슈(/issues)는 이슈 화면(/issues/:id)과 달리 다른 화면처럼 떠오른다", async () => {
+  renderRoute("/issues?category=economy");
+
+  await within(screen.getByRole("main")).findByRole("heading", {
+    level: 1,
+    name: "분야별 이슈",
+  });
+  const stage = screen.getByRole("main").firstElementChild!;
+  expect(stage.getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-rise-in_300ms_/,
+  );
+  expect(stage.getAttribute("class")).not.toMatch(/(^|\s)h-full(\s|$)/);
 });

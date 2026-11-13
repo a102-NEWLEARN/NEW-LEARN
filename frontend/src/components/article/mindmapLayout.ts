@@ -1,5 +1,6 @@
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { BRANCHES } from "@/components/article/branches";
+import { withoutHeadTag } from "@/lib/title";
 
 // 기사 마인드맵 보기의 배치 — 가운데 기사 제목, 네 방향 가지, 가지 바깥쪽 잎.
 // 자리는 프로토타입 v21 buildMindmapGraph 의 목표 좌표다. 프로토타입은 force 로 그 자리를 찾아가지만
@@ -110,7 +111,8 @@ export function layoutMindmap(
   branches: MindmapBranch[],
 ): MindmapLayout {
   return {
-    root: { lines: wrapText(title, ROOT_CHARS, ROOT_LINES) },
+    // 가운데는 기사 제목(PRD FR-6)이되 앞의 「[속보]」 같은 말머리는 뺀다 — 바로 위 h1 에 원래 제목이 있다 (Jira 197)
+    root: { lines: wrapText(withoutHeadTag(title), ROOT_CHARS, ROOT_LINES) },
     branches: branches.map(({ type, items }) => {
       const { side, vertical } = BRANCHES[type];
       const x = side * BRANCH_X;

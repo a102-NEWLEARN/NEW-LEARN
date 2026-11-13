@@ -122,12 +122,12 @@ export function EventDetailPane({
   );
 }
 
-// 넓은 화면 패널 — 420px, 좁아지면 본문의 50% 까지
+// 넓은 화면 패널 — 480px, 좁아지면 본문의 50% 까지. 420px 는 관련 기사 제목이 자주 꺾여 넓혔다 (2026-11-12 사용자 QA, Jira 197)
 function WidePanel({ children }: { children: ReactNode }) {
   return (
     <aside
       aria-label="사건 상세"
-      className="relative flex w-[420px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
+      className="relative flex w-[480px] max-w-[50%] shrink-0 flex-col border-l border-stroke-neutral-weak bg-bg-layer-default motion-safe:animate-[newlearn-panel-in_300ms_var(--seed-timing-function-enter)]"
     >
       {children}
     </aside>

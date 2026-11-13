@@ -12,6 +12,7 @@ import {
   RISE,
   SPRING_IN,
 } from "@/components/motion/screenMotion";
+import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { formatFullDate, formatTimelineDates } from "@/lib/date";
 
 // 열 때 나오는 차례(ms) — 메인 흐름 선이 위에서 아래로 같은 빠르기로 자라며 그 자리의 사건이 튀어나오고 글이 떠오른다.
@@ -107,6 +108,8 @@ export function TimelineList({
             </p>
           )}
         </div>
+        {/* 용어사전 안내 — TIP 왼쪽 (2026-11-12 사용자 QA, Jira 197) */}
+        <MeaningGuide />
         {tip.button}
         {tip.panel}
       </div>
