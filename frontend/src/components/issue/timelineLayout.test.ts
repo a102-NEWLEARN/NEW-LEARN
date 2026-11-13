@@ -95,16 +95,16 @@ test("같은 시각에 같은 레인 사건은 같은 가로 자리에서 첫 �
   expect(new Set(xs(layout)).size).toBe(1);
   // 메인 흐름 선은 레인의 nodeY 를 지난다
   expect(one.y).toBe(main.top + main.nodeY);
-  // 선 위 사건의 라벨은 선 밑(사건 가운데 + 6 ~ + 38)이라 그 아래 첫 사건은 더 벌린다 — 라벨 사이 12
-  expect(two.y - one.y).toBe(58);
-  // 그다음부터는 이름 줄을 사건 가운데에 맞춘 두 줄 라벨(− 8 ~ + 24) 사이 12
-  expect(three.y - two.y).toBe(44);
+  // 선 위 사건의 라벨은 선 밑(사건 가운데 + 6 ~ + 42)이라 그 아래 첫 사건은 더 벌린다 — 라벨 사이 12
+  expect(two.y - one.y).toBe(62);
+  // 그다음부터는 이름 줄을 사건 가운데에 맞춘 두 줄 라벨(− 8 ~ + 28) 사이 12 — 이름 15px · 날짜 13px (Jira 197)
+  expect(three.y - two.y).toBe(48);
   expect(four.lane).toBe("SUB");
   expect(four.y).toBe(sub.top + sub.nodeY);
-  expect([five.y - four.y, six.y - five.y]).toEqual([44, 44]);
+  expect([five.y - four.y, six.y - five.y]).toEqual([48, 48]);
   // 레인은 마지막 사건의 라벨이 들어가게 늘어난다
-  expect(main.top + main.height).toBeGreaterThanOrEqual(three.y + 24 + 12);
-  expect(sub.top + sub.height).toBeGreaterThanOrEqual(six.y + 24 + 12);
+  expect(main.top + main.height).toBeGreaterThanOrEqual(three.y + 28 + 12);
+  expect(sub.top + sub.height).toBeGreaterThanOrEqual(six.y + 28 + 12);
 });
 
 test("화면이 넓으면 간격 비율을 지킨 채 빈 자리를 채우게 늘린다", () => {

@@ -41,7 +41,9 @@ test("헤더에 분야 · 연도 · 제목 · 요약, 도구줄에 기간 · 사
   renderRoute("/issues/12");
 
   const header = (await title()).closest("header")!;
-  expect(within(header).getByText("경제 · 2026")).toBeDefined();
+  expect(within(header).getByText("경제").closest("p")!.textContent).toBe(
+    "경제 · 2026",
+  );
   expect(
     within(header).getByText("한빛반도체가 텍사스 공장 투자를 늘리고 착공했다"),
   ).toBeDefined();
@@ -80,6 +82,15 @@ test("?event= 로 열면 그 사건을 고른 채 열고, 빈 곳을 누르면 �
 
   expect(router.state.location.search).toBe("");
   expect(router.state.historyAction).toBe("REPLACE");
+});
+
+// 420px 는 관련 기사 제목이 자주 꺾여 좁았다 (2026-11-12 사용자 QA, Jira 197)
+test("넓은 화면 사건 패널은 480px 이고 본문 폭의 절반을 넘지 않는다", async () => {
+  renderRoute("/issues/12?event=117");
+
+  const panel = await screen.findByRole("complementary", { name: "사건 상세" });
+  expect(panel.className).toContain("w-[480px]");
+  expect(panel.className).toContain("max-w-[50%]");
 });
 
 test("사건이 없는 이슈는 타임라인 자리에 안내를 둔다", async () => {

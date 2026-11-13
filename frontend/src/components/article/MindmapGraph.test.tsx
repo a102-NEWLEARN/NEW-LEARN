@@ -574,3 +574,20 @@ test.each([
     }
   },
 );
+
+// 기사 머리 h1 과 같은 제목이 가운데 원에 또 보였다 — PRD FR-6 대로 제목은 두되, 앞의 말머리는 뺀다 (2026-11-12 사용자 QA, Jira 197)
+test("가운데 원은 제목 앞의 말머리([속보] 등)를 빼고 보인다", () => {
+  renderWithProviders(
+    <MindmapGraph
+      articleId={409}
+      title='[속보] 임광현 "긴급 소방 재원 미래기금 활용…국회와 협의"'
+      branches={BRANCHES}
+    />,
+  );
+
+  const center = [...document.querySelectorAll("text")].find((text) =>
+    text.textContent?.startsWith("임광현"),
+  );
+  expect(center).toBeDefined();
+  expect(document.body.textContent).not.toContain("[속보]");
+});
