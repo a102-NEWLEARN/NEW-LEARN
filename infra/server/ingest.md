@@ -307,6 +307,12 @@ auto 는 수집 쪽 코드와 자동 투입 쪽 코드 중 큰 값으로 끝난�
   kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -c "select a.press_code, count(*) as 기사, count(distinct a.title) as 제목, min(a.id) as 첫_id, max(a.id) as 끝_id, count(*) filter (where a.released_at is not null) as 공개 from article a where a.created_at >= now() - interval '1 day' and length(btrim(a.body)) >= 500 group by a.press_code, md5(btrim(a.body)) having count(distinct a.title) >= 2 order by 3 desc"
   ```
 
+- Redis 사용량 — EMBED 워커를 꺼 두어 `embed` 그룹이 메시지를 안 읽으니 `analysis.released` 가 자르지 못하고 쌓인다(B1 한 건에 메시지 하나, 본문 포함). 상한 1GB 에 `noeviction` 이라 다 차면 쓰기가 막힌다. **512MB(상한의 절반)를 넘으면 AI 팀장에게 알린다**(2026-11-13 AI 팀장). Prometheus 에 Redis 지표가 없어 경보는 없다. 2026-11-13 10:50 `used_memory` 3.37M · 길이 353
+
+  ```bash
+  kubectl -n data exec redis-0 -- redis-cli info memory | grep -E '^used_memory_human|^maxmemory_human'; kubectl -n data exec redis-0 -- redis-cli xlen analysis.released
+  ```
+
 **늦게 올라온 기사 · 덜 잡힌 같은 본문은 따로 재지 않는다**(2026-11-13 사용자) — 15분 수집은 발행 뒤 30분이 지나 올라온 기사를 받지 못하고, 잘못된 본문 규칙 (a) · (c) 는 묶음이 한 회차에 다 안 모여 덜 잡힌다. 하루를 다시 받아 놓친 수를 세는 일도, 매일 쓸어 담기 · 후보 SQL 의 같은 본문 빼기도 하지 않는다 — 놓친 기사를 채워도 분석은 하루 상한 4,800건에 막히고(평일 수집은 하루 1만 건이 넘는다), 같은 본문은 위 확인 SQL 로 찾아 라벨 X 한다
 
 ## 급히 멈추기
