@@ -136,7 +136,7 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
             variant="ghost"
             size="small"
             className={EDIT_INTERESTS}
-            onClick={signupPrompt.open}
+            onClick={(event) => signupPrompt.open(event.currentTarget)}
           >
             관심사 편집
             <SuffixIcon svg={<IconChevronRightSmallLine />} />

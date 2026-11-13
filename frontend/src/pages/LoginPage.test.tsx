@@ -305,6 +305,33 @@ test.each([
   ).toBe("/home");
 });
 
+// <Link> 는 // 로 시작하는 주소를 바깥 사이트로 그린다 — 퍼뜨린 로그인 주소로 남의 사이트에 보내지 못하게 (리뷰, Jira 205)
+test("next 가 점 구간을 지나 다른 사이트가 되면 닫기 · 로그인 없이 시작하기 모두 홈으로 간다", async () => {
+  asGuest();
+  renderRoute("/login?next=/.//evil.example");
+
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+  expect(screen.getByRole("link", { name: "닫기" }).getAttribute("href")).toBe(
+    "/home",
+  );
+  expect(
+    screen
+      .getByRole("link", { name: "로그인 없이 시작하기" })
+      .getAttribute("href"),
+  ).toBe("/home");
+});
+
+test("로그인 없이 시작하기는 로그인 화면을 기록에서 뺀다 — 닫기와 같다", async () => {
+  asGuest();
+  const { router } = renderRoute("/login?next=/home");
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+
+  fireEvent.click(screen.getByRole("link", { name: "로그인 없이 시작하기" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
 test("회원가입으로 갈 때는 기록을 쌓지 않고 바꿔 끼운다 — 가입 화면의 닫기 한 번이면 들어오기 전 화면이다", async () => {
   asGuest();
   const { router } = renderRoute("/login?next=/home");

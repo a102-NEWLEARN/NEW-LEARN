@@ -190,9 +190,12 @@ export function LoginPage() {
             to={rawNext === null ? "/signup" : signupPath(next)}
             label="회원가입"
           />
-          {/* 테두리 없는 글자 버튼 — 보조 버튼 *회원가입* 과 겨루지 않게 [가정] (EXPERIENCE.md IA 로그인 행) */}
+          {/* 테두리 없는 글자 버튼 — 보조 버튼 *회원가입* 과 겨루지 않게 [가정] (EXPERIENCE.md IA 로그인 행).
+              닫기(AuthClose)와 같이 로그인 화면을 기록에서 뺀다 — 뒤로 가기로 다시 오지 않게 */}
           <ActionButton asChild variant="ghost" size="large" className="w-full">
-            <Link to={guestPath(rawNext)}>로그인 없이 시작하기</Link>
+            <Link to={guestPath(rawNext)} replace>
+              로그인 없이 시작하기
+            </Link>
           </ActionButton>
         </form>
       </main>

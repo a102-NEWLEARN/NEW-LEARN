@@ -10,6 +10,9 @@ test("로그인 없이 시작하면 돌아올 곳으로 가되, 회원 화면이
   expect(guestPath(null)).toBe("/home");
   expect(guestPath("/bookmarks")).toBe("/home");
   expect(guestPath("/me")).toBe("/home");
+  // 라우터는 대소문자 · 끝 / 를 가리지 않고 회원 화면으로 맞춘다
+  expect(guestPath("/ME/")).toBe("/home");
+  expect(guestPath("/bookmarks/?x=1")).toBe("/home");
   expect(guestPath("//evil.example")).toBe("/home");
 });
 
@@ -37,6 +40,10 @@ test.each([
   ["다른 사이트", "https://evil.example"],
   ["// 로 시작하는 다른 사이트", "//evil.example"],
   ["\\ 로 바뀌는 다른 사이트", "/\\evil.example"],
+  // 점 구간을 정리하면 // 로 시작한다 — <Link> 는 그대로 바깥 주소로 그린다 (리뷰, Jira 205)
+  ["점 구간을 지나 // 가 되는 다른 사이트", "/.//evil.example"],
+  ["점 둘을 지나 // 가 되는 다른 사이트", "/..//evil.example"],
+  ["%2e 를 지나 // 가 되는 다른 사이트", "/%2e//evil.example"],
   ["로그인 화면 자신", "/login?next=/home"],
   ["가입 화면", "/signup?next=/home"],
 ])("돌아올 곳이 %s 이면 홈으로 간다", (_, raw) => {

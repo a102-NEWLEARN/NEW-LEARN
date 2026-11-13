@@ -188,3 +188,28 @@ test("손님이 누르면 보내지 않고 가입 권유 창을 띄운다 — �
   await waitFor(() => expect(router.state.location.pathname).toBe("/signup"));
   expect(router.state.location.search).toBe("?next=/issues/13");
 });
+
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 넓은 화면의 사건 패널은 창 뒤에 남는다 (리뷰, Jira 205)
+test("사건 패널이 열린 채 손님의 가입 권유 창을 Esc 로 닫으면 창만 닫히고 패널은 남는다", async () => {
+  server.use(
+    http.get("/api/v1/members/me", () => problem(401, "UNAUTHORIZED")),
+  );
+  const { router } = renderRoute("/issues/12?event=117");
+  const star = await screen.findByRole("button", { name: "관심 이슈로 저장" });
+  await screen.findByRole("link", { name: "로그인" });
+  fireEvent.click(star);
+  const dialog = await screen.findByRole("alertdialog", {
+    name: "가입하면 더 편하게 이용할 수 있어요",
+  });
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("alertdialog", {
+        name: "가입하면 더 편하게 이용할 수 있어요",
+      }),
+    ).toBeNull(),
+  );
+  expect(router.state.location.search).toBe("?event=117");
+});

@@ -1,5 +1,11 @@
 import { QueryObserver } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import { meQuery } from "@/api/members";
@@ -37,12 +43,16 @@ function logoutAnswers(response: () => Response | Promise<Response>) {
   return calls;
 }
 
+// 셸 헤더 — 이슈 화면처럼 본문에도 <header> 가 있는 화면이 있어 로고로 찾는다
+const shellHeader = () =>
+  screen.getByRole("link", { name: "NEW:LEARN 홈으로" }).closest("header")!;
+
 async function openMenu(path = "/home") {
   const rendered = renderRoute(path);
-  const header = await screen.findByRole("banner");
+  await screen.findByRole("link", { name: "NEW:LEARN 홈으로" });
   // 헤더 오른쪽 버튼은 회원인지 안 뒤에 그린다 (Header)
   fireEvent.click(
-    await within(header).findByRole("button", { name: "마이페이지" }),
+    await within(shellHeader()).findByRole("button", { name: "마이페이지" }),
   );
   const menu = await screen.findByRole("menu");
   return { ...rendered, menu };
@@ -52,7 +62,7 @@ async function openMenu(path = "/home") {
 const logoutItem = () => screen.getByRole("menuitem", { name: /로그아웃/ });
 // 닫힌 메뉴는 DOM 에 남고 SEED CSS([data-hidden] → display: none)가 숨긴다. jsdom 은 CSS 가 없어 버튼의 aria-expanded 로 본다
 const trigger = () =>
-  within(screen.getByRole("banner")).getByRole("button", {
+  within(shellHeader()).getByRole("button", {
     name: "마이페이지",
   });
 
@@ -105,6 +115,22 @@ test("로그아웃하면 랜딩으로 가서 「로그아웃했어요」를 띄�
   expect(calls.count).toBe(1);
   expect(queryClient.getQueryData(meQuery.queryKey)).toBeNull();
 });
+
+// 셸의 세션 만료 감시(SessionExpiredRedirect)는 「회원이던 사람의 내 정보가 비면」 로그인 화면으로 보낸다.
+// 로그아웃도 내 정보를 비우지만 랜딩에 남아야 한다 — 잠깐 랜딩이었다가 로그인 화면으로 새지 않는지 조금 기다려 본다 (리뷰, Jira 205)
+test.each(["/home", "/issues/12", "/me", "/bookmarks"])(
+  "%s 에서 로그아웃해도 로그인 화면으로 새지 않고 랜딩에 남는다",
+  async (path) => {
+    logoutAnswers(noContent);
+    const { router } = await openMenu(path);
+
+    fireEvent.click(logoutItem());
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(router.state.location.pathname).toBe("/");
+  },
+);
 
 test("로그아웃하면 이전 회원이 받아 둔 응답을 지켜보는 화면이 있어도 모두 버린다", async () => {
   const { router, queryClient } = await openMenu();

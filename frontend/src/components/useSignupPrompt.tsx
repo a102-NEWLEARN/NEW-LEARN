@@ -28,7 +28,12 @@ export function useSignupPrompt(reason: SignupPromptReason) {
   const { pathname, search, hash } = useLocation();
 
   return {
-    open() {
+    /**
+     * 연다. 누른 버튼을 넘기면 먼저 포커스를 준다 — Safari · iOS 는 눌러도 버튼에 포커스를 주지 않아서,
+     * 창이 닫힐 때 돌아갈 자리(열기 전 포커스)가 body 가 된다 (리뷰, Jira 205. ArticlePage 크게 보기와 같다)
+     */
+    open(trigger?: HTMLElement | null) {
+      trigger?.focus();
       setOpen(true);
       setOpened(true);
     },

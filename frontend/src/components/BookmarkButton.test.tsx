@@ -184,11 +184,14 @@ test("가입 권유 창의 가입하기는 지금 화면으로 돌아오는 가�
   expect(router.state.location.search).toBe("?next=/articles/401%3Fview%3Dmap");
 });
 
-test("가입 권유 창의 닫기는 창만 닫고 그 화면에 남는다", async () => {
+// fireEvent.click 은 버튼에 포커스를 주지 않는다 — Safari · iOS 에서 누를 때와 같다. 그래도 닫으면 누른 버튼으로 돌아온다 (리뷰, Jira 205)
+test("가입 권유 창의 닫기는 창만 닫고 그 화면에 남으며, 포커스는 누른 버튼으로 돌아온다", async () => {
   asGuest();
   const { router } = renderRoute("/articles/401");
   await guestKnown();
-  fireEvent.click(await headerButton());
+  const button = await headerButton();
+  expect(document.activeElement).not.toBe(button);
+  fireEvent.click(button);
 
   fireEvent.click(
     within(await signupDialog()).getByRole("button", { name: "닫기" }),
@@ -202,6 +205,8 @@ test("가입 권유 창의 닫기는 창만 닫고 그 화면에 남는다", asy
     ).toBeNull(),
   );
   expect(router.state.location.pathname).toBe("/articles/401");
+  await waitFor(() => expect(document.activeElement).toBe(button));
+  expect(button.getAttribute("aria-pressed")).toBe("false");
 });
 
 test("보내는 동안 다시 눌러도 두 번 보내지 않는다", async () => {

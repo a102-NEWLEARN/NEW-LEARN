@@ -3,6 +3,7 @@ import {
   IconStarLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MouseEvent } from "react";
 import { isSessionExpired } from "@/api/error";
 import {
   addInterestIssue,
@@ -56,10 +57,10 @@ export function InterestButton({
     },
   });
 
-  function toggle() {
+  function toggle(event: MouseEvent<HTMLButtonElement>) {
     // 손님(A17 이 401)이면 보내지 않고 가입을 권한다 (Jira 205). 회원인지 아직 모르면 보낸다 — 손님이면 401 이 와도 조용히 끝난다
     if (queryClient.getQueryData(meQuery.queryKey) === null) {
-      signupPrompt.open();
+      signupPrompt.open(event.currentTarget);
       return;
     }
     // 보내는 동안 다시 누르면 요청이 엇갈린다. 두 번 보내지 않는다
