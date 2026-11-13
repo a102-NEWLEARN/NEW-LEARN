@@ -25,9 +25,9 @@
 ## 작업 순서 — 한 줄이 커밋 하나
 
 - [x] 0 Jira S15P31A102-201, 브랜치 `feat/common/S15P31A102-201-event-articles-sort`(origin/dev). 이 계획 커밋
-- [ ] 1 backend A6 `sort` — 시험: 기본은 오름차순, `latest` 는 내림차순, 같은 시각은 id 순, 이상한 값은 400
-- [ ] 2 frontend 쿼리 · mock · 패널 고르기 · 첫 기사 날짜 — 시험: 최신 순을 누르면 순서가 뒤집히고 A6 에 `sort=latest` 가 간다, 첫 기사 날짜는 그대로
-- [ ] 3 문서(api-screen A6 · api.md 1절 · EXPERIENCE)
+- [x] 1 backend A6 `sort` — 시험: 기본은 오름차순, `latest` 는 내림차순, 같은 시각은 id 순, 이상한 값은 400
+- [x] 2 frontend 쿼리 · mock · 패널 고르기 · 첫 기사 날짜 — 시험: 최신 순을 누르면 순서가 뒤집히고 A6 에 `sort=latest` 가 간다, 첫 기사 날짜는 그대로
+- [x] 3 문서(api-screen A6 · api.md 1절 · EXPERIENCE)
 - [ ] 4 reviewer 조수 · `/verify`(backend · frontend) · 스크린숏(393 · 1440) · MR 본문
 
 ## 안 바꿀 것
