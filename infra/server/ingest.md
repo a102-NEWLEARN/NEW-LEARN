@@ -307,7 +307,7 @@ auto 는 수집 쪽 코드와 자동 투입 쪽 코드 중 큰 값으로 끝난�
   kubectl -n data exec -i postgres-0 -- psql -X -q -U newlearn -d newlearn -c "select a.press_code, count(*) as 기사, count(distinct a.title) as 제목, min(a.id) as 첫_id, max(a.id) as 끝_id, count(*) filter (where a.released_at is not null) as 공개 from article a where a.created_at >= now() - interval '1 day' and length(btrim(a.body)) >= 500 group by a.press_code, md5(btrim(a.body)) having count(distinct a.title) >= 2 order by 3 desc"
   ```
 
-- Redis 사용량 — EMBED 워커를 꺼 두어 `embed` 그룹이 메시지를 안 읽으니 `analysis.released` 가 자르지 못하고 쌓인다(B1 한 건에 메시지 하나, 본문 포함). 상한 1GB 에 `noeviction` 이라 다 차면 쓰기가 막힌다. **512MB(상한의 절반)를 넘으면 AI 팀장에게 알린다**(2026-11-13 AI 팀장). Prometheus 에 Redis 지표가 없어 경보는 없다. 2026-11-13 11:22 `used_memory` 3.37M · 길이 353(그날 B1 350건 — 메시지 하나 약 9.5KB). 하루 4,800건이면 11/18 까지 약 2만 4천 건 · 약 230MB 어림
+- Redis 사용량 — EMBED 워커를 꺼 두어 `embed` 그룹이 메시지를 안 읽으니 `analysis.released` 가 자르지 못하고 쌓인다(B1 한 건에 메시지 하나, 본문 포함). 상한 1GB 에 `noeviction` 이라 다 차면 쓰기가 막힌다. **512MB(상한의 절반)를 넘으면 AI 팀장에게 알린다**(2026-11-13 AI 팀장). Prometheus 에 Redis 지표가 없어 경보는 없다. 2026-11-13 11:22 `used_memory` 3.37M · 길이 353 → 15:46 6.64M · 길이 1,253 — 늘어난 양으로 셈하면 메시지 하나 약 3.7KB. 하루 4,800건이면 11/18 까지 약 2만 4천 건 · 약 90MB 어림(처음 적은 「약 9.5KB · 230MB」는 원래 있던 약 2MB 까지 길이로 나눠 부풀린 값)
 
   ```bash
   kubectl -n data exec redis-0 -- redis-cli info memory | grep -E '^used_memory_human|^maxmemory_human'; kubectl -n data exec redis-0 -- redis-cli xlen analysis.released
