@@ -40,7 +40,10 @@ function logoutAnswers(response: () => Response | Promise<Response>) {
 async function openMenu(path = "/home") {
   const rendered = renderRoute(path);
   const header = await screen.findByRole("banner");
-  fireEvent.click(within(header).getByRole("button", { name: "마이페이지" }));
+  // 헤더 오른쪽 버튼은 회원인지 안 뒤에 그린다 (Header)
+  fireEvent.click(
+    await within(header).findByRole("button", { name: "마이페이지" }),
+  );
   const menu = await screen.findByRole("menu");
   return { ...rendered, menu };
 }
