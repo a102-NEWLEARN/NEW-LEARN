@@ -25,6 +25,7 @@ import { errorDescription } from "@/components/state/ErrorState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { useSnackbar } from "@/components/useSnackbar";
 import { loginPath, nextPath } from "@/lib/login-path";
+import { startOnboarding } from "@/components/home/OnboardingTour";
 
 // 칸 이름은 A14 요청 필드와 같다. 확인 칸만 화면에 있다
 type Field =
@@ -182,6 +183,8 @@ export function SignupPage() {
     onSuccess: (member) => {
       queryClient.setQueryData(meQuery.queryKey, member);
       snackbar.show("가입을 마쳤어요", "positive");
+      // 다음에 홈에 들어오면 처음 가입한 사람 가이드를 띄운다 (Jira 204)
+      startOnboarding();
     },
     onError: (error) => {
       const errors = serverFieldErrors(error);

@@ -6,6 +6,7 @@ import { HomeGreeting } from "@/components/home/HomeGreeting";
 import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
 import { type HomeView, HomeViewTabs } from "@/components/home/HomeViewTabs";
 import { LatestArticles } from "@/components/home/LatestArticles";
+import { OnboardingTour } from "@/components/home/OnboardingTour";
 import { NewIssues } from "@/components/home/NewIssues";
 import { RecommendedIssues } from "@/components/home/RecommendedIssues";
 import { SearchBox } from "@/components/home/SearchBox";
@@ -47,7 +48,14 @@ export function HomePage() {
       { replace: true },
     );
   const recommended = (
-    <RecommendedIssues member={member} pending={me.isPending} />
+    <div data-tour="issues">
+      <RecommendedIssues member={member} pending={me.isPending} />
+    </div>
+  );
+  const latest = (
+    <div data-tour="articles">
+      <LatestArticles />
+    </div>
   );
 
   return (
@@ -60,7 +68,10 @@ export function HomePage() {
         <HomeHeroBackground />
         <div className="relative mx-auto max-w-[780px] px-x5 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
           <HomeGreeting member={member} pending={me.isPending} />
-          <SearchBox focusRequest={focusRequest} />
+          {/* 처음 가입한 사람 가이드가 비추는 자리(data-tour) — OnboardingTour */}
+          <div data-tour="search">
+            <SearchBox focusRequest={focusRequest} />
+          </div>
           <NewIssues />
         </div>
       </section>
@@ -73,15 +84,16 @@ export function HomePage() {
             value={view}
             onValueChange={setView}
             recommended={recommended}
-            latest={<LatestArticles />}
+            latest={latest}
           />
         ) : (
           <>
             {recommended}
-            <LatestArticles />
+            {latest}
           </>
         )}
       </div>
+      <OnboardingTour />
     </>
   );
 }
