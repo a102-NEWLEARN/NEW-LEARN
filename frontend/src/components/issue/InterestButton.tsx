@@ -3,6 +3,7 @@ import {
   IconStarLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MouseEvent } from "react";
 import { isSessionExpired } from "@/api/error";
 import {
   addInterestIssue,
@@ -10,6 +11,7 @@ import {
   setInterested,
 } from "@/api/interestIssues";
 import { meQuery } from "@/api/members";
+import { useSignupPrompt } from "@/components/useSignupPrompt";
 import { useSnackbar } from "@/components/useSnackbar";
 
 const FAILED = "관심 이슈를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -33,6 +35,7 @@ export function InterestButton({
 }: InterestButtonProps) {
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
+  const signupPrompt = useSignupPrompt("interest");
 
   const mutation = useMutation({
     mutationFn: (next: boolean) =>
@@ -54,7 +57,12 @@ export function InterestButton({
     },
   });
 
-  function toggle() {
+  function toggle(event: MouseEvent<HTMLButtonElement>) {
+    // 손님(A17 이 401)이면 보내지 않고 가입을 권한다 (Jira 205). 회원인지 아직 모르면 보낸다 — 손님이면 401 이 와도 조용히 끝난다
+    if (queryClient.getQueryData(meQuery.queryKey) === null) {
+      signupPrompt.open(event.currentTarget);
+      return;
+    }
     // 보내는 동안 다시 누르면 요청이 엇갈린다. 두 번 보내지 않는다
     if (mutation.isPending) return;
     mutation.mutate(!interested);
@@ -63,18 +71,21 @@ export function InterestButton({
   const Icon = interested ? IconStarFill : IconStarLine;
 
   return (
-    <button
-      type="button"
-      aria-pressed={interested}
-      aria-label={LABEL}
-      title={interested ? "관심 이슈에서 빼기" : LABEL}
-      aria-busy={mutation.isPending || undefined}
-      onClick={toggle}
-      className={`flex size-x10 shrink-0 items-center justify-center rounded-r2 transition-[background-color,color] hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
-        interested ? "text-fg-brand" : "text-fg-neutral-subtle"
-      } ${className}`}
-    >
-      <Icon aria-hidden size={22} />
-    </button>
+    <>
+      <button
+        type="button"
+        aria-pressed={interested}
+        aria-label={LABEL}
+        title={interested ? "관심 이슈에서 빼기" : LABEL}
+        aria-busy={mutation.isPending || undefined}
+        onClick={toggle}
+        className={`flex size-x10 shrink-0 items-center justify-center rounded-r2 transition-[background-color,color] hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
+          interested ? "text-fg-brand" : "text-fg-neutral-subtle"
+        } ${className}`}
+      >
+        <Icon aria-hidden size={22} />
+      </button>
+      {signupPrompt.dialog}
+    </>
   );
 }

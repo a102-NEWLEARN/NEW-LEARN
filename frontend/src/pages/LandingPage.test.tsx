@@ -59,9 +59,8 @@ test("손님이면 서비스 시작하기 · 로그인이 로그인 화면으로
 
   await heading();
   await waitFor(() =>
-    expect(hrefs()).toEqual(
-      Array(startLinks().length + 1).fill("/login?next=/home"),
-    ),
+    // 돌아올 곳을 붙이지 않는다 — 로그인 화면을 닫으면 랜딩으로 온다 (Jira 205)
+    expect(hrefs()).toEqual(Array(startLinks().length + 1).fill("/login")),
   );
 });
 
@@ -165,8 +164,8 @@ test("서비스 시작하기는 첫 화면과 마지막 권유에 하나씩 있�
 
   await waitFor(() =>
     expect(startLinks().map((link) => link.getAttribute("href"))).toEqual([
-      "/login?next=/home",
-      "/login?next=/home",
+      "/login",
+      "/login",
     ]),
   );
 });

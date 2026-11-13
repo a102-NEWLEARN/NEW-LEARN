@@ -1,7 +1,6 @@
 import {
   IconCheckmarkLine,
   IconPlusLine,
-  IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,11 +10,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, Navigate, useSearchParams } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { TextField, TextFieldInput } from "seed-design/ui/text-field";
 import { ApiError } from "@/api/error";
 import { meQuery, signUp } from "@/api/members";
+import { AuthClose } from "@/components/AuthClose";
 import { AuthSwitch } from "@/components/AuthSwitch";
 import { chipClassName, InterestChips } from "@/components/InterestChips";
 import { Logo } from "@/components/Logo";
@@ -25,6 +25,7 @@ import { errorDescription } from "@/components/state/ErrorState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { useSnackbar } from "@/components/useSnackbar";
 import { loginPath, nextPath } from "@/lib/login-path";
+import { startOnboarding } from "@/components/home/OnboardingTour";
 
 // 칸 이름은 A14 요청 필드와 같다. 확인 칸만 화면에 있다
 type Field =
@@ -135,7 +136,9 @@ const stepOf = (field: Field) =>
 export function SignupPage() {
   usePageTitle("회원가입");
   const [params] = useSearchParams();
-  const next = nextPath(params.get("next"));
+  // 랜딩 · 로그인 화면에서 돌아올 곳 없이 오면 닫기는 랜딩, 가입하면 홈이다
+  const rawNext = params.get("next");
+  const next = nextPath(rawNext);
   const me = useQuery(meQuery);
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
@@ -178,10 +181,14 @@ export function SignupPage() {
 
   const mutation = useMutation({
     mutationFn: signUp,
-    // 내 정보를 새 회원으로 바꾸면 아래 「이미 로그인했으면」이 next 로 보낸다
+    // 내 정보를 새 회원으로 바꾸면 아래 「이미 로그인했으면」이 next 로 보낸다.
+    // 그 전에 손님으로 받아 둔 응답을 모두 버린다 — 로그인 화면과 같다 (Jira 205)
     onSuccess: (member) => {
+      queryClient.removeQueries();
       queryClient.setQueryData(meQuery.queryKey, member);
       snackbar.show("가입을 마쳤어요", "positive");
+      // 다음에 홈에 들어오면 처음 가입한 사람 가이드를 띄운다 (Jira 204)
+      startOnboarding();
     },
     onError: (error) => {
       const errors = serverFieldErrors(error);
@@ -276,13 +283,7 @@ export function SignupPage() {
       <FollowCursor />
       <header className="flex h-[60px] shrink-0 items-center px-x5 md:px-x8">
         <Logo height={26} />
-        <Link
-          to="/"
-          aria-label="닫기"
-          className="ml-auto flex size-x10 items-center justify-center rounded-r2 text-fg-neutral hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
-        >
-          <IconXmarkLine size={20} aria-hidden />
-        </Link>
+        <AuthClose next={rawNext} />
       </header>
       {/* 질문 띠 — 단계가 바뀌면 번호와 질문이 아래에서 떠오른다 */}
       <section className="bg-bg-brand-solid">
@@ -428,7 +429,7 @@ export function SignupPage() {
           {step === 0 && (
             <AuthSwitch
               question="이미 계정이 있나요?"
-              to={loginPath(next)}
+              to={rawNext === null ? "/login" : loginPath(next)}
               label="로그인"
             />
           )}

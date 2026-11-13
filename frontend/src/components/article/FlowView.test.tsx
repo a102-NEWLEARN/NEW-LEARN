@@ -163,6 +163,30 @@ test("잎을 누르면 강조하고 나머지 잎을 흐리게 한다. 다른 �
   expect(card(first).getAttribute("data-dimmed")).toBe("true");
 });
 
+// 2026-11-13 사용자 QA 9 — 누르면 진해지기만 해서 뜻이 모호했다 → 누른 카드를 키우고 그 아래에 가지가 무엇인지 한 줄,
+// 나머지는 더 흐리게 (Jira 204)
+test("잎을 누르면 그 카드를 키워 띄우고 아래에 가지 설명 한 줄을 붙인다 — 카드가 그 설명을 가리킨다. 나머지는 더 흐리다", () => {
+  renderFlow();
+  const leaf = "미국 보조금 조건을 맞추려고 착공을 앞당겼다";
+  const other = "업계는 인력 수급을 걱정했다";
+  expect(screen.queryByText(/이 일이 일어난 까닭/)).toBeNull();
+
+  fireEvent.click(card(leaf));
+
+  const note = screen.getByText("원인·배경 — 이 일이 일어난 까닭과 배경이에요");
+  expect(card(leaf).getAttribute("aria-describedby")).toBe(note.id);
+  expect(card(leaf).className).toContain("motion-safe:scale-[1.04]");
+  expect(card(leaf).className).toContain("shadow-");
+  expect(card(other).className).toContain("opacity-35");
+
+  fireEvent.click(card(other));
+  expect(screen.queryByText(/이 일이 일어난 까닭/)).toBeNull();
+  expect(
+    screen.getByText("반응 — 사람 · 기관이 이 일에 보인 반응이에요"),
+  ).toBeDefined();
+  expect(card(leaf).hasAttribute("aria-describedby")).toBe(false);
+});
+
 test.each([
   [
     "그 잎을 다시 누르면",
@@ -372,6 +396,15 @@ test("머리 줄은 기사 제목이 아니라 AI 한 줄 요지다 — h1 과 �
   const header = screen.getByText("기사 핵심").closest("div")!;
   expect(header.contains(summary)).toBe(true);
   expect(header.className).not.toContain("hidden");
+});
+
+// 요지 줄도 드래그하면 용어사전 「의미」가 뜬다 — A26 이 기사 요지를 화면 글로 받는다 (2026-11-13 사용자, Jira 202)
+test("머리 줄 요지는 용어사전 드래그 대상이다 — 기사 대상, 글은 요지 그대로", () => {
+  renderFlow();
+
+  const summary = screen.getByText(SUMMARY);
+  expect(summary.getAttribute("data-meaning")).toBe("ARTICLE:409");
+  expect(summary.textContent).toBe(SUMMARY);
 });
 
 test("요지가 없거나 공백뿐이면 머리 줄을 두지 않는다", () => {

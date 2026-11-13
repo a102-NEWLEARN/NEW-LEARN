@@ -256,7 +256,8 @@ test("주소의 id 가 숫자가 아니면 찾을 수 없음이다", async () =>
   ).toBeDefined();
 });
 
-test("손님이 기사 주소를 열면 로그인 화면으로 보낸다", async () => {
+// 손님도 둘러보기는 다 한다 (EXPERIENCE.md 이동 규칙, 2026-11-13 Jira 205)
+test("손님이 기사 주소를 열면 로그인 화면으로 보내지 않고 그 기사를 띄운다", async () => {
   server.use(
     http.get("/api/v1/members/me", () =>
       problem(401, "UNAUTHORIZED", "/api/v1/members/me"),
@@ -264,10 +265,9 @@ test("손님이 기사 주소를 열면 로그인 화면으로 보낸다", async
   );
   const { router } = renderRoute(`${PATH}?view=map`);
 
-  await screen.findByRole("heading", { level: 1, name: "로그인" });
-  expect(new URLSearchParams(router.state.location.search).get("next")).toBe(
-    `${PATH}?view=map`,
-  );
+  await heading();
+  expect(router.state.location.pathname).toBe(PATH);
+  expect(router.state.location.search).toBe("?view=map");
 });
 
 test("헤더의 이슈 보기를 누르면 그 사건 패널이 열린 이슈 화면으로 간다", async () => {

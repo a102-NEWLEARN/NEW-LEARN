@@ -21,7 +21,8 @@ import tools.jackson.databind.json.JsonMapper;
 @Transactional(readOnly = true)
 class MeaningContextLoader {
 
-    // 기사의 화면 글 — 제목, 마인드맵 가운데 제목(content.title), 잎 글. 본문은 화면에 없어 문맥으로만 쓴다
+    // 기사의 화면 글 — 제목, AI 한 줄 요지(summary, 흐름지도 머리 줄 — Jira 202), 마인드맵 가운데 제목(content.title), 잎 글.
+    // 본문은 화면에 없어 문맥으로만 쓴다
     record Context(String title, List<String> screenTexts, String background) {}
 
     private final ArticleRepository articles;
@@ -62,6 +63,11 @@ class MeaningContextLoader {
         var article = ReleasedArticles.get(articles, id);
         List<String> screen = new ArrayList<>(List.of(article.getTitle()));
         var mindmap = mindmaps.findById(id);
+        // 요지는 내용(JSON)과 따로 저장된 칸이라 내용을 못 읽어도 고를 수 있다
+        var summary = mindmap.map(m -> m.getSummary()).orElse(null);
+        if (summary != null && !summary.isBlank()) {
+            screen.add(summary);
+        }
         MindmapContent content = mindmap.isPresent() ? read(mindmap.get().getContent()) : null;
         if (content != null) {
             if (content.title() != null) {

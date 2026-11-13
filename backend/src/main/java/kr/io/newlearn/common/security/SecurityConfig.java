@@ -49,6 +49,11 @@ public class SecurityConfig {
                         // 가입(A14) · 로그인(A15)
                         .requestMatchers(HttpMethod.POST, "/api/v1/members", "/api/v1/auth/login")
                         .permitAll()
+                        // 용어사전 문맥 뜻(A26) — 손님도 둘러보기를 다 해서 드래그 말풍선도 연다 (2026-11-13 사용자, Jira 205).
+                        // GMS 비용은 앱의 하루 한도(MeaningQuota)와 입구의 IP 마다 1분 상한(routes.yaml meaning)이 지킨다.
+                        // POST 라서 CSRF 번호표는 그대로 있어야 한다
+                        .requestMatchers(HttpMethod.POST, "/api/v1/dictionary/meaning")
+                        .permitAll()
                         // 나머지 — 로그아웃 · 내 정보 · 관심 분야(A16 ~ A18) 등. 직원용 문(/internal/**)은 이 체인에 오지 않는다
                         // (InternalApiSecurityConfig 가 먼저 맡는다, Jira 30)
                         .anyRequest()
