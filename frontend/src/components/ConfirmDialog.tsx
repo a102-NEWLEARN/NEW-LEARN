@@ -56,20 +56,26 @@ export function ConfirmDialog({
       {createPortal(
         <AlertDialog.Positioner>
           <AlertDialog.Backdrop />
-          {/* SEED 는 창 글을 글자마다 끊는다(break-all) — 앱 규칙(DESIGN.md Typography)대로 단어 단위로 되돌린다 */}
+          {/* SEED 는 창 글을 글자마다 끊는다(break-all) — 앱 규칙(DESIGN.md Typography)대로 단어 단위로 되돌린다.
+              글자 · 버튼은 SEED 기본보다 한 단계씩 작게, 버튼은 가로로 나란히 둔다 — 기본은 글씨가 크고 버튼이 세로로 쌓여
+              무겁게 보였다 (2026-11-13 사용자 「촌스럽고 글씨가 너무 크다」, Jira 202) */}
           <AlertDialog.Content
             ref={contentRef}
-            className="break-keep [overflow-wrap:break-word]"
+            className="w-full max-w-[min(340px,calc(100vw-48px))] break-keep [overflow-wrap:break-word]"
           >
-            <AlertDialog.Header>
-              <AlertDialog.Title>{title}</AlertDialog.Title>
-              <AlertDialog.Description>{description}</AlertDialog.Description>
+            <AlertDialog.Header className="gap-x1_5">
+              <AlertDialog.Title className="t6-bold text-fg-neutral">
+                {title}
+              </AlertDialog.Title>
+              <AlertDialog.Description className="t4-regular text-fg-neutral-muted">
+                {description}
+              </AlertDialog.Description>
             </AlertDialog.Header>
-            <AlertDialog.Footer className="flex gap-x2">
+            <AlertDialog.Footer className="flex flex-row gap-x2">
               {/* 머물기는 보조 버튼 — 흰 바탕 · 옅은 테두리 (DESIGN.md Components 보조 버튼) */}
               <ActionButton
                 variant="neutralOutline"
-                size="large"
+                size="medium"
                 className="flex-1 border-stroke-neutral-weak"
                 onClick={onCancel}
               >
@@ -77,7 +83,7 @@ export function ConfirmDialog({
               </ActionButton>
               <ActionButton
                 variant="brandSolid"
-                size="large"
+                size="medium"
                 className="flex-1"
                 onClick={() => {
                   confirmed.current = true;
