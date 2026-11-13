@@ -58,7 +58,7 @@ from (
 order by counted.issue_id, counted.total desc, counted.sort_order, counted.category_code;
 
 -- 이슈 분야 고정 (Jira S15P31A102-198, 2026-11-13) — 아래 이슈는 다수결 대신 이 분야로 둔다. Sonnet 조수가 이슈 제목 · 요약을 읽고
--- 다르게 본 28개다. IT·과학 8개는 사용자가 하나씩 승인했고, 나머지 20개는 사용자가 맡겼다. 바꿀 때는 이 목록을 고치는 MR 로 한다
+-- 다르게 본 이슈다(누가 정했나는 SSOT.md 9절, 절차는 category-labels.md 7절). 바꿀 때는 이 목록을 고치는 MR 로 한다
 -- 번호와 제목이 둘 다 같을 때만 적용한다 — 다시 적재로 이슈 번호가 새로 매겨지면 엉뚱한 이슈에 붙지 않게 건너뛴다
 -- 이 파일이 돌 때만 이긴다. ISSUE 결과 저장(IssueResultHandler → IssueCategoryRepository.fillMostCommon)은 그 이슈를 다수결로
 -- 다시 채우고, 다음 apply 때 다시 고정된다. 코드는 위 label_code 와 같은 P · E · S · W · I (숨김 코드는 받지 않는다)
@@ -98,6 +98,7 @@ from (values
 do $$
 declare
     bad text;
+    skipped int;
 begin
     select string_agg(p.issue_id || ' ' || p.label, ', ') into bad
     from pg_temp.issue_pin p
@@ -105,6 +106,18 @@ begin
     where c.label is null or c.hidden;
     if bad is not null then
         raise exception '이슈 고정에 모르는 코드나 숨김 코드: %', bad;
+    end if;
+    select string_agg(issue_id::text, ', ') into bad
+    from (select issue_id from pg_temp.issue_pin group by issue_id having count(*) > 1) d;
+    if bad is not null then
+        raise exception '이슈 고정에 같은 번호가 두 번: %', bad;
+    end if;
+    select count(*) into skipped
+    from pg_temp.issue_pin p
+    left join public.issue i on i.id = p.issue_id and i.title = p.title
+    where i.id is null;
+    if skipped > 0 then
+        raise notice '이슈 고정 % 줄은 번호 · 제목이 운영과 달라 건너뛴다', skipped;
     end if;
 end
 $$;

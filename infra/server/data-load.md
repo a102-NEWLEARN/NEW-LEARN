@@ -74,7 +74,7 @@ ssh newlearn "rm articles-2026-11-04.jsonl"
 |---|---|
 | `press` · `press_mapping` · `article` · `article_mindmap` · `article_embedding` · `analysis_job` · `event` · `article_event` · `issue` · `issue_category` | 회원 표(`member` · `member_category` · `bookmark` · `interest_issue`), `category`(마이그레이션이 넣음), `category_mapping`(NewsData 행은 마이그레이션 V11 이 넣음 — 다른 대응이 필요하면 BE 에), `ingest_run`, `flyway_schema_history` |
 
-`issue_category` 는 넣어도 적재가 쓰지 않고, 들어간 기사 분야로 backend 와 같은 식(`IssueCategoryRepository.java` — 이슈 기사들의 `category_code` 중 가장 많은 것)으로 다시 계산한다. 계산은 `category-labels-apply.sql` 이 한다.
+`issue_category` 는 넣어도 적재가 쓰지 않고(고정 목록은 `category-labels.md` 7절), 들어간 기사 분야로 backend 와 같은 식(`IssueCategoryRepository.java` — 이슈 기사들의 `category_code` 중 가장 많은 것)으로 다시 계산한다. 계산은 `category-labels-apply.sql` 이 한다.
 
 ### 형식
 
