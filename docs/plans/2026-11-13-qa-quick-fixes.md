@@ -26,7 +26,7 @@
 - [x] 3 (7) 이슈 화면 여백 — 스크린숏 393 · 1440 전후
 - [x] 4 (10) 확인 창 — 스크린숏 393 · 1440 전후
 - [ ] 5 (8) 201 브랜치: A26 이 요지를 받는다(backend 시험) · 요지 줄 드래그(FE 시험) · api-screen A26
-- [ ] 6 EXPERIENCE 해당 행 · reviewer 조수 · `/verify` · MR 본문
+- [ ] 6 EXPERIENCE(3 · 4 · 7 · 10 은 했다) 해당 행 · reviewer 조수 · `/verify` · MR 본문
 
 ## 안 바꿀 것
 
