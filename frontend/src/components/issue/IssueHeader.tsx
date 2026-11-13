@@ -44,8 +44,8 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   const issue = query.data;
   const failed = !issue && query.isError;
 
-  // 요약은 두 줄로 줄이고 잘렸으면 *더보기* 를 단다 (프로토타입 v21). 잘렸는지는 글자 수가 아니라 화면에서 잰다 —
-  // 좁은 화면에서는 짧은 요약도 두 줄을 넘는다. 폭이 바뀌면 다시 잰다
+  // 요약은 세 줄로 줄이고 잘렸으면 *더보기* 를 단다 (프로토타입 v21, 두 줄 → 세 줄은 2026-11-13 사용자 · Jira 202).
+  // 잘렸는지는 글자 수가 아니라 화면에서 잰다 — 좁은 화면에서는 짧은 요약도 세 줄을 넘는다. 폭이 바뀌면 다시 잰다
   const summaryRef = useRef<HTMLParagraphElement>(null);
   const [clamped, setClamped] = useState(false);
   const summary = issue?.summary;
@@ -61,7 +61,8 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   }, [summary, more]);
 
   return (
-    <header className="relative px-x5 pt-x6 pb-x5 md:px-x8 md:pt-x5 md:pb-x4">
+    // 넓은 화면(1024px~)은 양옆 64px — 32px 는 화면 끝에 붙어 보였다 (2026-11-13 사용자, Jira 202). 이슈 흐름 카드와 같다
+    <header className="relative px-x5 pt-x6 pb-x5 md:px-x8 md:pt-x5 md:pb-x4 lg:px-[64px]">
       {/* 분야 줄 · 제목 | 관심 이슈 별. 좁은 화면은 별이 두 줄 오른쪽 위에 붙고 제목은 그 왼쪽 칸에서 꺾인다 — 기사 머리 북마크와 같은 자리.
           32px 제목 줄과 40px 별의 위를 맞추면 별이 4px 내려가 보였다 (2026-11-12 사용자, Jira 195).
           넓은 화면은 제목 바로 옆(프로토타입 v21 IssueHeader) — 첫 칸이 제목 폭만큼이라 별이 제목 끝에 붙고, 줄이 바뀌면 첫 줄 높이에 남는다 */}
@@ -130,13 +131,14 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
       )}
       {issue?.summary && (
         <div
-          className={`mt-x3 max-w-[820px] ${RISE}`}
+          className={`mt-x3 max-w-[960px] ${RISE}`}
           style={enterAt(HEADER_AT.summary)}
         >
-          {/* 요약은 18px 진한 글자에 왼쪽 민트 막대 — 회색 16px 는 눈에 덜 띄었다 (2026-11-12 사용자 QA, Jira 197) */}
+          {/* 요약은 진한 글자에 왼쪽 민트 막대 — 회색은 눈에 덜 띄었다 (2026-11-12 사용자 QA, Jira 197).
+              글자는 16px 로 한 단계 줄이고 줄 간격 1.7 · 세 줄 · 폭 960px 로 더 많이 보인다 (2026-11-13 사용자, Jira 202) */}
           <p
             ref={summaryRef}
-            className={`t6-regular text-fg-neutral border-l-[3px] border-bg-brand-accent pl-x3 ${more ? "" : "line-clamp-2"}`}
+            className={`t5-regular text-fg-neutral border-l-[3px] border-bg-brand-accent pl-x3 leading-[1.7] ${more ? "" : "line-clamp-3"}`}
             {...meaningProps("ISSUE", issue.id)}
           >
             {issue.summary}
@@ -165,7 +167,7 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
       {/* 넓은 화면 AI 생성 표시 — 머리 오른쪽 위, 분야 줄 높이. 좁은 화면은 관심 이슈 별이 그 자리를 써서 요약 아래에 둔다 */}
       {issue?.summary && (
         <div
-          className={`absolute top-[20px] right-[32px] max-md:hidden ${RISE}`}
+          className={`absolute top-[20px] right-[32px] max-md:hidden lg:right-[64px] ${RISE}`}
           style={enterAt(HEADER_AT.summary)}
         >
           <AiBadge />

@@ -119,7 +119,7 @@ function IssueView({ issueId }: { issueId: number }) {
         {/* 넓은 화면은 이슈 흐름을 머리와 같은 좌우 여백(32px) 안의 카드로 둔다 — 지도가 화면 끝에 붙어 보였다
             (2026-11-13 사용자 「양쪽 패딩이 너무 좁다」, Jira 202). 좁은 화면은 세로 목록이 제 여백을 갖는다 */}
         <div
-          className={`flex min-h-0 flex-1 flex-col ${narrow ? "border-t border-stroke-neutral-subtle" : "px-x8 pb-x6"}`}
+          className={`flex min-h-0 flex-1 flex-col ${narrow ? "border-t border-stroke-neutral-subtle" : "px-x8 pb-x6 lg:px-[64px]"}`}
         >
           {timeline.data ? (
             timeline.data.events.length === 0 ? (
