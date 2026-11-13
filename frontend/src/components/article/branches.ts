@@ -6,6 +6,8 @@ export type BranchInfo = {
   name: string;
   /** 흐름지도 보기 이름. 마인드맵 보기에서는 이름 아래 작은 글자로 함께 둔다 (프로토타입 v21 MM4) */
   question: string;
+  /** 흐름지도에서 잎을 눌렀을 때 카드 아래에 붙는 한 줄 — 이 가지가 무엇인지 (2026-11-13 사용자, Jira 204) */
+  about: string;
   /** 가운데에서 어느 쪽으로 — 가로 −1 왼쪽 · 1 오른쪽, 세로 −1 위 · 1 아래 */
   side: -1 | 1;
   vertical: -1 | 1;
@@ -51,6 +53,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   CORE: {
     name: "핵심 내용",
     question: "무슨 일이?",
+    about: "기사가 전하는 사실이에요",
     side: 1,
     vertical: -1,
     tone: {
@@ -72,6 +75,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   CAUSE: {
     name: "원인·배경",
     question: "왜 일어났나?",
+    about: "이 일이 일어난 까닭과 배경이에요",
     side: -1,
     vertical: -1,
     tone: {
@@ -93,6 +97,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   REACTION: {
     name: "반응",
     question: "누가 뭐라고 했나?",
+    about: "사람 · 기관이 이 일에 보인 반응이에요",
     side: 1,
     vertical: 1,
     tone: {
@@ -114,6 +119,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   OUTLOOK: {
     name: "전망",
     question: "앞으로는?",
+    about: "앞으로 어떻게 될지 내다본 것이에요",
     side: -1,
     vertical: 1,
     tone: {
