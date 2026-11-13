@@ -35,7 +35,7 @@ export function useComingSoon() {
 }
 
 // 준비 중 분야(스포츠 · 문화/연예)를 눌렀을 때. 이것도 비활성으로 두지 않고 누르면 안내한다
-// (EXPERIENCE.md State Patterns). 사이드바 이슈 탐색 · 분야 탭이 쓴다
+// (EXPERIENCE.md State Patterns). 분야 탭이 쓴다
 export function useUpcomingCategory() {
   const snackbar = useSnackbar();
 

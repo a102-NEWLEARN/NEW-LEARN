@@ -75,6 +75,30 @@ test("사건 노드 옆에 키워드와 날짜 · 기사 수를 적는다", asyn
   expect(screen.getByText("10.09 추정 · 기사 4건")).toBeDefined();
 });
 
+// 사건 이름 · 날짜 줄이 작아 읽기 어려웠다 — 이름 13 → 15px, 날짜 · 기사 수 12 → 13px (2026-11-12 사용자 QA, Jira 197)
+test("사건 이름은 15px, 날짜 · 기사 수 줄은 13px 로 적는다", async () => {
+  await renderTimeline();
+
+  expect(screen.getByText("착공식").getAttribute("class")).toContain(
+    "text-[0.9375rem]",
+  );
+  expect(screen.getByText("10.06 · 기사 5건").getAttribute("class")).toContain(
+    "text-[0.8125rem]",
+  );
+});
+
+// 용어사전 안내 — 이슈 화면은 도구줄 TIP 왼쪽 (2026-11-12 사용자 QA, Jira 197)
+test("도구줄 TIP 왼쪽에 용어사전 안내 아이콘을 둔다", async () => {
+  await renderTimeline();
+
+  const guide = screen.getByRole("button", { name: "용어사전 안내" });
+  const tip = screen.getByRole("button", { name: "TIP" });
+  expect(
+    guide.compareDocumentPosition(tip) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.getByRole("note")).toBeDefined();
+});
+
 test("노드를 누르거나 Enter · Space 로 고른다", async () => {
   const { onSelect } = await renderTimeline();
 
@@ -333,6 +357,107 @@ test("Alt · Ctrl · Cmd 만 누른 것은 키보드 입력으로 치지 않는�
   act(() => target.focus());
 
   expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+// 사건 패널을 닫으면 처음 열었을 때 보기로 돌아간다 — 사건을 보이려고 옮긴 자리 · 키운 배율에 멈추지 않는다.
+// 닫은 뒤 패널 자리만큼 넓어진 폭으로 한 번 더 맞춘다 (2026-11-12 사용자 QA, Jira 197)
+test("사건 패널을 닫으면 처음 열었을 때 배율 · 위치로 돌아간다", async () => {
+  // SEED 도 크기를 보느라 같은 관찰자를 쓴다 — 그쪽 콜백은 entries 를 읽어서 빈 목록을 넘긴다
+  const callbacks: ((entries: unknown[]) => void)[] = [];
+  const original = globalThis.ResizeObserver;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: (entries: unknown[]) => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  let width = 1216;
+  const spy = vi
+    .spyOn(HTMLElement.prototype, "clientWidth", "get")
+    .mockImplementation(() => width);
+  const resize = (next: number) => {
+    width = next;
+    act(() => callbacks.forEach((callback) => callback([])));
+  };
+  try {
+    const { events } = await fetchTimeline(12);
+    const timeline = (selectedId: number | null) => (
+      <Timeline
+        events={events}
+        selectedId={selectedId}
+        onSelect={() => {}}
+        onDeselect={() => {}}
+      />
+    );
+    const { rerender } = render(timeline(null));
+    const firstX = () =>
+      Number(
+        /translate\(([-\d.]+),/.exec(
+          screen
+            .getAllByRole("button", { name: /(메인|서브) 흐름, 기사/ })[0]
+            .getAttribute("transform")!,
+        )![1],
+      );
+    const startZoom = zoomLevel();
+    const startX = firstX();
+
+    // 키워 두고 마지막 사건을 고른다 — 패널이 열려 좁아지고, 그 사건이 보이게 옮겨진다
+    fireEvent.click(screen.getByRole("button", { name: "확대" }));
+    await waitFor(() => expect(zoomLevel()).toBe(Math.round(startZoom * 1.25)));
+    rerender(timeline(120));
+    resize(796);
+    await waitFor(() => expect(nodeX(/엔지니어 수급 우려/)).toBeLessThan(796));
+    expect(firstX()).not.toBeCloseTo(startX, 0);
+
+    // 닫는다 — 고른 사건이 없어지고, 패널이 빠져 폭이 돌아온다
+    rerender(timeline(null));
+    resize(1216);
+
+    await waitFor(() => expect(zoomLevel()).toBe(startZoom));
+    await waitFor(() => expect(firstX()).toBeCloseTo(startX, 0));
+  } finally {
+    spy.mockRestore();
+    vi.stubGlobal("ResizeObserver", original);
+  }
+});
+
+// 키보드로 닫으면(Esc · X 에서 Enter) 화면이 닫은 사건 노드에 포커스를 준다(IssuePage closePanel). 처음 보기로 돌아가도
+// 그 노드가 화면 밖이면 가로로만 옮겨 보이게 둔다 — 키보드 포커스는 늘 보인다 (EXPERIENCE.md Accessibility Floor, Jira 197 리뷰)
+test("키보드로 패널을 닫으면 처음 배율로 돌아가되 포커스가 간 사건은 화면 안에 둔다", async () => {
+  const width = stubWidth(375);
+  try {
+    const { events } = await fetchTimeline(12);
+    const timeline = (selectedId: number | null) => (
+      <Timeline
+        events={events}
+        selectedId={selectedId}
+        onSelect={() => {}}
+        onDeselect={() => {}}
+      />
+    );
+    const { rerender } = render(timeline(120));
+    const startZoom = zoomLevel();
+    expect(nodeX(/엔지니어 수급 우려/)).toBeLessThan(375);
+
+    act(() => {
+      node(/엔지니어 수급 우려/).focus();
+      rerender(timeline(null));
+    });
+    // 처음 보기로 가는 움직임(300ms)이 끝나기를 기다린다
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(zoomLevel()).toBe(startZoom);
+    const x = nodeX(/엔지니어 수급 우려/);
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(375);
+  } finally {
+    width.mockRestore();
+  }
 });
 
 // 사건을 고르면 오른쪽 패널이 열리며 타임라인이 좁아진다 — 고른 사건이 오른쪽으로 밀려나면 다시 보이게 옮긴다

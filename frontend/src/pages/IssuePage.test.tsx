@@ -8,7 +8,7 @@ import {
 import { http, HttpResponse } from "msw/http";
 import { expect, onTestFinished, test } from "vitest";
 import { server } from "@/mocks/node";
-import { stubScreen } from "@/test/media";
+import { resizeScreen, stubScreen } from "@/test/media";
 import { renderRoute } from "@/test/render";
 
 // 이슈 화면 — 앱과 같은 라우트(src/routes.tsx)로 연다. 12번 이슈는 가짜 사건 8개를 가진다 (src/mocks/handlers.ts)
@@ -41,7 +41,9 @@ test("헤더에 분야 · 연도 · 제목 · 요약, 도구줄에 기간 · 사
   renderRoute("/issues/12");
 
   const header = (await title()).closest("header")!;
-  expect(within(header).getByText("경제 · 2026")).toBeDefined();
+  expect(within(header).getByText("경제").closest("p")!.textContent).toBe(
+    "경제 · 2026",
+  );
   expect(
     within(header).getByText("한빛반도체가 텍사스 공장 투자를 늘리고 착공했다"),
   ).toBeDefined();
@@ -80,6 +82,15 @@ test("?event= 로 열면 그 사건을 고른 채 열고, 빈 곳을 누르면 �
 
   expect(router.state.location.search).toBe("");
   expect(router.state.historyAction).toBe("REPLACE");
+});
+
+// 420px 는 관련 기사 제목이 자주 꺾여 좁았다 (2026-11-12 사용자 QA, Jira 197)
+test("넓은 화면 사건 패널은 480px 이고 본문 폭의 절반을 넘지 않는다", async () => {
+  renderRoute("/issues/12?event=117");
+
+  const panel = await screen.findByRole("complementary", { name: "사건 상세" });
+  expect(panel.className).toContain("w-[480px]");
+  expect(panel.className).toContain("max-w-[50%]");
 });
 
 test("사건이 없는 이슈는 타임라인 자리에 안내를 둔다", async () => {
@@ -245,9 +256,9 @@ test("도구줄 개수가 0이면 그 항목을 뺀다", async () => {
   expect(screen.queryByText(/기사 0/)).toBeNull();
 });
 
-// 좁은 화면의 메뉴 버튼 · 서랍(이슈 탐색)은 뺐다 — 로고가 맨 왼쪽 (2026-11-12 사용자, Jira 195).
-// 이슈는 홈 분야 탭 · 검색으로 찾는다. Ctrl/⌘+\ 도 좁은 화면에서는 아무것도 열지 않는다
-test("좁은 화면에는 메뉴 버튼 · 사이드바 · 서랍이 없고 Ctrl+\\ 도 아무것도 열지 않는다", async () => {
+// 좁은 화면의 메뉴 버튼 · 서랍은 Jira 195 에서, 넓은 화면 사이드바 · Ctrl/⌘+\ 는 Jira 196 에서 뺐다 (2026-11-12 사용자).
+// 이슈는 분야별 이슈 화면 · 검색으로 찾는다. Ctrl/⌘+\ 를 눌러도 어느 폭에서든 사이드바가 생기지 않는다
+test("좁은 화면에는 메뉴 버튼 · 사이드바가 없고, Ctrl+\\ 를 누르고 넓어져도 사이드바가 없다", async () => {
   stubScreen("narrow");
   renderRoute("/issues/12");
   await title();
@@ -255,9 +266,13 @@ test("좁은 화면에는 메뉴 버튼 · 사이드바 · 서랍이 없고 Ctrl
   expect(screen.queryByRole("button", { name: "메뉴 열기" })).toBeNull();
   expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
   fireEvent.keyDown(window, { key: "\\", ctrlKey: true });
-  expect(screen.queryByRole("dialog", { name: "메뉴" })).toBeNull();
+  act(() => resizeScreen("wide"));
+
+  await title();
+  expect(screen.queryByRole("navigation", { name: "사이드바" })).toBeNull();
 });
 
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives)
 test("넓은 화면에서 TIP 만 열려 있으면 타임라인 밖(이슈 제목)에서 누른 Esc 도 TIP 을 닫는다", async () => {
   renderRoute("/issues/12");
   fireEvent.click(await screen.findByRole("button", { name: "TIP" }));
@@ -334,20 +349,6 @@ test("주소의 사건이 다른 이슈의 사건이면 그 이슈 주소로 바
   expect(router.state.historyAction).toBe("REPLACE");
 });
 
-test("사건 패널이 열리면 사이드바를 접는다", async () => {
-  renderRoute("/issues/12");
-  fireEvent.click(
-    await screen.findByRole("button", { name: "사이드바 펼치기" }),
-  );
-  expect(screen.getByRole("button", { name: "사이드바 접기" })).toBeDefined();
-
-  fireEvent.click(await node(/착공식/));
-
-  expect(
-    await screen.findByRole("button", { name: "사이드바 펼치기" }),
-  ).toBeDefined();
-});
-
 test("좁은 화면에서는 사건 패널을 아래에서 올라오는 시트로 연다", async () => {
   stubScreen("narrow");
   renderRoute("/issues/12?event=119");
@@ -404,17 +405,6 @@ test("닫을 사건 노드가 타임라인에 없으면 포커스를 이슈 제�
   expect(document.activeElement).toBe(await title());
 });
 
-test("패널을 연 채 사이드바를 펼친 뒤 다음 사건으로 가도 사이드바를 다시 접지 않는다", async () => {
-  renderRoute("/issues/12?event=119");
-  await panelTitle("한빛반도체 텍사스 공장 착공식");
-  fireEvent.click(screen.getByRole("button", { name: "사이드바 펼치기" }));
-
-  fireEvent.click(screen.getByRole("button", { name: /다음 사건/ }));
-  await panelTitle("텍사스 공장 엔지니어 수급 우려 보도");
-
-  expect(screen.getByRole("button", { name: "사이드바 접기" })).toBeDefined();
-});
-
 test("좁은 화면 시트를 닫기 버튼으로 닫으면 기록을 쌓지 않고 ?event= 를 지운다", async () => {
   stubScreen("narrow");
   const { router } = renderRoute("/issues/12?event=119");
@@ -443,24 +433,6 @@ test("좁은 화면 사건 시트는 본문(main) 밖에 그린다 — 본문은
 
   const sheet = await screen.findByRole("dialog", { name: "사건 상세" });
   expect(document.querySelector("main")?.contains(sheet)).toBe(false);
-});
-
-test("사이드바에서 사건을 누르면 패널이 열리고 포커스가 패널 제목으로 간다", async () => {
-  renderRoute("/issues/12");
-  fireEvent.click(
-    await screen.findByRole("button", { name: "사이드바 펼치기" }),
-  );
-  const sidebar = screen.getByRole("navigation", { name: "사이드바" });
-  fireEvent.click(await within(sidebar).findByRole("button", { name: "경제" }));
-
-  // 사이드바의 사건 링크는 「날짜 키워드」다. 패널이 열리면 사이드바가 접혀 링크가 사라진다
-  fireEvent.click(await within(sidebar).findByRole("link", { name: /착공식/ }));
-
-  const heading = await within(await panel()).findByRole("heading", {
-    level: 2,
-    name: "한빛반도체 텍사스 공장 착공식",
-  });
-  await waitFor(() => expect(document.activeElement).toBe(heading));
 });
 
 test("좁은 화면에서는 이슈 흐름을 세로 타임라인으로 둔다 — 넓은 화면은 가로 지도다", async () => {

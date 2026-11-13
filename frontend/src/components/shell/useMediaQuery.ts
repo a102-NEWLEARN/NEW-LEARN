@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-/** 좁은 화면 — md(768px) 미만. 사이드바를 두지 않는 폭 (EXPERIENCE.md Responsive & Platform, DESIGN.md 브레이크포인트) */
+/** 좁은 화면 — md(768px) 미만. 헤더 버튼이 아이콘만 되는 폭 (EXPERIENCE.md Responsive & Platform, DESIGN.md 브레이크포인트) */
 export const NARROW_SCREEN = "(max-width: 767px)";
 
 // 미디어 쿼리가 지금 맞는지. 창 폭이 바뀌면 다시 그린다.

@@ -13,7 +13,7 @@ export function focusSearchRequest(state: unknown): number | undefined {
 }
 
 // 빠른 이동 — 어느 화면에서든 홈으로 가서 검색창에 포커스한다 (EXPERIENCE.md IA 통합 검색, 프로토타입 v21).
-// ⌘/Ctrl+K 와 사이드바 「빠른 이동」이 쓴다. 이미 홈이면 기록을 쌓지 않고 고른 분야(?category=)도 둔다
+// ⌘/Ctrl+K 가 쓴다. 이미 홈이면 기록을 쌓지 않고 고른 분야(?category=)도 둔다
 export function useQuickSearch() {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
