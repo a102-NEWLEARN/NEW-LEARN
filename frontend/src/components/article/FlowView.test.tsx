@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { FlowView } from "@/components/article/FlowView";
@@ -374,7 +374,11 @@ test("머리 줄은 기사 제목이 아니라 AI 한 줄 요지다 — h1 과 �
   expect(header.className).not.toContain("hidden");
 });
 
-test("요지가 없으면 머리 줄을 두지 않는다", () => {
+test("요지가 없거나 공백뿐이면 머리 줄을 두지 않는다", () => {
+  renderFlow(BRANCHES, "   ");
+  expect(screen.queryByText("기사 핵심")).toBeNull();
+  cleanup();
+
   renderFlow(BRANCHES, null);
 
   expect(screen.queryByText("기사 핵심")).toBeNull();

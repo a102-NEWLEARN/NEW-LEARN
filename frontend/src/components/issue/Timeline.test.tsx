@@ -96,7 +96,7 @@ test("도구줄 TIP 왼쪽에 용어사전 안내 아이콘을 둔다", async ()
   expect(
     guide.compareDocumentPosition(tip) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
-  expect(screen.getByRole("note", { name: "용어사전 안내" })).toBeDefined();
+  expect(screen.getByRole("note")).toBeDefined();
 });
 
 test("노드를 누르거나 Enter · Space 로 고른다", async () => {
@@ -423,6 +423,40 @@ test("사건 패널을 닫으면 처음 열었을 때 배율 · 위치로 돌아
   } finally {
     spy.mockRestore();
     vi.stubGlobal("ResizeObserver", original);
+  }
+});
+
+// 키보드로 닫으면(Esc · X 에서 Enter) 화면이 닫은 사건 노드에 포커스를 준다(IssuePage closePanel). 처음 보기로 돌아가도
+// 그 노드가 화면 밖이면 가로로만 옮겨 보이게 둔다 — 키보드 포커스는 늘 보인다 (EXPERIENCE.md Accessibility Floor, Jira 197 리뷰)
+test("키보드로 패널을 닫으면 처음 배율로 돌아가되 포커스가 간 사건은 화면 안에 둔다", async () => {
+  const width = stubWidth(375);
+  try {
+    const { events } = await fetchTimeline(12);
+    const timeline = (selectedId: number | null) => (
+      <Timeline
+        events={events}
+        selectedId={selectedId}
+        onSelect={() => {}}
+        onDeselect={() => {}}
+      />
+    );
+    const { rerender } = render(timeline(120));
+    const startZoom = zoomLevel();
+    expect(nodeX(/엔지니어 수급 우려/)).toBeLessThan(375);
+
+    act(() => {
+      node(/엔지니어 수급 우려/).focus();
+      rerender(timeline(null));
+    });
+    // 처음 보기로 가는 움직임(300ms)이 끝나기를 기다린다
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(zoomLevel()).toBe(startZoom);
+    const x = nodeX(/엔지니어 수급 우려/);
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(375);
+  } finally {
+    width.mockRestore();
   }
 });
 

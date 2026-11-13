@@ -4,7 +4,7 @@ import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 
 const GUIDE = "모르는 단어는 드래그하면 뜻을 알려줘요!";
 const icon = () => screen.getByRole("button", { name: "용어사전 안내" });
-const bubble = () => screen.queryByRole("note", { name: "용어사전 안내" });
+const bubble = () => screen.queryByRole("note");
 
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
@@ -62,4 +62,31 @@ test("브라우저 저장소를 못 써도 화면은 그려지고 안내가 뜬�
   expect(bubble()).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "안내 닫기" }));
   expect(bubble()).toBeNull();
+});
+
+// 말풍선은 아이콘 오른쪽 끝에 붙어 왼쪽으로 자란다. 아이콘 오른쪽에 다른 버튼(크게 보기 · TIP)이 있으면 좁은 화면에서
+// 왼쪽이 화면 밖으로 잘렸다 → 폭을 아이콘 오른쪽 끝 − 16px 까지로 줄여 글이 꺾이게 한다 (Jira 197 리뷰)
+test("말풍선 폭은 아이콘 오른쪽 끝에서 화면 왼쪽 16px 까지를 넘지 않는다", () => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    right: 250,
+  } as DOMRect);
+  render(<MeaningGuide />);
+
+  expect(bubble()!.style.maxWidth).toBe("234px");
+});
+
+test("처음에는 화면이 다 나온 뒤 떠오르고, 아이콘으로 다시 열 때는 바로 뜬다", () => {
+  render(<MeaningGuide />);
+  expect(bubble()!.style.animationDelay).not.toBe("0ms");
+
+  fireEvent.click(screen.getByRole("button", { name: "안내 닫기" }));
+  fireEvent.click(icon());
+
+  expect(bubble()!.style.animationDelay).toBe("0ms");
+});
+
+test("말풍선은 이름을 따로 달지 않는다 — 아이콘 버튼과 같은 이름이 두 번 읽히지 않게, 본문이 읽힌다", () => {
+  render(<MeaningGuide />);
+
+  expect(bubble()!.getAttribute("aria-label")).toBeNull();
 });

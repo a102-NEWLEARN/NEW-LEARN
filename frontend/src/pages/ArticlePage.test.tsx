@@ -92,9 +92,9 @@ test("탭 줄에 용어사전 안내 아이콘을 두고, 처음에는 「드래
       .getByRole("button", { name: "용어사전 안내" })
       .closest('[role="tablist"]'),
   ).toBeNull();
-  expect(
-    screen.getByRole("note", { name: "용어사전 안내" }).textContent,
-  ).toContain("모르는 단어는 드래그하면 뜻을 알려줘요!");
+  expect(screen.getByRole("note").textContent).toContain(
+    "모르는 단어는 드래그하면 뜻을 알려줘요!",
+  );
 });
 
 test("마인드맵 탭을 고르면 주소에 ?view=map 을 남기고 기록은 쌓지 않는다", async () => {

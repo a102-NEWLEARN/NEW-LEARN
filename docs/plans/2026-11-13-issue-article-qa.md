@@ -25,7 +25,7 @@
 - `components/meaning/MeaningGuide.tsx` (새 파일) — (6) 아이콘 · 말풍선 · 닫은 것 기억
 - `pages/ArticlePage.tsx` — (6) 탭 줄에 안내, (7) FlowView 에 A8 `summary` 넘기기
 - `components/article/FlowView.tsx` — (7) 머리 줄 = 요지
-- `components/article/MindmapGraph.tsx` — (7) 가운데 원 말머리 빼기
+- `components/article/mindmapLayout.ts` · `lib/title.ts`(새 파일) — (7) 가운데 원 말머리 빼기 (계획 때는 `MindmapGraph.tsx` 로 적었으나 가운데 글 줄 나누기가 mindmapLayout 에 있었다)
 - 위 파일의 시험(`*.test.tsx`)과 `timelineLayout.test.ts` — 실패하는 시험을 먼저 쓴다
 - 문서: EXPERIENCE.md(오른쪽 패널 480px · 닫으면 처음 보기, 용어사전 안내, 흐름지도 머리 줄), DESIGN.md(흐름지도 머리 줄 383 행, 마인드맵 가운데 379 행, 이슈 머리 · 타임라인 라벨)
 
@@ -39,7 +39,9 @@
   - 한 것: 분야 13px 청록 굵게 · 연도 회색, 제목 넓은 화면 28 → 32px, 요약 16px 회색 → 18px 진한 글자 + 왼쪽 3px 민트 막대, AI 생성은 넓은 화면 머리 오른쪽 위. DESIGN.md 에는 이슈 머리 행이 없어(「패턴 6개」 표) 더하지 않았다 — 모양은 `IssueHeader.tsx` 주석, 표시 자리 규칙은 EXPERIENCE AI 생성 행
 - [x] 5 (7번) 흐름지도 머리 줄 = 요지 · 마인드맵 가운데 말머리 빼기 — 시험: 머리 줄에 summary 가 나오고 제목은 없다, summary 가 null 이면 줄이 없다, `[속보] 임광현 …` 의 가운데 원은 `임광현 …`
 - [x] 6 (6번) 용어사전 안내 — 시험: 처음엔 말풍선이 보인다, X 를 누르면 사라지고 아이콘이 남는다, 다시 열면(새 렌더) 아이콘만 있다, 아이콘을 누르면 다시 뜬다, localStorage 가 던져도 화면이 그려진다
-- [ ] 7 reviewer 조수 · 반영 · `/verify` · 스크린숏(393 · 1440) · MR 본문
+- [x] 7 reviewer 조수 · 반영 · `/verify` · 스크린숏(393 · 1440) · MR 본문
+  - 리뷰 「고쳐야 함」 3 반영: 좁은 화면 안내 말풍선이 왼쪽으로 잘림(폭을 아이콘 오른쪽 끝 − 16px 로), 키보드로 패널을 닫으면 포커스가 간 사건이 화면 밖(처음 배율로 돌아가되 그 사건만 보이게 옮김), EXPERIENCE 이슈 화면 행의 AI 생성 자리
+  - 「선택」 반영: 다시 열 때 지연 빼기, 말풍선 이름 겹침 빼기, Esc 규칙 적기, 공백뿐인 요지 거르기. 안 한 것: 좁은 화면 TIP 창과 안내 말풍선이 같은 자리에 겹칠 수 있다(TIP 을 열면 위에 뜬다)
 
 ## 안 바꿀 것
 

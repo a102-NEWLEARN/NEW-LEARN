@@ -67,6 +67,8 @@ export function FlowView({
 }: FlowViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const idPrefix = useId();
+  // 공백뿐인 요지는 없는 것으로 본다 — 빈 머리 줄을 두지 않게
+  const headline = summary?.trim() || null;
 
   // Esc — 강조를 푼다. 먼저 받은 쪽이 preventDefault 했거나 다른 창(dialog) 안에서 누른 Esc 는
   // 그쪽 몫이다 (MindmapGraph 와 같다)
@@ -109,7 +111,7 @@ export function FlowView({
         )}
         {/* 머리 줄 — 기사 핵심 한 문장(A8 summary, AI 요지). 전에는 A9 title(= 기사 제목)이라 바로 위 h1 과 같은 글이
             두 번 보였다 (2026-11-12 사용자 QA, Jira 197). h1 과 다른 글이라 낭독하고 좁은 자리에서도 둔다 */}
-        {summary && (
+        {headline && (
           <div
             className={`flex items-center gap-x3_5 ${RISE}`}
             style={enterAt(0)}
@@ -128,13 +130,13 @@ export function FlowView({
             <span className="flex min-w-0 flex-col gap-x0_5">
               <span className="t2-bold text-fg-neutral-subtle">기사 핵심</span>
               <span className="t6-bold @min-[640px]:t7-bold text-fg-neutral">
-                {summary}
+                {headline}
               </span>
             </span>
           </div>
         )}
         <ol
-          className={`grid gap-y-x10 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7 ${summary ? "mt-x7" : ""}`}
+          className={`grid gap-y-x10 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7 ${headline ? "mt-x7" : ""}`}
         >
           {branches.map(({ type, items }, index) => {
             const { name, question, tone } = BRANCHES[type];

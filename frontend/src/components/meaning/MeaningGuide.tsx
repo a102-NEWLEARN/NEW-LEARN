@@ -2,7 +2,14 @@ import {
   IconExclamationmarkCircleLine,
   IconXmarkLine,
 } from "@karrotmarket/react-monochrome-icon";
-import { useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { enterAt, RISE } from "@/components/motion/screenMotion";
 
 // 닫은 것을 기억하는 자리 — 이 브라우저에만 남는다. 못 쓰면(사생활 보호 창 · 막힌 저장소) 화면마다 다시 뜬다
@@ -24,8 +31,11 @@ function rememberClosed() {
   }
 }
 
-// 기사 · 이슈 화면이 다 그려진 뒤에 떠오른다
+// 기사 · 이슈 화면이 다 그려진 뒤에 떠오른다. 아이콘으로 다시 열 때는 바로 뜬다
 const GUIDE_AT = 600;
+// 말풍선 폭 상한과 화면 왼쪽에 남길 틈
+const BUBBLE_MAX = 380;
+const EDGE = 16;
 
 type MeaningGuideProps = {
   className?: string;
@@ -37,8 +47,26 @@ type MeaningGuideProps = {
 // (2026-11-12 사용자 QA, Jira 197). 페이지의 포커스는 가져가지 않는다 — 가만히 떠 있는 안내다
 export function MeaningGuide({ className = "" }: MeaningGuideProps) {
   const [open, setOpen] = useState(() => !readClosed());
+  const [delay, setDelay] = useState(GUIDE_AT);
   const iconRef = useRef<HTMLButtonElement>(null);
   const bubbleId = useId();
+
+  // 말풍선은 아이콘 오른쪽 끝에 붙어 왼쪽으로 자란다. 아이콘 오른쪽에 크게 보기 · TIP 이 있으면 좁은 화면에서 왼쪽이 잘려서,
+  // 폭을 아이콘 오른쪽 끝에서 화면 왼쪽 16px 까지로 줄인다 — 글이 꺾인다 (Jira 197 리뷰). 잴 수 없으면(jsdom) CSS 상한만 쓴다
+  const [room, setRoom] = useState<number | null>(null);
+  const measure = useCallback(() => {
+    const right = iconRef.current?.getBoundingClientRect().right ?? 0;
+    setRoom(right > EDGE ? Math.min(BUBBLE_MAX, right - EDGE) : null);
+  }, []);
+  // 그릴 때마다 잰다 — 옆에 크게 보기 버튼이 늦게 생기면(마인드맵을 받은 뒤) 아이콘 자리가 바뀐다. 같은 값이면 다시 그리지 않는다
+  useLayoutEffect(() => {
+    if (open) measure();
+  });
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, measure]);
 
   const close = () => {
     setOpen(false);
@@ -54,7 +82,11 @@ export function MeaningGuide({ className = "" }: MeaningGuideProps) {
         title="용어사전 안내"
         aria-expanded={open}
         aria-controls={open ? bubbleId : undefined}
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={() => {
+          if (open) return close();
+          setDelay(0);
+          setOpen(true);
+        }}
         className={`flex size-x9 items-center justify-center rounded-r2 transition-colors hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${open ? "text-fg-brand" : "text-fg-neutral-muted hover:text-fg-neutral"}`}
       >
         <IconExclamationmarkCircleLine aria-hidden size={18} />
@@ -63,9 +95,8 @@ export function MeaningGuide({ className = "" }: MeaningGuideProps) {
         <div
           id={bubbleId}
           role="note"
-          aria-label="용어사전 안내"
           className={`absolute top-full right-0 z-20 mt-x2 w-max max-w-[min(380px,calc(100vw-32px))] ${RISE}`}
-          style={enterAt(GUIDE_AT)}
+          style={{ ...enterAt(delay), maxWidth: room ?? undefined }}
         >
           {/* 아이콘을 가리키는 꼬리 */}
           <span

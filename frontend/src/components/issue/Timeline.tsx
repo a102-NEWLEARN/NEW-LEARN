@@ -263,6 +263,18 @@ export function Timeline({
     return atScale(fitting >= 0.75 ? Math.min(1, fitting) : 0.75);
   };
 
+  // 처음 보기인데 키보드 포커스가 간 사건이 화면 밖이면 가로로만 옮겨 보이게 한다 — 키보드 포커스는 늘 보인다
+  // (EXPERIENCE.md Accessibility Floor). 키보드로 패널을 닫으면 화면이 닫은 사건 노드에 포커스를 준다(IssuePage)
+  const openingShowing = (event: PlacedEvent | undefined) => {
+    const start = opening();
+    if (!event) return start;
+    const x = start.applyX(GUTTER + event.x);
+    if (x >= GUTTER + 20 && x <= sizeRef.current.width - LABEL_ROOM)
+      return start;
+    const target = GUTTER + (sizeRef.current.width - GUTTER) * 0.45;
+    return atScale(start.k, target - (GUTTER + event.x) * start.k);
+  };
+
   // 처음 — 처음 보기에 두고, 고른 사건이 있으면 보이게.
   // 처음 그릴 때는 자리 폭을 아직 못 재서 어림값(FALLBACK_SIZE)으로 맞춘다. 진짜 폭을 재면 한 번 더 맞춘다
   const startedWidth = useRef<number | null>(null);
@@ -288,7 +300,10 @@ export function Timeline({
     const closed = shownId.current !== null && selectedId === null;
     shownId.current = selectedId;
     if (selectedId === null) {
-      if (closed || reopening.current) apply(opening());
+      const focused = layoutRef.current.events.find(
+        (event) => event.id === focusId,
+      );
+      if (closed || reopening.current) apply(openingShowing(focused));
       reopening.current = closed;
       return;
     }
