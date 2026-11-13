@@ -16,7 +16,8 @@ export const isLogoutNavigation = (state: unknown) =>
 
 /**
  * 로그아웃(A16) — 헤더 프로필 메뉴가 쓴다. 마이페이지 이름 줄에서 옮겼다 (2026-11-05, S15P31A102-182).
- * 로그아웃하면 손님이 처음 서는 랜딩으로 간다. 손님은 셸 안 화면에 남을 수 없다(RequireMember).
+ * 로그아웃하면 랜딩으로 간다 — 손님도 셸 안 화면을 쓰지만 로그아웃은 서비스를 떠나는 동작으로 본다(EXPERIENCE.md 이동 규칙).
+ * 먼저 옮기고 그다음 내 정보를 비운다 — 셸이 내려간 뒤라 세션 만료 감시(SessionExpiredRedirect)가 로그인 화면으로 보내지 않는다.
  * 세션이 이미 끊긴 401 도 로그아웃이다(logout). 실패하면 error 에 안내를 두고 지금 화면에 남는다
  */
 export function useLogout({ onError }: { onError?: () => void } = {}) {

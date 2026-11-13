@@ -36,7 +36,7 @@ test("앱 이름 · 시작 주소 · 주소창 없이 열기 · 색을 적는다
   expect(manifest).toMatchObject({
     name: "NEW:LEARN",
     short_name: "NEW:LEARN",
-    // 손님은 /home 에서 로그인 화면으로 간다(RequireMember). 회원은 바로 홈
+    // 손님도 회원도 홈에서 연다 (2026-11-13 Jira 205 — 손님도 둘러보기는 다 한다)
     start_url: "/home",
     scope: "/",
     display: "standalone",

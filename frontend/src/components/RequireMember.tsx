@@ -3,8 +3,8 @@ import { Navigate, Outlet, useLocation, useOutletContext } from "react-router";
 import { meQuery } from "@/api/members";
 import { loginPath } from "@/lib/login-path";
 
-// 손님은 로그인부터 한다 — 랜딩 밖 화면을 손님이 열면 로그인 화면으로 보내고, 로그인하면 이 주소로 돌아온다
-// (EXPERIENCE.md 이동 규칙. 팀 확인 남음). A17 이 손님(401) 말고 다른 오류로 실패하면 막지 않는다 —
+// 회원 화면(나의 뉴스함 · 마이페이지)을 손님이 열면 로그인 화면으로 보내고, 로그인하면 이 주소로 돌아온다
+// (EXPERIENCE.md 이동 규칙, 2026-11-13 Jira 205 — 그 밖의 셸 화면은 손님도 연다). A17 이 손님(401) 말고 다른 오류로 실패하면 막지 않는다 —
 // 손님인지 모르는데 로그인을 시킬 수는 없고, 화면은 저마다 실패한 자리에 안내를 띄운다
 export function RequireMember() {
   const me = useQuery(meQuery);
