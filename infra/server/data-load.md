@@ -273,47 +273,51 @@ AI 팀이 11-13 에 따로 준 `vectors_linked_1021_1111.sqlite`(사건에 묶�
 
 **받은 벡터**(파일 `meta` 표) — `dragonkue/BGE-m3-ko`, Hugging Face `main` = 판 `7074d66…`(운영 init 컨테이너가 받는 판과 같다), 입력은 **원제목**(B2 정리 전) + 줄바꿈 + 본문 앞 800자, `normalize_embeddings=True` 뒤 float32 로 다시 정규화, float32 1024개. 운영 EMBED 입력과 글자까지 같은 것 14,367건, B2 가 제목을 바꾼 것 126건.
 
-### 순서 (관리자 PC 저장소 맨 위, 10:00 ~ 10:30 수집 밖)
+### 순서 — 명령은 **관리자 서버**에서 (10:00 ~ 10:30 수집 밖)
 
-1. 운영에서 사건에 묶인 기사 번호 · 주소를 읽는다(읽기만). 벡터 파일을 서버로 보낸다
+관리자 PC 의 `kubectl` 은 이 클러스터를 보지 않는다. 벡터 파일과 스크립트를 서버로 보내고 거기서 돌린다(`ssh newlearn`, 서버 python 3.12).
+
+1. (PC) 보내기
 
    ```bash
-   kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc \
-     "select ae.article_id, a.url from article_event ae join article a on a.id = ae.article_id" > urls.tsv
+   ssh newlearn 'mkdir -p ~/207'
+   scp vectors_linked_1021_1111.sqlite newlearn:~/207/
+   scp infra/server/embedding_to_load.py infra/server/embedding-stage.sql        infra/server/embedding-load.sql infra/server/embedding-undo.sql newlearn:~/207/
    ```
 
-2. COPY 파일을 만든다 — 줄 수 · 「같은 글」 수를 끝 표시로 본다
+2. (서버) 사건에 묶인 기사 번호 · 주소를 읽고(읽기만) COPY 파일을 만든다 — 끝 표시: 「줄 14493개」 · 「같은 글 14367건」
 
    ```bash
-   python3 infra/server/embedding_to_load.py --sqlite vectors_linked_1021_1111.sqlite \
-     --urls urls.tsv --out embeddings-207.tsv --changed-out changed-ids.txt
+   cd ~/207 && kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc      "select ae.article_id, a.url from article_event ae join article a on a.id = ae.article_id" > urls.tsv
+   python3 embedding_to_load.py --sqlite vectors_linked_1021_1111.sqlite      --urls urls.tsv --out embeddings-207.tsv --changed-out changed-ids.txt
    ```
 
-3. 받는 표를 만들고 토막으로 넣는다. **한 번에 보내면 스트림이 끊긴다**(200MB) — 2,000줄씩 나눈다
+3. (서버) 받는 표를 만들고 토막으로 넣는다. **한 번에 보내면 스트림이 끊긴다**(200MB) — 2,000줄씩
 
    ```bash
-   { echo 'begin;' && cat infra/server/embedding-stage.sql && echo 'commit;'; } \
-     | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
-   split -l 2000 -d embeddings-207.tsv chunk-
+   cd ~/207 && { echo 'begin;' && cat embedding-stage.sql && echo 'commit;'; }      | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
+   split -l 2000 -d --suffix-length=3 embeddings-207.tsv chunk-
    for f in chunk-*; do
-     kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn \
-       -c "\copy embed_load.stage (article_id, model, embedding) from stdin" < "$f" || break
+     kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn        -c "\copy embed_load.stage (article_id, model, embedding) from stdin" < "$f" || break
    done
+   kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc "select count(*) from embed_load.stage"
    ```
 
-4. 넣는다 — 끝 표시: 「기사 벡터 14493 · 사건에 묶인 기사 14493」 한 줄
+   끝 표시: 마지막 줄이 `14493`. 토막이 중간에 끊기면 그 자리에서 다시 돌린다 — 이미 들어간 줄은 기본 키에 막혀 그 토막만 통째로 되돌아간다(토막 하나가 한 트랜잭션).
+
+4. (서버) 넣는다 — 끝 표시: 「기사 벡터 14493 · 사건에 묶인 기사 14493」 한 줄
 
    ```bash
-   { echo 'begin;' && cat infra/server/embedding-load.sql && echo 'commit;'; } \
-     | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
+   cd ~/207 && { echo 'begin;' && cat embedding-load.sql && echo 'commit;'; }      | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
    ```
 
-5. 되돌리기 — 판정 · 이슈 워커를 **먼저 끄고** 돌린다
+5. (서버) 되돌리기 — 판정 · 이슈 워커를 **먼저 끄고** 돌린다
 
    ```bash
-   { echo 'begin;' && cat infra/server/embedding-undo.sql && echo 'commit;'; } \
-     | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
+   cd ~/207 && { echo 'begin;' && cat embedding-undo.sql && echo 'commit;'; }      | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
    ```
+
+6. (서버) 끝나면 보낸 파일을 지운다 — `rm -rf ~/207`
 
 ### 넣은 뒤 확인 — 벡터가 그 기사의 것인가
 

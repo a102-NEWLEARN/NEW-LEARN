@@ -126,7 +126,7 @@ def build(sqlite_path, urls_path, out_path):
 
 
 def changed_ids(sqlite_path, urls_path):
-    """제목이 B2 에서 바뀌어 운영 입력과 글이 다른 기사 번호 — 켠 뒤 EMBED 로 다시 만들 몫."""
+    """제목이 B2 에서 바뀌어 운영 입력과 글이 다른 기사 번호 — 받은 그대로 넣고 목록만 남긴다."""
     vectors = read_vectors(sqlite_path)
     urls = read_urls(urls_path)
     check_pairs(vectors, urls)
@@ -150,7 +150,7 @@ def main(argv=None):
 
     print(f"줄 {report['rows']}개 → {a.out}")
     print(f"  운영 입력과 글자까지 같은 것 {report['same_input_as_ops']}건")
-    print(f"  B2 가 제목을 바꾼 것 {report['title_changed_by_b2']}건 (켠 뒤 EMBED 로 다시 만든다)")
+    print(f"  B2 가 제목을 바꾼 것 {report['title_changed_by_b2']}건 (받은 그대로 넣는다 — data-load.md 10절)")
     print(f"  기사 번호 {report['first_article_id']} ~ {report['last_article_id']}")
     return 0
 
