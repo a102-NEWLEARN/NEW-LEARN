@@ -19,7 +19,7 @@
   - 새 목록 SQL 은 운영에서도 EXPLAIN ANALYZE 하고 옛 SQL 과 결과를 비교한다(읽기만): 정렬 2 × (분야 없음 + 5개 분야) × 크기 3 · 5 · 20 · 50 의 모든 쪽(마지막 반쪽 · 끝 너머 쪽 포함), 행마다 `row_number` 를 붙여 양쪽 `except all` 이 비고, 모든 쪽 행 수 합이 개수 SQL 의 total 과 같아야 한다
   - 넣는 기준: 인덱스는 위 쿼리 중 하나라도 읽은 블록이 줄고 나빠지는 쿼리가 없을 때. 목록 쿼리는 디스크 정렬이 사라지고 운영 비교가 모두 같을 때. 기준을 못 넘은 쪽은 빼고 계획의 「구현하며 바뀐 것」에 적는다
 - [x] **2. 측정 스크립트** — `explain.sql` 에 A2 목록(분야 없음 5) **옛 SQL · 새 SQL 둘 다**(이름표로 구분), 최근 사건, A3 머리를 더한다. 개선 전 · 후에 같은 파일을 돌리고, 배포 뒤에는 `pg_stat_activity` 에서 앱이 실제로 보내는 목록 SQL 이 새 SQL 과 같은지 본다(README 「쿼리 출처」). `bench.py` 에 A3 을, `stats.sql` 에 새 인덱스의 `idx_scan`(`pg_stat_user_indexes`)을 더한다 — bench 앞뒤 차이로 앱(일반 계획 포함)이 인덱스를 실제로 쓰는지 본다
-- [ ] **3. backend MR** (backend 브랜치로, **152 최종 적재가 끝나기 전에는 머지하지 않는다** — backend 브랜치는 BE 팀원과 같이 써서 머지되면 누구의 다음 배포에든 V15 가 실린다)
+- [x] **3. backend MR** (backend 브랜치로, **152 최종 적재가 끝나기 전에는 머지하지 않는다** — backend 브랜치는 BE 팀원과 같이 써서 머지되면 누구의 다음 배포에든 V15 가 실린다)
   - 먼저 둘 시험
     - 새 시험: V15 인덱스 둘의 `pg_indexes.indexdef` (V14 의 `ArticlePublicIndexSchemaTest` 방식) — V15 없이 빨강
     - `InterestIssueSchemaTest` 버전 목록에 "15"
@@ -27,14 +27,14 @@
   - 목록 쿼리를 지키는 지금 시험: `CategoryIssueQueryTest`(동점 · createdAt · 분야 · 끝 너머 쪽 total), `CategoryIssueApiIntegrationTest`(createdAt size 1), `IssueTimelineQueryTest` 54 ~ 58행(목록 카드 = 머리 카드), `HiddenIssueEventApiIntegrationTest`(숨긴 이슈)
   - `V15__event_issue_indexes_article_autovacuum.sql`(처음 이름 `V15__event_issue_indexes.sql`, 기사 표 자동 VACUUM 기준은 아래 「계획에 더한 것」): 머리에 `set local lock_timeout` (적재 · 분석이 표를 잡고 있으면 기다리며 사건 쓰기를 막지 않고 실패 → 새 파드만 못 뜨고 옛 파드가 계속 받음), `create index ... on article_event (event_id)` · `create index ... on event (issue_id)`. concurrently 없이(1만 행대라 순간)
   - `IssueQueryRepository.findCards` 의 목록 SQL 만 바꾼다: issue 칸 없이 `e.issue_id` 로 집계(빈 issue_id 빼기), 그 결과에 issue 를 inner join, 정렬(createdAt 은 issue 칸) · limit · offset 은 바깥에서 한 번. 개수 SQL · `findHeader` · `findCardsByIds` 의 `AGGREGATE` 는 그대로
-- [ ] **4. infra MR** (infra 브랜치로, backend MR 머지 **앞**) — `classified-load.sql` 판 검사에 15 를 더하고(인덱스만 더한 판이라 적재 SQL 은 그대로 맞음) `data-load.md` 193행 「판(13 또는 14 …)」도 같이, explain · bench · stats 스크립트. 판 검사는 Jira 152 세션이 쓰는 파일이라 그쪽에 먼저 알리고 152 최종 적재가 끝난 뒤 머지하고, 서버 사본(`~/infra/server/`)까지 바꾼다 — 배포 뒤에 적재를 다시 해야 할 때 막히지 않게
-- [ ] **5. VACUUM → 개선 전 재기** — 152 최종 다시 적재 · !818(15분 수집) 전환이 끝난 데이터에서
+- [x] **4. infra MR** (infra 브랜치로, backend MR 머지 **앞**) — `classified-load.sql` 판 검사에 15 를 더하고(인덱스만 더한 판이라 적재 SQL 은 그대로 맞음) `data-load.md` 193행 「판(13 또는 14 …)」도 같이, explain · bench · stats 스크립트. 판 검사는 Jira 152 세션이 쓰는 파일이라 그쪽에 먼저 알리고 152 최종 적재가 끝난 뒤 머지하고, 서버 사본(`~/infra/server/`)까지 바꾼다 — 배포 뒤에 적재를 다시 해야 할 때 막히지 않게
+- [x] **5. VACUUM → 개선 전 재기** — 152 최종 다시 적재 · !818(15분 수집) 전환이 끝난 데이터에서
   - 사람이 `VACUUM (ANALYZE) article, article_event, event;` (오늘 적재로 생긴 Heap Fetches 를 개선 전부터 없애 효과를 가르려고)
   - `stats.sql` → `bench.py before` → `stats.sql` → `explain.sql`, 그리고 `load.py`(사람, 관리 서버 tmux)
   - 재는 조건: 15분 수집은 :00 · :15 · :30 · :45(`news-ingest.yaml` `*/15`) — 그 회차 잡이 끝났고 `analysis_job` QUEUED 가 0 인 것을 보고 시작, 재는 동안 회차가 돌았는지 기록
   - 재기마다 같이 적는다: 공개 기사 · `article_event` · 사건 · 이슈 수, Heap Fetches · `n_dead_tup` · `last_autovacuum`, 워커 CPU 크레딧
-- [ ] **6. 배포** — backend MR 머지 → backend → dev → 이미지 → 배포 태그 MR, 늘 하던 길. 수집 회차 사이(위 조건)에. backend 가 뜰 때 Flyway 가 V15 를 적용한다
-- [ ] **7. 개선 후 재기 · 기록** — 5와 같은 순서 · 같은 조건 기록(VACUUM 은 V15 뒤 `ANALYZE article_event, event;` 만). `load-results.md` · `results.md` 에 전 · 후 표와 「남는 것」(A2 개수 SQL 23ms 는 그대로 남는 큰 몫), SSOT 10절 한 줄, `docs/data-model.md` 인덱스 줄, Jira 댓글 · 완료, 분야 브랜치 맞추기. 대시보드 「조회 성능」 캡처
+- [x] **6. 배포** — backend MR 머지 → backend → dev → 이미지 → 배포 태그 MR, 늘 하던 길. 수집 회차 사이(위 조건)에. backend 가 뜰 때 Flyway 가 V15 를 적용한다
+- [x] **7. 개선 후 재기 · 기록** — 5와 같은 순서 · 같은 조건 기록(VACUUM 은 V15 뒤 `ANALYZE article_event, event;` 만). `load-results.md` · `results.md` 에 전 · 후 표와 「남는 것」(A2 개수 SQL 23ms 는 그대로 남는 큰 몫), SSOT 10절 한 줄, `docs/data-model.md` 인덱스 줄, Jira 댓글 · 완료, 분야 브랜치 맞추기. 대시보드 「조회 성능」 캡처
 
 ## 바꿀 파일
 
@@ -130,15 +130,15 @@
 
 ### 작업 순서
 
-- [ ] **1. 실패하는 시험 먼저** — `ArticleAutovacuumSettingTest`: `'article'::regclass` 의 `reloptions` 에 다섯 값(아래)이 있다(순서 상관없이). 다른 시험이 임시 스키마에 article 을 만들어도 현재 스키마 표만 본다. 설정 전에는 빈 값이라 빨강
-- [ ] **2. V15 에 넣기** — 아직 어디에도 적용되지 않은 V15 에 한 문장을 더하고 파일 이름을 `V15__event_issue_indexes_article_autovacuum.sql` 로 바꾼다(판 번호는 그대로라 판 검사 · 시험 목록은 안 바뀜)
+- [x] **1. 실패하는 시험 먼저** — `ArticleAutovacuumSettingTest`: `'article'::regclass` 의 `reloptions` 에 다섯 값(아래)이 있다(순서 상관없이). 다른 시험이 임시 스키마에 article 을 만들어도 현재 스키마 표만 본다. 설정 전에는 빈 값이라 빨강
+- [x] **2. V15 에 넣기** — 아직 어디에도 적용되지 않은 V15 에 한 문장을 더하고 파일 이름을 `V15__event_issue_indexes_article_autovacuum.sql` 로 바꾼다(판 번호는 그대로라 판 검사 · 시험 목록은 안 바뀜)
   ```sql
   alter table article set (autovacuum_vacuum_insert_threshold = 1000, autovacuum_vacuum_insert_scale_factor = 0,
                            autovacuum_vacuum_threshold = 1000, autovacuum_vacuum_scale_factor = 0,
                            log_autovacuum_min_duration = 0);
   ```
   머리 주석: 왜(Heap Fetches 근거) · 값의 뜻(15분 수집 약 8회차마다, 회차마다 로그) · 싼 이유(표가 작다 — 592MB, 바뀐 페이지만 고르는 것은 32페이지 넘게 이어진 구간만 건너뛰므로 흩어지면 사이 페이지도 읽는다) · 되돌리기. 잠금은 SHARE UPDATE EXCLUSIVE 라 읽기 · 쓰기를 막지 않고, 같은 판의 `lock_timeout 5s` 안에 든다(자동 VACUUM 과 겹치면 1초 뒤 자동 VACUUM 쪽이 취소)
-- [ ] **3. 문서 · 스크립트 · 판 검사 문구** (infra MR)
+- [x] **3. 문서 · 스크립트 · 판 검사 문구** (infra MR)
   - `stats.sql` VACUUM 절에 `n_ins_since_vacuum` · `autovacuum_count` · `total_autovacuum_time`(PG18) 을 더하고, 오래 열린 트랜잭션(`pg_stat_activity.backend_xmin`) 한 줄
   - `classified-load.sql` · `data-load.md` 「V15 는 인덱스만」 → 「V15 는 인덱스 · 기사 표 자동 VACUUM 기준만(표 · 칸 같음)」
   - `docs/data-model.md` article 인덱스 줄에 한 마디(줄 수는 안 늘림), 두 MR 본문
@@ -193,3 +193,13 @@
 - 공개 표시 UPDATE 의 인덱스 정리 건너뜀(2%) 기대치, 오래 열린 트랜잭션 확인
 - 기본값 근거를 PG18 공식(얼지 않은 페이지 비율)과 운영 relallfrozen 으로 다시 계산 — 3만 2천 → 1만 5천 6백
 - 시험은 `'article'::regclass` 로 · 순서 상관없이, `log_autovacuum_min_duration = 0` 더함, 손 reset 에 `lock_timeout`, 156 세션에 V15 알림
+
+## 운영 반영에서 바뀐 것 (11-13)
+
+- **순서** — 최종 AI 파일이 11/13 로 밀려(사용자) 적재 전에 넣는 안을 냈다가, 사용자 결정 「적재 먼저」로 처음 계획 순서(152 다시 적재 → infra MR → 재기 → 배포) 그대로 했다. infra MR(!886 → !894)과 서버 사본은 적재 전에 넣었다 — 판 검사가 받는 판을 더하기만 해서 V14 에서도 그대로 돈다. backend MR 은 적재가 끝난 뒤 dev 로(!895)
+- **5단계 손 VACUUM 을 하지 않았다** — 다시 적재(07:48:35 commit)가 고친 행이 많아 기본 기준으로도 07:49 ~ 07:50 기사 · 기사-사건 · 사건 · 이슈 표에 자동 VACUUM · ANALYZE 가 돌았고, 기사 표가 이미 모두 「전부 보임」이었다(`stats.sql`). 7단계의 `ANALYZE article_event, event` 도 하지 않았다 — 인덱스를 더해도 표 통계는 그대로고, 적재 직후 자동 ANALYZE 가 돌았다
+- **15분 수집 전환(!818)은 재기 뒤로** — 「재기는 15분 회차 사이」 조건을 쓰지 않고, 전환 전 데이터에서 쟀다. 그날 10:00 수집은 사용자 결정으로 건너뛰었다(!896 → !897 `suspend: true`)
+- **frontend 가 같이 배포됐다** — 배포 MR 이 앞서 기다리던 frontend 태그(Jira 195 · 32)를 이어받아, 사용자 결정 「같이 내보내」로 함께 나갔다(08:22:42)
+- **기록 자리** — `load-results.md` · `results.md`(각각 11-12 · 11-11 측정 전용) 대신 `infra/server/perf/results-194.md` 한 곳에 전 · 후를 모았다
+- **재는 곳과 CI 러너가 같은 서버** — 부하 시험이 GitLab CI 잡 때문에 두 번(07:57 · 08:36) 「보내는 쪽 CPU」로 멈췄고, 개선 후 bench 도 두 번 CI 파이프라인과 겹쳤다. 돌던 파이프라인이 끝난 뒤 다시 쟀고, README 「피할 때」에 한 줄 더했다
+- **결과** — `results-194.md` 요약: 포화 초당 93 → 123건, 막힌 곳은 그대로 DB CPU, 사건 · 이슈 하나만 보는 쿼리는 표 통째 읽기가 없어짐, A2 개수 · A1 이슈 수는 그대로. 자동 VACUUM 기준 「4. 확인 — 배포 다음 날」은 15분 수집이 켜진 뒤에 한다
