@@ -19,6 +19,7 @@ import org.assertj.core.data.Offset;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,6 +36,8 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.NestedTestConfiguration;
+import org.springframework.test.context.NestedTestConfiguration.EnclosingConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -637,6 +640,58 @@ class IssueStageIntegrationTest {
                 .andExpect(status().isNoContent());
 
         assertThat(categories(issueOf(OWN))).containsExactly("politics");
+    }
+
+    // ── 붙이기만 하고 요약 · 분야는 그대로 (Jira S15P31A102-207) ──
+
+    // 설정을 끄면 ATTACH 가 사건만 이슈에 넣는다. 발표(11-18)까지 운영이 이 설정으로 돈다 —
+    // 켜 두면 ATTACH 가 발표에 쓸 이슈의 요약을 다시 쓰고 분야를 다시 계산한다(고정 28개 목록을 보지 않는다)
+    @Nested
+    @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @Import(TestcontainersConfiguration.class)
+    @TestPropertySource(
+            properties = {
+                "newlearn.internal.worker-key=" + IssueStageIntegrationTest.WORKER_KEY,
+                "newlearn.internal.batch-key=batch-key-for-issue-stage-test",
+                "newlearn.analysis.issue.rewrite-summary-on-attach=false"
+            })
+    class AttachWithoutRewrite {
+
+        @Test
+        void attachPutsTheEventInButKeepsTheSummaryAndCategory() throws Exception {
+            issue(4001, "북항 상어 출몰", "옛 요약");
+            event(4001, 10, "economy");
+            inIssue(4001, 4001);
+            // 기사에서 셈하면 나올 수 없는 분야를 미리 넣어 둔다 — 다시 계산했는지 바로 갈린다
+            jdbc.sql("insert into issue_category(issue_id,category_code) values (4001,'society')")
+                    .update();
+            event(OWN, 0, "politics");
+            long job = dispatched(OWN);
+
+            w1(job, envelope(1, "issue-v1", attach(4001, "새 요약"))).andExpect(status().isNoContent());
+
+            assertThat(issueOf(OWN)).as("사건은 이슈에 들어간다").isEqualTo(4001);
+            assertThat(issueColumn(4001, "title")).isEqualTo("북항 상어 출몰");
+            assertThat(issueColumn(4001, "summary")).as("요약은 그대로").isEqualTo("옛 요약");
+            assertThat(categories(4001)).as("분야도 그대로").containsExactly("society");
+            assertThat(jobState(job)).startsWith("SUCCEEDED");
+        }
+
+        // CREATE 는 새 이슈라 덮어쓸 것이 없다 — 설정과 상관없이 분야를 계산한다
+        @Test
+        void createStillComputesTheCategory() throws Exception {
+            event(4011, 5, "economy");
+            event(4012, 8, "economy");
+            event(OWN, 0, "politics");
+            long job = dispatched(OWN);
+
+            w1(job, envelope(1, "issue-v1", create("북항 상어 출몰", "요약", OWN, 4011, 4012)))
+                    .andExpect(status().isNoContent());
+
+            assertThat(categories(issueOf(OWN))).containsExactly("economy");
+        }
     }
 
     // ── 도우미 ──
