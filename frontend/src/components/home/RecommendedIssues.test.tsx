@@ -319,6 +319,26 @@ test("관심사 편집은 마이페이지로 가고, 좁은 화면에서는 숨�
   expect(edit.className).toContain("max-md:hidden");
 });
 
+// 손님은 관심 분야가 없다 — 마이페이지 대신 가입을 권한다 (EXPERIENCE.md Component Patterns 「가입 권유 창」, 2026-11-13 Jira 205)
+test("손님의 관심사 편집은 가입 권유 창을 띄우고, 좁은 화면에서는 숨긴다", async () => {
+  renderSection("/home", null);
+
+  expect(screen.queryByRole("link", { name: "관심사 편집" })).toBeNull();
+  const edit = screen.getByRole("button", { name: "관심사 편집" });
+  expect(edit.className).toContain("max-md:hidden");
+
+  fireEvent.click(edit);
+
+  const dialog = await screen.findByRole("alertdialog", {
+    name: "가입하면 더 편하게 이용할 수 있어요",
+  });
+  expect(
+    within(dialog).getByText(
+      "관심 분야를 고르면 그 분야 이슈부터 추천해 드려요.",
+    ),
+  ).toBeDefined();
+});
+
 test("카드가 45ms 간격으로 떠오르고, 분야를 바꾸면 묶음을 새로 그려 다시 떠오른다", async () => {
   renderSection();
   const cardList = async () =>

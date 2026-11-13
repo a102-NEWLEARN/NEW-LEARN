@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import type { BookmarkState } from "@/api/bookmarks";
@@ -137,6 +137,71 @@ test("그 밖의 실패는 안내하고 버튼을 그대로 둔다", async () =>
     ),
   ).toBeDefined();
   expect((await headerButton()).getAttribute("aria-pressed")).toBe("false");
+});
+
+// 손님은 담지 않고 가입을 권한다 (EXPERIENCE.md Component Patterns 「가입 권유 창」, 2026-11-13 Jira 205)
+const asGuest = () =>
+  server.use(
+    http.get("/api/v1/members/me", () => problem(401, "UNAUTHORIZED")),
+  );
+// 헤더에 *로그인* 이 뜨면 화면이 손님인 줄 안 것이다
+const guestKnown = () => screen.findByRole("link", { name: "로그인" });
+const signupDialog = () =>
+  screen.findByRole("alertdialog", {
+    name: "가입하면 더 편하게 이용할 수 있어요",
+  });
+
+test("손님이 누르면 보내지 않고 가입 권유 창을 띄운다", async () => {
+  asGuest();
+  const calls = bookmarkAnswers((_, articleId) =>
+    HttpResponse.json(state(articleId, true)),
+  );
+  renderRoute("/articles/401");
+  await guestKnown();
+
+  fireEvent.click(await headerButton());
+
+  expect(
+    within(await signupDialog()).getByText(
+      "마음에 드는 기사를 나의 뉴스함에 모아 볼 수 있어요.",
+    ),
+  ).toBeDefined();
+  // 담기를 보내지 않는다 — 창이 열린 동안 뒤 화면은 화면 읽기에서 숨어서 버튼 상태는 닫기 시험에서 본다
+  expect(calls).toEqual([]);
+});
+
+test("가입 권유 창의 가입하기는 지금 화면으로 돌아오는 가입 화면으로 간다", async () => {
+  asGuest();
+  const { router } = renderRoute("/articles/401?view=map");
+  await guestKnown();
+  fireEvent.click(await headerButton());
+
+  fireEvent.click(
+    within(await signupDialog()).getByRole("button", { name: "가입하기" }),
+  );
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/signup"));
+  expect(router.state.location.search).toBe("?next=/articles/401%3Fview%3Dmap");
+});
+
+test("가입 권유 창의 닫기는 창만 닫고 그 화면에 남는다", async () => {
+  asGuest();
+  const { router } = renderRoute("/articles/401");
+  await guestKnown();
+  fireEvent.click(await headerButton());
+
+  fireEvent.click(
+    within(await signupDialog()).getByRole("button", { name: "닫기" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("alertdialog", {
+        name: "가입하면 더 편하게 이용할 수 있어요",
+      }),
+    ).toBeNull(),
+  );
+  expect(router.state.location.pathname).toBe("/articles/401");
 });
 
 test("보내는 동안 다시 눌러도 두 번 보내지 않는다", async () => {
