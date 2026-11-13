@@ -7,7 +7,7 @@ import { Reveal } from "@/components/landing/Reveal";
 const QA: readonly [string, string][] = [
   [
     "어떤 기사를 볼 수 있나요?",
-    "NewsData.io 로 모은 국내 언론사 기사를 정치 · 경제 · 사회 · 국제 · IT·과학 다섯 분야로 보여줘요. 스포츠 · 문화/연예는 준비 중이에요.",
+    "NewsData.io 로 모은 국내 언론사 기사를 정치 · 경제 · 사회 · 국제 · IT·과학 다섯 분야로 보여줘요.",
   ],
   [
     "AI는 기사를 어떻게 정리하나요?",
