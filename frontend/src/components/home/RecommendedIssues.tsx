@@ -182,8 +182,9 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                             </li>
                           ))}
                         </ul>
-                        {/* 그 분야 이슈를 모두 보는 화면으로 — 카드 다음 차례에 떠오른다. N 은 A2 의 그 분야 이슈 수다
-                            (2026-11-12 사용자, Jira 196). 좁은 화면은 엄지로 누르기 쉽게 한 줄을 다 쓴다 */}
+                        {/* 그 분야 이슈를 모두 보는 화면으로 — 카드 다음 차례에 떠오른다. 글자는 「전체보기」만
+                            (2026-11-13 사용자, Jira 202), 화면 읽기 이름에는 어느 분야인지 남긴다.
+                            좁은 화면은 엄지로 누르기 쉽게 한 줄을 다 쓴다 */}
                         <div
                           className={`mt-x5 flex justify-center ${CARD_RISE}`}
                           style={cardAt(pick(page).length)}
@@ -194,8 +195,11 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
                             size="small"
                             className="border-stroke-neutral-weak max-md:h-[44px] max-md:w-full"
                           >
-                            <Link to={`/issues?category=${selected}`}>
-                              {`${selectedName} 이슈 ${page.totalElements}개 전체보기`}
+                            <Link
+                              to={`/issues?category=${selected}`}
+                              aria-label={`${selectedName} 이슈 전체보기`}
+                            >
+                              전체보기
                               <SuffixIcon svg={<IconChevronRightSmallLine />} />
                             </Link>
                           </ActionButton>
