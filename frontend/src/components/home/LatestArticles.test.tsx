@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import type { ArticleSummary, Page } from "@/api/types";
 import { LatestArticles } from "@/components/home/LatestArticles";
 import { server } from "@/mocks/node";
@@ -151,177 +151,68 @@ test("모르는 분야 코드면 「전체」를 고른다", async () => {
   );
 });
 
-test("더 보기를 누르면 다음 8개를 아래에 붙이고 붙인 첫 기사로 포커스를 옮긴다", async () => {
-  serveArticles();
-  renderSection();
+const pager = () => screen.getByRole("navigation", { name: "최신 기사 쪽" });
 
-  fireEvent.click(
-    await screen.findByRole("button", { name: "기사 8개 더 보기" }),
-  );
-
-  await waitFor(async () => expect(await articleHrefs()).toHaveLength(16));
-  // 원문 링크가 아니라 마인드맵 링크
-  const added = screen
-    .getAllByRole("link")
-    .find((link) => link.getAttribute("href") === "/articles/92");
-  await waitFor(() => expect(document.activeElement).toBe(added));
-  // 붙은 행은 차례를 처음부터 센다 — 포커스를 받은 첫 행이 늦게 나오지 않게
-  expect(enterDelay(added!.closest("li")!)).toBe(0);
-  // 남은 기사는 4건
-  expect(
-    screen.getByRole("button", { name: "기사 4개 더 보기" }),
-  ).toBeDefined();
-});
-
-// 첫 쪽을 받은 뒤 15분 수집이 맨 앞에 넣는 새 기사 — id 가 클수록 최근이다
-const freshArticles = (count: number): ArticleSummary[] =>
-  Array.from({ length: count }, (_, at) => {
-    const id = 100 + count - at;
-    return {
-      ...fixture[0],
-      id,
-      title: `기사 ${id}`,
-      publishedAt: `2026-10-31T${String(count - at).padStart(2, "0")}:00:00+09:00`,
-      url: `https://news.example.com/a/${id}`,
-    };
-  });
-
-// React 가 같은 key 를 두 번 만났다는 경고
-const sameKeyErrors = (errors: { mock: { calls: unknown[][] } }) =>
-  errors.mock.calls.filter((call) => String(call[0]).includes("same key"));
-
-test("더 보기 사이에 새 기사가 앞에 들어와 다음 쪽이 밀려도 같은 기사는 한 번만 보인다", async () => {
-  // 새 기사 셋(101 ~ 103)이 맨 앞에 들어와 다음 쪽이 3칸 밀린다 — 95 · 94 · 93 이 다시 온다
-  serveArticles((page) =>
-    page === 0 ? fixture : [...freshArticles(3), ...fixture],
-  );
-  const errors = vi.spyOn(console, "error");
-  try {
-    renderSection();
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "기사 8개 더 보기" }),
-    );
-
-    // 100 ~ 93 다음에 밀린 쪽의 새 기사 92 ~ 88 만 붙는다
-    await waitFor(async () =>
-      expect(await articleHrefs()).toEqual(
-        Array.from({ length: 13 }, (_, at) => `/articles/${100 - at}`),
-      ),
-    );
-    const added = screen
-      .getAllByRole("link")
-      .find((link) => link.getAttribute("href") === "/articles/92");
-    await waitFor(() => expect(document.activeElement).toBe(added));
-    expect(enterDelay(added!.closest("li")!)).toBe(0);
-    // 둘째 쪽을 받을 때 전체 23건, 받은 칸 16 — 다음 쪽은 87 ~ 81 의 7건
-    fireEvent.click(screen.getByRole("button", { name: "기사 7개 더 보기" }));
-
-    await waitFor(async () => expect(await articleHrefs()).toHaveLength(20));
-    expect(new Set(await articleHrefs()).size).toBe(20);
-    // 세 번째 쪽도 그 쪽 첫 행부터 차례를 센다
-    const third = screen
-      .getAllByRole("link")
-      .find((link) => link.getAttribute("href") === "/articles/87");
-    expect(enterDelay(third!.closest("li")!)).toBe(0);
-    expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
-    expect(sameKeyErrors(errors)).toEqual([]);
-  } finally {
-    errors.mockRestore();
-  }
-});
-
-test("받은 다음 쪽이 모두 본 기사면 새 기사가 붙을 때까지 다음 쪽을 더 받는다", async () => {
-  // 새 기사 여덟이 맨 앞에 들어와 둘째 쪽이 첫 쪽(100 ~ 93)과 똑같아진다
-  const requests = serveArticles((page) =>
-    page === 0 ? fixture : [...freshArticles(8), ...fixture],
-  );
-  const errors = vi.spyOn(console, "error");
-  try {
-    renderSection();
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "기사 8개 더 보기" }),
-    );
-
-    // 셋째 쪽의 92 ~ 85 가 붙고 그 첫 기사로 포커스를 옮긴다
-    await waitFor(async () =>
-      expect(await articleHrefs()).toEqual(
-        Array.from({ length: 16 }, (_, at) => `/articles/${100 - at}`),
-      ),
-    );
-    const added = screen
-      .getAllByRole("link")
-      .find((link) => link.getAttribute("href") === "/articles/92");
-    await waitFor(() => expect(document.activeElement).toBe(added));
-    expect(enterDelay(added!.closest("li")!)).toBe(0);
-    expect(requests.map((params) => params.get("page"))).toEqual([
-      "0",
-      "1",
-      "2",
-    ]);
-    // 셋째 쪽을 받을 때 전체 28건, 받은 칸 24 — 다음 쪽은 84 ~ 81 의 4건
-    expect(
-      screen.getByRole("button", { name: "기사 4개 더 보기" }),
-    ).toBeDefined();
-    expect(sameKeyErrors(errors)).toEqual([]);
-  } finally {
-    errors.mockRestore();
-  }
-});
-
-test("더 보기를 누르고 응답 전에 탭을 바꾸면 바뀐 탭은 누르지 않은 다음 쪽을 받지 않는다", async () => {
+// 2026-11-13 사용자 QA 2 — *더 보기* 대신 쪽 번호. 쪽마다 A7 을 그 쪽으로 받는다 (Jira 203)
+test("8개씩 쪽 번호로 넘긴다 — 쪽을 누르면 A7 그 쪽을 받아 바꾸고 새 쪽 첫 기사로 포커스를 옮긴다", async () => {
   const requests = serveArticles();
-  // 「전체」의 둘째 쪽만 늦게 답한다. 그 사이에 이미 본 「경제」 탭으로 옮긴다
-  let answer: () => void = () => {};
-  const answered = new Promise<void>((resolve) => (answer = resolve));
-  let waiting = false;
-  server.use(
-    http.get("/api/v1/articles", async ({ request }) => {
-      const params = new URL(request.url).searchParams;
-      if (params.get("category") === null && params.get("page") === "1") {
-        waiting = true;
-        await answered;
-      }
-      return undefined;
-    }),
-  );
-  renderSection();
-  await articleHrefs();
-  fireEvent.click(screen.getByRole("tab", { name: "경제" }));
-  await waitFor(() => expect(selectedTab()?.textContent).toBe("경제"));
-  await articleHrefs();
-  fireEvent.click(screen.getByRole("tab", { name: "전체" }));
-  await waitFor(() => expect(selectedTab()?.textContent).toBe("전체"));
-
-  fireEvent.click(
-    await screen.findByRole("button", { name: "기사 8개 더 보기" }),
-  );
-  await waitFor(() => expect(waiting).toBe(true));
-  fireEvent.click(screen.getByRole("tab", { name: "경제" }));
-  await waitFor(() => expect(selectedTab()?.textContent).toBe("경제"));
-  answer();
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
-  // 경제 탭은 첫 쪽 8건 그대로이고 둘째 쪽을 부르지 않았다
-  expect(await articleHrefs()).toHaveLength(8);
-  expect(
-    requests.filter(
-      (params) =>
-        params.get("category") === "economy" && params.get("page") !== "0",
-    ),
-  ).toEqual([]);
-  expect(
-    screen.getByRole("button", { name: "기사 4개 더 보기" }),
-  ).toBeDefined();
-});
-
-test("마지막 쪽이면 더 보기를 두지 않는다", async () => {
-  serveArticles(fixture.slice(0, 8));
   renderSection();
 
   expect(await articleHrefs()).toHaveLength(8);
   expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+  expect(
+    within(pager())
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label")),
+  ).toEqual(["이전 쪽", "1쪽", "2쪽", "3쪽", "다음 쪽"]);
+
+  fireEvent.click(within(pager()).getByRole("button", { name: "2쪽" }));
+
+  await waitFor(async () =>
+    expect(await articleHrefs()).toEqual(
+      [92, 91, 90, 89, 88, 87, 86, 85].map((id) => `/articles/${id}`),
+    ),
+  );
+  expect(requests.at(-1)?.get("page")).toBe("1");
+  expect(requests.at(-1)?.get("size")).toBe("8");
+  // 원문 링크가 아니라 마인드맵 링크
+  await waitFor(() =>
+    expect(document.activeElement?.getAttribute("href")).toBe("/articles/92"),
+  );
+
+  fireEvent.click(within(pager()).getByRole("button", { name: "다음 쪽" }));
+  await waitFor(async () =>
+    expect(await articleHrefs()).toEqual(
+      [84, 83, 82, 81].map((id) => `/articles/${id}`),
+    ),
+  );
+});
+
+test("분야 탭을 바꾸면 그 분야 1쪽부터 다시 본다", async () => {
+  const requests = serveArticles();
+  renderSection();
+
+  expect(await articleHrefs()).toHaveLength(8);
+  fireEvent.click(within(pager()).getByRole("button", { name: "3쪽" }));
+  await waitFor(async () => expect(await articleHrefs()).toHaveLength(4));
+
+  fireEvent.click(screen.getByRole("tab", { name: "경제" }));
+
+  await waitFor(async () =>
+    expect(await articleHrefs()).toEqual(
+      [100, 99, 98, 97, 96, 95, 94, 93].map((id) => `/articles/${id}`),
+    ),
+  );
+  expect(requests.at(-1)?.get("category")).toBe("economy");
+  expect(requests.at(-1)?.get("page")).toBe("0");
+});
+
+test("한 쪽뿐이면 쪽 번호를 두지 않는다", async () => {
+  serveArticles(fixture.slice(0, 8));
+  renderSection();
+
+  expect(await articleHrefs()).toHaveLength(8);
+  expect(screen.queryByRole("navigation", { name: "최신 기사 쪽" })).toBeNull();
 });
 
 test("기사가 없으면 빈 결과 문구를 둔다", async () => {
