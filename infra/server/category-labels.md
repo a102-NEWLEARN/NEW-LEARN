@@ -17,7 +17,7 @@ flowchart LR
 | `category-labels-load.sql` | 스키마 · 표 · 임시 표를 만들고 라벨 파일을 받는다. 마지막 문장이 `COPY` 다 |
 | `category-labels-relabel.sql` | 이미 라벨 있는 URL 의 지금 값(라벨 · 분야 · 공개 시각)을 합치기 전에 `relabel_before` 에 남긴다 |
 | `category-labels-merge.sql` | 줄 수 · 겹침을 단언하고 라벨 표에 합친다. 처음 보는 URL 만 옛 값을 저장한다 |
-| `category-labels-apply.sql` | **코드 → 분야 대응의 단일 자리.** `article` 갱신 · 숨김, 이슈 분야 다시 계산, 수 출력. 숨기기만 하고 공개는 하지 않는다 |
+| `category-labels-apply.sql` | **코드 → 분야 대응의 단일 자리.** `article` 갱신 · 숨김, 이슈 분야 다시 계산 뒤 고정 목록 적용(7절), 수 출력. 숨기기만 하고 공개는 하지 않는다 |
 | `category-labels-undo.sql` | 그 실행이 처음 넣은 기사를 옛 값으로 돌린다. 이미 라벨 있던 기사는 6절 SQL 로 돌린다 |
 
 ## 1. 라벨 만들기
@@ -77,7 +77,7 @@ scp <라벨 파일 전체 경로> newlearn:labels.tsv
 { echo 'begin;'; cat infra/server/category-labels-load.sql labels.tsv; printf '\\.\n'; cat infra/server/category-labels-relabel.sql infra/server/category-labels-merge.sql infra/server/category-labels-apply.sql; echo 'rollback;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -v expected=<줄 수> -v run=<실행 이름> -U newlearn -d newlearn
 ```
 
-- 끝 표시: 마지막 줄이 `ROLLBACK`, 그 앞에 옛 값 남긴 수 · 공개 분야별 수 · 라벨별 수 · 공개 합 · 숨겨진 북마크 · 기사가 모두 숨겨진 사건
+- 끝 표시: 마지막 줄이 `ROLLBACK`, 그 앞에 옛 값 남긴 수 · 공개 분야별 수 · 라벨별 수 · 공개 합 · 숨겨진 북마크 · 기사가 모두 숨겨진 사건 · 분야별 이슈 수. 그 앞에 고정 이슈 표(`고정_이슈` · 다수결 · 고정 · 제목_같음, 7절)가 나온다 — 안 나오면 서버 사본이 옛 파일이다
 - `apply` 는 한 트랜잭션에 한 번만 부른다. 두 번 부르면 임시 표 `label_code` 가 겹쳐 멈춘다
 - `begin;` 이 없으면 `rollback` 이 경고만 내고 앞 문장이 이미 커밋된다. 위 모양을 고치지 않는다
 - 줄 수가 틀리거나 파일이 없으면 `ERROR` 와 종료 3 으로 멈추고 아무것도 안 남는다
@@ -95,7 +95,7 @@ rm labels.tsv
 ## 3. 언제 돌리나
 
 - **공개될 기사만 읽는다.** 공개 안 될 기사는 라벨이 필요 없다
-- 덤프 적재 직후 한 번, 15분 수집(2026-11-13 전환 ~) 뒤 그때그때 — 「라벨 없는 공개 기사」를 뽑아 1 · 2절을 돈다(사용자 결정 2026-11-05 「수집하고나서 매번 … 매일 할 것도 아니고」)
+- **매일 한 번**(아침, 15분 수집 회차 사이) — 「라벨 없는 공개 기사」를 뽑아 1 · 2절을 돈다. Sonnet 조수가 하고, 사용자가 진행 확인 없이 맡겼다(2026-11-13, Jira S15P31A102-198). 처음(2026-11-05)에는 「그때그때」였다 — 바꾼 까닭은 `SSOT.md` 9절. 덤프 적재 직후에도 한 번
 - 라벨 전까지 새 기사는 NewsData 값이라, 어긋난 기사 · 스포츠 기사가 잠시 보일 수 있다
 
 관리자 PC 의 저장소 맨 위에서 돌린다. 실행마다 새 폴더를 쓰고, 파일은 저장소 밖에 둔다. 리다이렉트는 서버 셸 안에서만 한다 — PowerShell 은 `<` 를 못 쓰고 `>` 가 바이트를 바꾼다(`data-load.md` 2절).
@@ -194,6 +194,19 @@ cat infra/server/category-labels-undo.sql; echo 'rollback;'; } | kubectl -n data
 kubectl -n data exec postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn -c "drop schema category_label cascade"
 ```
 
+이슈 분야 고정(7절)은 라벨 스키마가 아니라 `apply` 파일 안에 있어 스키마를 지워도 남는다.
+
 **덤프 적재 뒤** — `data-load.md` 7절 → 위 되돌리기(덤프 전 실행 모두, 새 것부터) → 스키마 지우기 순서를 지킨다. 스키마를 먼저 지우면 숨긴 기사의 옛 값이 백업에만 남는다. 7절 뒤에는 덤프 전 실행만 되돌린다 — 덤프 뒤 실행의 옛 값은 덤프가 준 값이라, 되돌리면 마인드맵이 지워진 기사가 다시 공개된다. 7절은 라벨 반영 뒤 상태로 돌아간다(`load_undo` 의 옛 값이 그때 값). 덤프 뒤에 넣은 `X` 는 7절이 모르니 다시 공개된다 — 그대로 두려면 `apply` 를 돌린다. **덤프는 두고 라벨만 되돌리기는 지원하지 않는다.** 라벨을 바꾸려면 새 라벨 파일을 넣는다. 덤프 뒤에 넣은 실행만 되돌렸다면 이슈 분야가 낡으니 `apply` 를 한 번 더 돌린다.
 
 잘못 숨긴 기사 하나를 되살리는 길은 없다 — `apply` 는 공개를 하지 않는다. 라벨 표(이미 라벨 있던 기사는 `relabel_before`)에 있는 옛 `released_at` 을 보고 손 SQL 로 채우고, 라벨 코드도 고친다.
+
+## 7. 이슈 분야 고정
+
+이슈 분야는 `apply` 가 돌 때마다 이슈 기사 대표 분야의 다수결로 전부 다시 계산된다. 그 바로 뒤 `apply` 안의 임시 표 `issue_pin`(번호 · 제목 · 코드)에 있는 이슈만 그 분야로 바꾼다(2026-11-13, Jira S15P31A102-198). 매일 라벨을 돌려도 그대로 남는다.
+
+- 지금 목록: Sonnet 조수가 이슈 187개를 제목 · 요약으로 다시 분류해 다르게 본 28개. IT·과학으로 옮긴 8개는 사용자가 하나씩 승인했고, 나머지 20개는 사용자가 맡겼다. 원자료와 판단 까닭은 계획 `docs/plans/2026-11-13-issue-category-pin.md`
+- 코드는 1절과 같은 P · E · S · W · I 다. 숨김 코드(T · C · X)나 모르는 코드를 넣으면 `apply` 가 예외로 통째 되돌아간다
+- **번호와 제목이 둘 다 같을 때만** 바꾼다. 다시 적재로 이슈 번호가 새로 매겨지면 그 줄은 건너뛴다 — 고정 표의 `제목_같음` 이 `f` 인 줄이다
+- 바꾸는 법: 목록을 고치는 MR → 서버 사본(`infra/server/category-labels-apply.sql`)을 바꾸고 5절 명령으로 `apply` 를 한 번. 줄을 지우면 그 이슈는 다수결로 돌아간다
+- `apply` 가 돌 때만 이긴다. ISSUE 결과 저장(`IssueResultHandler` → `IssueCategoryRepository.fillMostCommon`)은 그 이슈를 다수결로 다시 채우고, 다음 `apply` 때 다시 고정된다. API 의 규칙(`docs/specs/F07-issue-assign.md` AC-10)은 그대로다
+- 이슈를 옮겨도 그 이슈 기사들의 대표 분야는 그대로다 — 기사 탭과 이슈 탭의 분야가 다를 수 있다
