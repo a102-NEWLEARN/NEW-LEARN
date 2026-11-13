@@ -1551,6 +1551,17 @@ class NoticeOnly(unittest.TestCase):
         self.assertEqual(self.sent(self.SCREEN + "가" * (600 - len(self.SCREEN))), (1, 1, 0, ["screen_text"]))
         self.assertEqual(self.sent(self.SCREEN + "가" * (601 - len(self.SCREEN))), (2, 0, 0, []))
 
+    def test_cap_counts_spaces_collapsed(self):
+        # 600자는 공백 · 줄바꿈을 한 칸으로 줄인 길이다 — 원본이 줄바꿈으로 600자를 넘어도 줄이면 600자라 뺀다
+        body = self.SCREEN.replace(" ", "\n\n\n") + "가" * (600 - len(self.SCREEN))
+        self.assertGreater(len(body.strip()), 600)
+        self.assertEqual(self.sent(body), (1, 1, 0, ["screen_text"]))
+        self.assertEqual(self.sent(body + "가"), (2, 0, 0, []))
+        # 로그의 bodyChars 도 판정에 쓴 줄인 길이다
+        net = FakeNet([page([item(1, content=body), item(2)])])
+        _, lines, _ = run(env(INGEST_MODE="load-only"), net)
+        self.assertEqual([line["bodyChars"] for line in lines if line.get("msg") == "안내문뿐이라 뺌"], [600])
+
     def test_video_notice_only_dropped(self):
         self.assertEqual(self.sent(self.video()), (1, 1, 0, ["video_only"]))
         # 구분선 길이 · 구분선과 안내 사이 공백은 운영 본문마다 다를 수 있다

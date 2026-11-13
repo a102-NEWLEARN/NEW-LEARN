@@ -98,7 +98,7 @@ LONG_BRIEF_MAX_SHARE = 0.5
 #   같은 문구가 실제 본문 뒤에 붙어 오는 경향 단신 · 사진 기사가 51건이라 본문이 이 문구로 「시작」할 때만
 # video_only: SBS 「클로징」 · 「여담야담」이 RSS 안내 + 구분선 + 동영상 안내만 달고 온다(운영 7건, 430 ~ 495자, 2026-11-12 AI 팀장 제안).
 #   같은 안내 뒤에 본문이 이어지는 SBS 기사가 72건이라 안내가 본문 「끝」일 때만
-# 둘 다 600자 이하만 — 긴 실제 본문에 같은 문구가 붙은 기사를 버리지 않게
+# 둘 다 공백을 한 칸으로 줄인 본문이 600자 이하일 때만 — 긴 실제 본문에 같은 문구가 붙은 기사를 버리지 않게
 NOTICE_ONLY_MAX_CHARS = 600
 SCREEN_TEXT_PREFIXES = ("공유하기 보기 설정 글자 크기",)
 VIDEO_ONLY_RE = re.compile(r"-{10,} ?※ 자세한 내용은 동영상으로 확인하실 수 있습니다\. ?▶ 이 기사의 전체 내용 확인하기$")
@@ -135,11 +135,16 @@ def redact(text, secrets):
     return re.sub(r"apikey=[^&\s\"'\\]+", "apikey=***", text)
 
 
+def collapsed(content):
+    """공백 · 줄바꿈을 한 칸으로 줄이고 앞뒤를 뺀 본문 — 안내문 판정과 그 로그의 bodyChars 가 같은 길이를 쓴다"""
+    return " ".join(content.split())
+
+
 def notice_rule(content):
-    """본문이 언론사 안내문뿐이면 규칙 이름(screen_text · video_only), 아니면 None. 공백 · 줄바꿈은 한 칸으로 줄여 본다"""
-    if len(content.strip()) > NOTICE_ONLY_MAX_CHARS:
+    """본문이 언론사 안내문뿐이면 규칙 이름(screen_text · video_only), 아니면 None. 상한 600자도 줄인 본문으로 잰다"""
+    body = collapsed(content)
+    if len(body) > NOTICE_ONLY_MAX_CHARS:
         return None
-    body = " ".join(content.split())
     if body.startswith(SCREEN_TEXT_PREFIXES):
         return "screen_text"
     if VIDEO_ONLY_RE.search(body):
@@ -601,7 +606,7 @@ class Run:
             "url": item["link"],
             "title": item.get("title"),
             "pressSourceId": item.get("source_id"),
-            "bodyChars": len(item["content"]),
+            "bodyChars": len(collapsed(item["content"])),
         })
 
     def drop_wrong_bodies(self, kept):
