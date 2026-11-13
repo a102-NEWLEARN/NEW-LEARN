@@ -27,6 +27,20 @@ export function stubScreen(width: Width) {
   }));
 }
 
+// 동작 줄이기(prefers-reduced-motion)를 켠 것처럼 한다. 넓은 화면이다
+export function stubReducedMotion() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(prefers-reduced-motion: reduce)",
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+}
+
 // 창 폭이 바뀐 것처럼 듣고 있는 쪽에 알린다. 화면이 다시 그려지므로 act 안에서 부른다
 export function resizeScreen(width: Width) {
   current = width;

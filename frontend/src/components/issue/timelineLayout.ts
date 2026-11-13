@@ -16,15 +16,16 @@ const LAST_ROOM = 140;
 const SAME_LANE_GAP = 170;
 const OTHER_LANE_GAP = 110;
 /**
- * 같은 시각 · 같은 레인 사건을 아래로 쌓는 간격 — 라벨 두 줄(32px) 사이에 12px 를 남긴다 (Jira 188 — 30px 로는 라벨이 맞닿아
- * 날짜 줄이 다음 사건 옆에 왔다). 라벨은 이름 줄을 사건 가운데에 맞춰 사건 가운데 − 8 ~ + 24 에 놓인다(Timeline.tsx).
- * 메인 흐름 레인 선 위 사건의 라벨만 선 밑(+ 6 ~ + 38)이라, 그 바로 아래 사건은 14px 더 벌린다
+ * 같은 시각 · 같은 레인 사건을 아래로 쌓는 간격 — 라벨 두 줄(36px) 사이에 12px 를 남긴다 (Jira 188 — 30px 로는 라벨이 맞닿아
+ * 날짜 줄이 다음 사건 옆에 왔다). 라벨은 이름 줄을 사건 가운데에 맞춰 사건 가운데 − 8 ~ + 28 에 놓인다(Timeline.tsx).
+ * 메인 흐름 레인 선 위 사건의 라벨만 선 밑(+ 6 ~ + 42)이라, 그 바로 아래 사건은 14px 더 벌린다.
+ * 라벨 글자는 이름 15px · 날짜 13px 다 (2026-11-12 사용자 QA, Jira 197 — 13 · 12px 에서 키웠다)
  */
-const STACK_GAP = 44;
-const STACK_GAP_BELOW_RAIL = 58;
+const STACK_GAP = 48;
+const STACK_GAP_BELOW_RAIL = 62;
 /** 선에서 벗어난 사건 라벨의 아래 끝(사건 가운데 기준) · 선 위 사건 라벨의 아래 끝 · 레인 아래 끝까지 남길 틈 */
-const LABEL_BOTTOM = 24;
-const RAIL_LABEL_BOTTOM = 38;
+const LABEL_BOTTOM = 28;
+const RAIL_LABEL_BOTTOM = 42;
 const LANE_BOTTOM_ROOM = 12;
 
 /** 쌓인 순서(0 부터)의 사건이 첫 사건에서 아래로 떨어진 거리. 메인 흐름 첫 사건은 레인 선 위다 */

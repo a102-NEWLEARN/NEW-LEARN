@@ -41,8 +41,8 @@ const HEADER_PULSE_AT = 1800;
 type FlowViewProps = {
   /** 이 기사 — 잎 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
   articleId: number;
-  /** 머리 줄 글자 — A9 title */
-  title: string;
+  /** 머리 줄 글자 — A8 summary(AI 한 줄 요지). 없으면 머리 줄을 두지 않는다 */
+  summary: string | null;
   /** A9 가지 — 내용이 있는 것만 온다 */
   branches: MindmapBranch[];
   /** A9 aiGenerated — 맨 위 첫 줄에 AI 생성 표시를 붙인다 */
@@ -60,13 +60,15 @@ const leafKey = (type: string, index: number) => `${type}:${index}`;
 // 잎을 누르면 강조만 한다 — 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
 export function FlowView({
   articleId,
-  title,
+  summary,
   branches,
   aiGenerated = false,
   fill = false,
 }: FlowViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const idPrefix = useId();
+  // 공백뿐인 요지는 없는 것으로 본다 — 빈 머리 줄을 두지 않게
+  const headline = summary?.trim() || null;
 
   // Esc — 강조를 푼다. 먼저 받은 쪽이 preventDefault 했거나 다른 창(dialog) 안에서 누른 Esc 는
   // 그쪽 몫이다 (MindmapGraph 와 같다)
@@ -107,30 +109,35 @@ export function FlowView({
             <AiBadge />
           </div>
         )}
-        {/* 머리 줄 — 바로 위 h1 과 같은 글이라 낭독에서 뺀다 (마인드맵 보기의 가운데 원과 같다).
-            자리가 좁으면(640px 미만) h1 이 바로 위에 보여서 같은 제목을 또 두지 않는다 */}
-        <div
-          aria-hidden
-          className={`flex items-center gap-x3_5 @max-[640px]:hidden ${RISE}`}
-          style={enterAt(0)}
+        {/* 머리 줄 — 기사 핵심 한 문장(A8 summary, AI 요지). 전에는 A9 title(= 기사 제목)이라 바로 위 h1 과 같은 글이
+            두 번 보였다 (2026-11-12 사용자 QA, Jira 197). h1 과 다른 글이라 낭독하고 좁은 자리에서도 둔다 */}
+        {headline && (
+          <div
+            className={`flex items-center gap-x3_5 ${RISE}`}
+            style={enterAt(0)}
+          >
+            {/* 기사 핵심 점 — 튀어나온 뒤 3초마다 파문이 번진다 (마인드맵 보기의 가운데 원과 같다) */}
+            <span className="relative size-x4 shrink-0">
+              <span
+                className={`absolute inset-0 rounded-full border-2 border-bg-brand-accent ${RIPPLE_LOOP}`}
+                style={enterAt(HEADER_PULSE_AT)}
+              />
+              <span
+                className={`block size-x4 rounded-full bg-bg-brand-accent shadow-[0_0_0_4px_var(--seed-color-bg-layer-default),0_0_0_5.5px_var(--seed-color-stroke-neutral-weak)] ${SPRING_IN}`}
+                style={enterAt(0)}
+              />
+            </span>
+            <span className="flex min-w-0 flex-col gap-x0_5">
+              <span className="t2-bold text-fg-neutral-subtle">기사 핵심</span>
+              <span className="t6-bold @min-[640px]:t7-bold text-fg-neutral">
+                {headline}
+              </span>
+            </span>
+          </div>
+        )}
+        <ol
+          className={`grid gap-y-x10 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7 ${headline ? "mt-x7" : ""}`}
         >
-          {/* 기사 핵심 점 — 튀어나온 뒤 3초마다 파문이 번진다 (마인드맵 보기의 가운데 원과 같다) */}
-          <span className="relative size-x4 shrink-0">
-            <span
-              className={`absolute inset-0 rounded-full border-2 border-bg-brand-accent ${RIPPLE_LOOP}`}
-              style={enterAt(HEADER_PULSE_AT)}
-            />
-            <span
-              className={`block size-x4 rounded-full bg-bg-brand-accent shadow-[0_0_0_4px_var(--seed-color-bg-layer-default),0_0_0_5.5px_var(--seed-color-stroke-neutral-weak)] ${SPRING_IN}`}
-              style={enterAt(0)}
-            />
-          </span>
-          <span className="flex min-w-0 flex-col gap-x0_5">
-            <span className="t2-bold text-fg-neutral-subtle">기사 핵심</span>
-            <span className="t7-bold text-fg-neutral">{title}</span>
-          </span>
-        </div>
-        <ol className="mt-x7 grid gap-y-x10 @max-[640px]:mt-0 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7">
           {branches.map(({ type, items }, index) => {
             const { name, question, tone } = BRANCHES[type];
             const last = index === branches.length - 1;
