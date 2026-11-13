@@ -8,7 +8,7 @@ NEW:LEARN 은 뉴스 기사를 AI 로 **가지 4개(핵심 내용 · 원인·배
 
 | 구분 | 링크 |
 |---|---|
-| 서비스 | https://newlearn.io.kr (2026-11-18 발표까지 운영) |
+| 서비스 | https://newlearn.io.kr |
 | 무엇을 만드나 | [`docs/mvp-overview.md`](docs/mvp-overview.md) |
 | 시스템 구성 · 정한 것 · 잰 것 | [`SSOT.md`](SSOT.md) |
 
