@@ -3,10 +3,12 @@ import {
   IconBookmarkLine,
 } from "@karrotmarket/react-monochrome-icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { MouseEvent } from "react";
 import { addBookmark, removeBookmark, setBookmarked } from "@/api/bookmarks";
 import { isSessionExpired } from "@/api/error";
 import { meQuery } from "@/api/members";
 import type { ArticleSummary } from "@/api/types";
+import { useSignupPrompt } from "@/components/useSignupPrompt";
 import { useSnackbar } from "@/components/useSnackbar";
 
 const FAILED = "북마크를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -31,6 +33,7 @@ export function BookmarkButton({
 }: BookmarkButtonProps) {
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
+  const signupPrompt = useSignupPrompt("bookmark");
   const on = article.bookmarked;
 
   const mutation = useMutation({
@@ -52,7 +55,12 @@ export function BookmarkButton({
     },
   });
 
-  function toggle() {
+  function toggle(event: MouseEvent<HTMLButtonElement>) {
+    // 손님(A17 이 401)이면 보내지 않고 가입을 권한다 (Jira 205). 회원인지 아직 모르면 보낸다 — 손님이면 401 이 와도 조용히 끝난다
+    if (queryClient.getQueryData(meQuery.queryKey) === null) {
+      signupPrompt.open(event.currentTarget);
+      return;
+    }
     // 보내는 동안 다시 누르면 요청이 엇갈린다. 두 번 보내지 않는다
     if (mutation.isPending) return;
     mutation.mutate(!on);
@@ -60,23 +68,26 @@ export function BookmarkButton({
 
   const iconSize = ICON_SIZE[size];
   return (
-    <button
-      type="button"
-      aria-pressed={on}
-      // 같은 화면에 기사가 여럿이라 이름에 제목을 넣는다. 상태는 눌림으로 알리고 이름은 그대로 둔다
-      aria-label={`${article.title} 나의 뉴스함에 담기`}
-      title={on ? "나의 뉴스함에서 빼기" : "나의 뉴스함에 담기"}
-      aria-busy={mutation.isPending || undefined}
-      onClick={toggle}
-      className={`flex size-x10 shrink-0 items-center justify-center rounded-r2 hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
-        on ? "text-fg-brand" : "text-fg-neutral-muted"
-      } ${className}`}
-    >
-      {on ? (
-        <IconBookmarkFill aria-hidden size={iconSize} />
-      ) : (
-        <IconBookmarkLine aria-hidden size={iconSize} />
-      )}
-    </button>
+    <>
+      <button
+        type="button"
+        aria-pressed={on}
+        // 같은 화면에 기사가 여럿이라 이름에 제목을 넣는다. 상태는 눌림으로 알리고 이름은 그대로 둔다
+        aria-label={`${article.title} 나의 뉴스함에 담기`}
+        title={on ? "나의 뉴스함에서 빼기" : "나의 뉴스함에 담기"}
+        aria-busy={mutation.isPending || undefined}
+        onClick={toggle}
+        className={`flex size-x10 shrink-0 items-center justify-center rounded-r2 hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring ${
+          on ? "text-fg-brand" : "text-fg-neutral-muted"
+        } ${className}`}
+      >
+        {on ? (
+          <IconBookmarkFill aria-hidden size={iconSize} />
+        ) : (
+          <IconBookmarkLine aria-hidden size={iconSize} />
+        )}
+      </button>
+      {signupPrompt.dialog}
+    </>
   );
 }

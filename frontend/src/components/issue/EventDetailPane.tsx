@@ -46,13 +46,19 @@ export function EventDetailPane({
   }, [eventId]);
 
   // 넓은 화면의 Esc — 맨 위에 열린 것 하나만 닫는다. TIP(팝오버)은 캡처 단계에서 먼저 닫고 preventDefault 한다.
-  // 크게 보기 같은 다른 창 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives)
+  // 크게 보기 같은 다른 창 안에서 누른 Esc 는 그쪽 몫이다 (EXPERIENCE.md Interaction Primitives).
+  // 가입 권유 창(SEED AlertDialog)은 role 이 alertdialog 이고 Esc 를 preventDefault 하지 않아 같이 본다 (리뷰, Jira 205)
   useEffect(() => {
     if (narrow) return;
     const onKeyDown = (key: KeyboardEvent) => {
       if (key.key !== "Escape" || key.isComposing || key.defaultPrevented)
         return;
-      if ((key.target as Element | null)?.closest?.('[role="dialog"]')) return;
+      if (
+        (key.target as Element | null)?.closest?.(
+          '[role="dialog"], [role="alertdialog"]',
+        )
+      )
+        return;
       key.preventDefault();
       onClose();
     };
