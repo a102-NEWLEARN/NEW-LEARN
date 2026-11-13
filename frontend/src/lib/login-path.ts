@@ -30,3 +30,16 @@ export function nextPath(raw: string | null) {
     return HOME;
   return url.pathname + url.search + url.hash;
 }
+
+// 손님은 못 여는 회원 화면 (routes.tsx 의 RequireMember)
+const MEMBER_PAGES = new Set(["/me", "/bookmarks"]);
+
+/**
+ * 로그인하지 않고 갈 곳 — 로그인 화면의 *로그인 없이 시작하기*, 로그인 · 가입 화면의 닫기 (Jira 205).
+ * next 와 같되 회원 화면이면 홈이다. 회원 화면으로 보내면 다시 로그인 화면으로 돌아온다
+ */
+export function guestPath(raw: string | null) {
+  const path = nextPath(raw);
+  const { pathname } = new URL(path, window.location.origin);
+  return MEMBER_PAGES.has(pathname) ? HOME : path;
+}

@@ -1,5 +1,17 @@
 import { expect, test } from "vitest";
-import { loginPath, nextPath, signupPath } from "@/lib/login-path";
+import { guestPath, loginPath, nextPath, signupPath } from "@/lib/login-path";
+
+// 로그인 화면의 *로그인 없이 시작하기* — 회원 화면에서 왔으면 다시 로그인 화면으로 돌아오지 않게 홈으로 (Jira 205)
+test("로그인 없이 시작하면 돌아올 곳으로 가되, 회원 화면이면 홈으로 간다", () => {
+  expect(guestPath("/issues/12?event=3")).toBe("/issues/12?event=3");
+  expect(guestPath("/articles/11901?view=map")).toBe(
+    "/articles/11901?view=map",
+  );
+  expect(guestPath(null)).toBe("/home");
+  expect(guestPath("/bookmarks")).toBe("/home");
+  expect(guestPath("/me")).toBe("/home");
+  expect(guestPath("//evil.example")).toBe("/home");
+});
 
 test("로그인 화면 주소에 돌아올 곳을 넣는다 — / 는 읽기 좋게 그대로 둔다", () => {
   expect(loginPath("/home")).toBe("/login?next=/home");

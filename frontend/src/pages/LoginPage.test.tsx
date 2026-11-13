@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import { server } from "@/mocks/node";
@@ -228,14 +234,99 @@ test("이미 로그인했으면 next 화면으로 보낸다", async () => {
   );
 });
 
-test("닫기를 누르면 랜딩으로 간다", async () => {
+// 닫기는 들어오기 전 화면, 곧 돌아올 곳(next)으로 — 이슈를 보다 온 손님이 닫으면 보던 이슈로 돌아온다
+// (EXPERIENCE.md 로그인 · 가입 폼, Jira 205)
+test("닫기를 누르면 들어오기 전 화면으로 돌아가고, 닫은 로그인 화면은 기록에서 뺀다", async () => {
   asGuest();
-  const { router } = renderRoute("/login?next=/home");
+  const { router } = renderRoute("/issues/12?event=117");
+  await screen.findByRole("heading", {
+    level: 1,
+    name: "한빛반도체 미국 공장 건설",
+  });
+  await act(() => router.navigate("/login?next=/issues/12%3Fevent%3D117"));
   await screen.findByRole("heading", { level: 1, name: "로그인" });
 
   fireEvent.click(screen.getByRole("link", { name: "닫기" }));
 
-  await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/issues/12"),
+  );
+  expect(router.state.location.search).toBe("?event=117");
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+test.each([
+  ["돌아올 곳이 없으면(랜딩에서 왔다) 랜딩", "/login", "/"],
+  ["돌아올 곳이 회원 화면이면 홈", "/login?next=/bookmarks", "/home"],
+])("닫기는 %s 으로 간다", async (_, path, expected) => {
+  asGuest();
+  const { router } = renderRoute(path);
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+
+  fireEvent.click(screen.getByRole("link", { name: "닫기" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe(expected));
+});
+
+test("돌아올 곳이 없으면 회원가입에도 넘기지 않는다", async () => {
+  asGuest();
+  renderRoute("/login");
+
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+  expect(
+    screen.getByRole("link", { name: "회원가입" }).getAttribute("href"),
+  ).toBe("/signup");
+});
+
+test("로그인 없이 시작하기는 손님으로 next 화면에 간다", async () => {
+  asGuest();
+  renderRoute("/login?next=/issues/12%3Fevent%3D3");
+
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+  expect(
+    screen
+      .getByRole("link", { name: "로그인 없이 시작하기" })
+      .getAttribute("href"),
+  ).toBe("/issues/12?event=3");
+});
+
+test.each([
+  ["next 가 없으면", "/login"],
+  ["next 가 회원 화면이면", "/login?next=/bookmarks"],
+])("%s 로그인 없이 시작하기는 홈으로 간다", async (_, path) => {
+  asGuest();
+  renderRoute(path);
+
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+  expect(
+    screen
+      .getByRole("link", { name: "로그인 없이 시작하기" })
+      .getAttribute("href"),
+  ).toBe("/home");
+});
+
+test("회원가입으로 갈 때는 기록을 쌓지 않고 바꿔 끼운다 — 가입 화면의 닫기 한 번이면 들어오기 전 화면이다", async () => {
+  asGuest();
+  const { router } = renderRoute("/login?next=/home");
+  await screen.findByRole("heading", { level: 1, name: "로그인" });
+
+  fireEvent.click(screen.getByRole("link", { name: "회원가입" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/signup"));
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+// 손님으로 받아 둔 기사 · 이슈 응답은 bookmarked · interested 가 false 다 — 회원 기준으로 다시 받게 버린다 (Jira 205)
+test("로그인하면 손님으로 받아 둔 응답을 버린다", async () => {
+  asGuest();
+  const { router, queryClient } = renderRoute("/login?next=/home");
+  const articleKey = ["articles", 999];
+  queryClient.setQueryData(articleKey, { id: 999, bookmarked: false });
+
+  await fillAndSubmit("seojin", "password123");
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/home"));
+  expect(queryClient.getQueryData(articleKey)).toBeUndefined();
 });
 
 test("가입 화면으로 가는 버튼이 next 를 넘긴다", async () => {
