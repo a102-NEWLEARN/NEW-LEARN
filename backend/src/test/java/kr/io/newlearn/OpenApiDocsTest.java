@@ -427,7 +427,9 @@ class OpenApiDocsTest {
                         operation + ".responses['200'].content['application/json'].schema['$ref']",
                         endsWith("/MeaningResponse")))
                 .andExpect(jsonPath(operation + ".responses['400'].description", containsString("VALIDATION_FAILED")))
-                .andExpect(jsonPath(operation + ".responses['401'].description", containsString("UNAUTHORIZED")))
+                // 손님도 부른다 — 401 은 없고, POST 라 번호표가 없으면 403 이다 (2026-11-13 사용자, Jira 205)
+                .andExpect(jsonPath(operation + ".responses['401']").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['403'].description", containsString("FORBIDDEN")))
                 .andExpect(jsonPath(operation + ".responses['404'].description", containsString("ARTICLE_NOT_FOUND")))
                 .andExpect(
                         jsonPath(operation + ".responses['502'].description", containsString("DICTIONARY_UNAVAILABLE")))

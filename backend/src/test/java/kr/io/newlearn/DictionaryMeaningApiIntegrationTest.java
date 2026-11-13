@@ -128,20 +128,27 @@ class DictionaryMeaningApiIntegrationTest {
         return "meaningquota:" + LocalDate.now(ZoneId.of("Asia/Seoul"));
     }
 
-    // AC-10 — 손님은 부르지 못한다(GMS 비용, 화면도 회원 전용). 로그인은 해도 번호표가 없으면 403
+    // AC-10 — 손님도 부른다(2026-11-13 사용자, Jira 205 — 손님도 둘러보기를 다 한다). POST 라 번호표는 있어야 한다 —
+    // 손님이든 회원이든 번호표가 없으면 403 이고 GMS 를 부르지 않는다
     @Test
-    void guestsAndRequestsWithoutCsrfTokenAreRefused() throws Exception {
-        mvc.perform(post(URL)
-                        .with(csrfToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body("이자", LEAF, "ARTICLE", 4201)))
-                .andExpect(status().isUnauthorized());
+    void guestsMayAskButNotWithoutCsrfToken() throws Exception {
+        mvc.perform(post(URL).contentType(MediaType.APPLICATION_JSON).content(body("이자", LEAF, "ARTICLE", 4201)))
+                .andExpect(status().isForbidden());
         mvc.perform(post(URL)
                         .cookie(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("이자", LEAF, "ARTICLE", 4201)))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(source);
+
+        when(source.explain(any())).thenReturn(INTEREST);
+        mvc.perform(post(URL)
+                        .with(csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("이자", LEAF, "ARTICLE", 4201)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.word").value("이자"));
+        verify(source, times(1)).explain(any());
     }
 
     // AC-11 — 뜻 하나를 사전 모양으로. 모델에는 고른 말 · 주변 조각 · 제목 · 본문의 그 말 근처를 준다
