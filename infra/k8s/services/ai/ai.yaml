@@ -120,12 +120,12 @@ spec:
             # 운영 GMS 한 번이 가운데 14초라 시간당 약 240건이 한계다. 15분 수집이 시간당 200건을 넣으니 여유가 20% 안쪽 (Jira S15P31A102-186)
             - name: MATCH_EVENT_WORKER_ENABLED
               value: "true"
-            # 이슈 워커는 발표(11-18)까지 꺼 둔다 (2026-11-14 사용자). ATTACH 가 기존 이슈의 **요약을 다시 쓰고 분야를 다시 계산**해서다
-            # (IssueResultHandler.attach → rewriteSummary · refreshCategory — 고정 28개 목록을 보지 않는다). 발표에 쓸 이슈가 바뀌면 안 된다.
-            # 꺼도 판정은 돈다 — 기존 사건에 붙는 기사는 그 사건이 든 이슈 흐름에 그대로 보이고, 새 사건만 이슈 밖에 남는다.
-            # 새 사건마다 ISSUE 작업 행은 쌓인다(MatchEventResultHandler) — 켜면 그때부터 처리한다
+            # 이슈: 새 사건을 이슈에 붙이거나(ATTACH) 한 흐름인 사건 3개 이상으로 새 이슈를 만든다(CREATE).
+            # 2026-11-14 에 켰다 — F07 사건 중심 이슈 에볼루션 맵이 실시간으로 돈다. 켜기 전에 백엔드에
+            # ISSUE_REWRITE_SUMMARY_ON_ATTACH=false 를 배포했다(backend.yaml) — ATTACH 가 사건만 넣고
+            # 발표에 쓸 이슈의 요약 · 분야는 건드리지 않는다(Jira S15P31A102-207)
             - name: ISSUE_WORKER_ENABLED
-              value: "false"
+              value: "true"
             - name: HF_HUB_OFFLINE
               value: "1"
             - name: HF_HOME
