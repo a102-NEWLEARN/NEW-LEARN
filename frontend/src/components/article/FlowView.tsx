@@ -130,7 +130,11 @@ export function FlowView({
             </span>
             <span className="flex min-w-0 flex-col gap-x0_5">
               <span className="t2-bold text-fg-neutral-subtle">기사 핵심</span>
-              <span className="t6-bold @min-[640px]:t7-bold text-fg-neutral">
+              {/* 드래그하면 용어사전 「의미」 — A26 이 기사 요지를 화면 글로 받는다 (2026-11-13 사용자, Jira 202) */}
+              <span
+                className="t6-bold @min-[640px]:t7-bold text-fg-neutral"
+                {...meaningProps("ARTICLE", articleId)}
+              >
                 {headline}
               </span>
             </span>
