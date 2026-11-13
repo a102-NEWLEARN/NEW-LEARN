@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { BranchType, MindmapBranch } from "@/api/mindmap";
 import { FlowView } from "@/components/article/FlowView";
@@ -21,13 +21,11 @@ const BRANCHES = [
   branch("OUTLOOK", "2028년 양산 목표는 그대로다"),
 ];
 
-function renderFlow(branches = BRANCHES) {
+const SUMMARY = "한빛반도체가 텍사스 공장 투자를 늘리고 착공했다";
+
+function renderFlow(branches = BRANCHES, summary: string | null = SUMMARY) {
   renderWithProviders(
-    <FlowView
-      articleId={409}
-      title="한빛반도체 텍사스 공장 착공"
-      branches={branches}
-    />,
+    <FlowView articleId={409} summary={summary} branches={branches} />,
   );
 }
 
@@ -236,7 +234,7 @@ const mark = (name: string | RegExp) =>
 
 test("열 때 머리 줄 → 가지 열 차례로 나온다 — 열 안에서는 번호 원 → 질문 → 잎 카드 차례다 (프로토타입 v21)", () => {
   renderFlow();
-  const header = screen.getByText("기사 핵심").closest("[aria-hidden]")!;
+  const header = screen.getByText("기사 핵심").closest("div")!;
   const questions = [
     "무슨 일이?",
     "왜 일어났나?",
@@ -325,7 +323,7 @@ test("선이 자라는 동안 점 하나가 다음 번호로 달려간다 — �
 
 test("번호 원 · 머리 줄 점에서 파문이 번진다 — 꾸밈이라 처음에는 보이지 않는 채로 둔다", () => {
   renderFlow();
-  const header = screen.getByText("기사 핵심").closest("[aria-hidden]")!;
+  const header = screen.getByText("기사 핵심").closest("div")!;
 
   for (const place of [step("무슨 일이?"), step("앞으로는?"), header]) {
     const ripple = place.querySelector('[class*="newlearn-ripple"]');
@@ -364,10 +362,27 @@ test("움직임은 동작 줄이기를 켜면 빠진다 — 애니메이션 · �
   expectMotionSafe();
 });
 
-test("머리 줄의 기사 제목은 화면 낭독에서 뺀다 — 바로 위 h1 과 같은 글이다", () => {
+// 머리 줄이 바로 위 h1 과 같은 기사 제목이라 같은 글이 두 번 보였다 → AI 한 줄 요지(A8 summary)를 둔다
+// (2026-11-12 사용자 QA, Jira 197). h1 과 다른 글이라 낭독하고, 좁은 자리에서도 숨기지 않는다
+test("머리 줄은 기사 제목이 아니라 AI 한 줄 요지다 — h1 과 다른 글이라 낭독하고 좁은 자리에서도 둔다", () => {
   renderFlow();
 
-  const title = screen.getByText("한빛반도체 텍사스 공장 착공");
-  expect(title.closest('[aria-hidden="true"]')).not.toBeNull();
-  expect(screen.getByText("기사 핵심")).toBeDefined();
+  const summary = screen.getByText(SUMMARY);
+  expect(summary.closest("[aria-hidden]")).toBeNull();
+  const header = screen.getByText("기사 핵심").closest("div")!;
+  expect(header.contains(summary)).toBe(true);
+  expect(header.className).not.toContain("hidden");
+});
+
+test("요지가 없거나 공백뿐이면 머리 줄을 두지 않는다", () => {
+  renderFlow(BRANCHES, "   ");
+  expect(screen.queryByText("기사 핵심")).toBeNull();
+  cleanup();
+
+  renderFlow(BRANCHES, null);
+
+  expect(screen.queryByText("기사 핵심")).toBeNull();
+  expect(
+    screen.getByRole("heading", { level: 2, name: "무슨 일이?" }),
+  ).toBeDefined();
 });
