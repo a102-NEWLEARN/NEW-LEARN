@@ -136,3 +136,5 @@ kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -c \
 
 - 판정 줄이 막히면 backend 로그에 `판정 줄이 멈췄을 수 있다` WARN 이 뜬다(40분 넘게 `QUEUED`)
 - 판정이 시간당 200건을 못 따라가면 회차 몫 `INGEST_RELEASE_PER_RUN`(기본 50)을 낮춘다 — `ingest.md`
+- 🔴 **이슈 분야 고정 28개가 풀린다.** ATTACH 는 이름은 두고 요약만 다시 쓰지만 분야는 다시 계산한다(`IssueResultHandler.refreshCategory` — `clear` 뒤 다수결). 고정 목록을 보지 않는다. 매일 아침 분야 라벨 적용(`category-labels-apply.sql`)이 28개를 다시 세우므로, 발표 전날 아침에는 적용을 꼭 돌린다(`category-labels.md`)
+- ATTACH 가 **기존 이슈 요약을 다시 쓴다.** 발표에 쓸 이슈 요약이 바뀌는 것이 싫으면 `ISSUE_WORKER_ENABLED` 만 false 로 둔다 — 판정은 돌아 새 사건은 생기고 이슈 밖에 남는다
