@@ -283,6 +283,7 @@ Hello 를 두 번 배포하고 첫 태그로 되돌려 본다. 첫 배포만으�
 | 용어 | 제품 용어의 정의는 PRD 부록 A 「용어집」. 테이블 · API 이름과의 대응 · 개발 용어는 `docs/glossary.md` |
 | 시스템 구성도 | `SSOT.md` 1 · 2절 (그림은 아직 없다) |
 | 로컬 개발 환경 쓰는 법 | `docs/dev-environment.md` (정한 것은 `SSOT.md` 7절) |
+| 시험 · 검증 한 장 | `docs/testing.md` — 요약 · 길잡이만. 숫자의 원본은 `SSOT.md#잰 것` · `infra/server/perf/` |
 | 협업 규칙 (브랜치·커밋·PR) | `docs/git-convention.md` · MR 양식은 `.gitlab/merge_request_templates/Default.md` |
 | 백엔드 코드 약속 | `docs/backend-convention.md` (패키지 · 엔티티 · 오류 · 시각 · 목록 · 보안 · 테스트를 코드로 옮기는 법) |
 | 기능 스펙 | `docs/specs/` — 기능마다 한 파일, 이름은 기능 번호로 시작한다 (예: `docs/specs/F07-issue-evolution-map.md`) |
