@@ -175,6 +175,26 @@ test("분야에 이슈가 없으면 빈 문구를 둔다", async () => {
   renderSection();
 
   expect(await screen.findByText("이 분야의 이슈가 아직 없어요")).toBeDefined();
+  // 볼 이슈가 없으면 분야별 이슈 화면으로 보내지 않는다
+  expect(screen.queryByRole("link", { name: /전체보기/ })).toBeNull();
+});
+
+test("카드 아래 *OO 이슈 N개 전체보기* 는 고른 분야의 분야별 이슈 화면으로 간다 — N 은 그 분야 이슈 수", async () => {
+  renderSection();
+
+  // 가짜 A2 의 경제 이슈는 4개다 — 카드는 3장만 보인다
+  const all = await screen.findByRole("link", {
+    name: "경제 이슈 4개 전체보기",
+  });
+  expect(all.getAttribute("href")).toBe("/issues?category=economy");
+  expect(await cardHrefs()).toHaveLength(3);
+
+  fireEvent.click(screen.getByRole("tab", { name: "국제" }));
+
+  const world = await screen.findByRole("link", {
+    name: "국제 이슈 1개 전체보기",
+  });
+  expect(world.getAttribute("href")).toBe("/issues?category=world");
 });
 
 test("추천 이슈만 못 불러오면 탭은 두고 그 자리에 다시 시도를 둔다", async () => {

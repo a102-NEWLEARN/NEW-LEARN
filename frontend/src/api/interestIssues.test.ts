@@ -1,11 +1,13 @@
+import { QueryClient } from "@tanstack/react-query";
 import { expect, test } from "vitest";
 import {
   addInterestIssue,
   fetchInterestIssues,
   removeInterestIssue,
+  setInterested,
 } from "@/api/interestIssues";
 import { fetchIssue } from "@/api/issue";
-import { fetchIssues } from "@/api/issues";
+import { fetchIssues, issuesPagesQuery } from "@/api/issues";
 
 // 가짜 API 가 docs/api-screen.md A23 ~ A25 대로 답하는지 — 별 · 마이페이지 관심 이슈가 이 응답에 기댄다
 
@@ -54,4 +56,20 @@ test("이슈 응답(A2 · A3)의 interested 도 저장한 표를 따른다", asy
   expect(interested).toEqual([12, 21]);
   expect((await fetchIssue(12)).interested).toBe(true);
   expect((await fetchIssue(13)).interested).toBe(false);
+});
+
+test("별을 누르면 분야별 이슈 화면이 쪽 넘김으로 받아 둔 목록에서도 그 이슈의 interested 를 바꾼다", async () => {
+  const queryClient = new QueryClient();
+  const query = issuesPagesQuery("economy");
+  const data = await queryClient.fetchInfiniteQuery(query);
+  expect(data.pages[0].items.find((item) => item.id === 13)?.interested).toBe(
+    false,
+  );
+
+  setInterested(queryClient, 13, true);
+
+  const items = queryClient.getQueryData(query.queryKey)?.pages[0].items ?? [];
+  expect(items.find((item) => item.id === 13)?.interested).toBe(true);
+  // 다른 이슈는 그대로다
+  expect(items.find((item) => item.id === 15)?.interested).toBe(false);
 });

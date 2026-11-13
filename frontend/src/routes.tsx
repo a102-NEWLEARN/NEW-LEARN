@@ -5,6 +5,7 @@ import { ArticlePage } from "@/pages/ArticlePage";
 import { BookmarksPage } from "@/pages/BookmarksPage";
 import { HomePage } from "@/pages/HomePage";
 import { IssuePage } from "@/pages/IssuePage";
+import { IssuesPage } from "@/pages/IssuesPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { MyPage } from "@/pages/MyPage";
@@ -41,6 +42,7 @@ export const routes: RouteObject[] = [
   },
   shellRoute([
     { path: "/home", element: <HomePage /> },
+    { path: "/issues", element: <IssuesPage /> },
     { path: "/issues/:issueId", element: <IssuePage /> },
     { path: "/articles/:articleId", element: <ArticlePage /> },
     { path: "/me", element: <MyPage /> },

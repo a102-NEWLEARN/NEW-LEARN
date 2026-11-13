@@ -47,6 +47,7 @@ import {
   RISE,
   SPRING_IN,
 } from "@/components/motion/screenMotion";
+import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { prefersReducedMotion } from "@/lib/motion";
 
@@ -70,6 +71,10 @@ const LABEL_AFTER = 120;
 // 레인 이름 막대 · 글자
 const LANE_BAR_AT = 0;
 const LANE_TEXT_AT = 80;
+
+// 사건 이름 글자 크기(px) — 날짜 · 기사 수 줄은 13px. 읽기 어려워 13 · 12px 에서 키웠다 (2026-11-12 사용자 QA, Jira 197).
+// 라벨 높이는 timelineLayout 의 쌓는 간격 · 라벨 아래 끝과 맞물린다
+const NAME_SIZE = 15;
 
 // 노드 반지름 — 메인 흐름이 한 단계 크다 (DESIGN.md 타임라인 노드)
 const radiusOf = (event: PlacedEvent) => (event.lane === "MAIN" ? 10 : 8);
@@ -144,6 +149,9 @@ export function Timeline({
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
   // − · + 버튼이 노리는 배율. 움직임이 끝나면 비운다
   const targetScale = useRef<number | null>(null);
+  // 지금 보이는 고른 사건 · 패널을 닫은 뒤 넓어질 폭으로 처음 보기를 한 번 더 맞출지. 직접 옮기거나 확대하면 맞추지 않는다
+  const shownId = useRef(selectedId);
+  const reopening = useRef(false);
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
   const [hoverId, setHoverId] = useState<number | null>(null);
   // 키보드로 포커스한 노드 — 포커스 테두리와 툴팁을 띄운다
@@ -179,8 +187,11 @@ export function Timeline({
       .on(
         "zoom",
         (event: { transform: ZoomTransform; sourceEvent: unknown }) => {
-          // 휠 · 끌기로 직접 움직이면 버튼이 노리던 배율은 버린다
-          if (event.sourceEvent) targetScale.current = null;
+          // 휠 · 끌기로 직접 움직이면 버튼이 노리던 배율과 닫은 뒤 처음 보기 맞추기는 버린다
+          if (event.sourceEvent) {
+            targetScale.current = null;
+            reopening.current = false;
+          }
           transformRef.current = event.transform;
           setTransform(event.transform);
         },
@@ -207,6 +218,7 @@ export function Timeline({
     zoomIdentity.translate(x, 0).scale(k);
   // 버튼 배율은 움직이는 중의 배율이 아니라 앞 버튼이 노린 배율에서 잰다 — 빠르게 두 번 눌러도 두 번 다 먹게
   const scaleBy = (factor: number) => {
+    reopening.current = false;
     const [min, max] = SCALE_EXTENT;
     const from = targetScale.current ?? transformRef.current.k;
     const next = Math.min(max, Math.max(min, from * factor));
@@ -226,6 +238,7 @@ export function Timeline({
   };
   // 전체 보기 — 그리는 영역이 다 들어오게. 100% 보다 키우지 않고 50% 아래로 줄이지 않는다
   const fit = () => {
+    reopening.current = false;
     const room = sizeRef.current.width - GUTTER - 60;
     apply(atScale(Math.max(0.5, Math.min(1, room / layoutRef.current.width))));
   };
@@ -242,7 +255,27 @@ export function Timeline({
       centerOn(event, duration);
   };
 
-  // 처음 — 다 들어오면 100%, 아니면 들어오게 줄이되 75% 아래로는 줄이지 않는다. 고른 사건이 있으면 보이게.
+  // 처음 보기 — 다 들어오면 100%, 아니면 들어오게 줄이되 75% 아래로는 줄이지 않는다.
+  // 배치가 넓은 화면에서 늘리는 폭과 같은 값으로 재야 늘어난 배치가 딱 100% 가 된다
+  const opening = () => {
+    const room = sizeRef.current.width - GUTTER - RIGHT_ROOM;
+    const fitting = room / layoutRef.current.width;
+    return atScale(fitting >= 0.75 ? Math.min(1, fitting) : 0.75);
+  };
+
+  // 처음 보기인데 키보드 포커스가 간 사건이 화면 밖이면 가로로만 옮겨 보이게 한다 — 키보드 포커스는 늘 보인다
+  // (EXPERIENCE.md Accessibility Floor). 키보드로 패널을 닫으면 화면이 닫은 사건 노드에 포커스를 준다(IssuePage)
+  const openingShowing = (event: PlacedEvent | undefined) => {
+    const start = opening();
+    if (!event) return start;
+    const x = start.applyX(GUTTER + event.x);
+    if (x >= GUTTER + 20 && x <= sizeRef.current.width - LABEL_ROOM)
+      return start;
+    const target = GUTTER + (sizeRef.current.width - GUTTER) * 0.45;
+    return atScale(start.k, target - (GUTTER + event.x) * start.k);
+  };
+
+  // 처음 — 처음 보기에 두고, 고른 사건이 있으면 보이게.
   // 처음 그릴 때는 자리 폭을 아직 못 재서 어림값(FALLBACK_SIZE)으로 맞춘다. 진짜 폭을 재면 한 번 더 맞춘다
   const startedWidth = useRef<number | null>(null);
   useEffect(() => {
@@ -250,10 +283,7 @@ export function Timeline({
     const remeasured = startedWidth.current === 0 && measured.width > 0;
     if (!first && !remeasured) return;
     startedWidth.current = measured.width;
-    // 배치가 넓은 화면에서 늘리는 폭과 같은 값으로 재야 늘어난 배치가 딱 100% 가 된다
-    const room = sizeRef.current.width - GUTTER - RIGHT_ROOM;
-    const fitting = room / layoutRef.current.width;
-    apply(atScale(fitting >= 0.75 ? Math.min(1, fitting) : 0.75), 0);
+    apply(opening(), 0);
     const selected = layoutRef.current.events.find(
       (event) => event.id === selectedId,
     );
@@ -262,12 +292,26 @@ export function Timeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measured.width]);
 
-  // 주소의 ?event= 로 고른 사건이 바뀌거나 타임라인 폭이 바뀌면(옆에 사건 패널이 열려 좁아지는 등) 보이게 옮긴다
+  // 주소의 ?event= 로 고른 사건이 바뀌거나 타임라인 폭이 바뀌면(옆에 사건 패널이 열려 좁아지는 등) 보이게 옮긴다.
+  // 사건 패널을 닫으면(고른 사건이 없어지면) 처음 보기로 돌아간다 — 사건을 보이려고 옮긴 자리에 멈추지 않게.
+  // 닫은 바로 뒤 패널이 빠져 폭이 넓어지면 그 폭으로 한 번 더 맞춘다 (2026-11-12 사용자 QA, Jira 197)
   useEffect(() => {
+    if (startedWidth.current === null) return;
+    const closed = shownId.current !== null && selectedId === null;
+    shownId.current = selectedId;
+    if (selectedId === null) {
+      const focused = layoutRef.current.events.find(
+        (event) => event.id === focusId,
+      );
+      if (closed || reopening.current) apply(openingShowing(focused));
+      reopening.current = closed;
+      return;
+    }
+    reopening.current = false;
     const selected = layoutRef.current.events.find(
       (event) => event.id === selectedId,
     );
-    if (startedWidth.current !== null && selected) keepInView(selected);
+    if (selected) keepInView(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, measured.width]);
 
@@ -297,18 +341,18 @@ export function Timeline({
     // 메인 흐름 레인 선 위 사건은 라벨을 선 밑에 둔다. 선에서 벗어난 사건(쌓인 사건 · 서브 흐름)은 이름 줄을 사건 가운데에 맞춘다 —
     // 쌓였을 때 라벨이 자기 사건 옆에 오게 (Jira 188, 쌓는 간격은 timelineLayout 의 stackOffset)
     const onRail = event.lane === "MAIN" && event.y === railY;
-    if (room >= 64)
+    if (room >= 72)
       return {
         dx: r + 8,
         dy: onRail ? 6 : -8,
-        width: Math.min(room, 190),
+        width: Math.min(room, 210),
         below: false,
       };
     const nextX = neighbors.length ? Math.min(...neighbors) + 18 : width - 16;
     return {
       dx: -r - 4,
       dy: r + 10,
-      width: Math.max(40, Math.min(nextX - (x - r - 4), 170)),
+      width: Math.max(40, Math.min(nextX - (x - r - 4), 190)),
       below: true,
     };
   };
@@ -391,6 +435,8 @@ export function Timeline({
         >
           전체 보기
         </ActionButton>
+        {/* 용어사전 안내 — TIP 왼쪽 (2026-11-12 사용자 QA, Jira 197) */}
+        <MeaningGuide />
         {tip.button}
       </div>
       <div
@@ -480,7 +526,7 @@ export function Timeline({
               const isHovered = event.id === hoverId;
               const isFocused = event.id === focusId;
               const label = labelOf(event);
-              const shown = fitText(event.label, label.width, 13);
+              const shown = fitText(event.label, label.width, NAME_SIZE);
               const meta = joined(dateText(event), articlesText(event));
               const enter = enterOf(event);
               return (
@@ -593,7 +639,7 @@ export function Timeline({
                         x={-4}
                         y={-3}
                         width={label.width + 8}
-                        height={36}
+                        height={40}
                         className="fill-transparent"
                       />
                       {label.below && (
@@ -601,7 +647,7 @@ export function Timeline({
                           x={-4}
                           y={-3}
                           width={label.width + 8}
-                          height={36}
+                          height={40}
                           rx={6}
                           className="fill-bg-layer-default opacity-95"
                         />
@@ -609,7 +655,7 @@ export function Timeline({
                       {/* 사건 이름은 드래그 대상이다(용어사전). 칸에 맞춰 「…」로 줄였으면 그 표시를 준다 */}
                       <text
                         dominantBaseline="hanging"
-                        className={`cursor-text stroke-bg-layer-default text-[0.8125rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
+                        className={`cursor-text stroke-bg-layer-default text-[0.9375rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
                         paintOrder="stroke"
                         strokeWidth={4}
                         strokeLinejoin="round"
@@ -622,14 +668,14 @@ export function Timeline({
                         {shown}
                       </text>
                       <text
-                        y={17}
+                        y={19}
                         dominantBaseline="hanging"
-                        className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.75rem] tabular-nums"
+                        className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.8125rem] tabular-nums"
                         paintOrder="stroke"
                         strokeWidth={4}
                         strokeLinejoin="round"
                       >
-                        {label.width >= 100 ? meta : dateText(event)}
+                        {label.width >= 110 ? meta : dateText(event)}
                       </text>
                     </g>
                   </g>
