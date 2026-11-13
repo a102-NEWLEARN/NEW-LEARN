@@ -177,6 +177,7 @@ function EventRow({ event, selected, enterAt: at, onSelect }: EventRowProps) {
     <button
       type="button"
       data-event-id={event.id}
+      data-coach="event"
       data-lane={main ? "MAIN" : "SUB"}
       aria-current={selected ? "true" : undefined}
       aria-label={joined(
