@@ -70,19 +70,11 @@ test("관심 분야 탭은 이름에 「관심 분야」가 붙는다", () => {
   expect(screen.getByRole("tab", { name: "경제, 관심 분야" })).toBeDefined();
 });
 
-test("준비 중 분야는 탭이 아닌 버튼이고, 누르면 안내만 하고 고른 탭은 그대로다", async () => {
-  const onChange = vi.fn();
-  renderWithProviders(<Harness onChange={onChange} />);
+test("준비 중 분야(스포츠 · 문화/연예)는 두지 않는다 — A1 이 주는 분야만 탭이다", () => {
+  renderWithProviders(<Harness />);
 
-  const sports = screen.getByRole("button", { name: "스포츠 준비 중" });
-  expect(
-    screen.getByRole("button", { name: "문화/연예 준비 중" }),
-  ).toBeDefined();
-  fireEvent.click(sports);
-
-  expect(await screen.findByText("스포츠는 준비 중이에요")).toBeDefined();
-  expect(onChange).not.toHaveBeenCalled();
-  expect(selectedTab()?.textContent).toContain("경제");
+  expect(screen.queryByText(/준비 중/)).toBeNull();
+  expect(screen.queryByRole("button", { name: /스포츠|문화/ })).toBeNull();
 });
 
 // jsdom 에는 배치가 없어서 탭 줄과 고른 탭의 위치를 정해 준다 — 탭 줄 폭 300px, 고른 탭은 400 ~ 440px

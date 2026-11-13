@@ -22,7 +22,7 @@ test("질문 넷 가운데 첫 질문이 펼쳐져 있다", () => {
     { name: "같은 사건을 다룬 기사는 어떻게 묶이나요?", open: "false" },
     { name: "모르는 낱말은 어떻게 찾나요?", open: "false" },
   ]);
-  expect(screen.getByText(/스포츠 · 문화\/연예는 준비 중이에요/)).toBeDefined();
+  expect(screen.queryByText(/준비 중/)).toBeNull();
 });
 
 test("다른 질문을 누르면 그 답이 펼쳐지고 앞의 답은 접힌다. 펼친 질문을 다시 누르면 접힌다", () => {

@@ -57,7 +57,8 @@ const leafKey = (type: string, index: number) => `${type}:${index}`;
 // 기사 마인드맵의 흐름지도 보기 — 가지를 「무슨 일이? → 왜 일어났나? → 누가 뭐라고 했나? → 앞으로는?」 순서로
 // 읽는 목록 (프로토타입 v21 MindmapFlowMap · FlowCard, Jira S15P31A102-58).
 // 자리가 1024px 이상이면 가지 하나가 한 열인 가로, 아니면 세로다. 컨테이너 쿼리라 넓이를 재는 코드가 없다.
-// 잎을 누르면 강조만 한다 — 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
+// 잎을 누르면 그 카드를 키워 띄우고 아래에 가지가 무엇인지 한 줄을 붙인다(나머지는 흐리게, 2026-11-13 사용자 · Jira 204).
+// 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
 export function FlowView({
   articleId,
   summary,
@@ -143,7 +144,7 @@ export function FlowView({
           className={`grid gap-y-x10 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7 ${headline ? "mt-x7" : ""}`}
         >
           {branches.map(({ type, items }, index) => {
-            const { name, question, tone } = BRANCHES[type];
+            const { name, question, about, tone } = BRANCHES[type];
             const last = index === branches.length - 1;
             const headId = `${idPrefix}-${type}`;
             const at = COLUMN_AT(index);
@@ -216,6 +217,7 @@ export function FlowView({
                         articleId={articleId}
                         text={text}
                         tone={tone}
+                        about={`${name} — ${about}`}
                         outlook={type === "OUTLOOK"}
                         on={on}
                         dimmed={selected !== null && !on}
@@ -266,6 +268,8 @@ type LeafCardProps = {
   articleId: number;
   text: string;
   tone: BranchInfo["tone"];
+  /** 눌렀을 때 카드 아래에 붙는 가지 설명 한 줄 */
+  about: string;
   /** 전망 가지의 잎 — 점선 원과 「전망·해석」 */
   outlook: boolean;
   on: boolean;
@@ -284,57 +288,75 @@ function LeafCard({
   articleId,
   text,
   tone,
+  about,
   outlook,
   on,
   dimmed,
   enterDelay,
   onPress,
 }: LeafCardProps) {
+  const aboutId = useId();
   return (
-    <button
-      type="button"
-      aria-pressed={on}
-      data-dimmed={dimmed || undefined}
-      onClick={(click) => {
-        if (!isTextDragClick(click)) onPress();
-      }}
-      style={enterAt(enterDelay)}
-      className={`group flex w-full flex-col items-start gap-x2 rounded-r3_5 border px-x4 py-x3_5 text-left select-text transition-[border-color,background-color,opacity,scale,translate] duration-[var(--seed-duration-d4)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring motion-safe:hover:-translate-y-[2px] motion-safe:active:scale-[0.98] ${RISE} ${
-        on
-          ? tone.cardOn
-          : `border-stroke-neutral-weak bg-bg-layer-default ${tone.cardHover}`
-      } ${dimmed ? "opacity-55 hover:opacity-100" : ""}`}
-    >
-      <span className="flex items-start gap-x2_5">
-        {/* 강조하면 원이 가지색으로 차며 한 번 튀고 둘레에 파문이 번진다 */}
-        <span className="relative mt-[6px] size-[12px] shrink-0">
-          {on && (
+    // 누른 카드 아래 한 줄은 카드 밖에 둔다 — 카드(버튼) 이름은 잎 글 그대로, 설명은 aria-describedby 로 잇는다
+    <div className="flex flex-col gap-x2">
+      <button
+        type="button"
+        aria-pressed={on}
+        aria-describedby={on ? aboutId : undefined}
+        data-dimmed={dimmed || undefined}
+        onClick={(click) => {
+          if (!isTextDragClick(click)) onPress();
+        }}
+        style={enterAt(enterDelay)}
+        className={`group flex w-full flex-col items-start gap-x2 rounded-r3_5 border px-x4 py-x3_5 text-left select-text transition-[border-color,background-color,opacity,scale,translate] duration-[var(--seed-duration-d4)] ease-[var(--seed-timing-function-easing)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring motion-safe:hover:-translate-y-[2px] motion-safe:active:scale-[0.98] ${RISE} ${
+          on
+            ? `${tone.cardOn} relative z-[1] shadow-[0_8px_24px_rgb(0_0_0/0.12)] motion-safe:scale-[1.04] motion-safe:hover:translate-y-0`
+            : `border-stroke-neutral-weak bg-bg-layer-default ${tone.cardHover}`
+        } ${dimmed ? "opacity-35 hover:opacity-100" : ""}`}
+      >
+        <span className="flex items-start gap-x2_5">
+          {/* 강조하면 원이 가지색으로 차며 한 번 튀고 둘레에 파문이 번진다 */}
+          <span className="relative mt-[6px] size-[12px] shrink-0">
+            {on && (
+              <span
+                aria-hidden
+                className={`absolute inset-0 rounded-full border-2 ${tone.mark} ${RIPPLE_ONCE}`}
+              />
+            )}
             <span
               aria-hidden
-              className={`absolute inset-0 rounded-full border-2 ${tone.mark} ${RIPPLE_ONCE}`}
+              data-leaf-mark
+              className={`block size-[12px] rounded-full border-[2.5px] transition-colors ${HOVER_SPRING} motion-safe:group-hover:scale-125 ${tone.mark} ${
+                outlook ? "border-dashed" : ""
+              } ${on ? `${tone.dot} ${POP_ONCE}` : "bg-bg-layer-default"}`}
             />
-          )}
+          </span>
+          {/* 빈칸 없는 긴 영문 · 주소도 카드 안에서 줄을 바꾼다 */}
+          <span
+            className="t5-medium [overflow-wrap:anywhere] text-fg-neutral select-text"
+            {...meaningProps("ARTICLE", articleId)}
+          >
+            {text}
+          </span>
+        </span>{" "}
+        {outlook && (
+          <span className="t2-bold ml-[22px] rounded-r1_5 border border-dashed border-stroke-neutral-weak px-x1_5 text-fg-neutral-muted">
+            전망·해석
+          </span>
+        )}
+      </button>
+      {on && (
+        <p
+          id={aboutId}
+          className={`t3-bold flex items-center gap-x1_5 px-x2 ${tone.label} ${RISE}`}
+        >
           <span
             aria-hidden
-            data-leaf-mark
-            className={`block size-[12px] rounded-full border-[2.5px] transition-colors ${HOVER_SPRING} motion-safe:group-hover:scale-125 ${tone.mark} ${
-              outlook ? "border-dashed" : ""
-            } ${on ? `${tone.dot} ${POP_ONCE}` : "bg-bg-layer-default"}`}
+            className={`size-[6px] shrink-0 rounded-full ${tone.dot}`}
           />
-        </span>
-        {/* 빈칸 없는 긴 영문 · 주소도 카드 안에서 줄을 바꾼다 */}
-        <span
-          className="t5-medium [overflow-wrap:anywhere] text-fg-neutral select-text"
-          {...meaningProps("ARTICLE", articleId)}
-        >
-          {text}
-        </span>
-      </span>{" "}
-      {outlook && (
-        <span className="t2-bold ml-[22px] rounded-r1_5 border border-dashed border-stroke-neutral-weak px-x1_5 text-fg-neutral-muted">
-          전망·해석
-        </span>
+          {about}
+        </p>
       )}
-    </button>
+    </div>
   );
 }

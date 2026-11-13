@@ -1,8 +1,8 @@
-import { infiniteQueryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { ArticleSummary, Page } from "@/api/types";
 
-/** 홈 최신 기사가 처음 보이고 *더 보기* 마다 더 붙이는 기사 수 (EXPERIENCE.md IA 홈 행) */
+/** 홈 최신 기사 한 쪽의 기사 수 (EXPERIENCE.md IA 홈 행) */
 export const LATEST_ARTICLES_SIZE = 8;
 
 export type ArticlesParams = {
@@ -20,13 +20,10 @@ export function fetchArticles(params: ArticlesParams = {}) {
     .then((res) => res.data);
 }
 
-// *더 보기* 마다 다음 쪽을 불러 아래에 붙인다. 쪽은 분야마다 따로 쌓인다
-export const articlesQuery = (category?: string) =>
-  infiniteQueryOptions({
-    queryKey: ["articles", { category }],
-    queryFn: ({ pageParam }) =>
-      fetchArticles({ category, page: pageParam, size: LATEST_ARTICLES_SIZE }),
-    initialPageParam: 0,
-    getNextPageParam: (last) =>
-      last.page + 1 < last.totalPages ? last.page + 1 : undefined,
+// 홈 최신 기사 한 쪽(0 부터) — 쪽 번호마다 A7 을 그 쪽으로 받는다 (2026-11-13 사용자, Jira 203)
+export const articlesQuery = (category: string | undefined, page: number) =>
+  queryOptions({
+    queryKey: ["articles", { category, page }],
+    queryFn: () =>
+      fetchArticles({ category, page, size: LATEST_ARTICLES_SIZE }),
   });

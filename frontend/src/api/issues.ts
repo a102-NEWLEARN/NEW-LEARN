@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { Page } from "@/api/types";
 
@@ -47,18 +47,44 @@ export const issuesQuery = (params: IssuesParams = {}) =>
     queryFn: () => fetchIssues(params),
   });
 
-/** 분야별 이슈 화면이 처음 보이고 *더 보기* 마다 더 붙이는 이슈 수 (EXPERIENCE.md IA 분야별 이슈 행) */
+/** 분야별 이슈 화면 한 쪽의 이슈 수 (EXPERIENCE.md IA 분야별 이슈 행) */
 export const ISSUES_PAGE_SIZE = 12;
 
-// 분야별 이슈 화면 — *더 보기* 마다 다음 쪽을 불러 아래에 붙인다. 쪽은 분야마다 따로 쌓인다.
-// 키에 "pages" 를 끼워 홈 추천의 한 쪽짜리 응답(["issues", {…}])과 모양이 섞이지 않게 한다.
-// 별을 누르면 setInterested 가 둘 다 고친다 (interestIssues.ts)
-export const issuesPagesQuery = (category: string) =>
-  infiniteQueryOptions({
-    queryKey: ["issues", "pages", { category }],
-    queryFn: ({ pageParam }) =>
-      fetchIssues({ category, page: pageParam, size: ISSUES_PAGE_SIZE }),
-    initialPageParam: 0,
-    getNextPageParam: (last) =>
-      last.page + 1 < last.totalPages ? last.page + 1 : undefined,
+/** 분야 이슈를 모두 모을 때 한 번에 받는 수 — A2 size 의 최대 */
+export const ISSUES_ALL_SIZE = 100;
+
+// 분야별 이슈 화면 — 그 분야 이슈를 모두 받아 둔다(100 넘으면 쪽을 이어 받는다). 기사 많은 순은 A2 에 없어
+// 받은 것을 화면이 줄 세우고, 쪽도 화면이 12개씩 나눈다 (2026-11-13 사용자, Jira 203).
+// 응답은 A2 한 쪽과 같은 모양으로 둔다 — 별을 누르면 setInterested 가 items 안을 그대로 고친다 (interestIssues.ts).
+// 받는 사이 순서가 바뀌어 같은 이슈가 두 번 오면 처음 것만 남긴다
+export const issuesAllQuery = (category: string) =>
+  queryOptions({
+    queryKey: ["issues", "all", { category }],
+    queryFn: async (): Promise<Page<IssueSummary>> => {
+      const first = await fetchIssues({
+        category,
+        page: 0,
+        size: ISSUES_ALL_SIZE,
+      });
+      const all = [...first.items];
+      for (let page = 1; page < first.totalPages; page++) {
+        const next = await fetchIssues({
+          category,
+          page,
+          size: ISSUES_ALL_SIZE,
+        });
+        all.push(...next.items);
+      }
+      const seen = new Set<number>();
+      const items = all.filter(
+        (issue) => !seen.has(issue.id) && seen.add(issue.id),
+      );
+      return {
+        items,
+        page: 0,
+        size: items.length,
+        totalElements: items.length,
+        totalPages: 1,
+      };
+    },
   });

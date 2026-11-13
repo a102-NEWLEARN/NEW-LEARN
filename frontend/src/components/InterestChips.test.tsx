@@ -33,7 +33,7 @@ const chip = (name: string) => screen.getByRole("button", { name });
 const picked = () =>
   screen.getByRole("status", { name: "고른 분야" }).textContent;
 
-test("A1 분야를 칩으로 두고 준비 중 분야를 끝에 붙인다", async () => {
+test("A1 분야만 칩으로 둔다 — 준비 중 분야는 없다", async () => {
   renderWithProviders(<Harness />);
 
   const group = screen.getByRole("group", { name: "관심 분야" });
@@ -42,15 +42,7 @@ test("A1 분야를 칩으로 두고 준비 중 분야를 끝에 붙인다", asyn
   await screen.findByRole("button", { name: "정치" });
   expect(
     screen.getAllByRole("button").map((button) => button.textContent),
-  ).toEqual([
-    "정치",
-    "사회",
-    "경제",
-    "국제",
-    "IT·과학",
-    "스포츠 준비 중",
-    "문화/연예 준비 중",
-  ]);
+  ).toEqual(["정치", "사회", "경제", "국제", "IT·과학"]);
   expect(chip("정치").getAttribute("aria-pressed")).toBe("false");
 });
 
@@ -78,19 +70,6 @@ test("마지막 남은 칩은 풀리지 않고 onKeepOne 을 부른다", async (
   expect(chip("경제").getAttribute("aria-pressed")).toBe("true");
   expect(picked()).toBe("economy");
   expect(onKeepOne).toHaveBeenCalledOnce();
-});
-
-test("준비 중 분야는 고르지 않고 안내한다", async () => {
-  renderWithProviders(<Harness />);
-  const upcoming = await screen.findByRole("button", {
-    name: "스포츠 준비 중",
-  });
-
-  expect(upcoming.getAttribute("aria-disabled")).toBe("true");
-  fireEvent.click(upcoming);
-
-  expect(await screen.findByText("스포츠는 준비 중이에요")).toBeDefined();
-  expect(picked()).toBe("");
 });
 
 test("오류가 있으면 칩 묶음 아래에 띄우고 묶음 설명으로 잇는다", async () => {
