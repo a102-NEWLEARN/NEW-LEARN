@@ -82,7 +82,8 @@ export function HomeGreeting({ member, pending }: HomeGreetingProps) {
       >
         오늘의 이슈를 탐색해 보세요
       </h1>
-      <p className="t5-regular mt-x2_5 text-balance text-fg-neutral-muted">
+      {/* 부제는 넓은 화면만 — 폰 첫 화면에 글이 많았다 (2026-11-13 사용자, Jira 202) */}
+      <p className="t5-regular mt-x2_5 text-balance text-fg-neutral-muted max-md:hidden">
         검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.
       </p>
     </>

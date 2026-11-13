@@ -23,7 +23,6 @@ test("/home 을 열면 셸 안에 홈을 띄운다", async () => {
       .getByRole("link", { name: "NEW:LEARN 홈으로" })
       .getAttribute("href"),
   ).toBe("/home");
-  // 본문은 회원인지 확인한 뒤에 뜬다 (RequireMember)
   expect(
     await within(screen.getByRole("main")).findByRole("heading", {
       level: 1,
@@ -45,33 +44,81 @@ test("Ctrl+\\ 는 셸이 가로채지 않는다 — 접고 펼 사이드바가 �
   ).toBe(true);
 });
 
-test("손님이 랜딩 밖 화면을 열면 로그인 화면으로 보내고 그 주소를 next 로 남긴다", async () => {
-  server.use(
-    http.get("/api/v1/members/me", () =>
-      HttpResponse.json(
-        {
-          type: "about:blank",
-          title: "UNAUTHORIZED",
-          status: 401,
-          detail: "UNAUTHORIZED",
-          instance: "/api/v1/members/me",
-          code: "UNAUTHORIZED",
-        },
-        { status: 401 },
-      ),
-    ),
+// 세션 없이 부른 회원 API 의 답 (docs/api.md 2절)
+const unauthorized = (instance: string) =>
+  HttpResponse.json(
+    {
+      type: "about:blank",
+      title: "UNAUTHORIZED",
+      status: 401,
+      detail: "UNAUTHORIZED",
+      instance,
+      code: "UNAUTHORIZED",
+    },
+    { status: 401 },
   );
-  const { router } = renderRoute("/issues/12?event=3");
+
+const asGuest = () =>
+  server.use(
+    http.get("/api/v1/members/me", () => unauthorized("/api/v1/members/me")),
+  );
+
+// 손님도 둘러보기는 다 한다 — 회원 화면 둘만 막는다 (EXPERIENCE.md 이동 규칙, 2026-11-13 Jira 205)
+test("손님이 이슈 화면을 열면 로그인 화면으로 보내지 않고 셸 안에 그 화면을 띄운다", async () => {
+  asGuest();
+  const { router } = renderRoute("/issues/12?event=117");
+
+  expect(
+    await within(screen.getByRole("main")).findByRole("heading", {
+      level: 1,
+      name: "한빛반도체 미국 공장 건설",
+    }),
+  ).toBeDefined();
+  expect(router.state.location.pathname).toBe("/issues/12");
+  // 셸 헤더 안에 뜬다
+  expect(screen.getByRole("link", { name: "NEW:LEARN 홈으로" })).toBeDefined();
+});
+
+test.each(["/bookmarks", "/me"])(
+  "손님이 %s 를 열면 로그인 화면으로 보내고 그 주소를 next 로 남긴다",
+  async (path) => {
+    asGuest();
+    const { router } = renderRoute(path);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "로그인" }),
+    ).toBeDefined();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(new URLSearchParams(router.state.location.search).get("next")).toBe(
+      path,
+    );
+  },
+);
+
+test("회원이 쓰다 세션이 끝나 401 을 받으면 로그인 화면으로 보내고 그 주소를 next 로 남긴다", async () => {
+  // 12번 이슈가 이미 관심 이슈여도 빼기(DELETE)가 같은 401 을 받는다
+  const expired = ({ params }: { params: Record<string, unknown> }) =>
+    unauthorized(
+      `/api/v1/members/me/interest-issues/${String(params.issueId)}`,
+    );
+  server.use(
+    http.put("/api/v1/members/me/interest-issues/:issueId", expired),
+    http.delete("/api/v1/members/me/interest-issues/:issueId", expired),
+  );
+  const { router } = renderRoute("/issues/12?event=117");
+  const main = screen.getByRole("main");
+  await within(main).findByRole("heading", { level: 1 });
+
+  fireEvent.click(
+    await within(main).findByRole("button", { name: "관심 이슈로 저장" }),
+  );
 
   expect(
     await screen.findByRole("heading", { level: 1, name: "로그인" }),
   ).toBeDefined();
-  expect(router.state.location.pathname).toBe("/login");
   expect(new URLSearchParams(router.state.location.search).get("next")).toBe(
-    "/issues/12?event=3",
+    "/issues/12?event=117",
   );
-  // 셸(헤더) 없이 뜬다
-  expect(screen.queryByRole("link", { name: "나의 뉴스함" })).toBeNull();
 });
 
 test("A17 이 손님 말고 다른 오류로 실패하면 막지 않고 화면을 띄운다", async () => {
@@ -101,7 +148,7 @@ test("A17 이 손님 말고 다른 오류로 실패하면 막지 않고 화면�
     }),
   ).toBeDefined();
   expect(router.state.location.pathname).toBe("/home");
-  // 가드가 처음 한 번, 홈이 붙을 때 한 번 더 부른다. 그 뒤로 되풀이하지 않는다
+  // 셸 · 화면이 붙을 때 부르고 실패 뒤 한 번 더 부를 수 있다. 그 뒤로 되풀이하지 않는다
   await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
   expect(calls).toBeLessThanOrEqual(2);
 });

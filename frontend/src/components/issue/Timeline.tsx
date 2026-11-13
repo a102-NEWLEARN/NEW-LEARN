@@ -389,7 +389,7 @@ export function Timeline({
   return (
     <section
       aria-labelledby="timeline-title"
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-r3 border border-stroke-neutral-subtle"
     >
       <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x4 py-x2_5">
         <div className="mr-auto flex flex-wrap items-baseline gap-x2_5">
@@ -534,6 +534,7 @@ export function Timeline({
                   key={event.id}
                   transform={`translate(${x},${event.y})`}
                   role="button"
+                  data-coach="event"
                   tabIndex={0}
                   data-event-id={event.id}
                   aria-current={isSelected ? "true" : undefined}

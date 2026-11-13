@@ -6,9 +6,8 @@ import {
 import { Skeleton } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
 import { type Ref, useId } from "react";
-import { categoriesQuery, UPCOMING_CATEGORIES } from "@/api/categories";
+import { categoriesQuery } from "@/api/categories";
 import { QueryState } from "@/components/state/QueryState";
-import { useUpcomingCategory } from "@/components/useSnackbar";
 
 type InterestChipsProps = {
   /** 고른 분야 코드 */
@@ -39,7 +38,7 @@ export function chipClassName(on: boolean) {
 }
 
 // 관심 분야 칩 — 가입 · 마이페이지 (EXPERIENCE.md Component Patterns 「관심 분야 칩」, 프로토타입 v21 AuthPage).
-// 여러 개 고른다(aria-pressed). 마지막 남은 칩은 풀리지 않는다. 준비 중 분야는 고르지 않고 누르면 안내한다.
+// 여러 개 고른다(aria-pressed). 마지막 남은 칩은 풀리지 않는다.
 // 고른 칩 모양은 DESIGN.md 「선택된 필터 칩」, 높이 40px 은 [가정] (누르는 영역 44px 목표와 v21 38px 사이)
 export function InterestChips({
   value,
@@ -52,7 +51,6 @@ export function InterestChips({
   const ownLabelId = useId();
   const errorId = useId();
   const categories = useQuery(categoriesQuery);
-  const notifyUpcoming = useUpcomingCategory();
 
   function toggle(code: string) {
     if (!value.includes(code)) {
@@ -114,18 +112,6 @@ export function InterestChips({
                 </button>
               );
             })}
-            {UPCOMING_CATEGORIES.map((category) => (
-              <button
-                key={category.code}
-                type="button"
-                aria-disabled="true"
-                onClick={() => notifyUpcoming(category.name)}
-                className={`${CHIP} border-stroke-neutral-weak text-fg-disabled`}
-              >
-                {/* 분야 탭(CategoryTabs)처럼 이름 뒤 작은 「준비 중」 — 칩이 짧아져 좁은 화면에서 줄을 덜 먹는다 */}
-                {category.name} <span className="t1-medium">준비 중</span>
-              </button>
-            ))}
           </div>
         )}
       </QueryState>

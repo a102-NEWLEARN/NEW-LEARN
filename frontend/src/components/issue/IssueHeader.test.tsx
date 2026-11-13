@@ -95,12 +95,15 @@ test("AI 생성 표시는 넓은 화면에서 머리 오른쪽 위에, 좁은 �
   }
 });
 
-test("분야는 청록 글자로, 요약은 18px 진한 글자에 왼쪽 민트 막대로 보인다", async () => {
+test("분야는 청록 글자로, 요약은 16px 진한 글자 · 줄 간격 1.7 에 왼쪽 민트 막대로 세 줄까지 보인다", async () => {
   withSummary("텍사스 공장 투자를 늘리고 착공했다");
   renderWithProviders(<Header />);
 
   const summary = await screen.findByText("텍사스 공장 투자를 늘리고 착공했다");
-  expect(summary.className).toContain("t6-regular");
+  // 글자를 한 단계 줄이고 줄 간격을 띄워 더 많이 보인다 (2026-11-13 사용자, Jira 202)
+  expect(summary.className).toContain("t5-regular");
+  expect(summary.className).toContain("leading-[1.7]");
+  expect(summary.className).toContain("line-clamp-3");
   expect(summary.className).toContain("text-fg-neutral ");
   expect(summary.className).toContain("border-l-[3px]");
   const category = screen.getByRole("banner").querySelector("p")!;

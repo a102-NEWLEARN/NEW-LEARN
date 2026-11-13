@@ -110,6 +110,58 @@ test("5건이 넘으면 「기사 N개 더 보기」로 다음 쪽을 아래에 
   expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
 });
 
+test("관련 기사는 오래된 순이 기본이고, 최신 순을 고르면 A6 에 sort=latest 로 다시 받아 뒤집어 보인다", async () => {
+  const sorts: (string | null)[] = [];
+  server.events.on("request:start", ({ request }) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/api/v1/events/117/articles")
+      sorts.push(url.searchParams.get("sort"));
+  });
+  const all = await articlesOf117();
+  sorts.length = 0;
+  renderPanel(117);
+
+  const sort = await screen.findByRole("group", { name: "기사 정렬" });
+  const oldest = within(sort).getByRole("button", { name: "오래된 순" });
+  const latest = within(sort).getByRole("button", { name: "최신 순" });
+  expect(oldest.getAttribute("aria-pressed")).toBe("true");
+  expect(latest.getAttribute("aria-pressed")).toBe("false");
+  const firstLink = async () =>
+    within(await relatedList())
+      .getAllByRole("link")[0]
+      .getAttribute("href");
+  expect(await firstLink()).toBe(`/articles/${all[0].id}`);
+
+  fireEvent.click(latest);
+
+  expect(latest.getAttribute("aria-pressed")).toBe("true");
+  await waitFor(async () =>
+    expect(await firstLink()).toBe(`/articles/${all.at(-1)!.id}`),
+  );
+  expect(sorts).toContain("latest");
+  // 첫 기사 날짜는 최신 순에서도 가장 오래된 기사다
+  expect(screen.getByText("첫 기사").parentElement!.textContent).toBe(
+    `첫 기사 ${all[0].publishedAt.slice(0, 10).replaceAll("-", ".")}`,
+  );
+
+  // 최신 순 다음 쪽도 이어서 오래된 쪽으로 간다 — 6건이면 맨 끝이 가장 오래된 기사
+  fireEvent.click(screen.getByRole("button", { name: "기사 1개 더 보기" }));
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("list", { name: "관련 기사" })).getAllByRole(
+        "listitem",
+      ),
+    ).toHaveLength(6),
+  );
+  // 행마다 앱 안 기사 링크와 원문 링크가 있다 — 앱 안 링크만 본다
+  const inner = within(screen.getByRole("list", { name: "관련 기사" }))
+    .getAllByRole("link")
+    .map((link) => link.getAttribute("href"))
+    .filter((href) => href?.startsWith("/articles/"));
+  expect(inner.at(-1)).toBe(`/articles/${all[0].id}`);
+  server.events.removeAllListeners();
+});
+
 test("관련 기사가 없으면 안내를 둔다", async () => {
   server.use(
     http.get("/api/v1/events/119/articles", () =>

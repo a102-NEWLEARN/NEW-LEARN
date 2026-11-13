@@ -103,9 +103,7 @@ test("셸 안에 관심 분야를 앞에 둔 분야 탭을 두고, 첫 관심 �
   await openPage();
 
   expect(
-    screen.getByText(
-      "여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요. 마지막 사건이 최근인 이슈부터 보여줘요.",
-    ),
+    screen.getByText("여러 언론사 기사를 사건 단위로 묶어 정리한 이슈예요."),
   ).toBeDefined();
   await screen.findByRole("tablist", { name: "분야" });
   expect(tabNames()).toEqual([
@@ -118,7 +116,7 @@ test("셸 안에 관심 분야를 앞에 둔 분야 탭을 두고, 첫 관심 �
   expect(selectedTab()?.textContent).toBe("경제, 관심 분야");
   await waitFor(async () => expect(await cardHrefs()).toEqual(ids(100, 12)));
   expect(requests[0].get("category")).toBe("economy");
-  expect(requests[0].get("size")).toBe("12");
+  expect(requests[0].get("size")).toBe("100");
   expect(requests[0].get("page")).toBe("0");
   await waitFor(() => expect(document.title).toContain("분야별 이슈"));
 });
@@ -135,7 +133,7 @@ test("?category= 로 열면 그 분야를 고른 채 연다", async () => {
 });
 
 test.each(["nope", "sports"])(
-  "모르는 분야나 준비 중 분야(?category=%s)면 맨 앞 탭을 고른다",
+  "모르는 분야나 뺀 분야(?category=%s)면 맨 앞 탭을 고른다",
   async (code) => {
     serveIssues();
     await openPage(`/issues?category=${code}`);
@@ -158,43 +156,108 @@ test("탭을 바꾸면 기록을 쌓지 않고 ?category= 와 카드가 바뀐�
   );
 });
 
-test("더 보기를 누르면 다음 12개를 아래에 붙이고 붙인 첫 이슈로 포커스를 옮긴다", async () => {
-  serveIssues();
-  await openPage();
+const pager = () => screen.getByRole("navigation", { name: "이슈 쪽" });
+const sortGroup = () => screen.getByRole("group", { name: "이슈 정렬" });
 
-  fireEvent.click(
-    await screen.findByRole("button", { name: "이슈 12개 더 보기" }),
-  );
+// 2026-11-13 사용자 QA 6 — *더 보기* 대신 쪽 번호. 받아 둔 분야 이슈를 12개씩 나눈다 (Jira 203)
+test("12개씩 쪽 번호로 나누고, 쪽을 누르면 그 쪽 이슈로 바꿔 첫 카드로 포커스를 옮기고 ?page= 를 남긴다", async () => {
+  const requests = serveIssues();
+  const { router } = await openPage();
 
-  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(100, 24)));
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(100, 12)));
+  expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+  expect(
+    within(pager())
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label")),
+  ).toEqual(["이전 쪽", "1쪽", "2쪽", "3쪽", "다음 쪽"]);
+
+  fireEvent.click(within(pager()).getByRole("button", { name: "2쪽" }));
+
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(88, 12)));
   await waitFor(() =>
     expect(document.activeElement?.getAttribute("href")).toBe("/issues/88"),
   );
-  fireEvent.click(screen.getByRole("button", { name: "이슈 6개 더 보기" }));
+  expect(router.state.location.search).toBe("?category=economy&page=2");
+  expect(router.state.historyAction).toBe("REPLACE");
 
-  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(100, 30)));
-  expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+  fireEvent.click(within(pager()).getByRole("button", { name: "다음 쪽" }));
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(76, 6)));
+  // 쪽을 넘겨도 다시 받지 않는다 — 처음에 분야 이슈를 모두 받았다
+  expect(requests).toHaveLength(1);
 });
 
-test("더 보기 사이에 순서가 바뀌어 같은 이슈가 다시 와도 한 번만 보인다", async () => {
-  // 첫 쪽을 받은 뒤 새 사건이 붙은 이슈 101 이 맨 앞으로 와서, 다음 쪽이 하나씩 밀린다
-  serveIssues((page) => (page === 0 ? fixture : [issue(101), ...fixture]));
+test("분야 이슈가 100개를 넘으면 다음 쪽을 이어 받아 모두 모은다", async () => {
+  const many = Array.from({ length: 130 }, (_, at) => issue(1000 - at));
+  const requests = serveIssues(many);
   await openPage();
 
-  fireEvent.click(
-    await screen.findByRole("button", { name: "이슈 12개 더 보기" }),
-  );
-
-  // 둘째 쪽 첫 이슈는 이미 본 89 다 — 한 번만 남기고 88 부터 붙인다
-  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(100, 23)));
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(1000, 12)));
+  expect(requests.map((params) => params.get("page"))).toEqual(["0", "1"]);
+  expect(within(pager()).getByRole("button", { name: "11쪽" })).toBeDefined();
 });
 
-test("마지막 쪽이면 더 보기를 두지 않는다", async () => {
-  serveIssues();
-  await openPage("/issues?category=politics");
+// 2026-11-13 사용자 QA 5 — 최신순 · 기사 많은 순. A2 에 기사 수 정렬이 없어 받은 것을 FE 에서 줄 세운다 (Jira 203)
+test("기사 많은 순을 고르면 기사 수가 많은 이슈부터, 같으면 최신순으로 두고 1쪽으로 돌아가 ?sort=articles 를 남긴다", async () => {
+  const counted = [
+    { ...issue(100), articleCount: 3 },
+    { ...issue(99), articleCount: 20 },
+    { ...issue(98), articleCount: 9 },
+    { ...issue(97), articleCount: 20 },
+  ];
+  serveIssues(counted);
+  const { router } = await openPage();
 
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(100, 4)));
+  const latest = within(sortGroup()).getByRole("button", { name: "최신순" });
+  const most = within(sortGroup()).getByRole("button", {
+    name: "기사 많은 순",
+  });
+  expect(latest.getAttribute("aria-pressed")).toBe("true");
+
+  fireEvent.click(most);
+
+  expect(most.getAttribute("aria-pressed")).toBe("true");
+  await waitFor(async () =>
+    expect(await cardHrefs()).toEqual([
+      "/issues/99",
+      "/issues/97",
+      "/issues/98",
+      "/issues/100",
+    ]),
+  );
+  expect(router.state.location.search).toBe("?category=economy&sort=articles");
+
+  fireEvent.click(latest);
+  expect(router.state.location.search).toBe("?category=economy");
+});
+
+test("?sort=articles&page=2 로 열면 그 정렬 · 쪽으로 열고, 탭을 바꾸면 1쪽 · 최신순이 아니라 고른 정렬 그대로다", async () => {
+  serveIssues();
+  const { router } = await openPage(
+    "/issues?category=economy&sort=articles&page=2",
+  );
+
+  // 시험용 이슈는 기사 수가 모두 같아 최신순과 같은 차례다
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(88, 12)));
+  expect(
+    within(sortGroup())
+      .getByRole("button", { name: "기사 많은 순" })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+
+  fireEvent.click(screen.getByRole("tab", { name: "정치" }));
+  expect(router.state.location.search).toBe("?category=politics&sort=articles");
+});
+
+test("쪽 번호가 넘치면 마지막 쪽, 한 쪽뿐이면 쪽 번호를 두지 않는다", async () => {
+  serveIssues();
+  await openPage("/issues?category=economy&page=9");
+  await waitFor(async () => expect(await cardHrefs()).toEqual(ids(76, 6)));
+
+  fireEvent.click(screen.getByRole("tab", { name: "정치" }));
   await waitFor(async () => expect(await cardHrefs()).toHaveLength(2));
-  expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
+  expect(screen.queryByRole("navigation", { name: "이슈 쪽" })).toBeNull();
 });
 
 test("분야에 이슈가 없으면 빈 문구를 둔다", async () => {

@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router";
 import { MeaningBubble } from "@/components/meaning/MeaningBubble";
 import { SCREEN_RISE } from "@/components/motion/appMotion";
 import { Header } from "@/components/shell/Header";
+import { SessionExpiredRedirect } from "@/components/shell/SessionExpiredRedirect";
 import {
   focusSearchRequest,
   useQuickSearch,
@@ -18,7 +19,9 @@ const fillsMain = (pathname: string) => /^\/(articles|issues)\//.test(pathname);
 // 화면 높이에 맞추고 본문만 스크롤해서 헤더가 늘 위에 붙어 있다.
 // 왼쪽 사이드바는 두지 않는다 — 좁은 화면 서랍은 Jira 195, 넓은 화면 레일 · 이슈 탐색은 Jira 196 에서 뺐다 (2026-11-12 사용자).
 // 분야별 이슈는 홈 추천 이슈의 *전체보기*(/issues), 이슈 · 사건 · 기사는 검색으로 찾는다.
-// 본문의 글을 드래그하면 용어사전 말풍선이 뜬다(MeaningBubble)
+// 본문의 글을 드래그하면 용어사전 말풍선이 뜬다(MeaningBubble).
+// 손님도 셸 안 화면을 쓴다 — 회원 화면(나의 뉴스함 · 마이페이지)만 RequireMember 가 막고(routes.tsx),
+// 쓰다 세션이 끝난 회원은 SessionExpiredRedirect 가 로그인 화면으로 보낸다 (2026-11-13 Jira 205)
 export function AppShell() {
   const mainRef = useRef<HTMLElement>(null);
   const narrow = useMediaQuery(NARROW_SCREEN);
@@ -62,6 +65,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-dvh flex-col">
+      <SessionExpiredRedirect />
       <Header narrow={narrow} onLogoClick={scrollToTop} />
       <div className="flex min-h-0 flex-1">
         {/* isolate — 본문 안의 z-index(검색 목록 · TIP)가 본문 밖에 뜨는 것(용어사전 말풍선 · 시트) 위로 새지 않게 */}

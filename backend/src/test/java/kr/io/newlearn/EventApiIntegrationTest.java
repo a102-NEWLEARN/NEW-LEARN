@@ -134,6 +134,23 @@ class EventApiIntegrationTest {
     }
 
     @Test
+    void latestSortIsTheExactReverseAcrossPages() throws Exception {
+        mvc.perform(get("/api/v1/events/4902/articles").param("sort", "latest").param("size", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(4201, 4209, 4208, 4207)))
+                .andExpect(jsonPath("$.totalElements").value(10));
+        mvc.perform(get("/api/v1/events/4902/articles")
+                        .param("sort", "latest")
+                        .param("size", "4")
+                        .param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(4202, 4211)));
+        mvc.perform(get("/api/v1/events/4902/articles").param("sort", "oldest").param("size", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(4211, 4202, 4203, 4204)));
+    }
+
+    @Test
     void summariesAndAnalysisStatusesReuseArticleApiContract() throws Exception {
         mvc.perform(get("/api/v1/events/4902/articles"))
                 .andExpect(status().isOk())
@@ -174,7 +191,8 @@ class EventApiIntegrationTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         }
-        for (String[] param : new String[][] {{"page", "-1"}, {"size", "0"}, {"size", "101"}, {"page", "abc"}}) {
+        for (String[] param :
+                new String[][] {{"sort", "bad"}, {"page", "-1"}, {"size", "0"}, {"size", "101"}, {"page", "abc"}}) {
             mvc.perform(get("/api/v1/events/4902/articles").param(param[0], param[1]))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
