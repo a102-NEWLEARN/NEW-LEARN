@@ -806,6 +806,18 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
         "outside_candidates": prep["same_day_outside"],
     }
     report["gold_counts"] = dict(sorted(Counter(f"{k[0]}:{v}" for k, v in gold.items()).items()))
+    # 이행으로 이은 합침 진단 — A~B, B~C 를 타고 묶음이 통째로 붙었는지. 정답 묶음 하나가 운영 이슈 여럿을 삼키면 지표가 그것에 끌려간다
+    merged = defaultdict(set)
+    for e, node in event_gold.items():
+        if events[e].get("issue_id") is not None:
+            merged[node].add(events[e]["issue_id"])
+    sizes = sorted((len(v) for v in merged.values()), reverse=True)
+    report["issue_chaining"] = {
+        "gold_clusters": len(set(event_gold.values())),
+        "system_issues": len({e["issue_id"] for e in events.values() if e.get("issue_id") is not None}),
+        "largest_merge_spans_issues": sizes[:5],
+        "clusters_spanning_3plus": sum(1 for s in sizes if s >= 3),
+    }
     path = golddir / "metrics.json"
     path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     for name in ("event", "issue"):
@@ -815,6 +827,14 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
             f"{name}: 쌍 F1 {r['pair_f1']:.3f} {fmt_ci(ci.get('pair_f1'))} · 정밀 {r['pair_precision']:.3f} · 재현 {r['pair_recall']:.3f}"
             f" · B³ F1 {r['b3_f1']:.3f} {fmt_ci(ci.get('b3_f1'))} · V {r['v_measure']:.3f} · ARI {r['ari']:.3f} (항목 {r['n']})"
         )
+    chain = report["issue_chaining"]
+    print(
+        f"이행 합침: 정답 이슈 묶음 {chain['gold_clusters']} (운영 {chain['system_issues']})"
+        f" · 가장 많이 삼킨 묶음이 운영 이슈 {chain['largest_merge_spans_issues']}개"
+        f" · 운영 이슈 3개 이상을 삼킨 묶음 {chain['clusters_spanning_3plus']}개"
+    )
+    if chain["largest_merge_spans_issues"] and chain["largest_merge_spans_issues"][0] >= 5:
+        print("  ⚠ 이행으로 이은 합침이 크다 — 이슈 지표는 묶음 단위로 다시 확인하기 전까지 보고하지 않는다", file=sys.stderr)
 
 
 def fmt_ci(ci):
