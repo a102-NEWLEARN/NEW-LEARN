@@ -163,6 +163,18 @@ class DictionaryMeaningApiIntegrationTest {
         assertThat(prompt.getValue().context()).contains("예금 이자를 내리고");
     }
 
+    // 흐름지도 머리 줄은 AI 한 줄 요지(article_mindmap.summary)다 — 그 줄에서 고른 말도 받는다 (Jira 202)
+    @Test
+    void theAiSummaryOnTheFlowHeadlineIsAScreenText() throws Exception {
+        jdbc.sql("update article_mindmap set summary = '금리 동결로 가계 이자 부담이 커졌다' where article_id = 4201")
+                .update();
+        when(source.explain(any())).thenReturn(INTEREST);
+        ask("이자", "가계 이자 부담이", "ARTICLE", 4201).andExpect(status().isOk());
+        ArgumentCaptor<MeaningPrompt> prompt = ArgumentCaptor.forClass(MeaningPrompt.class);
+        verify(source).explain(prompt.capture());
+        assertThat(prompt.getValue().around()).isEqualTo("가계 이자 부담이");
+    }
+
     // AC-11 — 뜻 단위가 아니거나 문맥으로도 모르면 200 에 세 칸이 null 이다(결과 없음과 같은 자리)
     @Test
     void notExplainableIsNullFieldsWith200() throws Exception {
