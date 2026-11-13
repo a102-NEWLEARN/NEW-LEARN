@@ -110,12 +110,15 @@ preStop 10초(이때도 큐를 읽는다) → 종료 신호 → 하던 작업을
    kubectl -n data exec redis-0 -- redis-cli XINFO GROUPS analysis.released
    ```
 
-4. **백업과 스냅숏** — `db-backup.md` 의 손 백업, 그리고 되돌릴 때 견줄 기준
+4. **백업과 스냅숏** — `db-backup.md` 의 손 백업, 그리고 `realtime-snapshot.sql`
+
+   이슈 워커가 ATTACH 하면 **기존 이슈 요약을 새 사건까지 넣어 다시 쓴다.** 사건 시점(`occurred_at`)과 이슈 분야도 바뀐다. 백업만으로 되돌리면 켠 뒤 들어온 기사까지 사라지므로, 네 표(`issue` · `event` · `article_event` · `issue_category`)를 `rt_before` 스키마에 떠 둔다.
 
    ```bash
-   kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc \
-     "select max(id) from issue; select max(id) from event; select count(*) from article_event"
+   { echo 'begin;' && cat realtime-snapshot.sql && echo 'commit;'; } | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
    ```
+
+   되돌릴 때는 **세 플래그를 false 로 되돌리고 ai Pod 가 바뀐 뒤** `realtime-restore.sql`. 켠 뒤 생긴 사건 · 이슈 · 연결을 지우고 남은 것을 스냅숏 값으로 되돌린 다음, 스냅숏과 같은지 단언한다. 기사 · 마인드맵 · 공개 여부와 분석 작업 행은 건드리지 않는다 — 작업 행을 지우면 그 기사가 다시 판정 줄에 선다.
 
 ### 켜기 · 끄기
 
