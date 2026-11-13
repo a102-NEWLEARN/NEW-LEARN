@@ -534,6 +534,7 @@ export function Timeline({
                   key={event.id}
                   transform={`translate(${x},${event.y})`}
                   role="button"
+                  data-coach="event"
                   tabIndex={0}
                   data-event-id={event.id}
                   aria-current={isSelected ? "true" : undefined}

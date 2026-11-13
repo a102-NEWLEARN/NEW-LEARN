@@ -35,6 +35,29 @@ import { usePageTitle } from "@/components/usePageTitle";
 import { toId } from "@/lib/id";
 import { prefersReducedMotion } from "@/lib/motion";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { type CoachMark, CoachMarks } from "@/components/coach/CoachMarks";
+
+// 기사 화면 안내 — 처음 들어오면 한 번 띄운다
+const ARTICLE_COACH: CoachMark[] = [
+  {
+    target: "tabs",
+    title: "AI 가 정리한 기사",
+    body: "핵심 내용 · 원인·배경 · 반응 · 전망 네 갈래를 흐름지도와 마인드맵으로 봐요",
+    side: "bottom",
+  },
+  {
+    target: "glossary",
+    title: "모르는 단어는?",
+    body: "드래그하면 뜻을 알려줘요",
+    side: "bottom",
+  },
+  {
+    target: "expand",
+    title: "크게 보기",
+    body: "화면을 꽉 채워 봐요",
+    side: "bottom",
+  },
+];
 
 const NOT_FOUND_TITLE = "기사를 찾을 수 없어요";
 // 화면이 아는 A9 응답 판 (docs/api-screen.md A9). 모르는 판이면 그리지 않고 안내만 한다
@@ -148,6 +171,7 @@ function ArticleView({ articleId }: { articleId: number }) {
     // 넓은 화면은 높이를 채우고 보기가 남은 자리 안에서 스크롤한다
     <div className="flex min-h-full flex-col md:h-full md:min-h-[560px]">
       <ArticleHeader query={article} onTitleFocusChange={setTitleFocused} />
+      <CoachMarks id="article" marks={ARTICLE_COACH} />
       <TabsRoot
         value={view}
         onValueChange={setView}
@@ -161,6 +185,7 @@ function ArticleView({ articleId }: { articleId: number }) {
         >
           {/* 좁은 화면은 홈 보기 탭처럼 두 탭이 줄을 반씩 나눈다 */}
           <TabsList
+            data-coach="tabs"
             aria-label="보기"
             className="shrink-0 gap-x6 overflow-visible bg-transparent px-0 shadow-none max-md:flex-1 max-md:gap-0"
           >
@@ -178,6 +203,7 @@ function ArticleView({ articleId }: { articleId: number }) {
             <button
               type="button"
               aria-label="크게 보기"
+              data-coach="expand"
               title="크게 보기"
               aria-haspopup="dialog"
               // 창을 닫으면 SEED(Radix FocusScope)가 열기 전 포커스 자리로 돌려준다 — 사파리는 눌러도 버튼에 포커스를 주지 않아
