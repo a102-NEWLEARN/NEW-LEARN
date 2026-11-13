@@ -122,7 +122,8 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x3">
         <h2
           id={headingId}
-          className="t7-bold col-span-2 row-start-1 text-fg-neutral md:col-span-1"
+          data-coach="recommended"
+          className="t7-bold col-span-2 row-start-1 justify-self-start text-fg-neutral md:col-span-1"
         >
           {member ? `${member.name}님을 위한 추천 이슈` : "추천 이슈"}
         </h2>
@@ -136,6 +137,7 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
             variant="ghost"
             size="small"
             className={EDIT_INTERESTS}
+            data-coach="interests"
             onClick={(event) => signupPrompt.open(event.currentTarget)}
           >
             관심사 편집
@@ -147,6 +149,7 @@ export function RecommendedIssues({ member, pending }: RecommendedIssuesProps) {
             variant="ghost"
             size="small"
             className={EDIT_INTERESTS}
+            data-coach="interests"
           >
             <Link to="/me">
               관심사 편집

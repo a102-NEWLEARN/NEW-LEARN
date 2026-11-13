@@ -65,6 +65,7 @@ export function Header({ onLogoClick, narrow }: HeaderProps) {
             >
               <Link
                 to="/bookmarks"
+                data-coach="bookmarks"
                 aria-current={atBookmarks ? "page" : undefined}
               >
                 <PrefixIcon
