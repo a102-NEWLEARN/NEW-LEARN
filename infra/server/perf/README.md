@@ -1,6 +1,6 @@
 # 조회 성능 측정
 
-기사 표 부분 인덱스(Flyway V14) 전 · 후를 같은 방법으로 잰다 (Jira S15P31A102-189 · 190). 계획은 `docs/plans/2026-11-11-query-performance.md`, 잰 값은 `results.md`, 실시간 그림은 Grafana 대시보드 「조회 성능」(`infra/k8s/bootstrap/pg-exporter/`).
+기사 표 부분 인덱스(Flyway V14) 전 · 후를 같은 방법으로 잰다 (Jira S15P31A102-189 · 190). 계획은 `docs/plans/2026-11-11-query-performance.md`, 잰 값은 `results.md`(A2 이슈 목록 SQL · V15 전 · 후는 `results-194.md`, Jira S15P31A102-194), 실시간 그림은 Grafana 대시보드 「조회 성능」(`infra/k8s/bootstrap/pg-exporter/`).
 
 | 파일 | 무엇을 | 돌리는 법 (이 PC, 저장소 루트) |
 |---|---|---|
@@ -75,7 +75,7 @@ postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱�
    - 공개 기사 인덱스만 읽기는 VACUUM 뒤 새로 들어온 기사가 끼어든 페이지만큼 표를 다시 본다(계획의 `Heap Fetches`). 전 · 후를 견줄 때는 `stats.sql` 의 VACUUM 상태를 같이 적는다
 3. 결과를 `results.md` 에 옮긴다. 시각과 그때 부하(수집이 돌았나)를 같이 적는다
 
-피할 때: 매일 10:00 수집, 04:00 DB 덤프, 15분 수집이 켜진 뒤의 회차(:00 · :15 · :30 · :45).
+피할 때: 매일 10:00 수집, 04:00 DB 덤프, 15분 수집이 켜진 뒤의 회차(:00 · :15 · :30 · :45). 그리고 GitLab CI 잡이 도는 동안 — 러너가 이 관리 서버의 쿠버네티스에서 잡을 돌려 bench 지연과 부하 시험의 「보내는 쪽 CPU」에 섞인다. 시작 직전에 `kubectl get pod -A --no-headers | grep -c "runner-.*-concurrent"` 가 0 인지 보고, 재는 동안은 머지 · push 를 미룬다(2026-11-13 두 번 멈춤, Jira S15P31A102-194)
 
 ## 쿼리 출처
 
