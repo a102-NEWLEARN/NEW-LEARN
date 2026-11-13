@@ -300,6 +300,49 @@ class GoldPartitions(unittest.TestCase):
         _, event_gold = ce.gold_partitions(self.events(), self.articles(), self.gold())
         self.assertNotEqual(event_gold[10], event_gold[20])
 
+    def test_issue_merge_needs_every_pair_judged(self):
+        # A~B 와 B~C 만 판정하고 A~C 는 판정하지 않았으면 셋을 합치지 않는다 (이행으로 이은 합침)
+        chain = {"Q:1:2": "same_issue", "Q:2:3": "same_issue"}
+        self.assertEqual(ce.verified_issue_merges(chain), [])
+        # 세 쌍을 모두 판정했고 모두 같은 흐름이면 합친다
+        clique = dict(chain, **{"Q:1:3": "same_issue"})
+        self.assertEqual(ce.verified_issue_merges(clique), [(1, 2), (1, 3), (2, 3)])
+        # 한 쌍이라도 무관이면 합치지 않는다
+        broken = dict(clique, **{"Q:1:3": "unrelated"})
+        self.assertEqual(ce.verified_issue_merges(broken), [])
+        # 쌍 하나는 그대로 합친다
+        self.assertEqual(ce.verified_issue_merges({"Q:4:5": "same_issue"}), [(4, 5)])
+
+    def test_issue_merge_report_counts_unverified(self):
+        report = ce.issue_merge_report({"Q:1:2": "same_issue", "Q:2:3": "same_issue", "Q:4:5": "unrelated"})
+        self.assertEqual(report["judged_pairs"], 3)
+        self.assertEqual(report["same_issue_pairs"], 2)
+        self.assertEqual(report["applied_pairs"], 0)
+        self.assertEqual(report["unverified_pairs"], 2)
+        self.assertEqual(report["issues_in_unverified_chains"], 3)
+
+    def test_event_pair_inside_two_issues_does_not_bridge_them(self):
+        # 사건 10(이슈 1)과 사건 20 이 같은 사건이어도 이슈까지 합치지는 않는다 — 사건 지표에서 따로 센다
+        events = {e["id"]: e for e in EVENTS}
+        events[20] = dict(events[20], issue_id=2)
+        gold = self.gold()
+        gold["I:2:20"] = "Y"
+        gold["P:10:20"] = "same_event"
+        _, event_gold = ce.gold_partitions(events, self.articles(), gold)
+        self.assertNotEqual(event_gold[10], event_gold[20])
+
+    def test_outside_event_joins_only_one_issue(self):
+        # 이슈 밖 사건이 이슈 둘에 걸치면 번호가 작은 하나에만 붙어 다리를 놓지 않는다
+        events = {e["id"]: e for e in EVENTS}
+        events[30] = dict(events[10], id=30, issue_id=3)
+        gold = self.gold()
+        gold["I:3:30"] = "Y"
+        gold["O:20:1"] = "Y"
+        gold["O:20:3"] = "Y"
+        _, event_gold = ce.gold_partitions(events, self.articles(), gold)
+        self.assertEqual(event_gold[20], event_gold[10])
+        self.assertNotEqual(event_gold[10], event_gold[30])
+
     def test_missing_verdict_rejected(self):
         gold = self.gold()
         del gold["M:10:101"]

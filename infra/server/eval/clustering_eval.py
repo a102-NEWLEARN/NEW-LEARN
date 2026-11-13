@@ -446,12 +446,13 @@ def binary(key, verdict):
     return 1 if verdict == "same_issue" else 0
 
 
-def record(golddir, key, word, stage):
+def record(golddir, key, word, stage, judge="human"):
+    """판정 하나를 더한다. judge 는 실제로 판정한 쪽이다 — 사람이 하지 않은 것을 human 으로 적지 않는다."""
     parse_key(key)
     if word not in HUMAN_WORDS:
         raise CheckError([f"판정은 통과 · 불통과 중 하나: {word}"])
     golddir.mkdir(parents=True, exist_ok=True)
-    path = golddir / "human.tsv"
+    path = golddir / ("human.tsv" if judge == "human" else f"{judge}.tsv")
     new = not path.exists()
     now = datetime.datetime.now(KST).isoformat(timespec="seconds")
     with open(path, "a", encoding="utf-8", newline="\n") as out:
@@ -733,27 +734,88 @@ def gold_partitions(events, articles, gold):
     article_gold = {a: find(node) for a, node in article_node.items()}
 
     parent.clear()
-    event_node = {}
+    inside, outside, event_node = {}, [], {}
     for event in events.values():
         e = event["id"]
         if event.get("issue_id") is not None:
-            node = group_node("I", event["issue_id"], f"I:{event['issue_id']}:{e}", ("V", e))
+            inside[e] = group_node("I", event["issue_id"], f"I:{event['issue_id']}:{e}", ("V", e))
         else:
-            hits = sorted(parse_key(k)[2] for k, v in gold.items() if k.startswith(f"O:{e}:") and v == "Y")
-            node = ("I", hits[0]) if hits else ("V", e)
-        event_node[e] = node
-        find(node)
+            outside.append(e)
+    # 이슈 밖 사건은 **한 이슈에만** 붙인다. 여러 이슈에 걸치게 두면 그 사건이 다리가 되어 이슈가 줄줄이 이어진다
+    # (11-13: 중간선거 이슈 다섯이 한 덩어리). 후보가 여럿이면 번호가 작은 이슈 하나만 고른다.
+    joins = defaultdict(set)
     for k, v in gold.items():
         task, a, b = parse_key(k)
-        if task == "Q" and v in ("same_issue", "Y"):
-            union(("I", a), ("I", b))
-        # 같은 사건이면 이슈도 같다. 같은 흐름(same_issue)은 한쪽이 이슈 밖 사건일 때만 붙인다 — 두 이슈를 통째로 합치는 것은 Q 가 정한다
-        if task == "P" and v == "same_event":
+        if task == "O" and v == "Y":
+            joins[a].add(b)
+        if task == "P" and v in ("same_event", "same_issue"):
+            for one, other in ((a, b), (b, a)):
+                if one in inside and other not in inside and events[one].get("issue_id") is not None:
+                    joins[other].add(events[one]["issue_id"])
+    for e in outside:
+        event_node[e] = ("I", min(joins[e])) if joins[e] else ("V", e)
+    event_node.update(inside)
+    for node in event_node.values():
+        find(node)
+    # 어느 이슈에도 붙지 않은 사건끼리 같은 사건 · 같은 흐름이면 묶어 새 이슈를 만든다.
+    # 한쪽이라도 이슈에 들어간 쌍은 잇지 않는다 — 이으면 그 쌍이 이슈 사이의 다리가 된다.
+    # 두 이슈 모두에 사건이 있는 쌍도 마찬가지다. 그 쌍의 성적은 사건 지표에서 센다
+    for k, v in gold.items():
+        task, a, b = parse_key(k)
+        if task == "P" and v in ("same_event", "same_issue") and event_node[a][0] == "V" and event_node[b][0] == "V":
             union(event_node[a], event_node[b])
-        if task == "P" and v == "same_issue" and ("V" in (event_node[a][0], event_node[b][0])):
-            union(event_node[a], event_node[b])
+    for a, b in verified_issue_merges(gold):
+        union(("I", a), ("I", b))
     event_gold = {e: find(node) for e, node in event_node.items()}
     return article_gold, event_gold
+
+
+def verified_issue_merges(gold):
+    """합쳐도 되는 이슈 쌍만 돌려준다.
+
+    Q 를 그대로 이으면 A~B, B~C 를 타고 묶음이 통째로 붙는다. A~C 는 판정한 적이 없는데도 합쳐지므로
+    거대 묶음이 생긴다(11-13: 묶음 하나가 운영 이슈 24개). 그래서 **묶음 안의 쌍이 모두 판정됐고 모두
+    같은 흐름일 때만** 합친다. 그렇지 않은 묶음은 합치지 않고 `unverified_chains` 로 센다.
+    """
+    same = {(min(a, b), max(a, b)) for k, v in gold.items() if k[0] == "Q" and v in ("same_issue", "Y") for _, a, b in [parse_key(k)]}
+    judged = {(min(a, b), max(a, b)) for k in gold if k[0] == "Q" for _, a, b in [parse_key(k)]}
+    neighbours = defaultdict(set)
+    for a, b in same:
+        neighbours[a].add(b)
+        neighbours[b].add(a)
+    seen, accepted = set(), []
+    for start in sorted(neighbours):
+        if start in seen:
+            continue
+        group, stack = {start}, [start]
+        while stack:
+            for other in neighbours[stack.pop()]:
+                if other not in group:
+                    group.add(other)
+                    stack.append(other)
+        seen |= group
+        members = sorted(group)
+        pairs = [(members[i], members[j]) for i in range(len(members)) for j in range(i + 1, len(members))]
+        if all(pair in judged and pair in same for pair in pairs):
+            accepted += pairs
+    return accepted
+
+
+def issue_merge_report(gold):
+    """Q 판정과 합침 결과를 센다 — 숫자 옆에 붙일 설명용."""
+    same = {(min(a, b), max(a, b)) for k, v in gold.items() if k[0] == "Q" and v in ("same_issue", "Y") for _, a, b in [parse_key(k)]}
+    accepted = set(verified_issue_merges(gold))
+    groups = defaultdict(set)
+    for a, b in same:
+        groups[a].add(b)
+        groups[b].add(a)
+    return {
+        "judged_pairs": sum(1 for k in gold if k[0] == "Q"),
+        "same_issue_pairs": len(same),
+        "applied_pairs": len(accepted),
+        "unverified_pairs": len(same - accepted),
+        "issues_in_unverified_chains": len({i for pair in same - accepted for i in pair}),
+    }
 
 
 def final_gold(golddir):
@@ -812,6 +874,7 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
         if events[e].get("issue_id") is not None:
             merged[node].add(events[e]["issue_id"])
     sizes = sorted((len(v) for v in merged.values()), reverse=True)
+    report["issue_merges"] = issue_merge_report(gold)
     report["issue_chaining"] = {
         "gold_clusters": len(set(event_gold.values())),
         "system_issues": len({e["issue_id"] for e in events.values() if e.get("issue_id") is not None}),
@@ -828,10 +891,16 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
             f" · B³ F1 {r['b3_f1']:.3f} {fmt_ci(ci.get('b3_f1'))} · V {r['v_measure']:.3f} · ARI {r['ari']:.3f} (항목 {r['n']})"
         )
     chain = report["issue_chaining"]
+    merge = report["issue_merges"]
     print(
         f"이행 합침: 정답 이슈 묶음 {chain['gold_clusters']} (운영 {chain['system_issues']})"
         f" · 가장 많이 삼킨 묶음이 운영 이슈 {chain['largest_merge_spans_issues']}개"
         f" · 운영 이슈 3개 이상을 삼킨 묶음 {chain['clusters_spanning_3plus']}개"
+    )
+    print(
+        f"이슈 합침: 판정한 쌍 {merge['judged_pairs']} 가운데 같은 흐름 {merge['same_issue_pairs']}"
+        f" · 쌍이 모두 판정돼 합친 것 {merge['applied_pairs']}"
+        f" · 판정 안 한 쌍을 타야 해서 안 합친 것 {merge['unverified_pairs']}(이슈 {merge['issues_in_unverified_chains']}개)"
     )
     if chain["largest_merge_spans_issues"] and chain["largest_merge_spans_issues"][0] >= 5:
         print("  ⚠ 이행으로 이은 합침이 크다 — 이슈 지표는 묶음 단위로 다시 확인하기 전까지 보고하지 않는다", file=sys.stderr)
