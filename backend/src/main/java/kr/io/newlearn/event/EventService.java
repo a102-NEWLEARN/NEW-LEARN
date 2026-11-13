@@ -70,8 +70,11 @@ public class EventService {
     }
 
     // memberId 는 세션 회원, 손님이면 null (ArticleService.list 와 같은 까닭으로 손님용 짧은 판은 두지 않는다)
-    public PageResponse<ArticleSummaryResponse> articles(long eventId, PageQuery query, @Nullable Long memberId) {
-        var pageable = query.toPageable(Sort.by(Sort.Direction.ASC, "publishedAt", "id"));
+    // sort 는 컨트롤러가 거른 oldest · latest 다(A6). 같은 발행 시각은 id 가 같은 방향으로 순서를 정해 쪽이 안 섞인다
+    public PageResponse<ArticleSummaryResponse> articles(
+            long eventId, String sort, PageQuery query, @Nullable Long memberId) {
+        var direction = "latest".equals(sort) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        var pageable = query.toPageable(Sort.by(direction, "publishedAt", "id"));
         var page = articles.findReleasedByEventId(eventId, pageable);
         // 전체 수 0 — 사건 번호가 없거나 공개 기사가 하나도 없는 사건이다. 쪽 번호가 넘친 것과는 구분된다(그때는 전체 수가 찬다)
         if (page.getTotalElements() == 0) {

@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import kr.io.newlearn.article.dto.ArticleSummaryResponse;
 import kr.io.newlearn.common.security.MemberPrincipal;
 import kr.io.newlearn.common.web.ApiProblem;
@@ -19,6 +20,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = OpenApiConfig.TAG_EVENT)
@@ -58,11 +60,11 @@ public class EventController {
     @Operation(
             summary = "[확정] A6 사건 관련 기사",
             description =
-                    "투입 기사만 발행 시각·ID 오름차순으로 줍니다. 공개 기사가 하나도 없는 사건은 404 입니다. 처음 5건은 size=5 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
+                    "투입 기사만 발행 시각·ID 순서로 줍니다. 기본은 오름차순(sort=oldest)이고 sort=latest 면 내림차순입니다. 공개 기사가 하나도 없는 사건은 404 입니다. 처음 5건은 size=5 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
-            description = "VALIDATION_FAILED — eventId · page · size 가 숫자가 아니거나 page · size 범위를 벗어남",
+            description = "VALIDATION_FAILED — eventId · page · size 가 숫자가 아니거나 page · size 범위를 벗어남, sort 가 정해진 값이 아님",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
@@ -77,8 +79,18 @@ public class EventController {
     @GetMapping("/api/v1/events/{eventId}/articles")
     public PageResponse<ArticleSummaryResponse> articles(
             @Parameter(description = "사건 ID (A5의 id)", example = "1") @PathVariable long eventId,
+            @Parameter(
+                            description = "정렬. oldest(기본) 발행 시각 오름차순 · latest 발행 시각 내림차순. 같으면 id 가 같은 방향",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {"oldest", "latest"},
+                                            defaultValue = "oldest"))
+                    @RequestParam(required = false)
+                    @Pattern(regexp = "oldest|latest", message = "sort는 oldest 또는 latest로 보내 주세요")
+                    @Nullable
+                    String sort,
             @ParameterObject @Valid PageQuery query,
             @AuthenticationPrincipal @Nullable MemberPrincipal me) {
-        return service.articles(eventId, query, me == null ? null : me.id());
+        return service.articles(eventId, sort == null ? "oldest" : sort, query, me == null ? null : me.id());
     }
 }
