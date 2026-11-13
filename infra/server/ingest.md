@@ -44,10 +44,10 @@ flowchart LR
 
 - `INGEST_RELEASE_*` · `AI_HEALTH_URL` 은 `auto` · `release-only` 에서만 읽고 모두 필수다. 다른 모드는 읽지도 검사하지도 않는다 — 손 실행이 CronJob env 를 물려받아도 `INGEST_MODE` 하나만 덮으면 돈다
 - 같은 실행 안의 중복은 링크와 NewsData `article_id` 로 거르고, 실행 사이 중복은 B2 가 URL 로 막는다(200)
-- 거르는 순서: 기사 모양 → 본문 없음 → 분야(스포츠 · 연예 · 생활 · 음식 · 여행 — 쿼리의 `excludecategory` 와 같은 다섯) → NewsData 가 `duplicate=true` 로 표시 → 시간대 → 시각 모양 → **날짜 범위 밖** → 같은 실행 안 중복 → 기사 상한. 범위 밖(10시 실행의 그날 0 ~ 10시)이 상한을 먹지 않는다
+- 거르는 순서: 기사 모양 → 본문 없음 → 본문이 안내문뿐 → 분야(스포츠 · 연예 · 생활 · 음식 · 여행 — 쿼리의 `excludecategory` 와 같은 다섯) → NewsData 가 `duplicate=true` 로 표시 → 시간대 → 시각 모양 → **날짜 범위 밖** → 같은 실행 안 중복 → 기사 상한. 범위 밖(10시 실행의 그날 0 ~ 10시)이 상한을 먹지 않는다
 - **다른 기사 본문을 달고 온 기사는 다 받은 뒤 뺀다**(`skipped.wrong_body`, Jira S15P31A102-183). NewsData `content` 가 본문이 짧거나 사진뿐인 기사에 다른 기사 묶음이나 언론사 안내문을 준다. 본문을 되살리지 않고 그 기사를 넣지 않는다. 규칙은 셋이다 — (a) 한 번 수집 안에서 같은 언론사 · 같은 본문(앞뒤 공백 뺌, 500자 이상)을 제목이 다른 기사 3건 이상이 쓴다 (b) 단신 제목(`news_ingest.py` 의 `BRIEF_TITLE_RE`) + 본문 5,000자 이상 + 제목 낱말이 본문에 나오는 비율 50% 이하 (c) (a) 와 같은 묶음을 제목 정확히 2개가 쓰고 두 제목 모두 낱말 비율 20% 이하. 제목 · 언론사가 글자가 아니면 판정하지 않고 B2 가 판단한다. 파일 넣기(`INGEST_SOURCE=file`)는 거르지 않는다. 기사 상한은 빼기 전 수로 센다. 잰 값 · 못 잡는 것은 계획 `docs/plans/2026-11-05-ingest-wrong-body.md`, (c) 는 `docs/plans/2026-11-09-ingest-wrong-body-pair.md`
 - **본문이 언론사 안내문뿐인 기사는 받자마자 뺀다**(`skipped.notice_only`, Jira S15P31A102-156). 기사 하나만 보고 판단하고, 본문을 공백 한 칸으로 줄여 600자 이하일 때만 본다 — 긴 실제 본문에 같은 문구가 붙은 기사를 버리지 않게. `screen_text` 본문이 언론사 화면 문구(`SCREEN_TEXT_PREFIXES` — 지금은 경향의 설정 · 뉴스레터 · 개인정보 안내)로 시작한다 — 경향 날씨 · 만평이 478자로 온다. 같은 문구가 실제 본문 뒤에 붙어 오는 경향 단신 · 사진 기사는 남는다. `video_only` 본문이 구분선(`-` 10개 이상) 뒤 「자세한 내용은 동영상으로 확인하실 수 있습니다 · 이 기사의 전체 내용 확인하기」로 끝난다(`VIDEO_ONLY_RE`) — SBS 「클로징」 · 「여담야담」이 RSS 안내와 동영상 안내만 달고 온다. 같은 안내 뒤에 본문이 이어지는 SBS 기사는 남는다. 잰 값은 `SSOT.md` 9절 2026-11-12. 파일 넣기는 거르지 않는다
-- NewsData 가 중간에 실패한 날은 받은 데까지로 판정한다. 같은 본문 기사가 일부만 모여 들어간 뒤 다시 시도에서 묶음이 차면, `본문 불일치로 뺌` 이 찍혀도 앞서 넣은 기사는 DB 에 있다. 그날 Pod 가 둘이면 그 URL 을 DB 와 대조해 숨긴다(`category-labels.md`)
+- NewsData 가 중간에 실패한 회차는 받은 데까지로 판정한다. 같은 본문 기사가 일부만 모여 들어간 뒤 다음 회차(창이 15분 겹친다)나 손 실행에서 묶음이 차면, `본문 불일치로 뺌` 이 찍혀도 앞서 넣은 기사는 DB 에 있다. 그 URL 을 DB 와 대조해 숨긴다(`category-labels.md`)
 - 쿼리에 `sort=pubdateasc`(오래된 순)가 있고 `INGEST_DAYS` 가 있으면, 시각을 믿을 수 있는 기사(UTC · 모양이 맞음)가 **쪽 전체에서 모두 범위 뒤**일 때 멈춘다(`stoppedBy: past_range`, 종료 0). 범위 뒤 기사가 한 건 끼인 쪽에서는 멈추지 않는다 — 정렬이 조금 어긋나도 어제 기사를 잃지 않게 요청 하나를 더 쓴다. 상한에 걸린 기사가 있으면 그쪽(종료 2)이 먼저다 — 그날 0 ~ 10시 쪽을 안 받아 요청이 준다(평균 약 330 → 240, 팀장 어림). 정렬은 2026-11-04 받기만으로 첫 쪽이 창 시작 바로 뒤인 것을 확인했다(`SSOT.md` 10절)
 - 다음 쪽이 남았는데 요청 · 기사 상한에 닿으면 받은 데까지 넣고 종료 2 — 빠진 구간이 있다는 뜻이다. 30분 넘게 이어지면 경보 ①이 울린다(아래 「경보가 오면」)
 
@@ -109,7 +109,7 @@ AI 팀원이 받아 둔 10/21 ~ 11/3 최종 기사(`data/newsdata_2026-10-21_202
 - 값 변환은 `infra/server/sqlite_to_b2.py` 한 곳(규칙은 그 파일 머리말). AI 팀도 같은 출력 파일(같은 sha256)을 로컬 B2 로 넣는다
 - 보내기는 CronJob 틀로 띄운 Job 안에서 `kubectl exec -i … < 파일` — 이미지 · 이름표 · Secret 이 매일 수집과 같고 배치 키가 클러스터 밖으로 나가지 않는다. 결과는 exec 의 표준 출력이라 `kubectl logs` · Loki 에 남지 않는다 — 서버의 로그 파일이 기록이다
 - 같은 URL 은 B2 가 200 이라(위 「설정」 아래) 끊기면 같은 명령을 다시 돌린다
-- 그날 10시 예약 Job 이 끝난 뒤 시작한다 — 손 Job 은 CronJob 의 동시 실행 막기(`Forbid`)에 세어지지 않는 것으로 본다(위 「매일 실행」 끝 줄처럼 클러스터에서 확인하지는 않았다)
+- 예약 회차가 돌지 않을 때 시작한다 — 손 Job 은 CronJob 의 동시 실행 막기(`Forbid`)에 세어지지 않는 것으로 본다(위 「15분 실행」 끝 줄처럼 클러스터에서 확인하지는 않았다)
 
 **1. 넣기 전 백업** (EC2) — `db-backup.md` 「확인 · 손으로 돌리기」의 손 백업 한 번. 끝에 남긴 파일 이름 · 크기를 적어 둔다
 
@@ -125,7 +125,7 @@ scp C:/tmp/preload/articles-1021-1103.jsonl newlearn:
 
 - 변환이 찍은 `lines` · `sha256` 을 적어 둔다. EC2 에서 `sha256sum articles-1021-1103.jsonl` · `wc -l articles-1021-1103.jsonl` 이 같아야 한다
 
-**3. Job 띄우기** (EC2) — ConfigMap 에 file 모드가 들어갔는지(1 이 나와야) 보고, Job 은 `sleep` 으로 띄운다. 이름에 글자가 섞여 「매일 실행」의 `news-ingest-[0-9]+$` 에 안 걸린다
+**3. Job 띄우기** (EC2) — ConfigMap 에 file 모드가 들어갔는지(1 이 나와야) 보고, Job 은 `sleep` 으로 띄운다. 이름에 글자가 섞여 「15분 실행」의 `news-ingest-[0-9]+$` 에 안 걸린다
 
 ```bash
 kubectl -n app get configmap news-ingest -o jsonpath='{.data.news_ingest\.py}' | grep -c 'FILE_SOURCE = "file"'
@@ -139,7 +139,7 @@ kubectl -n app create job --from=cronjob/news-ingest news-ingest-preload --dry-r
 kubectl -n app wait --for=condition=Ready pod -l job-name=news-ingest-preload --timeout=120s && kubectl -n app get job news-ingest-preload -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}{" "}{end}{"\n"}'
 ```
 
-- env 는 이름만 찍는다(값은 찍지 않는다). `INGEST_MODE` · `INGEST_SOURCE` · `INTERNAL_BATCH_KEY` · `BACKEND_URL` 이 있어야 한다. 아래 exec 도 `INGEST_MODE=load-only` · `INGEST_SOURCE=file` 을 한 번 더 준다 — Job 을 다시 띄우다 `set env` 를 빠뜨려도 latest 로 돌지 않게(2026-11-12 전환부터 CronJob 은 `auto`)
+- env 는 이름만 찍는다(값은 찍지 않는다). `INGEST_MODE` · `INGEST_SOURCE` · `INTERNAL_BATCH_KEY` · `BACKEND_URL` 이 있어야 한다. 아래 exec 도 `INGEST_MODE=load-only` · `INGEST_SOURCE=file` 을 한 번 더 준다 — Job 을 다시 띄우다 `set env` 를 빠뜨려도 latest 로 돌지 않게(2026-11-13 전환부터 CronJob 은 `auto`)
 - 시간 상한(3시간)이 되면 Pod 가 끝나 exec 도 같이 죽는다. 상한에 잘린 Job 은 실패로 남아 같은 이름으로 다시 만들려면 먼저 지운다
 
 넣기 전 숫자를 적어 둔다 — 이 조건의 기사 수는 0 이어야 한다(아니면 같은 링크가 이미 있어 아래 수가 79,334 와 달라진다 — 파일은 79,335줄이지만 시험 기사 1번과 같은 URL 1건은 `existing` 으로 세어져 새로 안 들어간다)
@@ -217,7 +217,7 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 | `예상 못 한 오류` | 스크립트가 못 다룬 오류의 traceback(키는 가림) — 종료 1 |
 | `진행` · `못 읽은 줄` · `줄 수가 다르다` | `file` 만 — 5,000줄마다 읽은 줄 · `b2`, UTF-8 · JSON 객체가 아니거나 필수 칸(`url` · `title` · `body` · `pressSourceId` · `pressName` · `publishedAt`)이 빈 줄의 번호(B2 를 안 부름), `INGEST_FILE_LINES` 와 읽은 줄이 다름 |
 | `본문 불일치로 뺌` | 다른 기사 본문이라 뺀 기사 하나 — `rule`(`same_body` · `long_brief` · `same_body_pair`) · `url` · `title` · `pressSourceId` · `bodyChars` · `titleWordShare` · `sameBodyTitles`. 본문은 안 남긴다. 정상 기사가 걸렸는지 이 줄로 본다 |
-| `안내문뿐이라 뺌` | 본문이 언론사 안내문뿐이라 뺀 기사 하나 — `rule`(`screen_text` · `video_only`) · `url` · `title` · `pressSourceId` · `bodyChars`. 본문은 안 남긴다. 정상 기사가 걸렸는지 이 줄로 본다 |
+| `안내문뿐이라 뺌` | 본문이 언론사 안내문뿐이라 뺀 기사 하나 — `rule`(`screen_text` · `video_only`) · `url` · `title` · `pressSourceId` · `bodyChars`(공백을 한 칸으로 줄인 길이 — 600자 판정과 같은 수). 본문은 안 남긴다. 정상 기사가 걸렸는지 이 줄로 본다 |
 | `자동 투입 쉼` | 그 회차는 B1 을 걸지 않았다 — `skippedBy`(아래 「자동 투입」 표)와 B3 응답(실패면 `status` · `body`) |
 | `B1 실패` · `B1 연결 실패` | 자동 투입의 기사 하나 — 기사 번호 · 상태. 그 회차에 다시 걸지 않는다 |
 | `수집 결과` | 실행 한 번의 요약 — 아래 표 |
@@ -229,7 +229,7 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 | `mode` · `source` · `days` | 모드 · latest/archive · 넣은 KST 날짜 범위(`[첫날, 끝날]`, 거르지 않으면 `null`) |
 | `requests` · `credits` | NewsData 요청 수 · 깎인 크레딧 어림(요청 × 1, archive 는 × 5) |
 | `fetched` · `kept` | 받은 기사 수 · 걸러 남아 보낼(받기만이면 보낼 수 있는) 기사 수 |
-| `skipped` | 거른 까닭별 수 — `bad_item` 기사 모양이 아님, `no_body` 본문 없음, `notice_only` 본문이 언론사 안내문뿐(위 「본문이 언론사 안내문뿐인 기사」), `category` 스포츠 · 연예 · 생활 · 음식 · 여행, `marked_duplicate` NewsData 가 `duplicate=true` 로 표시, `timezone` `pubDateTZ` 가 UTC 아님, `bad_date` 시각 모양이 다름, `out_of_range` 날짜 범위 밖, `duplicate` 같은 실행 안 같은 링크 · `article_id`, `over_limit` 기사 상한을 넘음, `wrong_body` 다른 기사 본문을 달고 옴(규칙은 위 「다른 기사 본문을 달고 온 기사」). 받기만은 한 쪽(50건)만 봐서 `wrong_body` 를 매일 수와 견줄 수 없다 |
+| `skipped` | 거른 까닭별 수 — `bad_item` 기사 모양이 아님, `no_body` 본문 없음, `notice_only` 본문이 언론사 안내문뿐(위 「본문이 언론사 안내문뿐인 기사」), `category` 스포츠 · 연예 · 생활 · 음식 · 여행, `marked_duplicate` NewsData 가 `duplicate=true` 로 표시, `timezone` `pubDateTZ` 가 UTC 아님, `bad_date` 시각 모양이 다름, `out_of_range` 날짜 범위 밖, `duplicate` 같은 실행 안 같은 링크 · `article_id`, `over_limit` 기사 상한을 넘음, `wrong_body` 다른 기사 본문을 달고 옴(규칙은 위 「다른 기사 본문을 달고 온 기사」). 받기만은 한 쪽(50건)만 봐서 `wrong_body` 를 매일 수와 견줄 수 없다. 15분 회차는 창이 15분 겹쳐 같은 기사가 두 회차에 세어진다 — 하루 수는 `url` 중복을 빼고 센다 |
 | `pubDates` | 받은 기사 `pubDate`(UTC) 의 `min` · `max` — 창 · archive 날짜가 생각대로 먹었는지 |
 | `stoppedBy` | `end` 끝까지 받음 · `past_range` 오래된 순으로 받다 범위를 지나 멈춤(정상) · `max_requests` · `max_articles` 상한(다음 쪽이 남음 — 받기만은 늘 요청 1이라 정상) · `newsdata_error` 중간 실패 · `newsdata_auth` 중간에 키를 안 받음 |
 | `b2` (load-only · auto) | `created` 새로 넣음(201) · `existing` 이미 있음(200) · `rejected` 입력 오류(400) · `failed` 그 밖 |
@@ -240,7 +240,7 @@ kubectl -n app delete job news-ingest-preload && rm articles-1021-1103.jsonl art
 | 종료 코드 | 뜻 | Job |
 |---|---|---|
 | 0 | 끝까지 돌았다 — 기사 몇 건의 실패는 `수집 결과` 에 세어 둠. `file` 은 못 읽은 줄 · 거절 · 실패 0 이고 줄 수가 맞을 때만 | 성공 |
-| 1 | NewsData 요청 실패(받은 데까지는 넣음), backend 연결이 이어서 실패, 보낼 기사가 있었는데 하나도 못 감(B2 201 · 200 이 「감」), auto 의 자동 투입이 `status_error` · `wait` · `failing` 이거나 고른 기사를 하나도 못 걸었음(B1 202 · 409 가 「감」). `file` 은 못 읽은 줄 · 거절 · 실패가 하나라도 있거나 줄 수가 다름 · 빈 파일 | 한 번 다시 시도(처음부터) |
+| 1 | NewsData 요청 실패(받은 데까지는 넣음), backend 연결이 이어서 실패, 보낼 기사가 있었는데 하나도 못 감(B2 201 · 200 이 「감」), auto 의 자동 투입이 `status_error` · `wait` · `failing` 이거나 고른 기사를 하나도 못 걸었음(B1 202 · 409 가 「감」). `file` 은 못 읽은 줄 · 거절 · 실패가 하나라도 있거나 줄 수가 다름 · 빈 파일 | 다시 시도 없음(`backoffLimit: 0`) — 다음 회차가 겹치는 창을 다시 받는다 |
 | 2 | 다시 해도 같다 — 설정, NewsData · backend 의 401 · 403(NewsData 는 받은 데까지 넣음), B3 400, 요청 · 기사 상한(빠진 구간) | 다시 시도 없이 실패 |
 
 auto 는 수집 쪽 코드와 자동 투입 쪽 코드 중 큰 값으로 끝난다 — NewsData 가 실패해도(첫 요청 포함) 밀린 후보는 건다. 쉼(`daily_cap` · `capacity` · `ai_down`)은 0 이라 정상 회차를 실패로 만들지 않는다.
