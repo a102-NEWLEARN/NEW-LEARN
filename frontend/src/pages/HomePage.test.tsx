@@ -48,11 +48,12 @@ test("제목 · 안내 한 줄 · 검색창을 보인다", async () => {
       name: "오늘의 이슈를 탐색해 보세요",
     }),
   ).toBeDefined();
+  // 부제는 넓은 화면만 — 폰 첫 화면에 글이 많았다 (2026-11-13 사용자, Jira 202). jsdom 은 미디어 쿼리 CSS 를 안 풀어 클래스로 본다
   expect(
     screen.getByText(
       "검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.",
-    ),
-  ).toBeDefined();
+    ).className,
+  ).toContain("max-md:hidden");
   expect(
     screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
   ).toBeDefined();
