@@ -1,117 +1,186 @@
-# NEW:LEARN
+# NEW:LEARN (뉴런)
 
-뉴스 기사를 AI 로 6하원칙 마인드맵으로 구조화하고, 같은 사건을 다룬 기사를 묶어 이슈의 흐름으로 보여 주는 서비스입니다.
+> 뉴스 한 편은 마인드맵으로, 같은 사건을 다룬 기사들은 이슈의 흐름으로.
 
-- 무엇을 만드는지 — `docs/mvp-overview.md`
-- 시스템 구성 · 정한 것 · 못 정한 것 — `SSOT.md`
-- 브랜치 · 커밋 · MR 규칙 — `docs/git-convention.md`
-- 로컬 개발 환경 자세히 (무엇이 뜨나 · 내 영역만 띄우기 · 막힐 때) — `docs/dev-environment.md`
+NEW:LEARN 은 뉴스 기사를 AI 로 **가지 4개(핵심 내용 · 원인·배경 · 반응 · 전망) 마인드맵**으로 구조화하고, 같은 사건을 다룬 기사를 묶어 **이슈가 어떻게 흘러왔는지** 보여 주는 AI 뉴스 서비스입니다. SSAFY 15기 A102 팀 SYNAPSE(팀장 황도경)가 만들었습니다.
 
-## 개발 환경 세팅
+![이슈 에볼루션 맵](docs/images/readme/00-issue-map.jpg)
 
-**Docker Desktop 하나면 됩니다.** 저장소를 받고 `.env` 를 만든 뒤 명령 한 줄로 화면 · API · AI 워커 · DB · Redis 가 모두 뜹니다. 브라우저에 홈이 뜨고 http://localhost:5173/actuator/health 가 `UP` 이면 끝입니다.
+| 구분 | 링크 |
+|---|---|
+| 서비스 | https://newlearn.io.kr (2026-11-18 발표까지 운영) |
+| 무엇을 만드나 | [`docs/mvp-overview.md`](docs/mvp-overview.md) |
+| 시스템 구성 · 정한 것 · 잰 것 | [`SSOT.md`](SSOT.md) |
 
-AI 도구(Claude Code · Codex · Cursor 등)에게 맡기려면 [방법 1](#방법-1-ai-에게-맡기기), 직접 치려면 [방법 2](#방법-2-직접-입력하기) 를 따릅니다. 두 방법은 같은 순서를 밟습니다.
+## 목차
+
+- [왜 만들었나](#왜-만들었나)
+- [주요 기능](#주요-기능)
+- [서비스 흐름](#서비스-흐름)
+- [아키텍처](#아키텍처)
+- [AI 파이프라인](#ai-파이프라인)
+- [숫자로 본 기술 결정](#숫자로-본-기술-결정)
+- [조용히 깨지는 것을 막는 장치](#조용히-깨지는-것을-막는-장치)
+- [기술 스택](#기술-스택)
+- [시작하기](#시작하기)
+- [개발 방식](#개발-방식)
+- [팀](#팀)
+
+## 왜 만들었나
+
+같은 사건을 여러 언론사가 며칠에 걸쳐 나눠 보도하면, 기사 한 편만 읽어서는 무슨 일이 왜 일어났고 누가 어떻게 반응했는지 한눈에 잡히지 않습니다. 흩어진 기사를 직접 모아 순서를 맞추는 일은 독자의 몫으로 남습니다.
+
+NEW:LEARN 은 기사 한 편의 요점을 마인드맵으로 먼저 보여 주고, 그 기사가 속한 사건과 이슈로 이어 줍니다. 시사 학습 · 면접 준비 · 리서치처럼 흐름을 알아야 하는 사람이 읽는 시간을 줄이려고 만들었습니다.
+
+## 주요 기능
+
+### 1. 분야별 이슈 · 기사 탐색
+
+정치 · 경제 · 사회 · 국제 · IT·과학 다섯 분야로 이슈와 최신 기사를 나눠 봅니다. 홈의 추천 이슈는 회원이 고른 관심 분야부터 보여 줍니다.
+
+![분야 탭](docs/images/readme/02-category.gif)
+
+### 2. 기사 마인드맵 — 흐름지도 · 마인드맵 두 보기
+
+기사 내용을 핵심 내용 · 원인·배경 · 반응 · 전망으로 나눠, 순서대로 읽는 흐름지도와 관계를 보는 마인드맵 두 가지로 보여 줍니다. 크게 보기로 화면을 꽉 채워 볼 수 있습니다.
+
+![기사 마인드맵](docs/images/readme/03-article-mindmap.gif)
+
+### 3. 사건 이슈맵
+
+같은 사건을 다룬 기사를 묶고, 이슈의 사건을 시간순으로 놓습니다. 상황을 바꾸는 행위는 메인 흐름, 반응 · 평가는 서브 흐름입니다. 사건을 누르면 요약과 관련 기사가 열립니다.
+
+![이슈 에볼루션 맵](docs/images/readme/04-issue-map.gif)
+
+### 4. 기사 ↔ 이슈 양방향 탐색
+
+이슈에서 사건 · 관련 기사로 내려가고, 기사에서 「이 기사가 속한 이슈 보기」로 다시 올라옵니다.
+
+![양방향 탐색](docs/images/readme/05-bidirectional.gif)
+
+### 5. 개인 뉴스 관리 · 용어사전
+
+관심 분야를 고르고 기사 북마크 · 관심 이슈를 저장합니다. 기사에서 모르는 말을 드래그해 「의미」를 누르면 **그 기사 문맥에 맞는 뜻**을 보여 줍니다.
+
+![용어사전](docs/images/readme/06-glossary.gif)
+
+## 서비스 흐름
 
 ```mermaid
 flowchart LR
-  A["Docker Desktop<br/>설치 · 켜기"] --> B["저장소 클론<br/>Windows 는 WSL 2 안에"]
-  B --> C[".env 만들기"]
-  C --> D["compose 로 띄우기"]
-  D --> E["localhost:5173<br/>홈 · actuator/health UP"]
-  E --> F["커밋 검사 훅 설치"]
+  N["NewsData.io<br/>뉴스 API"] -->|"15분마다"| C["수집 배치<br/>(CronJob)"]
+  C -->|"기사 적재"| B["Spring Boot"]
+  B -->|"분석 작업"| Q[("Redis Streams")]
+  Q --> W["AI 워커<br/>(FastAPI)"]
+  W -->|"마인드맵 · 사건 · 이슈"| B
+  B --> D[("PostgreSQL<br/>+ pgvector")]
+  B --> F["React 화면"]
 ```
 
-### 시작 전에 확인할 것
+기사 · 이슈 화면은 미리 분석해 저장한 결과를 읽기만 합니다. 화면이 AI 를 부르는 것은 용어사전 「의미」를 누를 때뿐입니다.
 
-- **Docker Desktop** 이 설치되어 켜져 있어야 합니다. Docker Engine 25 이상이 필요합니다 (`docker version` 으로 확인). Windows 는 WSL 2 백엔드를 씁니다.
-- **Windows 는 WSL 2 의 Ubuntu 터미널에서 작업합니다.** C: 드라이브 폴더에 클론하면 코드를 고쳐도 컨테이너에 반영되지 않습니다.
-- 첫 실행은 이미지(약 1.9 GB)와 Gradle · npm · Python 의존성을 받느라 몇 분 걸립니다. 의존성은 Docker 볼륨에 남아 다음부터는 금방 뜹니다.
+## 아키텍처
 
-### 방법 1. AI 에게 맡기기
+![아키텍처](docs/images/readme/architecture.png)
 
-아래 블록을 통째로 복사해 AI 도구에 붙여 넣습니다. 저장소를 아직 받지 않았다면 AI 가 클론부터 합니다.
+- **서버 두 대, 클러스터 하나** — 서비스는 SSAFY Lightsail 워커에, 관리 도구(컨트롤 플레인 · 모니터링 · CI 러너)는 AWS EC2 에 두고 WireGuard 터널로 이어 kubeadm 쿠버네티스 클러스터 하나로 운영합니다. EC2(보안 그룹 · 탄력적 IP) · 예산 알림 · 백업 S3 버킷은 Terraform 으로 만듭니다
+- **들어오는 길** — Envoy Gateway 가 HTTPS(cert-manager · Let's Encrypt)를 받아 화면은 React, API 는 Spring Boot 로 나눕니다. 로그인 · 가입 · 용어사전은 Redis 로 주소별 요청 수를 셉니다
+- **배포** — MR 검사 → dev 머지 → 이미지 굽기(Kaniko) → 배포 태그 MR(사람이 머지) → Argo CD 자동 동기화 → 새 Pod 먼저 뜨는 롤링 교체 → Mattermost 알림. 되돌리기는 git revert 입니다
+- **관측** — Prometheus · Grafana · Loki · Alloy, 경보는 Alertmanager → Mattermost. DB 는 매일 04:00 관리 서버에, 매주 S3 에 백업합니다
+- 자세히는 [`SSOT.md`](SSOT.md) 1 · 6절, 인프라 코드 지도는 [`infra/README.md`](infra/README.md), 서버를 받은 날 돌린 스크립트는 [`infra/server/README.md`](infra/server/README.md)
 
-```text
-NEW:LEARN 저장소(https://lab.ssafy.com/s15-final/S15P31A102.git)의 로컬 개발 환경을 세팅해 줘.
-저장소 README.md 의 「개발 환경 세팅」과 docs/dev-environment.md 를 먼저 읽고 그 순서대로 해.
+## AI 파이프라인
 
-1. 내 컴퓨터부터 확인해.
-   - `docker version` 으로 Docker Desktop 이 켜져 있고 Engine 이 25 이상인지 본다.
-   - Windows 면 WSL 2 와 Ubuntu 가 있는지 본다.
-   - 없거나 꺼져 있으면 설치 · 실행 방법만 알려 주고 멈춰.
-2. 저장소를 받아. 이미 저장소 안이면 건너뛰어.
-   - Windows 면 WSL 2 Ubuntu 의 홈(~/) 아래에 클론한다. C: 드라이브에는 받지 않는다.
-3. 저장소 루트에서 `cp .env.example .env` 로 환경변수 파일을 만들어.
-   - 값은 바꾸지 않는다. LLM_MODE 는 mock 그대로 두고 GMS 키는 넣지 않는다.
-4. `docker compose --profile full up -d --wait` 로 전부 띄워.
-   - `port is already allocated` 가 나면 그 포트만 .env 의 *_PORT 에서 비어 있는 번호로 바꾸고 다시 띄운다.
-5. 다 떴는지 확인해. 포트를 바꿨으면 바꾼 번호로 본다.
-   - `docker compose --profile full ps` 의 STATUS 가 모두 healthy
-   - http://localhost:8080/actuator/health 와 http://localhost:8000/health 가 200
-   - http://localhost:5173 에 홈(「오늘의 이슈를 탐색해 보세요」)이 뜨고, http://localhost:5173/actuator/health 가 `UP` — 화면 서버를 거쳐 API 까지 이어졌다는 뜻이다
-6. 커밋 검사 훅을 설치해: `bash .claude/hooks/install.sh`
-   - 확인: `git commit --allow-empty -m " "` 를 쳐서 검사 배너가 뜨는지 본다 (커밋은 남지 않는다).
-7. 끝나면 무엇을 했고 무엇이 안 됐는지 명령 출력과 함께 알려 줘.
-
-하지 말 것
-- .env 를 커밋하지 않는다.
-- `docker compose down -v` · `docker volume rm` 처럼 데이터를 지우는 명령은 먼저 나에게 묻는다.
-- 이 저장소와 상관없는 내 다른 컨테이너 · 이미지는 건드리지 않는다.
+```mermaid
+flowchart LR
+  A["기사"] --> E["① EXTRACT<br/>가지 4개 · 근거 문장 · 대표 사건"]
+  E --> M["② 후보 검색<br/>BGE-m3-ko · pgvector"]
+  M --> J["③ 동일 사건 판정<br/>LLM · 메인/반응 역할"]
+  J --> I["④ 이슈 연결 · 생성<br/>관련 사건 3개 이상"]
 ```
 
-### 방법 2. 직접 입력하기
+| 단계 | 하는 일 |
+|---|---|
+| ① EXTRACT | SSAFY GMS(gpt-6-luna)로 핵심 내용 · 원인·배경 · 반응 · 전망을 뽑고, 원문 근거 문장을 붙이고, 사건 연결에 쓸 대표 사건을 고릅니다. 사건이 일어난 때는 기사 발행 시각과 따로 읽고, 「어제」처럼 기준이 불분명하면 비워 둡니다 |
+| ② 후보 검색 | 기사 제목과 본문 앞 800자를 1024차원 벡터로 바꿔 비슷한 기존 사건을 최대 5개 찾습니다 |
+| ③ 동일 사건 판정 | 후보와 비교해 기존 사건에 붙일지, 새 사건을 만들지 정합니다. 새 사건에는 이름 · 요약과 메인 · 반응 역할을 줍니다 |
+| ④ 이슈 | 새 사건을 기존 이슈에 붙이거나, 관련 사건이 3개 이상이면 새 이슈를 만듭니다 |
 
-명령은 한 줄씩 칩니다. Windows 는 WSL 2 Ubuntu 터미널에서 칩니다.
+- 워커는 Redis Streams 작업 큐를 소비하고, 결과는 Spring Boot 가 검사해 저장합니다(출력 형식 · 근거 문장 위치 · 대표 사건 번호 · 발생 시점 형식)
+- 지금 운영 워커는 ① EXTRACT 만 돌립니다. 임베딩 워커는 발표 뒤까지 꺼 두었고(`SSOT.md` 9절 2026-11-10), ③ ④ 워커 코드는 아직 `ai` 브랜치에 있습니다
+- 화면의 사건 · 이슈는 AI 팀이 10/21 ~ 11/11 기사 112,700건을 같은 EXTRACT · 같은 판정 규칙으로 한꺼번에 돌려 미리 만든 결과입니다([`data/README.md`](data/README.md) 「어떻게 만들었나」, 적재는 `SSOT.md` 10절 2026-11-13)
+- 기사 분야는 NewsData 분류 대신 **제목을 읽은 라벨**이 정합니다. 새 기사는 매일 한 번 라벨을 붙입니다([`infra/server/category-labels.md`](infra/server/category-labels.md))
 
-1. 저장소를 받고 그 폴더로 들어갑니다.
+## 숫자로 본 기술 결정
 
-   ```bash
-   git clone https://lab.ssafy.com/s15-final/S15P31A102.git
-   ```
+분야 라벨 행은 기사 9,022건을 언론사 URL 섹션과 대조한 값이고, 나머지는 운영에서 잰 값입니다. 잰 조건과 한계는 오른쪽 문서에 있습니다.
 
-   ```bash
-   cd S15P31A102
-   ```
+| 문제 | 한 일 | 전 → 후 | 문서 |
+|---|---|---|---|
+| 기사 목록 · 분야 수 조회가 기사 표 14만 행을 매번 통째로 읽음 | 공개 기사만 담은 부분 인덱스(Flyway V14) | 기사 목록 p50 242ms → 22ms, 측정 한 판 2분 51초 → 31초 | [`infra/server/perf/results.md`](infra/server/perf/results.md) |
+| 부하 시험에서 DB CPU 가 먼저 막힘(초당 93건에서 포화) | 이슈 목록 SQL 모양 바꾸기 · 기사-사건 · 사건 인덱스(V15) | 포화 초당 93건 → 123건, 요청 하나의 DB CPU 약 37ms → 26ms | [`infra/server/perf/results-194.md`](infra/server/perf/results-194.md) |
+| 로그 수집기가 다시 뜰 때마다 이미 보낸 로그를 다시 보냄 | Alloy 책갈피를 서버 디스크로 옮기고 수집기 경보 셋 | 다시 뜬 직후 보낸 줄 136,313(15초) → 171(20초), Loki 거절 117,907 → 0 | [`SSOT.md`](SSOT.md) 10절 2026-11-11 |
+| NewsData 분류가 흔들려 분야 탭에 엉뚱한 기사가 섞임 | 제목을 읽어 분야를 정하는 라벨(지금은 매일) | 언론사 URL 섹션과 일치 68.2% → 77.3% | [`SSOT.md`](SSOT.md) 10절 2026-11-05 |
+| 배포 · 설정 바꿈 때 사이트가 끊길 수 있음 | 새 Pod 먼저 · 준비 확인 · 끝낼 때 10초 | (후만 잼) 출입증 Secret 을 처음 넣으며 backend · ai 를 교체하는 동안 health 219번 실패 0 | [`SSOT.md`](SSOT.md) 10절 2026-10-26, 조건은 6절 「무중단 배포 조건」 |
 
-2. 환경변수 파일을 만듭니다. 값은 그대로 둡니다. `.env` 는 커밋하지 않습니다.
+## 조용히 깨지는 것을 막는 장치
 
-   ```bash
-   cp .env.example .env
-   ```
+성공한 것처럼 보이면서 틀리는 일을 먼저 막았습니다.
 
-3. 전부 띄웁니다. `--wait` 는 모든 컨테이너가 정상이 될 때까지 기다렸다가 끝납니다.
+| 위험 | 왜 조용한가 | 장치 |
+|---|---|---|
+| AI 결과 적재가 반쯤 들어감 | SQL 이 중간에 실패해도 앞부분은 이미 바뀌어 있을 수 있음 | 한 트랜잭션, 끝이 `rollback;` 인 실행으로 수를 먼저 보고 `commit;`, 마이그레이션 판이 다르면 첫 단계에서 멈춤([`infra/server/data-load.md`](infra/server/data-load.md)) |
+| 수집 · 백업 · 로그가 멈춤 | 화면은 그대로라 아무도 모름 | 수집 누락 · 백업 누락 · 디스크 · 로그 버림 · 로그 수집기 멈춤 경보 → Mattermost, 경보 규칙은 CI 에서 시험([`infra/k8s/alerts/rules.yaml`](infra/k8s/alerts/rules.yaml)) |
+| null · 잘못된 SQL | 컴파일은 통과하고 운영에서 터짐 | Error Prone · NullAway, 실제 PostgreSQL 에 붙는 시험(로컬은 Testcontainers, CI 는 서비스 DB) |
+| 비밀값 커밋 | 빌드 · 동작은 멀쩡함 | 커밋 전 시크릿 스캔 · 영역별 포맷 · 린트 · 테스트 훅([`.claude/hooks/`](.claude/hooks/)) |
+| 배포 태그 MR 이 먼저 기다리던 영역의 태그를 지움 | 두 영역이 같은 배포 MR 을 덮어쓰면 늦게 온 쪽만 남음 | 열린 배포 MR 의 태그를 이어받아 갱신([`infra/ci/deploy_mr.py`](infra/ci/deploy_mr.py)) |
+| 고정한 이슈 분야가 엉뚱한 이슈에 붙음 | 다시 적재로 이슈 번호가 바뀌어도 SQL 은 성공함 | 번호와 제목이 둘 다 같을 때만 고정([`infra/server/category-labels.md`](infra/server/category-labels.md) 7절) |
 
-   ```bash
-   docker compose --profile full up -d --wait
-   ```
+## 기술 스택
 
-4. 브라우저로 http://localhost:5173 을 열어 홈이 뜨는지 봅니다. 이어서 http://localhost:5173/actuator/health 가 `UP` 이면 화면 · API · DB · Redis 가 다 이어진 것입니다. 백엔드 화면용 API(S15P31A102-41)가 들어오기 전에는 홈의 이슈 칸에 「…불러오지 못했어요」가 뜨는데, 정상입니다.
+| 영역 | 기술 |
+|---|---|
+| Frontend | ![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white) ![D3.js](https://img.shields.io/badge/D3.js-F9A03C?style=flat-square&logo=d3dotjs&logoColor=white) ![TanStack Query](https://img.shields.io/badge/TanStack_Query-FF4154?style=flat-square&logo=reactquery&logoColor=white) — SEED Design · Axios · React Router |
+| Backend | ![Java](https://img.shields.io/badge/Java-ED8B00?style=flat-square&logo=openjdk&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white) ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=flat-square&logo=gradle&logoColor=white) — Spring Session(Redis) · Spring Data JPA · JdbcClient · Swagger · Testcontainers · Error Prone · NullAway |
+| AI | ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=langchain&logoColor=white) ![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white) — SSAFY GMS gpt-6-luna · Sentence-Transformers · BGE-m3-ko(1024) |
+| Data | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=flat-square&logo=flyway&logoColor=white) — pgvector · Redis Streams |
+| Infra | ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white) ![Helm](https://img.shields.io/badge/Helm-0F1689?style=flat-square&logo=helm&logoColor=white) ![Argo CD](https://img.shields.io/badge/Argo_CD-EF7B4D?style=flat-square&logo=argo&logoColor=white) ![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white) ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white) ![GitLab CI](https://img.shields.io/badge/GitLab_CI-FC6D26?style=flat-square&logo=gitlab&logoColor=white) — kubeadm · Kustomize · Cilium · WireGuard · Envoy Gateway · cert-manager · Sealed Secrets · Kaniko |
+| 관측 | ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white) — Loki · Alloy · Alertmanager · Mattermost |
+| 외부 API | SSAFY GMS(gpt-6-luna) · NewsData.io News API |
 
-5. 커밋 검사 훅을 설치합니다. 커밋할 때 포맷 · 린트 · 테스트가 자동으로 돕니다.
+## 시작하기
 
-   ```bash
-   bash .claude/hooks/install.sh
-   ```
-
-   훅이 도는지 확인합니다. 메시지가 공백 하나라 커밋은 남지 않습니다.
-
-   ```bash
-   git commit --allow-empty -m " "
-   ```
-
-### 다 쓰고 끌 때
+Docker Desktop 하나면 화면 · API · AI 워커 · DB · Redis 가 모두 뜹니다.
 
 ```bash
-docker compose --profile full down
+git clone https://lab.ssafy.com/s15-final/S15P31A102.git && cd S15P31A102
+cp .env.example .env
+docker compose --profile full up -d --wait
 ```
 
-DB 데이터와 의존성은 볼륨에 남습니다. 다음에 3번 명령으로 다시 띄웁니다.
+http://localhost:5173 에 홈이 뜨면 됩니다. AI 도구에 맡기는 프롬프트 · Windows(WSL 2) 주의 · 막힐 때는 [`docs/dev-environment.md`](docs/dev-environment.md) 「처음 한 번」에 있습니다.
 
-### 막히면
+```text
+frontend/   React 화면 — 기사 마인드맵 · 이슈 에볼루션 맵
+backend/    Spring Boot — 조회 API, 분석 작업 등록, 결과 저장
+ai/         FastAPI 워커 — EXTRACT · 임베딩 (동일 사건 판정 · 이슈 워커는 ai 브랜치)
+infra/      Terraform · 쿠버네티스 매니페스트 · 운영 문서 · 측정 도구
+docs/       기능 스펙 · 데이터 모델 · API · 계획
+```
 
-| 증상 | 할 일 |
+## 개발 방식
+
+- **AI 하네스** — AI 에게 주는 지시는 [`AGENTS.md`](AGENTS.md) 한 곳에 둡니다. 큰 변경은 `/plan` 으로 다섯 칸(바꿀 파일 · 안 바꿀 것 · 리스크 · 검증 · 되돌리는 법)을 채워 승인받고, 끝나면 `/verify` 로 실제로 돌려 보고, `reviewer` 조수가 새 눈으로 봅니다. 지도는 [`.claude/README.md`](.claude/README.md)
+- **네 가지 약속** — 증거 없이 「됐다」고 하지 않는다 · 추측하지 않는다 · 한 번에 작은 작업 하나 · 같은 사실을 두 곳에 적지 않는다
+- **흐름** — Jira 티켓 → 작업 브랜치 → 분야 브랜치(`infra` · `backend` · `frontend` · `ai`) → MR(템플릿 [`.gitlab/merge_request_templates/Default.md`](.gitlab/merge_request_templates/Default.md)) → `dev` → 배포 태그 MR. 규칙은 [`docs/git-convention.md`](docs/git-convention.md)
+- **문서** — 정한 것 · 못 정한 것 · 뒤집은 것 · 잰 것은 [`SSOT.md`](SSOT.md), 기능 스펙은 [`docs/specs/`](docs/specs/), 승인한 계획은 [`docs/plans/`](docs/plans/)
+
+## 팀
+
+| 역할 | 이름 |
 |---|---|
-| `port is already allocated` | 그 포트를 다른 프로그램이 씁니다. `.env` 의 해당 `*_PORT` 를 바꾸고 다시 띄웁니다 |
-| 코드를 고쳐도 반영이 안 된다 | Windows 에서 C: 드라이브에 클론했을 것입니다. WSL 2 쪽에 다시 클론합니다 |
-| 그 밖의 문제 · 내 영역만 IDE 에서 띄우기 | `docs/dev-environment.md` 「자주 막히는 곳」 · 「내 영역을 호스트에서 띄울 때」 |
+| PM | 장민준 |
+| Frontend · Design | 안서진 |
+| Backend | 강하린 · 김주우 |
+| Infra | 김주우 |
+| AI | 강유진 · 황도경 |
