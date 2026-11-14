@@ -25,7 +25,7 @@ class SearchQueryRepository {
         this.threshold = threshold;
     }
 
-    // 공개 기사가 있는 이슈만(docs/api.md 1절), 만든 때 최신순
+    // 문턱을 넘는 사건이 있는 이슈만(docs/api.md 1절), 만든 때 최신순
     List<IssueRef> issues(String query) {
         return jdbc.sql("""
                         select id, title from issue i
