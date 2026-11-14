@@ -51,6 +51,7 @@ public class IssueQueryRepository {
                 where e.issue_id is not null and (:category is null or exists (
                     select 1 from issue_category ic where ic.issue_id = e.issue_id and ic.category_code = :category))
                 group by e.issue_id
+                having count(distinct e.id) >= :minPublicEvents
             ) c
             join issue i on i.id = c.issue_id
             order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
@@ -80,6 +81,7 @@ public class IssueQueryRepository {
                 ) x
                 where x.public_articles >= :minPublicArticles
                 group by x.issue_id
+                having count(distinct x.id) >= :minPublicEvents
             ) c
             join issue i on i.id = c.issue_id
             order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
@@ -100,16 +102,19 @@ public class IssueQueryRepository {
     }
 
     public Page<CardRow> findCards(@Nullable String category, String sort, Pageable pageable) {
-        long total = jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE + " and "
-                        + CATEGORY_FILTER)
+        long total = jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS
+                        + " and " + CATEGORY_FILTER)
                 .param("category", category, Types.VARCHAR)
                 .param("publicArticleSkip", threshold.skip())
+                .param("publicEventSkip", threshold.eventSkip())
                 .query(Long.class)
                 .single();
-        // 수를 세는 질의와 행을 가져오는 질의가 따로다 — 둘에 같은 문턱을 묶지 않으면 총수와 쪽이 어긋난다
+        // 수를 세는 질의와 행을 가져오는 질의가 따로다 — 둘에 같은 문턱을 묶지 않으면 총수와 쪽이 어긋난다.
+        // 사건 수 문턱은 두 모양 모두 having 으로 거르므로 :minPublicEvents 를 늘 넣는다(안 넣으면 첫 요청에서 깨진다)
         List<CardRow> rows = jdbc.sql(threshold.isOff() ? LIST : LIST_WITH_THRESHOLD)
                 .param("category", category, Types.VARCHAR)
                 .param("minPublicArticles", threshold.minArticles())
+                .param("minPublicEvents", threshold.minEvents())
                 .param("sort", sort)
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset())

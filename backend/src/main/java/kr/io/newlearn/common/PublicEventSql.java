@@ -25,6 +25,22 @@ public final class PublicEventSql {
                     offset :publicArticleSkip limit 1))
             """;
 
+    // 「보이는 사건이 N개 이상인 이슈」 — 이슈를 목록에 낼지 가린다(A2 · A1 · A13 이슈 칸, Jira S15P31A102-208).
+    // 위의 ISSUE_HAS_PUBLIC_ARTICLE 과 다른 조각으로 둔 까닭: 그쪽은 A23 관심 이슈 저장이 쓴다. 같이 바꾸면
+    // 살아 있는 이슈 페이지(A3)에서 별표를 눌렀을 때 404 가 된다. 이 문턱은 목록에서만 빼는 것이다.
+    //
+    // 🔴 offset 이 둘이고 자리가 다르다. 바깥 :publicEventSkip 은 「사건이 N개 있는가」, 안쪽 :publicArticleSkip 은
+    // 「그 사건에 공개 기사가 M건 있는가」다. 바깥 것을 안쪽 exists 에 넣어도 문법은 맞고 뜻만 조용히 바뀐다
+    // (「사건 N개」가 「어떤 사건의 기사 N건」이 된다). 경계 시험이 이걸 잡는다(MinPublicEventsApiIntegrationTest).
+    public static final String ISSUE_HAS_ENOUGH_PUBLIC_EVENTS = """
+            exists (select 1 from event public_event where public_event.issue_id = i.id
+                and exists (select 1 from article_event public_link
+                    join article public_article on public_article.id = public_link.article_id
+                    where public_link.event_id = public_event.id and public_article.released_at is not null
+                    offset :publicArticleSkip limit 1)
+                offset :publicEventSkip limit 1)
+            """;
+
     public static final String JPQL_EVENT_HAS_PUBLIC_ARTICLE = """
             (select count(publicLink) from ArticleEvent publicLink
                 where publicLink.event = e and publicLink.article.releasedAt is not null) >= :minPublicArticles
