@@ -122,6 +122,8 @@ async def test_new_event_envelope_has_result_and_versions():
     assert (env["model"], env["promptVersion"]) == ("gpt-6-luna", PROMPT_VERSION)
     assert env["result"] == NEW_MAIN
     assert diag["calls"] == 1
+    # 제안 범위 안(「착공식」 3자)이면 경고가 없다 — 길이 검사가 뒤집히면 여기서 빨개진다
+    assert diag["warnings"] == []
 
 
 async def test_existing_keeps_only_event_id():
@@ -194,7 +196,7 @@ async def test_label_outside_suggested_length_passes_with_warning(label):
 
     assert env["status"] == "SUCCEEDED"
     assert env["result"]["newEvent"]["label"] == label
-    assert diag["warnings"]
+    assert "label" in diag["warnings"][0]
 
 
 async def test_no_candidates_still_judges():
