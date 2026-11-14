@@ -100,6 +100,11 @@ spec:
             # 고정 28개 목록을 보지 않아 매일 아침 라벨 적용 전까지 어긋난다. 기본값은 "true"(계약대로, api-internal.md 5절)
             - name: ISSUE_REWRITE_SUMMARY_ON_ATTACH
               value: "false"
+            # 후보 이슈로 올릴 코사인 거리의 상한 (Jira S15P31A102-206 후속). "2.0" 이 끄는 값이다 — 되돌릴 때는
+            # 이름을 지우지 말고 값을 "2.0" 으로. 2026-11-14 측정: 이슈에 잘못 붙은 34건 중 넷이 거리 0.40 밖이었고,
+            # 그 밖을 버려도 맞게 붙은 1,364건은 하나도 잃지 않는다. 2026-11-09 오프라인 실험이 쓴 값과 같다
+            - name: ISSUE_MAX_CANDIDATE_DISTANCE
+              value: "0.40"
           # POSTGRES_DB · POSTGRES_USER · POSTGRES_PASSWORD (sealed-postgres-auth.yaml — data 의 DB 와 같은 값)
           envFrom:
             - secretRef:

@@ -12,7 +12,7 @@ from typing import Any
 from app.extract.postprocess import OutputInvalid
 from app.extract.run import ChatClient, now_kst
 from app.gms import GmsAuthError, GmsError
-from app.issue.postprocess import check_answer
+from app.issue.postprocess import CREATE_MIN_EVENTS, check_answer
 from app.issue.prompt import PROMPT_VERSION, SYSTEM_PROMPT
 from app.text_rules import private_names
 from app.worker import Diag, Envelope, Stage, StageBlocked, single_job_id
@@ -128,6 +128,17 @@ async def run_issue(
         except MessageBroken as e:
             return envelope(None, "INTERNAL", f"메시지 형식 오류({e})"), diag
         diag["candidates"] = (len(issue_ids), len(event_ids))
+        # 후보가 모자라면 ATTACH · CREATE 둘 다 될 수 없다 — ATTACH 는 후보 이슈가, CREATE 는 이 사건 포함
+        # CREATE_MIN_EVENTS 개가 필요하다. 그래도 물으면 모델이 ATTACH 로 답할 수 있고, 그 답은 후보 밖이라
+        # OutputInvalid → 두 번 시도 → 1분 재시도가 되어 그동안 ISSUE 줄이 막힌다. 묻지 않고 NONE 으로 끝낸다
+        if not issue_ids and len(event_ids) < CREATE_MIN_EVENTS - 1:
+            result = {
+                "decision": "NONE",
+                "reason": "후보 이슈가 없고 같이 묶을 후보 사건도 모자라 묶을 데가 없다",
+            }
+            diag["decision"] = "NONE"
+            diag["skipped"] = "후보 없음"
+            return envelope(result, None, ""), diag
         problem = ""
         for _ in range(OUTPUT_TRIES):
             out = await llm.complete(SYSTEM_PROMPT, user, deadline)
