@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import kr.io.newlearn.event.CandidateEventFinder;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.json.JsonMapper;
@@ -27,9 +28,13 @@ public class IssueCandidateFinder {
     static final int EVENT_LIMIT = 10;
 
     private final JdbcClient jdbc;
+    private final double maxCandidateDistance;
 
-    public IssueCandidateFinder(JdbcClient jdbc) {
+    public IssueCandidateFinder(
+            JdbcClient jdbc,
+            @Value("${newlearn.analysis.issue.max-candidate-distance:2.0}") double maxCandidateDistance) {
         this.jdbc = jdbc;
+        this.maxCandidateDistance = maxCandidateDistance;
     }
 
     // analysis_job.candidates 에 이 모양 그대로 남긴다 — 결과가 후보 안인지 이것으로 본다
@@ -76,6 +81,8 @@ public class IssueCandidateFinder {
                 .optional();
     }
 
+    // 거리 상한(max-candidate-distance) 밖의 이슈는 올리지 않는다 — IssueResultHandler 가 후보 밖 issueId 를 거부하므로
+    // 이 상한이 「분야만 겹치는 이슈에 붙는 길」을 막는다. 출력 별칭 distance 는 HAVING 에서 못 쓰므로 식을 다시 적는다.
     // 후보 이슈 가까운 순서로 최대 5개, 이슈 밖이고 이번 사건보다 먼저 생긴(번호가 작은) 사건 가까운 순서로 최대 10개.
     // 나중에 생긴 사건과 asOf(이번 사건이 생긴 때) 뒤에 묶인 기사를 빼는 까닭: ISSUE 는 사건이 생긴 순서로 하나씩 돌아
     // 「그때까지」만 봐야 다시 돌려도 결과가 같다(발행순 재실행, 2026-10-29 사용자). 벡터가 없으면 빈 목록
@@ -88,11 +95,13 @@ public class IssueCandidateFinder {
                 cross join (select embedding from article_embedding where article_id = :articleId) mine
                 where e.issue_id is not null and l.linked_at <= :asOf
                 group by e.issue_id
+                having min(other.embedding <=> mine.embedding) <= :maxDistance
                 order by distance, e.issue_id
                 limit :limit
                 """)
                 .param("articleId", articleId)
                 .param("asOf", asOf.atOffset(ZoneOffset.UTC))
+                .param("maxDistance", maxCandidateDistance)
                 .param("limit", ISSUE_LIMIT)
                 .query((rs, row) -> new CandidateIssue(
                         rs.getLong("issue_id"), CandidateEventFinder.similarity(rs.getDouble("distance"))))
