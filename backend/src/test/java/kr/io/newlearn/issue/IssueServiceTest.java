@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import java.time.Instant;
 import java.util.List;
 import kr.io.newlearn.category.CategoryRepository;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.PageQuery;
 import kr.io.newlearn.event.EventRepository;
@@ -20,7 +21,8 @@ class IssueServiceTest {
     IssueQueryRepository queries = mock(IssueQueryRepository.class);
     EventRepository events = mock(EventRepository.class);
     InterestIssueRepository interests = mock(InterestIssueRepository.class);
-    IssueService service = new IssueService(categories, queries, events, interests, new IssueCardAssembler(queries));
+    IssueService service = new IssueService(
+            categories, queries, events, interests, new IssueCardAssembler(queries), new PublicEventThreshold(1));
 
     @Test
     void missingIssueDoesNotReadCountsOrReferences() {

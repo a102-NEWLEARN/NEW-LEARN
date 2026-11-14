@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import kr.io.newlearn.category.CategoryQueryRepository;
 import kr.io.newlearn.category.CategoryRepository;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.issue.IssueQueryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, CategoryQueryRepository.class, IssueQueryRepository.class})
+@Import({
+    TestcontainersConfiguration.class,
+    CategoryQueryRepository.class,
+    IssueQueryRepository.class,
+    PublicEventThreshold.class
+})
 class CategoryIssueQueryTest {
     @Autowired
     JdbcClient jdbc;

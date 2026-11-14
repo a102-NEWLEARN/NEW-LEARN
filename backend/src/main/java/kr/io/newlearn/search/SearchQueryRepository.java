@@ -2,6 +2,7 @@ package kr.io.newlearn.search;
 
 import java.util.List;
 import kr.io.newlearn.common.PublicEventSql;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.issue.dto.IssueRef;
 import kr.io.newlearn.search.dto.SearchArticle;
 import kr.io.newlearn.search.dto.SearchEvent;
@@ -17,9 +18,11 @@ class SearchQueryRepository {
     static final int LIMIT = 20;
 
     private final JdbcClient jdbc;
+    private final PublicEventThreshold threshold;
 
-    SearchQueryRepository(JdbcClient jdbc) {
+    SearchQueryRepository(JdbcClient jdbc, PublicEventThreshold threshold) {
         this.jdbc = jdbc;
+        this.threshold = threshold;
     }
 
     // 공개 기사가 있는 이슈만(docs/api.md 1절), 만든 때 최신순
@@ -32,6 +35,7 @@ class SearchQueryRepository {
                         limit :limit
                         """)
                 .param("q", query)
+                .param("publicArticleSkip", threshold.skip())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new IssueRef(rs.getLong("id"), rs.getString("title")))
                 .list();
@@ -47,6 +51,7 @@ class SearchQueryRepository {
                         limit :limit
                         """)
                 .param("q", query)
+                .param("publicArticleSkip", threshold.skip())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new SearchEvent(rs.getLong("id"), rs.getString("title"), rs.getLong("issue_id")))
                 .list();
@@ -61,6 +66,7 @@ class SearchQueryRepository {
                         limit :limit
                         """)
                 .param("q", query)
+                .param("publicArticleSkip", threshold.skip())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new SearchArticle(rs.getLong("id"), rs.getString("title")))
                 .list();

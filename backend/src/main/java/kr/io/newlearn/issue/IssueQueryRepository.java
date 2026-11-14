@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import kr.io.newlearn.common.PublicEventSql;
+import kr.io.newlearn.common.PublicEventThreshold;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -28,6 +29,7 @@ public class IssueQueryRepository {
                 min(e.occurred_at) as first_event_at, max(e.occurred_at) as last_event_at
             from issue i
             join event e on e.issue_id = i.id
+            """ + " and " + PublicEventSql.EVENT_HAS_PUBLIC_ARTICLE + """
             join article_event ae on ae.event_id = e.id
             join article a on a.id = ae.article_id and a.released_at is not null
             """;
@@ -55,24 +57,59 @@ public class IssueQueryRepository {
                 i.id desc
             limit :limit offset :offset
             """;
+    // 문턱이 2 이상일 때 쓰는 모양. 사건마다 공개 기사를 창 함수로 한 번에 세고 걸러 낸다 —
+    // 상관 서브쿼리 모양은 이 질의에서만 SubPlan 을 1,434번 돌리고 JIT 까지 켜져 2배 가까이 느렸다
+    // (2026-11-14 운영 실행 계획: 지금 33.9 ms · 창 함수 42.3 ms · offset 모양 74.0 ms).
+    // 문턱 1 이면 LIST 를 그대로 써서 지금과 같은 계획으로 돈다
+    private static final String LIST_WITH_THRESHOLD = """
+            select i.id, i.title, i.summary, i.created_at,
+                c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at
+            from (
+                select x.issue_id,
+                    count(distinct x.id) as event_count, count(distinct x.aid) as article_count,
+                    count(distinct x.press_code) as publisher_count,
+                    min(x.occurred_at) as first_event_at, max(x.occurred_at) as last_event_at
+                from (
+                    select e.id, e.issue_id, e.occurred_at, a.id as aid, a.press_code,
+                        count(*) over (partition by e.id) as public_articles
+                    from event e
+                    join article_event ae on ae.event_id = e.id
+                    join article a on a.id = ae.article_id and a.released_at is not null
+                    where e.issue_id is not null and (:category is null or exists (
+                        select 1 from issue_category ic where ic.issue_id = e.issue_id and ic.category_code = :category))
+                ) x
+                where x.public_articles >= :minPublicArticles
+                group by x.issue_id
+            ) c
+            join issue i on i.id = c.issue_id
+            order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
+                i.id desc
+            limit :limit offset :offset
+            """;
+
     private static final String CATEGORY_FILTER = """
             (:category is null or exists (
                 select 1 from issue_category ic where ic.issue_id = i.id and ic.category_code = :category))
             """;
     private final JdbcClient jdbc;
+    private final PublicEventThreshold threshold;
 
-    public IssueQueryRepository(JdbcClient jdbc) {
+    public IssueQueryRepository(JdbcClient jdbc, PublicEventThreshold threshold) {
         this.jdbc = jdbc;
+        this.threshold = threshold;
     }
 
     public Page<CardRow> findCards(@Nullable String category, String sort, Pageable pageable) {
         long total = jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE + " and "
                         + CATEGORY_FILTER)
                 .param("category", category, Types.VARCHAR)
+                .param("publicArticleSkip", threshold.skip())
                 .query(Long.class)
                 .single();
-        List<CardRow> rows = jdbc.sql(LIST)
+        // 수를 세는 질의와 행을 가져오는 질의가 따로다 — 둘에 같은 문턱을 묶지 않으면 총수와 쪽이 어긋난다
+        List<CardRow> rows = jdbc.sql(threshold.isOff() ? LIST : LIST_WITH_THRESHOLD)
                 .param("category", category, Types.VARCHAR)
+                .param("minPublicArticles", threshold.minArticles())
                 .param("sort", sort)
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset())
@@ -84,6 +121,7 @@ public class IssueQueryRepository {
     public Optional<CardRow> findHeader(long issueId) {
         return jdbc.sql(AGGREGATE + " where i.id = :id group by i.id")
                 .param("id", issueId)
+                .param("publicArticleSkip", threshold.skip())
                 .query(IssueQueryRepository::mapCard)
                 .optional();
     }
@@ -94,6 +132,7 @@ public class IssueQueryRepository {
         }
         return jdbc.sql(AGGREGATE + " where i.id in (:ids) group by i.id")
                 .param("ids", issueIds)
+                .param("publicArticleSkip", threshold.skip())
                 .query(IssueQueryRepository::mapCard)
                 .list();
     }
@@ -154,6 +193,7 @@ public class IssueQueryRepository {
                 order by issue_id, occurred_at desc, id desc
                 """)
                 .param("ids", issueIds)
+                .param("publicArticleSkip", threshold.skip())
                 .query((rs, n) -> new EventRow(
                         rs.getLong("issue_id"),
                         rs.getLong("id"),

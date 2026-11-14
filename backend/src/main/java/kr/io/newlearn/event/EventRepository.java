@@ -15,7 +15,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // A4 타임라인 — 공개 기사가 있는 사건만, 발생 시점 · ID 오름차순(docs/api.md 1절, Jira 179)
     @Query("select e from Event e where e.issue.id = :issueId and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE
             + " order by e.occurredAt asc, e.id asc")
-    List<Event> findPublicByIssueId(Long issueId);
+    List<Event> findPublicByIssueId(Long issueId, int minPublicArticles);
 
     @EntityGraph(attributePaths = "issue")
     Optional<Event> findWithIssueById(Long id);
@@ -27,7 +27,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             """ + " and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE + """
             order by e.occurredAt desc, e.id desc
             """)
-    List<Event> findPrevious(Long issueId, Instant occurredAt, Long id, Pageable pageable);
+    List<Event> findPrevious(Long issueId, Instant occurredAt, Long id, int minPublicArticles, Pageable pageable);
 
     @Query("""
             select e from Event e where e.issue.id = :issueId
@@ -35,7 +35,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             """ + " and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE + """
             order by e.occurredAt asc, e.id asc
             """)
-    List<Event> findNext(Long issueId, Instant occurredAt, Long id, Pageable pageable);
+    List<Event> findNext(Long issueId, Instant occurredAt, Long id, int minPublicArticles, Pageable pageable);
 
     // 판정(EXISTING)이 더 이른 기사를 붙이면 발행 시각으로 채운 시점(FIRST_PUBLISHED)을 그 발행 시각으로 당긴다
     // (Jira 35, data-model.md event 「다시 계산한다」). 엔티티를 고쳐 저장하면 모든 칸을 다시 써서, 그사이 이슈 붙이기(Jira 40)가
