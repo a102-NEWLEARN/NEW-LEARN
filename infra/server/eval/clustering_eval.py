@@ -10,7 +10,7 @@ Sonnet · 사람 판정을 검사해 정답(gold/)으로 모은 뒤 운영 묶�
     python -X utf8 -B infra/server/eval/clustering_eval.py sample  <작업 폴더> <정답 폴더> calib|verify
     python -X utf8 -B infra/server/eval/clustering_eval.py record  <정답 폴더> <일 키> 통과|불통과 [--stage …]
     python -X utf8 -B infra/server/eval/clustering_eval.py agree   <정답 폴더> [--stage …]
-    python -X utf8 -B infra/server/eval/clustering_eval.py metrics <작업 폴더> <정답 폴더> [--min-articles N] [--min-publishers N]
+    python -X utf8 -B infra/server/eval/clustering_eval.py metrics <작업 폴더> <정답 폴더> [--min-articles N] [--min-publishers N] [--event-counts 파일]
 
 판정할 일(task) 다섯 가지 — 키는 「일:앞:뒤」, 정답 파일 한 줄이 일 하나다.
     M:<사건>:<기사>   이 기사가 이 사건에 맞나        Y · 0 · B ~ Z(같은 글자 = 사건 안의 다른 한 사건)
@@ -908,7 +908,9 @@ def size_bucket(n):
     return "5-9" if n < 10 else "10-19" if n < 20 else "20-49" if n < 50 else "50+"
 
 
+# 첫 칸은 「1곳 이하」다 — 공개 기사가 없는 사건은 언론사 0곳이고 여기로 들어온다
 PRESS_BUCKETS = ("1", "2", "3+")
+PRESS_LABELS = {"1": "1곳 이하", "2": "2곳", "3+": "3곳 이상"}
 
 
 def press_bucket(presses):
@@ -920,6 +922,7 @@ def issue_member_errors(events, gold, counts):
 
     문턱을 왜 두는지 보여 주는 표다 — 언론사가 적은 사건이 이슈에 잘못 붙는다. 이슈 밖 사건과
     `I` 판정이 없는 사건은 세지 않고, 수를 모르는 사건은 `no_counts` 로 따로 센다.
+    첫 칸은 **1곳 이하**다 — 공개 기사가 하나도 없는 사건(언론사 0곳)이 여기로 들어온다.
     """
     table = {bucket: {"events": 0, "not_y": 0} for bucket in PRESS_BUCKETS}
     no_counts = 0
@@ -940,7 +943,21 @@ def issue_member_errors(events, gold, counts):
     return {"by_publishers": table, "no_counts": no_counts}
 
 
+def gold_pairs_cut(partition, kept):
+    """문턱 경계를 넘어 채점에서 빠지는 정답 쌍 수 — 정답 한 묶음에서 한쪽만 남은 쌍.
+
+    이 쌍들은 재현율의 분모에서도 빠지므로 **문턱을 올리면 재현율이 저절로 오른다**. 숨은 사건과의
+    놓친 합침이 사라진 것이지 고쳐진 것이 아니다. 숫자 옆에 이 수를 같이 적는다.
+    """
+    kept_in, dropped_in = Counter(), Counter()
+    for item, cluster in partition.items():
+        (kept_in if item in kept else dropped_in)[cluster] += 1
+    return sum(count * dropped_in[cluster] for cluster, count in kept_in.items())
+
+
 def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=(), min_articles=1, min_publishers=1, counts_path=None):
+    if min_articles < 1 or min_publishers < 1:
+        raise CheckError(["문턱은 1 이상이어야 한다 — 1 이 「거르지 않음」이다"])
     prep, issues, events, articles = load_work(workdir)
     gold = final_gold(golddir, also)
     article_gold, event_gold = gold_partitions(events, articles, gold)
@@ -952,8 +969,17 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=(), min_articles=1, min_
     kept = passing_events(events, counts, min_articles, min_publishers)
     limited = min_articles > 1 or min_publishers > 1
     kept_articles = sorted(a for a, art in articles.items() if art["event_id"] in kept)
-    if not kept_articles or not kept:
-        raise CheckError([f"문턱(공개 기사 {min_articles}건 · 언론사 {min_publishers}곳)을 넘는 사건이 없다"])
+    without_counts = sum(1 for e in events if e not in counts)
+    if not kept_articles:
+        # 까닭을 「넘는 사건이 없다」로만 말하면 「문턱을 걸면 남는 게 없구나」로 잘못 읽는다.
+        # 두 칸이 없는 옛 내보내기가 가장 흔한 까닭이라 그 수를 같이 말한다
+        why = f"문턱(공개 기사 {min_articles}건 · 언론사 {min_publishers}곳)을 넘는 사건이 없다"
+        if without_counts:
+            why += (
+                f" — 공개 기사 수 칸이 없는 사건이 {without_counts}/{len(events)}개다."
+                " 목록을 다시 내보내거나 --event-counts 로 수를 넣는다"
+            )
+        raise CheckError([why])
     article_items = kept_articles if limited else None
     event_items = sorted(kept) if limited else None
     report = {
@@ -964,7 +990,11 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=(), min_articles=1, min_
             "events_total": len(events),
             "articles_kept": len(kept_articles),
             "articles_total": len(articles),
-            "events_without_counts": sum(1 for e in events if e not in counts),
+            "events_without_counts": without_counts,
+            "gold_pairs_cut": {
+                "event": gold_pairs_cut(article_gold, set(kept_articles)),
+                "issue": gold_pairs_cut(event_gold, kept),
+            },
         },
         "event": scores(system_article, article_gold, article_items, bootstrap=bootstrap),
         "issue": scores(system_event, event_gold, event_items, bootstrap=bootstrap),
@@ -1004,9 +1034,14 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=(), min_articles=1, min_
     path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     limit = report["threshold"]
     if limited:
+        cut = limit["gold_pairs_cut"]
         print(
             f"문턱: 공개 기사 {min_articles}건 · 언론사 {min_publishers}곳 이상"
             f" — 사건 {limit['events_kept']}/{limit['events_total']} · 기사 {limit['articles_kept']}/{limit['articles_total']} 만 채점"
+        )
+        print(
+            f"  문턱이 걸리는 줄은 event · issue 와 분야별 · 크기별뿐이다 — 아래 합침 · 오류율 줄은 전체다."
+            f" 경계에서 끊긴 정답 쌍 기사 {cut['event']} · 사건 {cut['issue']}(재현율 분모에서도 빠진다)"
         )
         if limit["events_without_counts"]:
             print(f"  수를 모르는 사건 {limit['events_without_counts']}개 — 문턱을 넘지 못한다")
@@ -1034,7 +1069,7 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=(), min_articles=1, min_
     for bucket in PRESS_BUCKETS:
         cell = errors["by_publishers"][bucket]
         rate = "—" if cell["rate"] is None else f"{cell['rate']:.1%}"
-        cells.append(f"{'3곳 이상' if bucket == '3+' else bucket + '곳'} {rate} ({cell['not_y']}/{cell['events']})")
+        cells.append(f"{PRESS_LABELS[bucket]} {rate} ({cell['not_y']}/{cell['events']})")
     print("이슈 붙임 오류율(언론사 수별 · I 판정이 Y 가 아닌 사건): " + " · ".join(cells))
     if errors["no_counts"]:
         print(f"  수를 몰라 가르지 못한 사건 {errors['no_counts']}개")

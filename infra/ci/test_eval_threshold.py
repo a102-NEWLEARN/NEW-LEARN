@@ -169,6 +169,14 @@ class PressBucketErrors(unittest.TestCase):
 
         self.assertIsNone(report["by_publishers"]["1"]["rate"])
 
+    def test_an_event_with_no_public_article_falls_in_the_first_bucket(self):
+        # 공개 기사가 없는 사건은 언론사 0곳이다 — 「1곳」이 아니라 「1곳 이하」 칸이라고 불러야 맞다
+        self.assertEqual(ce.press_bucket(0), "1")
+
+        report = ce.issue_member_errors({10: event(10, 1)}, {"I:1:10": "0"}, {10: (0, 0)})
+
+        self.assertEqual(report["by_publishers"]["1"]["events"], 1)
+
 
 class MetricsThreshold(unittest.TestCase):
     """`metrics` 를 끝까지 돌린다.
@@ -187,7 +195,7 @@ class MetricsThreshold(unittest.TestCase):
         self.work.mkdir()
         self.gold.mkdir()
 
-    def write_world(self, columns=True):
+    def write_world(self, columns=True, extra=(), categories=None):
         rows = [{"kind": "issue", "id": 1, "title": "이슈", "summary": None, "categories": ["P"]}]
         rows += [
             event(10, 1, *((4, 3) if columns else (None, None))),
@@ -197,6 +205,9 @@ class MetricsThreshold(unittest.TestCase):
         rows += [article(no, 10) for no in (101, 102, 103, 104)]
         rows += [article(no, 20) for no in (201, 202)]
         rows += [article(301, 30)]
+        for row in rows:
+            if row["kind"] == "article" and categories:
+                row["category"] = categories.get(row["id"], row["category"])
         export = self.root / "export.jsonl"
         export.write_text("".join(json.dumps(r, ensure_ascii=False) + NEWLINE for r in rows), encoding="utf-8")
         (self.work / "prep.json").write_text(
@@ -207,6 +218,7 @@ class MetricsThreshold(unittest.TestCase):
             ("M:20:201", "Y"), ("M:20:202", "Y"), ("M:30:301", "Y"),
             ("I:1:10", "Y"), ("I:1:20", "0"),
         ]
+        verdicts += list(extra)  # 같은 키가 또 나오면 뒤 줄이 이긴다
         lines = [ce.GOLD_HEADER] + [TAB.join([k, v, "sonnet", "census", "2026-11-14T10:00:00+09:00"]) for k, v in verdicts]
         (self.gold / "sonnet.tsv").write_text(NEWLINE.join(lines) + NEWLINE, encoding="utf-8")
 
@@ -287,13 +299,61 @@ class MetricsThreshold(unittest.TestCase):
         self.assertEqual(report["event"]["n"], 4)
         self.assertEqual(report["threshold"]["events_kept"], 1)
 
-    def test_a_threshold_without_any_counts_keeps_nothing_and_stops(self):
+    def test_a_threshold_without_any_counts_stops_and_says_the_columns_are_missing(self):
+        # 까닭이 「넘는 사건이 없다」로만 보이면 「문턱을 걸면 남는 게 없구나」로 잘못 읽는다
         self.write_world(columns=False)
 
         code, out, _ = self.run_metrics("--min-articles", 3)
 
         self.assertEqual(code, 1)
-        self.assertIn("문턱", out)
+        self.assertIn("공개 기사 수 칸이 없는 사건이 3/3개", out)
+        self.assertIn("--event-counts", out)
+
+    def test_a_threshold_below_one_is_rejected(self):
+        self.write_world()
+
+        code, out, _ = self.run_metrics("--min-articles", 0)
+
+        self.assertEqual(code, 1)
+        self.assertIn("1 이상", out)
+
+    def test_gold_pairs_cut_counts_pairs_across_the_boundary(self):
+        # 정답이 사건 10 · 20 을 한 사건 · 한 이슈로 보는데 20 이 문턱에 걸려 빠진다
+        # → 기사 쪽 끊긴 정답 쌍 {101,102,103} × {201,202} = 6, 사건 쪽 {10} × {20} = 1
+        self.write_world(extra=[("P:10:20", "same_event"), ("I:1:20", "Y")])
+
+        code, out, report = self.run_metrics("--min-articles", 3)
+
+        self.assertEqual(code, 0, out)
+        self.assertEqual(report["threshold"]["gold_pairs_cut"], {"event": 6, "issue": 1})
+        self.assertIn("끊긴 정답 쌍", out)
+
+    def test_no_gold_pair_is_cut_without_a_threshold(self):
+        self.write_world(extra=[("P:10:20", "same_event"), ("I:1:20", "Y")])
+
+        _, out, report = self.run_metrics()
+
+        self.assertEqual(report["threshold"]["gold_pairs_cut"], {"event": 0, "issue": 0}, out)
+
+    def test_cutting_a_gold_pair_lifts_recall(self):
+        # 끊긴 쌍은 재현율의 분모에서도 빠진다 — 문턱이 재현율을 올리는 까닭 가운데 하나다
+        self.write_world(extra=[("P:10:20", "same_event"), ("I:1:20", "Y")])
+
+        _, out, loose = self.run_metrics()
+        _, _, tight = self.run_metrics("--min-articles", 3)
+
+        self.assertLess(loose["event"]["pair_recall"], 1.0, out)
+        self.assertAlmostEqual(tight["event"]["pair_recall"], 1.0)
+
+    def test_a_category_left_with_no_article_is_dropped(self):
+        # 사건 20 · 30 의 기사만 분야 Q 면 문턱 뒤에 Q 칸이 사라진다(빈 부분집합으로 채점하지 않는다)
+        self.write_world(categories={201: "Q", 202: "Q", 301: "Q"})
+
+        _, out, loose = self.run_metrics()
+        _, _, tight = self.run_metrics("--min-articles", 3)
+
+        self.assertEqual(sorted(loose["by_category"]), ["P", "Q"], out)
+        self.assertEqual(sorted(tight["by_category"]), ["P"])
 
     def test_events_without_counts_are_reported(self):
         self.write_world(columns=False)
