@@ -257,3 +257,90 @@ scp infra/server/classified-load.sql infra/server/classified-load-finish.sql inf
 - 🔴 시험 기사 1 ~ 3 과 그 북마크는 되돌리지 않는다(백업에만). 적재가 넣은 언론사 · 대응 행과 사건 · 이슈 시퀀스도 남는다(해는 없다). 라벨은 따로 되돌린다(`category-labels.md` 6절)
 
 **R1** — 오늘 운영 백업을 관리자 PC 의 따로 띄운 DB 에 되살려 돈다: `docker compose -p newlearn-r1 --env-file <시험용 값> up -d db redis`(포트를 바꿔 로컬 개발 DB 와 겹치지 않게, `.env` 는 읽지 않음) → 백업 `pg_restore --no-owner` → 위 1 · 2 · 5 → backend 를 붙여 API → 되돌리기 → 다시 적재. 끝나면 `down -v` 와 받은 백업 파일 삭제(회원 정보, `db-backup.md`). 잰 값은 `SSOT.md` 10절
+
+## 10. 기사 벡터 채우기 (2026-11-14, Jira S15P31A102-207)
+
+11-12 적재 때 쓴 SQLite 에 벡터 표가 없어 `article_embedding` 이 0행이다(9절 마지막 줄). 벡터는 판정(MATCH_EVENT)의 후보 사건을 고를 때 쓴다(`CandidateEventFinder.nearest` — 사건에 묶인 기사 벡터와 코사인 거리, 인덱스 없이 정확 검색). **벡터가 없으면 새 기사가 후보를 하나도 못 받아 모두 새 사건이 된다.**
+
+AI 팀이 11-13 에 따로 준 `vectors_linked_1021_1111.sqlite`(사건에 묶인 기사 14,493건 전부)를 URL 로 운영 기사에 맞춰 넣는다.
+
+| 파일 | 하는 일 |
+|---|---|
+| `embedding_to_load.py` | 벡터 SQLite 검사(모델 이름 · 1024차원 · 유한 float4 · 길이 1 · 주소 1:1) → COPY 파일. 제목이 B2 에서 바뀐 기사 번호도 따로 뽑는다 |
+| `embedding-stage.sql` | 받는 표 `embed_load.stage` 만들기 |
+| `embedding-load.sql` | 받는 표 검사(사건 기사와 1:1 · 없는 기사 · 이미 있는 벡터 · 모델 이름 · 길이) → `article_embedding` 에 넣기 → 넣은 뒤 단언 |
+| `embedding-undo.sql` | `embed_load.stage` 에 적힌 기사의 벡터만 지우고 스키마를 버린다 |
+
+**받은 벡터**(파일 `meta` 표) — `dragonkue/BGE-m3-ko`, Hugging Face `main` = 판 `7074d66…`(운영 init 컨테이너가 받는 판과 같다), 입력은 **원제목**(B2 정리 전) + 줄바꿈 + 본문 앞 800자, `normalize_embeddings=True` 뒤 float32 로 다시 정규화, float32 1024개. 운영 EMBED 입력과 글자까지 같은 것 14,367건, B2 가 제목을 바꾼 것 126건.
+
+### 순서 — 명령은 **관리자 서버**에서 (10:00 ~ 10:30 수집 밖)
+
+관리자 PC 의 `kubectl` 은 이 클러스터를 보지 않는다. 벡터 파일과 스크립트를 서버로 보내고 거기서 돌린다(`ssh newlearn`, 서버 python 3.12).
+
+1. (PC) 보내기
+
+   ```bash
+   ssh newlearn 'mkdir -p ~/207'
+   scp vectors_linked_1021_1111.sqlite newlearn:~/207/
+   scp infra/server/embedding_to_load.py infra/server/embedding-stage.sql        infra/server/embedding-load.sql infra/server/embedding-undo.sql newlearn:~/207/
+   ```
+
+2. (서버) 사건에 묶인 기사 번호 · 주소를 읽고(읽기만) COPY 파일을 만든다 — 끝 표시: 「줄 14493개」 · 「같은 글 14367건」
+
+   ```bash
+   cd ~/207 && kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc      "select ae.article_id, a.url from article_event ae join article a on a.id = ae.article_id" > urls.tsv
+   python3 embedding_to_load.py --sqlite vectors_linked_1021_1111.sqlite      --urls urls.tsv --out embeddings-207.tsv --changed-out changed-ids.txt
+   ```
+
+3. (서버) 받는 표를 만들고 토막으로 넣는다. **한 번에 보내면 스트림이 끊긴다**(200MB) — 2,000줄씩
+
+   ```bash
+   cd ~/207 && { echo 'begin;' && cat embedding-stage.sql && echo 'commit;'; }      | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
+   split -l 2000 -d --suffix-length=3 embeddings-207.tsv chunk-
+   for f in chunk-*; do
+     kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn        -c "\copy embed_load.stage (article_id, model, embedding) from stdin" < "$f" || break
+   done
+   kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -Atc "select count(*) from embed_load.stage"
+   ```
+
+   끝 표시: 마지막 줄이 `14493`. 토막이 중간에 끊기면 그 자리에서 다시 돌린다 — 이미 들어간 줄은 기본 키에 막혀 그 토막만 통째로 되돌아간다(토막 하나가 한 트랜잭션).
+
+4. (서버) 넣는다 — 끝 표시: 「기사 벡터 14493 · 사건에 묶인 기사 14493」 한 줄
+
+   ```bash
+   cd ~/207 && { echo 'begin;' && cat embedding-load.sql && echo 'commit;'; }      | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
+   ```
+
+5. (서버) 되돌리기 — 판정 · 이슈 워커를 **먼저 끄고** 돌린다
+
+   ```bash
+   cd ~/207 && { echo 'begin;' && cat embedding-undo.sql && echo 'commit;'; }      | kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn
+   ```
+
+6. (서버) 끝나면 보낸 파일을 지운다 — `rm -rf ~/207`
+
+### 넣은 뒤 확인 — 벡터가 그 기사의 것인가
+
+주소를 잘못 맞춰 벡터가 엉뚱한 기사에 붙으면 단언은 다 통과하고 판정만 조용히 틀린다. 같은 사건 기사끼리의 거리로 본다 — AI 팀은 이 벡터로 코사인 거리 0.25 안쪽을 한 사건으로 묶었으니, 잘 맞았다면 같은 사건 안은 가깝고 다른 사건과는 멀다. 어긋났다면 둘 다 0.8 ~ 1.0 근처로 비슷해진다.
+
+```bash
+kubectl -n data exec postgres-0 -- psql -U newlearn -d newlearn -c "
+with pair as (
+  select l1.event_id, l1.article_id a, l2.article_id b
+  from article_event l1 join article_event l2
+    on l1.event_id = l2.event_id and l1.article_id < l2.article_id
+  limit 20000)
+select round(avg(e1.embedding <=> e2.embedding)::numeric, 3) as "같은 사건 평균 거리",
+       round(max(e1.embedding <=> e2.embedding)::numeric, 3) as "가장 먼 쌍"
+from pair p join article_embedding e1 on e1.article_id = p.a
+            join article_embedding e2 on e2.article_id = p.b"
+```
+
+### 제목이 바뀐 126건 — 받은 그대로 둔다
+
+받은 벡터는 **원제목**으로 만들었고 운영 EMBED 는 B2 가 정리한 제목을 쓴다. 126건(0.9%)은 입력 글이 달라 벡터도 조금 다르다.
+
+다시 만들지 않는다. EMBED 작업을 따로 걸 길이 없어서다 — 작업을 만드는 곳은 투입(B1, `AnalysisJobService.queueRelease`) 하나뿐이고 EXTRACT 와 EMBED 를 **같이** 만든다. 126건을 다시 투입하면 EXTRACT 가 GMS 를 126번 더 부르고 적재한 마인드맵을 덮는다. 바뀐 것이 제목뿐이라 얻는 것보다 잃는 것이 크다.
+
+- 영향은 **후보 순위뿐**이다. 이 기사들은 이미 `article_event` 에 있어 다시 판정에 걸리지 않고(`AnalysisJobRepository.findNextMatchArticle` 이 사건에 묶인 기사를 뺀다), 앞으로 들어오는 새 기사의 후보 사건을 고를 때 거리 계산에만 쓰인다
+- 기사 번호는 `changed-ids.txt` 에 남긴다
