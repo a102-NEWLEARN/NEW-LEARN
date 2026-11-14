@@ -122,6 +122,8 @@ async def test_new_event_envelope_has_result_and_versions():
     assert (env["model"], env["promptVersion"]) == ("gpt-6-luna", PROMPT_VERSION)
     assert env["result"] == NEW_MAIN
     assert diag["calls"] == 1
+    # 제안 범위 안(「착공식」 3자)이면 경고가 없다 — 길이 검사가 뒤집히면 여기서 빨개진다
+    assert diag["warnings"] == []
 
 
 async def test_existing_keeps_only_event_id():
@@ -185,6 +187,18 @@ async def test_reaction_target_outside_candidates_becomes_null():
     assert diag["warnings"]
 
 
+@pytest.mark.parametrize("label", ["가" * 11, "가" * 60, "가"])
+async def test_label_outside_suggested_length_passes_with_warning(label):
+    # 2 ~ 10자는 프롬프트에 주는 제안이고 API 는 막지 않는다(api-internal.md 5절 — 넘치면 화면이
+    # 줄임표로 자른다). 버리면 다시 물어도 같은 답이 와서 그 기사가 사건에 영영 안 붙는다
+    # (운영 2026-11-13 ~ 14 에 10건). 모델이 지은 글자를 그대로 두고 경고만 남긴다.
+    env, diag = await run(FakeLlm(answer(newEvent={"label": label})))
+
+    assert env["status"] == "SUCCEEDED"
+    assert env["result"]["newEvent"]["label"] == label
+    assert "label" in diag["warnings"][0]
+
+
 async def test_no_candidates_still_judges():
     llm = FakeLlm(answer())
 
@@ -228,8 +242,6 @@ async def test_user_message_carries_evidence_text_and_names_not_to_use():
         answer(reason=" "),
         answer(newEvent={"title": "착공\u0000식"}),
         answer(newEvent={"title": "가" * 41}),
-        answer(newEvent={"label": "가"}),
-        answer(newEvent={"label": "가" * 11}),
         answer(newEvent={"summary": "착공식을 열었습니다."}),
         answer(newEvent=None),
         "not json",
