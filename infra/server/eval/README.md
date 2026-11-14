@@ -4,12 +4,12 @@
 
 | 파일 | 하는 일 |
 |---|---|
-| `eval_export.sql` | 운영에서 읽기만으로 이슈 · 사건 · 사건에 묶인 기사를 JSONL 로 뽑는다(기사 글은 제목과 본문 앞 240자) |
+| `eval_export.sql` | 운영에서 읽기만으로 이슈 · 사건 · 사건에 묶인 기사를 JSONL 로 뽑는다(기사 글은 제목과 본문 앞 240자). 사건마다 공개 기사 수 · 언론사 수(`released_articles` · `released_presses`)도 싣는다 |
 | `clustering_eval.py` | 후보 만들기 · Sonnet 묶음 나누기 · 모으기 · 사람 표본 · 기록 · 일치율 · 지표. 표준 라이브러리만 |
 | `criteria-v4.md` | 판정 기준 — AI 팀 v4 사본 |
 | `judge-prompt.md` | Sonnet 판정 지시문 |
 | `gold/` | 정답 — 번호와 판정만(`human.tsv` 사람 · `sonnet*.tsv` Sonnet · `metrics.json` 지표) |
-| 시험 | `infra/ci/test_clustering_eval.py` (CI `infra_TEST`) |
+| 시험 | `infra/ci/test_clustering_eval.py` · `test_final_gold_also.py` · `test_eval_threshold.py` (CI `infra_TEST`) |
 
 ## 1. 무엇을 판정하나
 
@@ -66,6 +66,9 @@ python -X utf8 -B infra/server/eval/clustering_eval.py split C:/tmp/206-steps/w2
 python -X utf8 -B infra/server/eval/clustering_eval.py merge C:/tmp/206-steps/w2 infra/server/eval/gold
 python -X utf8 -B infra/server/eval/clustering_eval.py sample C:/tmp/206-steps/w2 infra/server/eval/gold verify
 python -X utf8 -B infra/server/eval/clustering_eval.py metrics C:/tmp/206-steps/w2 infra/server/eval/gold
+
+# 6) 화면에 보일 몫만 — 사건마다 공개 기사 · 언론사가 이만큼은 돼야 채점한다(기본 1 · 1 은 거르지 않음)
+python -X utf8 -B infra/server/eval/clustering_eval.py metrics C:/tmp/206-steps/w2 infra/server/eval/gold --min-articles 3 --min-publishers 3
 ```
 
 사람 판정은 Sonnet 답을 보지 않고 한다. 같은 키를 다시 기록하면 뒤 줄이 이긴다. 지표를 낼 때 사람 판정이 Sonnet 판정을 덮는다.
@@ -78,6 +81,8 @@ python -X utf8 -B infra/server/eval/clustering_eval.py metrics C:/tmp/206-steps/
 | B³ 정밀도 · 재현율 · F1 | 기사 하나씩, 내 묶음과 정답 묶음이 얼마나 겹치나의 평균 |
 | 균질성 · 완전성 · V | 묶음 안이 섞이지 않았나 · 정답 한 사건이 쪼개지지 않았나 |
 | ARI | 우연히 맞을 몫을 뺀 일치 |
+
+`--min-articles N` · `--min-publishers N` 은 **채점 대상만** 줄인다 — 정답 묶음은 그대로 두고, 문턱을 못 넘은 사건과 그 기사를 사건 · 이슈 지표에서 뺀다. 「사건마다 기사 N건 이상만 화면에 보이면 정확도가 어떻게 되나」를 재는 자다. 두 수가 없는 옛 내보내기는 `--event-counts <사건id|공개기사수|언론사수 파일>` 로 대신 넣는다. 수를 모르는 사건은 1 보다 큰 문턱을 넘지 못하고, 몇 개인지 찍어 준다. 같은 명령이 **이슈에 붙은 사건의 언론사 수별 오류율**(1곳 · 2곳 · 3곳 이상에서 `I` 판정이 `Y` 가 아닌 비율)도 낸다 — 문턱을 왜 두는지 보여 주는 표다.
 
 비율은 Wilson 95% 구간, F1 · B³ 는 묶음 덩어리(정답이 잇는 시스템 묶음끼리) 단위 부트스트랩 1,000번. 사람 표본은 층별 역확률 가중치로 되돌린다. 숫자 옆에 범위를 적는다: 「사건에 묶인 기사 14,493건 안에서」, 「사람 1명 + Sonnet 판정」.
 
