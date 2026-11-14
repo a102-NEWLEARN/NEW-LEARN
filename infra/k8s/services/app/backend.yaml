@@ -105,6 +105,10 @@ spec:
             # 그 밖을 버려도 맞게 붙은 1,364건은 하나도 잃지 않는다. 2026-11-09 오프라인 실험이 쓴 값과 같다
             - name: ISSUE_MAX_CANDIDATE_DISTANCE
               value: "0.40"
+            # 화면에 보일 사건의 최소 공개 기사 수 (Jira S15P31A102-206 후속). 되돌릴 때는 이름을 지우지 말고 값을 "1" 로.
+            # 2026-11-14 측정: 3 이면 이슈 쌍 정밀도 0.930 → 0.976. 사건 376개 · 이슈 19개가 화면에서 사라진다(243 → 224)
+            - name: QUERY_MIN_PUBLIC_ARTICLES
+              value: "3"
           # POSTGRES_DB · POSTGRES_USER · POSTGRES_PASSWORD (sealed-postgres-auth.yaml — data 의 DB 와 같은 값)
           envFrom:
             - secretRef:

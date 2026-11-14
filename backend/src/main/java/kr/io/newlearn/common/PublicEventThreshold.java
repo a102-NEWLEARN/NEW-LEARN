@@ -1,5 +1,7 @@
 package kr.io.newlearn.common;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -15,9 +17,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class PublicEventThreshold {
 
+    private static final Logger log = LoggerFactory.getLogger(PublicEventThreshold.class);
+
     private final int minArticles;
 
     public PublicEventThreshold(@Value("${newlearn.query.min-public-articles:1}") int minArticles) {
+        // 0 이나 음수는 SQL 의 offset (N - 1) 을 음수로 만들어 첫 요청에서야 깨진다. 그렇다고 뜨지 못하게 막으면
+        // 「급해서 0 으로 끄려던」 실수에 Pod 가 안 떠 되돌림이 막힌다 — 1(끔)로 올리고 경고를 남긴다
+        if (minArticles < 1) {
+            log.warn("newlearn.query.min-public-articles={} 는 1 보다 작다 — 1(끔)로 올린다", minArticles);
+        }
         this.minArticles = Math.max(1, minArticles);
     }
 

@@ -21,7 +21,7 @@ import org.springframework.stereotype.Repository;
 public class IssueQueryRepository {
     // A3 단건 · A25 관심 이슈가 쓰는 계산이다. A2 목록은 같은 수를 아래 LIST 모양으로 센다 — 행 매핑(mapCard)은 셋이 같다.
     // inner join 이라 공개 기사가 없는 사건은 수 · 기간에서 빠지고,
-    // 공개 사건이 하나도 없는 이슈는 행이 나오지 않는다(PublicEventSql 과 같은 규칙, 수를 세야 해서 이 모양이다)
+    // 문턱을 넘는 사건이 하나도 없는 이슈는 행이 나오지 않는다(PublicEventSql 과 같은 규칙, 수를 세야 해서 이 모양이다)
     private static final String AGGREGATE = """
             select i.id, i.title, i.summary, i.created_at,
                 count(distinct e.id) as event_count, count(distinct a.id) as article_count,

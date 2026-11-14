@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,9 +17,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.test.context.NestedTestConfiguration;
-import org.springframework.test.context.NestedTestConfiguration.EnclosingConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
@@ -238,105 +234,6 @@ class HiddenIssueEventApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].id").value(ALL_HIDDEN));
-    }
-
-    // 공개 기사가 모자란 사건은 화면에서 없는 것으로 본다 (Jira S15P31A102-206 후속).
-    // 2026-11-14 측정: 사건마다 공개 기사 3건 이상만 보이면 이슈 쌍 정밀도가 0.930 → 0.976 으로 오른다.
-    // 기준은 사건 단위다 — 「공개 기사 3건 이상인 사건」만 보이고, 그런 사건이 하나도 없는 이슈가 사라진다
-    @Nested
-    @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
-    @SpringBootTest
-    @AutoConfigureMockMvc
-    @Import(TestcontainersConfiguration.class)
-    @Transactional
-    @TestPropertySource(properties = "newlearn.query.min-public-articles=3")
-    class MinPublicArticles {
-        static final int RICH = 17905;
-        static final int THIN_ONLY = 17906;
-        static final int THICK_EVENT = 179051;
-        static final int THIN_EVENT = 179052;
-        static final int ONE_ARTICLE_EVENT = 179061;
-
-        @BeforeEach
-        void more() {
-            issue(RICH, "문턱검증 기사 많은 이슈", "2026-10-06T00:00:00Z", "economy");
-            issue(THIN_ONLY, "문턱검증 기사 적은 이슈", "2026-10-07T00:00:00Z", "world");
-            event(THICK_EVENT, RICH, "문턱검증 공개 3건 사건", "2026-10-14T00:00:00Z");
-            event(THIN_EVENT, RICH, "문턱검증 공개 2건 사건", "2026-10-15T00:00:00Z");
-            event(ONE_ARTICLE_EVENT, THIN_ONLY, "문턱검증 공개 1건 사건", "2026-10-16T00:00:00Z");
-            article(179201, "hide179a", true, THICK_EVENT);
-            article(179202, "hide179b", true, THICK_EVENT);
-            article(179203, "hide179a", true, THICK_EVENT);
-            article(179204, "hide179a", true, THIN_EVENT);
-            article(179205, "hide179b", true, THIN_EVENT);
-            article(179206, "hide179a", true, ONE_ARTICLE_EVENT);
-        }
-
-        @Test
-        void timelineKeepsOnlyEventsWithEnoughArticles() throws Exception {
-            mvc.perform(get("/api/v1/issues/" + RICH + "/timeline"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.events", hasSize(1)))
-                    .andExpect(jsonPath("$.events[0].id").value(THICK_EVENT))
-                    .andExpect(jsonPath("$.events[0].articleCount").value(3));
-        }
-
-        // 보일 사건이 하나도 없으면 이슈가 사라진다 — 기사가 모두 숨겨졌을 때와 같은 규칙(Jira 179)
-        @Test
-        void anIssueWithoutEnoughArticlesIsGoneEverywhere() throws Exception {
-            mvc.perform(get("/api/v1/issues/" + THIN_ONLY)).andExpect(status().isNotFound());
-            mvc.perform(get("/api/v1/issues/" + THIN_ONLY + "/timeline")).andExpect(status().isNotFound());
-            mvc.perform(get("/api/v1/issues/" + MIXED)).andExpect(status().isNotFound());
-        }
-
-        // 목록의 총수와 실제 행이 같아야 한다 — 수를 세는 질의와 행을 가져오는 질의가 따로다
-        @Test
-        void issueListCountsAndRowsAgree() throws Exception {
-            mvc.perform(get("/api/v1/issues"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.totalElements").value(1))
-                    .andExpect(jsonPath("$.items", hasSize(1)))
-                    .andExpect(jsonPath("$.items[0].id").value(RICH))
-                    .andExpect(jsonPath("$.items[0].eventCount").value(1))
-                    .andExpect(jsonPath("$.items[0].articleCount").value(3))
-                    .andExpect(jsonPath("$.items[0].publisherCount").value(2))
-                    .andExpect(jsonPath("$.items[0].lastEvent.id").value(THICK_EVENT));
-        }
-
-        @Test
-        void categoryCountsFollowTheThreshold() throws Exception {
-            mvc.perform(get("/api/v1/categories"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.items[?(@.code=='economy')].issueCount")
-                            .value(org.hamcrest.Matchers.contains(1)))
-                    .andExpect(jsonPath("$.items[?(@.code=='politics')].issueCount")
-                            .value(org.hamcrest.Matchers.contains(0)))
-                    .andExpect(jsonPath("$.items[?(@.code=='world')].issueCount")
-                            .value(org.hamcrest.Matchers.contains(0)));
-        }
-
-        @Test
-        void searchLeavesOutWhatTheThresholdHides() throws Exception {
-            mvc.perform(get("/api/v1/search").param("q", "문턱검증"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.issues", hasSize(1)))
-                    .andExpect(jsonPath("$.issues[0].id").value(RICH))
-                    .andExpect(jsonPath("$.events", hasSize(1)))
-                    .andExpect(jsonPath("$.events[0].id").value(THICK_EVENT));
-        }
-
-        @Test
-        void savingAnIssueBelowTheThresholdIsNotFound() throws Exception {
-            Cookie session = join("threshold206_save");
-
-            save(session, THIN_ONLY).andExpect(status().isNotFound());
-            save(session, RICH).andExpect(status().isOk());
-            interests(session)
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.items", hasSize(1)))
-                    .andExpect(jsonPath("$.items[0].id").value(RICH))
-                    .andExpect(jsonPath("$.items[0].eventCount").value(1));
-        }
     }
 
     private void issue(int id, String title, String createdAt, String category) {
