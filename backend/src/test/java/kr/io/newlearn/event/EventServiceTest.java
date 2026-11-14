@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import kr.io.newlearn.article.ArticleRepository;
 import kr.io.newlearn.article.ArticleSummaryAssembler;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.PageQuery;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class EventServiceTest {
         var links = mock(ArticleEventRepository.class);
         var articles = mock(ArticleRepository.class);
         var summaries = mock(ArticleSummaryAssembler.class);
-        var service = new EventService(events, links, articles, summaries);
+        var service = new EventService(events, links, articles, summaries, new PublicEventThreshold(1));
         when(articles.findReleasedByEventId(eq(49L), any())).thenReturn(Page.empty());
         assertThatThrownBy(() -> service.get(49)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.articles(49, "oldest", new PageQuery(0, 4), null))
@@ -36,7 +37,8 @@ class EventServiceTest {
                 mock(EventRepository.class),
                 mock(ArticleEventRepository.class),
                 articles,
-                mock(ArticleSummaryAssembler.class));
+                mock(ArticleSummaryAssembler.class),
+                new PublicEventThreshold(1));
         when(articles.findReleasedByEventId(eq(49L), any())).thenReturn(Page.empty());
         var pageable = ArgumentCaptor.forClass(Pageable.class);
 

@@ -35,7 +35,8 @@ public class IssueController {
 
     @Operation(
             summary = "[확정] A3 이슈 헤더",
-            description = "이슈 화면 맨 위 헤더입니다. 공개 기사가 있는 사건만 셉니다. 공개 기사가 하나도 없는 이슈는 404 입니다.")
+            description =
+                    "이슈 화면 맨 위 헤더입니다. 공개 기사가 문턱(기본 1 · 사이트 3)을 넘는 사건만 셉니다. 공개 기사가 모자란 사건만 있는 이슈는 404 입니다(사이트는 사건마다 3건 이상, `QUERY_MIN_PUBLIC_ARTICLES`).")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
@@ -46,7 +47,7 @@ public class IssueController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 하나도 없는 이슈",
+            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 문턱보다 적은 사건만 있는 이슈",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,
@@ -72,7 +73,7 @@ public class IssueController {
                             schema = @Schema(implementation = ApiProblem.class)))
     @ApiResponse(
             responseCode = "404",
-            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 하나도 없는 이슈",
+            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 문턱보다 적은 사건만 있는 이슈",
             content =
                     @Content(
                             mediaType = OpenApiConfig.PROBLEM_JSON,

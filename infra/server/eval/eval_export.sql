@@ -14,11 +14,19 @@ from issue i
 order by i.id;
 \warn 이슈: :ROW_COUNT
 
+-- 공개 기사 수 · 언론사 수는 사건 쪽에 싣는다 — 기사마다 press_code 를 싣는 것보다 파일이 작다.
+-- 화면에 보이는 몫만 채점하는 문턱(clustering_eval.py metrics --min-articles · --min-publishers)이 이 두 수를 쓴다.
 select json_build_object(
            'kind', 'event', 'id', e.id, 'issue_id', e.issue_id, 'title', e.title, 'label', e.label,
            'summary', e.summary, 'occurred_at', e.occurred_at, 'role', e.role,
-           'reacts_to_event_id', e.reacts_to_event_id)
+           'reacts_to_event_id', e.reacts_to_event_id,
+           'released_articles', c.articles, 'released_presses', c.presses)
 from event e
+         left join lateral (select count(*) as articles, count(distinct a.press_code) as presses
+                            from article_event ae
+                                      join article a on a.id = ae.article_id
+                            where ae.event_id = e.id
+                              and a.released_at is not null) c on true
 order by e.id;
 \warn 사건: :ROW_COUNT
 

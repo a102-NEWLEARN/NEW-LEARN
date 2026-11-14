@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import kr.io.newlearn.category.CategoryFilter;
 import kr.io.newlearn.category.CategoryRepository;
 import kr.io.newlearn.category.dto.CategoryRef;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
@@ -33,18 +34,21 @@ public class IssueService {
     private final EventRepository events;
     private final InterestIssueRepository interests;
     private final IssueCardAssembler cards;
+    private final PublicEventThreshold threshold;
 
     public IssueService(
             CategoryRepository categories,
             IssueQueryRepository queries,
             EventRepository events,
             InterestIssueRepository interests,
-            IssueCardAssembler cards) {
+            IssueCardAssembler cards,
+            PublicEventThreshold threshold) {
         this.categories = categories;
         this.queries = queries;
         this.events = events;
         this.interests = interests;
         this.cards = cards;
+        this.threshold = threshold;
     }
 
     public IssueHeaderResponse get(long issueId, @Nullable Long memberId) {
@@ -68,7 +72,7 @@ public class IssueService {
 
     public TimelineResponse timeline(long issueId) {
         // 공개 사건이 하나도 없으면 없는 이슈다(docs/api.md 1절, Jira 179)
-        var ordered = events.findPublicByIssueId(issueId);
+        var ordered = events.findPublicByIssueId(issueId, threshold.minArticles());
         if (ordered.isEmpty()) {
             throw missingIssue(issueId);
         }
