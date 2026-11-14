@@ -20,7 +20,7 @@ public class CategoryQueryRepository {
 
     public Map<String, Long> issueCounts() {
         return counts("select ic.category_code, count(*) as total from issue_category ic"
-                + " join issue i on i.id = ic.issue_id where " + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE
+                + " join issue i on i.id = ic.issue_id where " + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS
                 + " group by ic.category_code");
     }
 
@@ -36,6 +36,7 @@ public class CategoryQueryRepository {
         // 조각을 안 쓰는 질의(기사 수)에는 이 값이 안 들어간다 — JdbcClient 는 SQL 에 있는 이름만 묶는다
         jdbc.sql(sql)
                 .param("publicArticleSkip", threshold.skip())
+                .param("publicEventSkip", threshold.eventSkip())
                 .query((rs, row) -> {
                     counts.put(rs.getString("category_code"), rs.getLong("total"));
                     return rs.getString("category_code");

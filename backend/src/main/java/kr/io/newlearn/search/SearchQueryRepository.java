@@ -25,23 +25,25 @@ class SearchQueryRepository {
         this.threshold = threshold;
     }
 
-    // 문턱을 넘는 사건이 있는 이슈만(docs/api.md 1절), 만든 때 최신순
+    // 목록에 나오는 이슈만(docs/api.md 1절) — 보이는 사건이 문턱만큼 있는 이슈다, 만든 때 최신순
     List<IssueRef> issues(String query) {
         return jdbc.sql("""
                         select id, title from issue i
                         where strpos(lower(title), lower(:q)) > 0 and
-                        """ + PublicEventSql.ISSUE_HAS_PUBLIC_ARTICLE + """
+                        """ + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS + """
                         order by created_at desc, id desc
                         limit :limit
                         """)
                 .param("q", query)
                 .param("publicArticleSkip", threshold.skip())
+                .param("publicEventSkip", threshold.eventSkip())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new IssueRef(rs.getLong("id"), rs.getString("title")))
                 .list();
     }
 
-    // 이슈에 묶인 사건만(화면이 그 이슈로 옮겨 간다), 공개 기사가 있는 것만, 발생 시점 최신순
+    // 이슈에 묶인 사건만(화면이 그 이슈로 옮겨 간다), 공개 기사가 있는 것만, 발생 시점 최신순.
+    // 사건 수 문턱은 여기 걸지 않는다 — 목록에서 뺀 이슈도 페이지는 살아 있어서 넘어가도 깨지지 않는다(Jira 208)
     List<SearchEvent> events(String query) {
         return jdbc.sql("""
                         select id, title, issue_id from event e
