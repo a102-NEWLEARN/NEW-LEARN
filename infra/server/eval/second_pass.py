@@ -38,7 +38,8 @@ _spec.loader.exec_module(ce)
 
 SEED = 20261114
 # 답은 `clustering_eval.binary` 와 같은 모양(통과 1 · 불통과 0)으로 맞춘다 — κ 가 그 모양을 받는다
-WORDS = {"통과": 1, "불통과": 0, "Y": 1, "N": 0}
+# 사람이 손으로 적는 말은 여러 가지다 — 종이에는 통과 · 불통과로 적어 달라고 하지만 예 · 네 · 아니오도 받는다
+WORDS = {"통과": 1, "예": 1, "네": 1, "Y": 1, "불통과": 0, "아니오": 0, "아니요": 0, "N": 0}
 
 
 def first_pass(golddir, stage="verify"):
@@ -113,6 +114,7 @@ def read_answers(path):
                 continue
             if line.startswith("답:"):
                 word = line[2:].strip().strip(":").strip()
+                word = word.split("(")[0].split()[0] if word else word
                 if pending and word:
                     out[pending] = WORDS.get(word, word)
                 pending = None

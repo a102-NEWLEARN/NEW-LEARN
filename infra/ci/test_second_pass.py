@@ -95,6 +95,25 @@ class ReadAnswers(unittest.TestCase):
         self.assertIn("모르는 답", str(e.exception.problems[0]))
 
 
+class Words(unittest.TestCase):
+    # 종이에는 통과 · 불통과로 적어 달라고 하지만 사람은 예 · 네 · 아니오로도 적는다
+    def test_accepts_the_words_people_actually_write(self):
+        for word, want in (("통과", 1), ("예", 1), ("네", 1), ("불통과", 0), ("아니오", 0), ("아니요", 0)):
+            self.assertEqual(sp.WORDS[word], want, word)
+
+    def test_a_note_after_the_answer_is_ignored(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        p = pathlib.Path(d.name) / "ans.md"
+        nl = chr(10)
+        p.write_text(
+            nl.join(["## 1. (P:1:2)", "", "답: 아니요 (근데 날씨 기사는 사건 처리 안 하기로 하지 않았나?)", ""]),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(sp.read_answers(str(p)), {"P:1:2": 0})
+
+
 class Compare(unittest.TestCase):
     def test_counts_agreement_and_kappa(self):
         d, g = gold_dir(
