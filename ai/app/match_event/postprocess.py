@@ -59,8 +59,6 @@ def check_answer(
         raise OutputInvalid(f"role {role!r}")
     if len(title) > TITLE_MAX:
         raise OutputInvalid(f"title {len(title)}자(최대 {TITLE_MAX})")
-    if not LABEL_MIN <= len(label) <= LABEL_MAX:
-        raise OutputInvalid(f"label {len(label)}자({LABEL_MIN}~{LABEL_MAX})")
     if POLITE_ENDING.search(summary):
         raise OutputInvalid("summary 가 합니다 · 해요체")
     for name in banned:
@@ -68,6 +66,11 @@ def check_answer(
             raise OutputInvalid("쓰면 안 되는 이름을 씀")
 
     warnings: list[str] = []
+    if not LABEL_MIN <= len(label) <= LABEL_MAX:
+        # 길이는 프롬프트에 주는 제안이고 API 는 막지 않는다(api-internal.md 5절 — 넘치면 화면이
+        # 줄임표로 자른다). 버리면 다시 물어도 같은 답이 와서 그 기사가 사건에 영영 안 붙는다
+        # (운영 2026-11-13 ~ 14 에 11자 10건). 글자는 그대로 두고 경고만 남긴다.
+        warnings.append(f"label {len(label)}자(제안 {LABEL_MIN}~{LABEL_MAX})")
     reacts_to, target = None, None
     if role == "REACTION":
         text = new.get("reactsTo")
