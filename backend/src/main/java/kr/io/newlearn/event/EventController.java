@@ -35,7 +35,7 @@ public class EventController {
     @Operation(
             summary = "[확정] A5 사건 패널",
             description =
-                    "저장된 사건 요약과 투입 기사 집계를 줍니다. 공개 기사가 하나도 없는 사건은 404 입니다. 언론사는 코드 오름차순이며, 앞뒤 사건은 같은 이슈에서 공개 기사가 있는 사건의 발생 시각·ID 순서입니다.")
+                    "저장된 사건 요약과 투입 기사 집계를 줍니다. 공개 기사가 하나도 없는 사건은 404 입니다. 언론사는 코드 오름차순이며, 앞뒤 사건은 같은 이슈에서 A4 타임라인에 오르는 사건(공개 기사가 `QUERY_MIN_PUBLIC_ARTICLES` 건 이상)의 발생 시각·ID 순서입니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",

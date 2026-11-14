@@ -10,7 +10,7 @@ Sonnet · 사람 판정을 검사해 정답(gold/)으로 모은 뒤 운영 묶�
     python -X utf8 -B infra/server/eval/clustering_eval.py sample  <작업 폴더> <정답 폴더> calib|verify
     python -X utf8 -B infra/server/eval/clustering_eval.py record  <정답 폴더> <일 키> 통과|불통과 [--stage …]
     python -X utf8 -B infra/server/eval/clustering_eval.py agree   <정답 폴더> [--stage …]
-    python -X utf8 -B infra/server/eval/clustering_eval.py metrics <작업 폴더> <정답 폴더>
+    python -X utf8 -B infra/server/eval/clustering_eval.py metrics <작업 폴더> <정답 폴더> [--min-articles N] [--min-publishers N] [--event-counts 파일]
 
 판정할 일(task) 다섯 가지 — 키는 「일:앞:뒤」, 정답 파일 한 줄이 일 하나다.
     M:<사건>:<기사>   이 기사가 이 사건에 맞나        Y · 0 · B ~ Z(같은 글자 = 사건 안의 다른 한 사건)
@@ -113,6 +113,63 @@ def read_export(path):
     if problems:
         raise CheckError(problems)
     return issues, events, articles
+
+
+def read_event_counts(path):
+    """`사건id|공개기사수|언론사수` 한 줄씩인 파일 → {사건: (공개 기사 수, 언론사 수)}.
+
+    목록에 두 칸이 없던 때(`eval_export.sql` 을 고치기 전) 받아 둔 수를 대신 넣을 때 쓴다.
+    """
+    counts, problems = {}, []
+    for no, line in enumerate(pathlib.Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        parts = line.split("|")
+        try:
+            if len(parts) != 3:
+                raise ValueError(line)
+            event, articles, presses = (int(p) for p in parts)
+            if articles < 0 or presses < 0:
+                raise ValueError(line)
+        except ValueError:
+            problems.append(f"{no}번째 줄: 「사건id|공개기사수|언론사수」 가 아님")
+            continue
+        if event in counts:
+            problems.append(f"{no}번째 줄: 같은 사건 번호가 또 나옴")
+        counts[event] = (articles, presses)
+    if problems:
+        raise CheckError(problems)
+    return counts
+
+
+def event_counts(events, extra=None):
+    """사건마다 (공개 기사 수, 언론사 수). 목록의 두 칸이 바탕이고 `extra`(따로 받은 파일)가 이긴다.
+
+    목록에 칸이 없는 사건은 아예 넣지 않는다 — 0 으로 두면 「공개 기사가 없다」와 구별되지 않는다.
+    """
+    counts = {}
+    for key, event in events.items():
+        if event.get("released_articles") is not None and event.get("released_presses") is not None:
+            counts[key] = (int(event["released_articles"]), int(event["released_presses"]))
+    if extra:
+        counts.update({key: value for key, value in extra.items() if key in events})
+    return counts
+
+
+def passing_events(events, counts, min_articles=1, min_publishers=1):
+    """문턱을 넘는 사건 번호.
+
+    둘 다 1 이면 전부 돌려준다 — 기본값은 아무것도 거르지 않는다. 1 보다 큰 문턱이 하나라도 있으면
+    **수를 모르는 사건은 넘지 못한다**. 모르는 것을 화면에 보이는 몫으로 세지 않는다.
+    """
+    if min_articles <= 1 and min_publishers <= 1:
+        return set(events)
+    kept = set()
+    for key in events:
+        articles, presses = counts.get(key, (0, 0))
+        if articles >= min_articles and presses >= min_publishers:
+            kept.add(key)
+    return kept
 
 
 def read_vectors(path, urls):
@@ -818,9 +875,19 @@ def issue_merge_report(gold):
     }
 
 
-def final_gold(golddir):
-    """Sonnet 전수 위에 사람 판정을 덮는다. 사람 불통과(N)는 Sonnet 이 준 글자 묶음이 있으면 그대로 둔다."""
+def final_gold(golddir, also=()):
+    """Sonnet 전수 위에 사람 판정을 덮는다. 사람 불통과(N)는 Sonnet 이 준 글자 묶음이 있으면 그대로 둔다.
+
+    `also` 는 더 읽을 전수 파일 이름이다 — 실시간 몫처럼 나중에 더 판정한 단계(`sonnet-live.tsv`).
+    같은 키가 또 나오면 뒤에 읽은 것이 이긴다. 이름을 받아 쓰는 까닭은 `sonnet-calib.tsv` 처럼
+    **고치기 전 지시문으로 판정한 파일**이 같은 폴더에 있어서다 — 싸잡아 읽으면 옛 판정이 섞인다.
+    """
     gold = {k: v for k, (v, _) in read_gold(golddir / "sonnet.tsv").items()}
+    for name in also:
+        path = golddir / name
+        if not path.exists():
+            raise CheckError([f"{path}: 없음"])
+        gold.update({k: v for k, (v, _) in read_gold(path).items()})
     for k, (v, _) in read_gold(golddir / "human.tsv").items():
         task = k[0]
         if task in ("M", "I"):
@@ -841,24 +908,106 @@ def size_bucket(n):
     return "5-9" if n < 10 else "10-19" if n < 20 else "20-49" if n < 50 else "50+"
 
 
-def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
+# 첫 칸은 「1곳 이하」다 — 공개 기사가 없는 사건은 언론사 0곳이고 여기로 들어온다
+PRESS_BUCKETS = ("1", "2", "3+")
+PRESS_LABELS = {"1": "1곳 이하", "2": "2곳", "3+": "3곳 이상"}
+
+
+def press_bucket(presses):
+    return "1" if presses <= 1 else "2" if presses == 2 else "3+"
+
+
+def issue_member_errors(events, gold, counts):
+    """이슈에 붙은 사건을 언론사 수(1곳 · 2곳 · 3곳 이상)로 갈라 `I` 판정이 `Y` 가 아닌 비율.
+
+    문턱을 왜 두는지 보여 주는 표다 — 언론사가 적은 사건이 이슈에 잘못 붙는다. 이슈 밖 사건과
+    `I` 판정이 없는 사건은 세지 않고, 수를 모르는 사건은 `no_counts` 로 따로 센다.
+    첫 칸은 **1곳 이하**다 — 공개 기사가 하나도 없는 사건(언론사 0곳)이 여기로 들어온다.
+    """
+    table = {bucket: {"events": 0, "not_y": 0} for bucket in PRESS_BUCKETS}
+    no_counts = 0
+    for key, event in sorted(events.items()):
+        if event.get("issue_id") is None:
+            continue
+        verdict = gold.get(f"I:{event['issue_id']}:{key}")
+        if verdict is None:
+            continue
+        if key not in counts:
+            no_counts += 1
+            continue
+        cell = table[press_bucket(counts[key][1])]
+        cell["events"] += 1
+        cell["not_y"] += int(verdict != "Y")
+    for cell in table.values():
+        cell["rate"] = cell["not_y"] / cell["events"] if cell["events"] else None
+    return {"by_publishers": table, "no_counts": no_counts}
+
+
+def gold_pairs_cut(partition, kept):
+    """문턱 경계를 넘어 채점에서 빠지는 정답 쌍 수 — 정답 한 묶음에서 한쪽만 남은 쌍.
+
+    이 쌍들은 재현율의 분모에서도 빠지므로 **문턱을 올리면 재현율이 저절로 오른다**. 숨은 사건과의
+    놓친 합침이 사라진 것이지 고쳐진 것이 아니다. 숫자 옆에 이 수를 같이 적는다.
+    """
+    kept_in, dropped_in = Counter(), Counter()
+    for item, cluster in partition.items():
+        (kept_in if item in kept else dropped_in)[cluster] += 1
+    return sum(count * dropped_in[cluster] for cluster, count in kept_in.items())
+
+
+def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=(), min_articles=1, min_publishers=1, counts_path=None):
+    if min_articles < 1 or min_publishers < 1:
+        raise CheckError(["문턱은 1 이상이어야 한다 — 1 이 「거르지 않음」이다"])
     prep, issues, events, articles = load_work(workdir)
-    gold = final_gold(golddir)
+    gold = final_gold(golddir, also)
     article_gold, event_gold = gold_partitions(events, articles, gold)
     system_article = {a: art["event_id"] for a, art in articles.items()}
     system_event = {e: (ev["issue_id"] if ev.get("issue_id") is not None else ("V", e)) for e, ev in events.items()}
     sizes = Counter(system_article.values())
+    # 문턱은 **채점 대상만** 줄인다. 정답 묶음(article_gold · event_gold)은 위에서 이미 만들었고 손대지 않는다
+    counts = event_counts(events, read_event_counts(counts_path) if counts_path else None)
+    kept = passing_events(events, counts, min_articles, min_publishers)
+    limited = min_articles > 1 or min_publishers > 1
+    kept_articles = sorted(a for a, art in articles.items() if art["event_id"] in kept)
+    without_counts = sum(1 for e in events if e not in counts)
+    if not kept_articles:
+        # 까닭을 「넘는 사건이 없다」로만 말하면 「문턱을 걸면 남는 게 없구나」로 잘못 읽는다.
+        # 두 칸이 없는 옛 내보내기가 가장 흔한 까닭이라 그 수를 같이 말한다
+        why = f"문턱(공개 기사 {min_articles}건 · 언론사 {min_publishers}곳)을 넘는 사건이 없다"
+        if without_counts:
+            why += (
+                f" — 공개 기사 수 칸이 없는 사건이 {without_counts}/{len(events)}개다."
+                " 목록을 다시 내보내거나 --event-counts 로 수를 넣는다"
+            )
+        raise CheckError([why])
+    article_items = kept_articles if limited else None
+    event_items = sorted(kept) if limited else None
     report = {
-        "event": scores(system_article, article_gold, bootstrap=bootstrap),
-        "issue": scores(system_event, event_gold, bootstrap=bootstrap),
+        "threshold": {
+            "min_articles": min_articles,
+            "min_publishers": min_publishers,
+            "events_kept": len(kept),
+            "events_total": len(events),
+            "articles_kept": len(kept_articles),
+            "articles_total": len(articles),
+            "events_without_counts": without_counts,
+            "gold_pairs_cut": {
+                "event": gold_pairs_cut(article_gold, set(kept_articles)),
+                "issue": gold_pairs_cut(event_gold, kept),
+            },
+        },
+        "event": scores(system_article, article_gold, article_items, bootstrap=bootstrap),
+        "issue": scores(system_event, event_gold, event_items, bootstrap=bootstrap),
+        "issue_member_errors": issue_member_errors(events, gold, counts),
         "by_category": {},
         "by_size": {},
     }
     for category in sorted({art.get("category") or "-" for art in articles.values()}):
-        items = [a for a, art in articles.items() if (art.get("category") or "-") == category]
-        report["by_category"][category] = scores(system_article, article_gold, items)
+        items = [a for a in kept_articles if (articles[a].get("category") or "-") == category]
+        if items:
+            report["by_category"][category] = scores(system_article, article_gold, items)
     for bucket in ("5-9", "10-19", "20-49", "50+"):
-        items = [a for a, e in system_article.items() if size_bucket(sizes[e]) == bucket]
+        items = [a for a in kept_articles if size_bucket(sizes[system_article[a]]) == bucket]
         if items:
             report["by_size"][bucket] = scores(system_article, article_gold, items)
     random_keys = [f"P:{a}:{b}" for a, b in prep["random_pairs"]]
@@ -883,6 +1032,19 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
     }
     path = golddir / "metrics.json"
     path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    limit = report["threshold"]
+    if limited:
+        cut = limit["gold_pairs_cut"]
+        print(
+            f"문턱: 공개 기사 {min_articles}건 · 언론사 {min_publishers}곳 이상"
+            f" — 사건 {limit['events_kept']}/{limit['events_total']} · 기사 {limit['articles_kept']}/{limit['articles_total']} 만 채점"
+        )
+        print(
+            f"  문턱이 걸리는 줄은 event · issue 와 분야별 · 크기별뿐이다 — 아래 합침 · 오류율 줄은 전체다."
+            f" 경계에서 끊긴 정답 쌍 기사 {cut['event']} · 사건 {cut['issue']}(재현율 분모에서도 빠진다)"
+        )
+        if limit["events_without_counts"]:
+            print(f"  수를 모르는 사건 {limit['events_without_counts']}개 — 문턱을 넘지 못한다")
     for name in ("event", "issue"):
         r = report[name]
         ci = r.get("ci", {})
@@ -902,6 +1064,15 @@ def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
         f" · 쌍이 모두 판정돼 합친 것 {merge['applied_pairs']}"
         f" · 판정 안 한 쌍을 타야 해서 안 합친 것 {merge['unverified_pairs']}(이슈 {merge['issues_in_unverified_chains']}개)"
     )
+    errors = report["issue_member_errors"]
+    cells = []
+    for bucket in PRESS_BUCKETS:
+        cell = errors["by_publishers"][bucket]
+        rate = "—" if cell["rate"] is None else f"{cell['rate']:.1%}"
+        cells.append(f"{PRESS_LABELS[bucket]} {rate} ({cell['not_y']}/{cell['events']})")
+    print("이슈 붙임 오류율(언론사 수별 · I 판정이 Y 가 아닌 사건): " + " · ".join(cells))
+    if errors["no_counts"]:
+        print(f"  수를 몰라 가르지 못한 사건 {errors['no_counts']}개")
     if chain["largest_merge_spans_issues"] and chain["largest_merge_spans_issues"][0] >= 5:
         print("  ⚠ 이행으로 이은 합침이 크다 — 이슈 지표는 묶음 단위로 다시 확인하기 전까지 보고하지 않는다", file=sys.stderr)
 
@@ -945,6 +1116,21 @@ def main(argv=None):
     p.add_argument("workdir", type=pathlib.Path)
     p.add_argument("golddir", type=pathlib.Path)
     p.add_argument("--bootstrap", type=int, default=BOOTSTRAP)
+    p.add_argument(
+        "--also",
+        action="append",
+        default=[],
+        metavar="파일",
+        help="더 읽을 전수 파일 이름(예: sonnet-live.tsv). 여러 번 줄 수 있다 — 뒤가 이긴다",
+    )
+    p.add_argument("--min-articles", type=int, default=1, metavar="N", help="공개 기사 N건 이상인 사건만 채점(1 = 거르지 않음)")
+    p.add_argument("--min-publishers", type=int, default=1, metavar="N", help="언론사 N곳 이상인 사건만 채점(1 = 거르지 않음)")
+    p.add_argument(
+        "--event-counts",
+        type=pathlib.Path,
+        metavar="파일",
+        help="「사건id|공개기사수|언론사수」 파일로 두 수를 대신 넣는다 — 목록에 칸이 없는 옛 내보내기용",
+    )
     args = parser.parse_args(argv)
     try:
         if args.command == "prepare":
@@ -960,7 +1146,10 @@ def main(argv=None):
         elif args.command == "agree":
             print(json.dumps(agree(args.golddir, args.workdir, args.stage, args.sonnet), ensure_ascii=False, indent=1))
         else:
-            metrics(args.workdir, args.golddir, args.bootstrap)
+            metrics(
+                args.workdir, args.golddir, args.bootstrap, tuple(args.also),
+                args.min_articles, args.min_publishers, args.event_counts,
+            )
     except CheckError as error:
         print(f"검사에 걸림 — {len(error.problems)}건, 아무것도 쓰지 않았다", file=sys.stderr)
         for problem in error.problems[:50]:

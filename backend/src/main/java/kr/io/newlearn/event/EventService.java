@@ -5,6 +5,7 @@ import kr.io.newlearn.article.ArticleRepository;
 import kr.io.newlearn.article.ArticleSummaryAssembler;
 import kr.io.newlearn.article.dto.ArticleSummaryResponse;
 import kr.io.newlearn.article.dto.ArticleSummaryResponse.PublisherRef;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
@@ -26,16 +27,19 @@ public class EventService {
     private final ArticleEventRepository links;
     private final ArticleRepository articles;
     private final ArticleSummaryAssembler summaries;
+    private final PublicEventThreshold threshold;
 
     public EventService(
             EventRepository events,
             ArticleEventRepository links,
             ArticleRepository articles,
-            ArticleSummaryAssembler summaries) {
+            ArticleSummaryAssembler summaries,
+            PublicEventThreshold threshold) {
         this.events = events;
         this.links = links;
         this.articles = articles;
         this.summaries = summaries;
+        this.threshold = threshold;
     }
 
     public EventPanelResponse get(long eventId) {
@@ -50,8 +54,9 @@ public class EventService {
         EventRef next = null;
         if (issue != null) {
             var one = PageRequest.of(0, 1);
-            previous = firstRef(events.findPrevious(issue.getId(), event.getOccurredAt(), eventId, one));
-            next = firstRef(events.findNext(issue.getId(), event.getOccurredAt(), eventId, one));
+            int min = threshold.minArticles();
+            previous = firstRef(events.findPrevious(issue.getId(), event.getOccurredAt(), eventId, min, one));
+            next = firstRef(events.findNext(issue.getId(), event.getOccurredAt(), eventId, min, one));
         }
         return new EventPanelResponse(
                 eventId,

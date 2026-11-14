@@ -19,6 +19,7 @@ import org.assertj.core.data.Offset;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,6 +36,8 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.NestedTestConfiguration;
+import org.springframework.test.context.NestedTestConfiguration.EnclosingConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -334,6 +337,24 @@ class IssueStageIntegrationTest {
                 .isCloseTo(Math.cos(Math.toRadians(10)), Offset.offset(1e-6));
         assertThat(picked.get("events").get(0).get("similarity").asDouble())
                 .isCloseTo(Math.cos(Math.toRadians(1)), Offset.offset(1e-6));
+    }
+
+    // 2026-11-14 측정: 이슈에 붙은 사건 34건이 그 흐름이 아니었고, 그중 넷은 이슈와의 유사도가 0.60 아래였다.
+    // 기본값(2.0)은 코사인 거리의 최댓값이라 아무것도 걸러내지 않는다 — 지금과 같은 후보가 나와야 한다
+    @Test
+    void aFarIssueIsStillOfferedWhenTheCapIsOff() {
+        event(OWN, 0, null);
+        issue(4001, "가까운 이슈", "요약");
+        event(4001, 10, null);
+        inIssue(4001, 4001);
+        issue(4002, "먼 이슈", "요약");
+        event(4002, 60, null); // 유사도 0.5 = 거리 0.5
+        inIssue(4002, 4002);
+        long job = waitingIssue(OWN);
+
+        service.dispatchIssue();
+
+        assertThat(ids(candidates(job).get("issues"), "issueId")).containsExactly(4001L, 4002L);
     }
 
     // AC-3 — 거리는 이번 사건이 생길 때까지 묶인 기사로만 잰다. 판정 줄이 앞서 나가 나중에 붙인 기사는 아무리 가까워도 빼서,
@@ -637,6 +658,105 @@ class IssueStageIntegrationTest {
                 .andExpect(status().isNoContent());
 
         assertThat(categories(issueOf(OWN))).containsExactly("politics");
+    }
+
+    // ── 붙이기만 하고 요약 · 분야는 그대로 (Jira S15P31A102-207) ──
+
+    // 설정을 끄면 ATTACH 가 사건만 이슈에 넣는다. 발표(11-18)까지 운영이 이 설정으로 돈다 —
+    // 거리 상한을 켜면 먼 이슈는 후보로 올리지 않는다 — IssueResultHandler 가 후보 밖 issueId 를 거부하므로
+    // 이 상한이 「분야만 겹치는 이슈에 붙는 길」을 막는 하드 가드가 된다
+    @Nested
+    @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @Import(TestcontainersConfiguration.class)
+    @TestPropertySource(
+            properties = {
+                "newlearn.internal.worker-key=" + IssueStageIntegrationTest.WORKER_KEY,
+                "newlearn.internal.batch-key=batch-key-for-issue-stage-test",
+                "newlearn.analysis.issue.max-candidate-distance=0.40"
+            })
+    class CandidateDistanceCap {
+
+        @Test
+        void aFarIssueIsNotOfferedAsCandidate() {
+            event(OWN, 0, null);
+            issue(4001, "가까운 이슈", "요약");
+            event(4001, 10, null); // 거리 0.015
+            inIssue(4001, 4001);
+            issue(4002, "먼 이슈", "요약");
+            event(4002, 60, null); // 거리 0.5 — 상한 밖
+            inIssue(4002, 4002);
+            long job = waitingIssue(OWN);
+
+            service.dispatchIssue();
+
+            assertThat(ids(candidates(job).get("issues"), "issueId")).containsExactly(4001L);
+        }
+
+        // 상한 때문에 후보 이슈가 하나도 없어도 멈추지 않는다 — 빈 후보로 넣고, 워커가 묻지 않고 NONE 으로 끝낸다
+        @Test
+        void anEventWithEveryIssueTooFarStillGoesToTheQueue() {
+            event(OWN, 0, null);
+            issue(4002, "먼 이슈", "요약");
+            event(4002, 60, null);
+            inIssue(4002, 4002);
+            long job = waitingIssue(OWN);
+
+            service.dispatchIssue();
+
+            assertThat(candidates(job).get("issues")).isEmpty();
+            assertThat(jobState(job)).isEqualTo("QUEUED 후보 있음 넣음");
+        }
+    }
+
+    // 켜 두면 ATTACH 가 발표에 쓸 이슈의 요약을 다시 쓰고 분야를 다시 계산한다(고정 28개 목록을 보지 않는다)
+    @Nested
+    @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @Import(TestcontainersConfiguration.class)
+    @TestPropertySource(
+            properties = {
+                "newlearn.internal.worker-key=" + IssueStageIntegrationTest.WORKER_KEY,
+                "newlearn.internal.batch-key=batch-key-for-issue-stage-test",
+                "newlearn.analysis.issue.rewrite-summary-on-attach=false"
+            })
+    class AttachWithoutRewrite {
+
+        @Test
+        void attachPutsTheEventInButKeepsTheSummaryAndCategory() throws Exception {
+            issue(4001, "북항 상어 출몰", "옛 요약");
+            event(4001, 10, "economy");
+            inIssue(4001, 4001);
+            // 기사에서 셈하면 나올 수 없는 분야를 미리 넣어 둔다 — 다시 계산했는지 바로 갈린다
+            jdbc.sql("insert into issue_category(issue_id,category_code) values (4001,'society')")
+                    .update();
+            event(OWN, 0, "politics");
+            long job = dispatched(OWN);
+
+            w1(job, envelope(1, "issue-v1", attach(4001, "새 요약"))).andExpect(status().isNoContent());
+
+            assertThat(issueOf(OWN)).as("사건은 이슈에 들어간다").isEqualTo(4001);
+            assertThat(issueColumn(4001, "title")).isEqualTo("북항 상어 출몰");
+            assertThat(issueColumn(4001, "summary")).as("요약은 그대로").isEqualTo("옛 요약");
+            assertThat(categories(4001)).as("분야도 그대로").containsExactly("society");
+            assertThat(jobState(job)).startsWith("SUCCEEDED");
+        }
+
+        // CREATE 는 새 이슈라 덮어쓸 것이 없다 — 설정과 상관없이 분야를 계산한다
+        @Test
+        void createStillComputesTheCategory() throws Exception {
+            event(4011, 5, "economy");
+            event(4012, 8, "economy");
+            event(OWN, 0, "politics");
+            long job = dispatched(OWN);
+
+            w1(job, envelope(1, "issue-v1", create("북항 상어 출몰", "요약", OWN, 4011, 4012)))
+                    .andExpect(status().isNoContent());
+
+            assertThat(categories(issueOf(OWN))).containsExactly("economy");
+        }
     }
 
     // ── 도우미 ──

@@ -3,6 +3,7 @@ package kr.io.newlearn.category;
 import java.util.HashMap;
 import java.util.Map;
 import kr.io.newlearn.common.PublicEventSql;
+import kr.io.newlearn.common.PublicEventThreshold;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -10,8 +11,11 @@ import org.springframework.stereotype.Repository;
 public class CategoryQueryRepository {
     private final JdbcClient jdbc;
 
-    public CategoryQueryRepository(JdbcClient jdbc) {
+    private final PublicEventThreshold threshold;
+
+    public CategoryQueryRepository(JdbcClient jdbc, PublicEventThreshold threshold) {
         this.jdbc = jdbc;
+        this.threshold = threshold;
     }
 
     public Map<String, Long> issueCounts() {
@@ -29,7 +33,9 @@ public class CategoryQueryRepository {
 
     private Map<String, Long> counts(String sql) {
         Map<String, Long> counts = new HashMap<>();
+        // 조각을 안 쓰는 질의(기사 수)에는 이 값이 안 들어간다 — JdbcClient 는 SQL 에 있는 이름만 묶는다
         jdbc.sql(sql)
+                .param("publicArticleSkip", threshold.skip())
                 .query((rs, row) -> {
                     counts.put(rs.getString("category_code"), rs.getLong("total"));
                     return rs.getString("category_code");

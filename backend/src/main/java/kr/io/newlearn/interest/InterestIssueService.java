@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import kr.io.newlearn.common.PublicEventThreshold;
 import kr.io.newlearn.common.error.ErrorCode;
 import kr.io.newlearn.common.error.NotFoundException;
 import kr.io.newlearn.common.web.ApiTime;
@@ -20,19 +21,24 @@ public class InterestIssueService {
     private final InterestIssueRepository interests;
     private final IssueQueryRepository queries;
     private final IssueCardAssembler cards;
+    private final PublicEventThreshold threshold;
 
     public InterestIssueService(
-            InterestIssueRepository interests, IssueQueryRepository queries, IssueCardAssembler cards) {
+            InterestIssueRepository interests,
+            IssueQueryRepository queries,
+            IssueCardAssembler cards,
+            PublicEventThreshold threshold) {
         this.interests = interests;
         this.queries = queries;
         this.cards = cards;
+        this.threshold = threshold;
     }
 
     @Transactional
     public InterestIssueStateResponse add(long memberId, long issueId) {
         // 넣기와 저장 시각 읽기를 한 문장으로 — 돌려받은 행이 없으면 없는 이슈다(InterestIssueRepository.add)
         var saved = interests
-                .add(memberId, issueId)
+                .add(memberId, issueId, threshold.skip())
                 .orElseThrow(() -> new NotFoundException(ErrorCode.ISSUE_NOT_FOUND, "이슈를 찾을 수 없다: " + issueId));
         return new InterestIssueStateResponse(issueId, true, ApiTime.toKst(saved.getCreatedAt()));
     }
