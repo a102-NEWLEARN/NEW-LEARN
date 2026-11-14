@@ -136,12 +136,41 @@ async def test_user_message_carries_candidates_and_names_not_to_use():
     assert user["doNotName"] == ["홍길동"]
 
 
-async def test_no_candidates_still_judges():
-    llm = FakeLlm(j(NONE))
+# 후보가 모자라면 ATTACH · CREATE 둘 다 될 수 없다(ATTACH 는 후보 이슈가, CREATE 는 이 사건 포함 3개가 필요하다).
+# 그래도 물으면 모델이 ATTACH 로 답할 수 있고, 그러면 OutputInvalid → 두 번 시도 → 1분 재시도로 ISSUE 줄이 그만큼 막힌다
+# (RetryPolicy · AnalysisJobRepository 가 재시도 대기를 진행 중으로 센다). 그래서 묻지 않고 NONE 으로 끝낸다.
+async def test_no_candidates_ends_as_none_without_asking():
+    llm = FakeLlm()
 
-    env, _ = await run(llm, {**MSG, "candidateIssues": [], "candidateEvents": []})
+    env, diag = await run(llm, {**MSG, "candidateIssues": [], "candidateEvents": []})
 
-    assert env["status"] == "SUCCEEDED" and llm.calls == 1
+    assert env["status"] == "SUCCEEDED"
+    assert env["result"]["decision"] == "NONE"
+    assert llm.calls == 0, "GMS 를 부르지 않는다"
+    assert diag["decision"] == "NONE"
+
+
+async def test_one_candidate_event_cannot_make_an_issue_so_none_without_asking():
+    llm = FakeLlm()
+
+    env, _ = await run(
+        llm,
+        {
+            **MSG,
+            "candidateIssues": [],
+            "candidateEvents": [MSG["candidateEvents"][0]],
+        },
+    )
+
+    assert env["result"]["decision"] == "NONE" and llm.calls == 0
+
+
+async def test_two_candidate_events_are_enough_to_ask():
+    llm = FakeLlm(j(CREATE))
+
+    env, _ = await run(llm, {**MSG, "candidateIssues": []})
+
+    assert env["result"] == CREATE and llm.calls == 1
 
 
 # --- 다시 묻기 · 실패 ----------------------------------------------------------------
@@ -279,3 +308,24 @@ async def test_queue_message_is_judged_reported_and_acked():
     assert seen[0].url.path == "/internal/v1/analysis-jobs/77/result"
     assert json.loads(seen[0].content)["result"]["decision"] == "CREATE"
     assert redis.acked == ["6-0"]
+
+
+# --- 지시문 ---------------------------------------------------------------------
+
+
+# v4 5 · 6장을 지시문에 옮겼는지 글자로만 본다. 「옮겼더니 판정이 나아졌다」는 이 시험으로 말할 수 없다 —
+# FakeLlm 이 정해진 답을 돌려주기 때문이다. 효과는 운영 판정을 다시 재서 말한다(infra/server/eval).
+def test_prompt_carries_the_v4_rules_for_attach():
+    from app.issue.prompt import SYSTEM_PROMPT
+
+    for sentence in (
+        "계기는 특정 사건",
+        "한 타임라인에 이어 놓으면",
+        "분야 · 인물 · 회사 · 낱말만 같으면",
+        "애매하면 NONE",
+    ):
+        assert sentence in SYSTEM_PROMPT, sentence
+
+
+def test_prompt_version_moved_up():
+    assert PROMPT_VERSION == "issue-v2"

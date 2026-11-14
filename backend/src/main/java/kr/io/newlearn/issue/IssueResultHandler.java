@@ -15,6 +15,7 @@ import kr.io.newlearn.event.EventRepository;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -32,18 +33,21 @@ class IssueResultHandler implements AnalysisResultHandler {
     private final EventRepository events;
     private final IssueCandidateFinder finder;
     private final JsonMapper jsonMapper;
+    private final boolean rewriteSummaryOnAttach;
 
     IssueResultHandler(
             IssueRepository issues,
             IssueCategoryRepository categories,
             EventRepository events,
             IssueCandidateFinder finder,
-            JsonMapper jsonMapper) {
+            JsonMapper jsonMapper,
+            @Value("${newlearn.analysis.issue.rewrite-summary-on-attach:true}") boolean rewriteSummaryOnAttach) {
         this.issues = issues;
         this.categories = categories;
         this.events = events;
         this.finder = finder;
         this.jsonMapper = jsonMapper;
+        this.rewriteSummaryOnAttach = rewriteSummaryOnAttach;
     }
 
     @Override
@@ -94,7 +98,9 @@ class IssueResultHandler implements AnalysisResultHandler {
                 issueId);
     }
 
-    // 보낸 후보 안의 이슈여야 한다 — 후보 밖이면 엉뚱한 이슈를 지어냈거나 옛 메시지다. 이름은 그대로, 요약만 덮어쓴다
+    // 보낸 후보 안의 이슈여야 한다 — 후보 밖이면 엉뚱한 이슈를 지어냈거나 옛 메시지다. 이름은 그대로, 요약만 덮어쓴다.
+    // `newlearn.analysis.issue.rewrite-summary-on-attach` 가 false 면 사건만 넣고 요약 · 분야는 손대지 않는다
+    // (Jira S15P31A102-207) — 발표까지 운영이 이 설정이다. 분야 다시 계산은 고정 목록을 보지 않아 함께 끈다
     private long attach(IssueCandidateFinder.Candidates sent, long eventId, long issueId, String summary, Instant now) {
         if (!sent.hasIssue(issueId)) {
             throw new ResultSchemaInvalidException("issueId 가 보낸 후보에 없다: " + issueId);
@@ -102,8 +108,12 @@ class IssueResultHandler implements AnalysisResultHandler {
         Issue issue =
                 issues.findById(issueId).orElseThrow(() -> new ResultConflictException("고른 이슈가 그사이 없어졌다: " + issueId));
         assign(issueId, List.of(eventId), now);
-        issue.rewriteSummary(summary);
-        refreshCategory(issueId);
+        if (rewriteSummaryOnAttach) {
+            issue.rewriteSummary(summary);
+            refreshCategory(issueId);
+        } else {
+            log.info("이슈 요약 · 분야는 그대로 둔다(rewrite-summary-on-attach=false): issueId={} eventId={}", issueId, eventId);
+        }
         return issueId;
     }
 

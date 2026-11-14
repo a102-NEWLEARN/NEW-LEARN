@@ -85,6 +85,21 @@ newlearn:
       gms-model: ${GMS_MODEL:gpt-6-luna}
       # 하루에 GMS 를 부르는 수의 상한(팀 공용 예산). 0 이면 GMS 를 부르지 않는다 — 끄는 스위치
       daily-limit: ${MEANING_DAILY_LIMIT:3000}
+  query:
+    # 화면에 보일 사건의 최소 공개 기사 수 (Jira S15P31A102-206 후속). 1 이면 지금까지와 같다(공개 기사가 하나라도 있으면 보임, Jira 179).
+    # 2026-11-14 측정: 3 으로 두면 이슈 쌍 정밀도 0.930 → 0.976 · F1 0.841 → 0.874. 사이트는 3 으로 켠다.
+    # 기준은 사건 단위다 — 공개 기사 N건 이상인 사건만 보이고, 그런 사건이 없는 이슈는 없는 것으로 본다(A2 · A3 · A4 · A5 · A13 · A1 · A23 · A25)
+    min-public-articles: ${QUERY_MIN_PUBLIC_ARTICLES:1}
+  analysis:
+    issue:
+      # 이슈 붙이기(ATTACH)가 기존 이슈의 요약을 다시 쓰고 분야를 다시 계산할지 (Jira S15P31A102-207).
+      # 기본은 계약대로 true(docs/api-internal.md 5절). 사이트는 발표(11-18)까지 false 로 둔다 —
+      # 사건은 이슈에 붙이되 발표에 쓸 요약 · 분야는 그대로. 분야 다시 계산은 고정 28개 목록을 보지 않는다
+      rewrite-summary-on-attach: ${ISSUE_REWRITE_SUMMARY_ON_ATTACH:true}
+      # 후보 이슈로 올릴 코사인 거리의 상한 (Jira S15P31A102-206 후속). `<=>` 는 0 ~ 2 라 2.0 이 「끔」이다.
+      # 2026-11-14 측정: 이슈에 잘못 붙은 34건 중 넷이 유사도 0.60(거리 0.40) 아래였고, 그 아래를 버려도
+      # 맞게 붙은 1,364건은 하나도 잃지 않는다. 사이트는 0.40 으로 켠다
+      max-candidate-distance: ${ISSUE_MAX_CANDIDATE_DISTANCE:2.0}
 
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다
