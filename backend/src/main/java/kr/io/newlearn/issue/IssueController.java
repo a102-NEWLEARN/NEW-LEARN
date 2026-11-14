@@ -87,7 +87,7 @@ public class IssueController {
     @Operation(
             summary = "[확정] A2 이슈 목록",
             description =
-                    "카테고리별 이슈 목록 · 홈 이슈 카드 · 검색창 아래 「새로 생성된 이슈」(sort=createdAt)에 씁니다. 공개 기사가 있는 이슈만 나오고, 사건 수 · 기간 · 최근 사건도 공개 기사가 있는 사건으로 셉니다.")
+                    "카테고리별 이슈 목록 · 홈 이슈 카드 · 검색창 아래 「새로 생성된 이슈」(sort=createdAt)에 씁니다. 공개 기사가 있는 이슈만 나오고, 사건 수 · 기간 · 최근 사건도 공개 기사가 있는 사건으로 셉니다. 보이는 사건이 문턱(기본 1 · 사이트 3, `QUERY_MIN_PUBLIC_EVENTS`)보다 적은 이슈는 이 목록과 전체 수에서 빠집니다 — 다만 그 이슈의 A3 · A4 는 그대로 200 이고 A5 · A8 의 이슈 링크도 남습니다.")
     @ApiResponse(responseCode = "200", description = "성공")
     @ApiResponse(
             responseCode = "400",
