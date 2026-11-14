@@ -17,7 +17,7 @@ public interface InterestIssueRepository extends JpaRepository<InterestIssue, In
             on conflict (member_id, issue_id) do update set created_at = interest_issue.created_at
             returning member_id, issue_id, created_at
             """, nativeQuery = true)
-    Optional<InterestIssue> add(long memberId, long issueId);
+    Optional<InterestIssue> add(long memberId, long issueId, int publicArticleSkip);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from InterestIssue i where i.id.memberId = :memberId and i.id.issueId = :issueId")

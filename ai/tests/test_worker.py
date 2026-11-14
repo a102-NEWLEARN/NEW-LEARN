@@ -13,7 +13,15 @@ from app.extract.prompt import PROMPT_VERSION
 from app.extract.run import run_extract
 from app.gms import Completion, GmsAuthError, GmsError
 from app.main import app, get_redis, get_worker_status, worker_plan
-from app.worker import GROUP, STREAM, Worker, WorkerStatus
+from app.worker import (
+    GROUP,
+    STREAM,
+    QueueWorker,
+    Stage,
+    Worker,
+    WorkerStatus,
+    single_job_id,
+)
 
 GOOD = json.dumps(
     {
@@ -321,6 +329,66 @@ async def test_handle_drops_broken_message(raw):
 
     assert redis.acked == ["9-0"]
     assert llm.calls == 0 and seen == []
+
+
+def single_job_worker(statuses) -> tuple[QueueWorker, FakeRedis, list, list]:
+    """판정 · 이슈처럼 작업 번호가 jobId 하나인 단계(api-internal.md 4절 analysis.match_event)."""
+    calls = []
+
+    async def process(payload, deadline):
+        calls.append(payload)
+        return {"attempt": payload["attempt"], "status": "SUCCEEDED"}, {}
+
+    stage = Stage(
+        name="MATCH_EVENT",
+        stream=STREAM,
+        group=GROUP,
+        process=process,
+        fail=lambda payload, started, code, message: {"status": "FAILED"},
+        timeout_code="LLM_TIMEOUT",
+        timeout_message="x",
+        describe=lambda *a: "log",
+        job_id=single_job_id,
+    )
+    redis = FakeRedis()
+    b, seen = backend(statuses)
+    return (
+        QueueWorker(redis, b, "w1", WorkerStatus("RUNNING"), stage),
+        redis,
+        seen,
+        calls,
+    )
+
+
+async def test_single_job_stage_reads_job_id_and_reports():
+    w, redis, seen, calls = single_job_worker([204])
+
+    await w.handle("3-0", fields({"articleId": 7, "jobId": 55, "attempt": 2}))
+
+    assert len(calls) == 1
+    assert seen[0].url.path == "/internal/v1/analysis-jobs/55/result"
+    assert json.loads(seen[0].content)["attempt"] == 2
+    assert redis.acked == ["3-0"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"articleId": 7, "attempt": 1},
+        {"articleId": 7, "jobId": None, "attempt": 1},
+        {"articleId": 7, "jobId": "55", "attempt": 1},
+        {"articleId": 7, "jobId": 55},
+        {"articleId": 7, "jobs": {"MATCH_EVENT": 55}, "attempt": 1},
+    ],
+)
+async def test_single_job_stage_drops_message_without_job_id(payload):
+    # 작업 번호를 몰라 W1 을 보낼 수 없다 — 기록하고 ack(api-internal.md 4절)
+    w, redis, seen, calls = single_job_worker([])
+
+    await w.handle("4-0", fields(payload))
+
+    assert redis.acked == ["4-0"]
+    assert calls == [] and seen == []
 
 
 async def test_handle_does_not_ack_when_w1_unreachable_and_does_not_recall_gms():

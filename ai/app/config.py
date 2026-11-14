@@ -16,6 +16,8 @@ class Settings:
     embed_worker_enabled: bool = False
     embed_model_path: str = "/models/BGE-m3-ko"
     embed_torch_threads: int = 2
+    match_event_worker_enabled: bool = False
+    issue_worker_enabled: bool = False
 
 
 def _positive_int(raw: str | None, default: int) -> int:
@@ -49,4 +51,8 @@ def load_settings(env: Mapping[str, str] = os.environ) -> Settings:
         embed_model_path=env.get("EMBED_MODEL_PATH") or "/models/BGE-m3-ko",
         # SSOT 10절 실측 조건(2스레드)
         embed_torch_threads=_positive_int(env.get("EMBED_TORCH_THREADS"), 2),
+        # 판정 · 이슈도 꺼진 채 배포하고 덤프 적재 뒤 인프라가 켠다(Jira S15P31A102-186 계획)
+        match_event_worker_enabled=env.get("MATCH_EVENT_WORKER_ENABLED", "").lower()
+        == "true",
+        issue_worker_enabled=env.get("ISSUE_WORKER_ENABLED", "").lower() == "true",
     )

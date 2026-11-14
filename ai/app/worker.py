@@ -80,6 +80,14 @@ class Stage:
     describe: Callable[[int, int, Envelope, Diag, float, Any], str]
     # 시간 초과 뒤 남은 계산이 있어 이 단계를 멈춰야 하면 그 까닭(없으면 None). 실패 W1 · ack 는 그대로 한 뒤 멈춘다
     stuck: Callable[[], str | None] | None = None
+    # 메시지에서 이 단계의 작업 번호를 꺼낸다. None 이면 jobs[name] 을 본다 — 한 메시지에 여러 단계 작업이 실리는
+    # analysis.released 꼴(EXTRACT · EMBED). 판정 · 이슈 메시지는 jobId 하나라 single_job_id 를 준다(4절)
+    job_id: Callable[[dict[str, Any]], Any] | None = None
+
+
+def single_job_id(payload: dict[str, Any]) -> Any:
+    """판정 · 이슈 메시지의 작업 번호(jobId). 없으면 KeyError — 깨진 메시지로 기록하고 버린다."""
+    return payload["jobId"]
 
 
 class QueueWorker:
@@ -109,22 +117,29 @@ class QueueWorker:
         raw = fields.get(b"payload", fields.get("payload"))
         try:
             payload = json.loads(raw)
-            jobs, attempt = payload["jobs"], payload["attempt"]
-            if not isinstance(jobs, dict) or type(attempt) is not int:
+            if st.job_id is None:
+                jobs, attempt = payload["jobs"], payload["attempt"]
+                if not isinstance(jobs, dict):
+                    raise TypeError
+                job_id = jobs.get(st.name)
+            else:
+                job_id, attempt = st.job_id(payload), payload["attempt"]
+                if job_id is None:
+                    raise TypeError
+            if type(attempt) is not int:
                 raise TypeError
         except TypeError, ValueError, KeyError:
             # 작업 번호를 몰라 W1 을 보낼 수 없다. ack 하지 않으면 다시 가져가기마다 끝없이 돈다(3절)
             log.error("깨진 메시지를 버린다 stream=%s id=%s", st.stream, msg_id)
             await self._ack(msg_id)
             return
-        job_id = jobs.get(st.name)
         if job_id is None:
             # 다른 단계만 다시 돌리는 메시지다
             await self._ack(msg_id)
             return
         if type(job_id) is not int:
             log.error(
-                "깨진 메시지를 버린다 stream=%s id=%s (jobs.%s)",
+                "깨진 메시지를 버린다 stream=%s id=%s (%s 작업 번호)",
                 st.stream,
                 msg_id,
                 st.name,
