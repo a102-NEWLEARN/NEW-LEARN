@@ -818,9 +818,19 @@ def issue_merge_report(gold):
     }
 
 
-def final_gold(golddir):
-    """Sonnet 전수 위에 사람 판정을 덮는다. 사람 불통과(N)는 Sonnet 이 준 글자 묶음이 있으면 그대로 둔다."""
+def final_gold(golddir, also=()):
+    """Sonnet 전수 위에 사람 판정을 덮는다. 사람 불통과(N)는 Sonnet 이 준 글자 묶음이 있으면 그대로 둔다.
+
+    `also` 는 더 읽을 전수 파일 이름이다 — 실시간 몫처럼 나중에 더 판정한 단계(`sonnet-live.tsv`).
+    같은 키가 또 나오면 뒤에 읽은 것이 이긴다. 이름을 받아 쓰는 까닭은 `sonnet-calib.tsv` 처럼
+    **고치기 전 지시문으로 판정한 파일**이 같은 폴더에 있어서다 — 싸잡아 읽으면 옛 판정이 섞인다.
+    """
     gold = {k: v for k, (v, _) in read_gold(golddir / "sonnet.tsv").items()}
+    for name in also:
+        path = golddir / name
+        if not path.exists():
+            raise CheckError([f"{path}: 없음"])
+        gold.update({k: v for k, (v, _) in read_gold(path).items()})
     for k, (v, _) in read_gold(golddir / "human.tsv").items():
         task = k[0]
         if task in ("M", "I"):
@@ -841,9 +851,9 @@ def size_bucket(n):
     return "5-9" if n < 10 else "10-19" if n < 20 else "20-49" if n < 50 else "50+"
 
 
-def metrics(workdir, golddir, bootstrap=BOOTSTRAP):
+def metrics(workdir, golddir, bootstrap=BOOTSTRAP, also=()):
     prep, issues, events, articles = load_work(workdir)
-    gold = final_gold(golddir)
+    gold = final_gold(golddir, also)
     article_gold, event_gold = gold_partitions(events, articles, gold)
     system_article = {a: art["event_id"] for a, art in articles.items()}
     system_event = {e: (ev["issue_id"] if ev.get("issue_id") is not None else ("V", e)) for e, ev in events.items()}
@@ -945,6 +955,13 @@ def main(argv=None):
     p.add_argument("workdir", type=pathlib.Path)
     p.add_argument("golddir", type=pathlib.Path)
     p.add_argument("--bootstrap", type=int, default=BOOTSTRAP)
+    p.add_argument(
+        "--also",
+        action="append",
+        default=[],
+        metavar="파일",
+        help="더 읽을 전수 파일 이름(예: sonnet-live.tsv). 여러 번 줄 수 있다 — 뒤가 이긴다",
+    )
     args = parser.parse_args(argv)
     try:
         if args.command == "prepare":
@@ -960,7 +977,7 @@ def main(argv=None):
         elif args.command == "agree":
             print(json.dumps(agree(args.golddir, args.workdir, args.stage, args.sonnet), ensure_ascii=False, indent=1))
         else:
-            metrics(args.workdir, args.golddir, args.bootstrap)
+            metrics(args.workdir, args.golddir, args.bootstrap, tuple(args.also))
     except CheckError as error:
         print(f"검사에 걸림 — {len(error.problems)}건, 아무것도 쓰지 않았다", file=sys.stderr)
         for problem in error.problems[:50]:
