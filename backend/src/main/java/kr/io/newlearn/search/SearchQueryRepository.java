@@ -68,7 +68,6 @@ class SearchQueryRepository {
                         limit :limit
                         """)
                 .param("q", query)
-                .param("publicArticleSkip", threshold.skip())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new SearchArticle(rs.getLong("id"), rs.getString("title")))
                 .list();

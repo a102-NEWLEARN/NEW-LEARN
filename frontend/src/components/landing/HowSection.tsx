@@ -210,10 +210,10 @@ export function HowSection() {
                     pointerEvents: s.step === i ? "auto" : "none",
                   }}
                 >
-                  <p className="text-[clamp(17px,1.5vw,20px)] font-extrabold text-fg-brand">
+                  <p className="text-[clamp(15px,1.5vw,20px)] font-extrabold text-fg-brand">
                     {eyebrow}
                   </p>
-                  <p className="mt-[14px] text-[clamp(32px,4.8vw,64px)] leading-[1.18] font-extrabold tracking-[-0.045em] text-fg-neutral">
+                  <p className="mt-[14px] text-[clamp(26px,4.8vw,64px)] leading-[1.18] max-md:leading-[1.25] font-extrabold tracking-[-0.045em] text-fg-neutral">
                     {title.map((line, k) => (
                       <Fragment key={line}>
                         {k > 0 && <br />}

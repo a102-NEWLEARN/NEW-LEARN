@@ -86,6 +86,64 @@ class ArticleTitleMigrationTest {
         }
     }
 
+    // V16 — 제목 앞에 붙은 줄표 · 공백을 뗀다 (Jira S15P31A102-213). 결과가 ArticleTitleCleaner 와 같아야 한다.
+    // 숫자 바로 앞의 「-」는 음수 부호라 두는 것까지 두 곳이 같아야 한다 — Java 는 lookahead, SQL 은 ARE 의 (?!…)
+    @Test
+    void v15ToV16StripsLeadingDashesLikeTheIngestApi() throws Exception {
+        List<String> titles = List.of(
+                "--코스피 또 폭락… AI·반도체 성장 제동 위기감",
+                "- 단독 보도",
+                "—코스피 급락",
+                "[속보] 코스피 급락",
+                "A-B 협력 발표",
+                "코스피 하락-마감",
+                "---",
+                "-4% 급락하더니 돌연 ‘빨간불’…하이닉스", // 음수 부호 — 그대로 둔다 (기사 11556)
+                "- 4% 상승"); // 줄표를 떼고 남은 앞 공백도 턴다
+        String schema = "title213_" + UUID.randomUUID().toString().replace("-", "");
+        try (var connection = dataSource.getConnection()) {
+            try {
+                migrate(schema, "15");
+                connection.setSchema(schema);
+                var db = JdbcClient.create(new SingleConnectionDataSource(connection, true));
+                db.sql("insert into press(code, name) values ('p213', '나래일보')").update();
+                for (int i = 0; i < titles.size(); i++) {
+                    db.sql("""
+                                    insert into article(id, source, url, press_code, title, body, published_at, created_at)
+                                    values (:id, 'NEWSDATA', :url, 'p213', :title, '본문', now(), now())
+                                    """)
+                            .param("id", i + 1)
+                            .param("url", "https://example.com/title213/" + i)
+                            .param("title", titles.get(i))
+                            .update();
+                }
+
+                assertThat(migrate(schema, "16")).isEqualTo(1);
+
+                assertThat(db.sql("select title from article order by id")
+                                .query(String.class)
+                                .list())
+                        .containsExactlyElementsOf(
+                                titles.stream().map(ArticleTitleCleaner::clean).toList())
+                        .containsExactly(
+                                "코스피 또 폭락… AI·반도체 성장 제동 위기감",
+                                "단독 보도",
+                                "코스피 급락",
+                                "[속보] 코스피 급락",
+                                "A-B 협력 발표",
+                                "코스피 하락-마감",
+                                "---", // 줄표뿐이면 그대로 둔다
+                                "-4% 급락하더니 돌연 ‘빨간불’…하이닉스",
+                                "4% 상승");
+            } finally {
+                connection.setSchema("public");
+                try (var statement = connection.createStatement()) {
+                    statement.execute("drop schema if exists " + schema + " cascade");
+                }
+            }
+        }
+    }
+
     private int migrate(String schema, String target) {
         return Flyway.configure()
                 .dataSource(dataSource)
