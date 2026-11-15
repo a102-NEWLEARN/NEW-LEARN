@@ -36,8 +36,8 @@ class ArticleTitleCleanerTest {
         assertThat(ArticleTitleCleaner.clean(title)).isEqualTo(expected);
     }
 
-    // 제목 앞에 붙어 오는 줄표 · 공백을 뗀다 (Jira 213). 운영 전수에서 「-」 하나로 시작하거나
-    // 앞뒤 공백이 있는 제목은 0건이라 넓게 떼도 멀쩡한 제목을 건드리지 않는다
+    // 제목 앞에 붙어 오는 줄표 · 공백을 뗀다 (Jira 213). 2026-11-15 운영 전수(공개 · 숨김 합쳐 165,255건)에서
+    // 앞이 줄표 · 공백인 제목은 2건 — 「--코스피 또 폭락…」(뗀다)과 「-4% 급락하더니…」(음수 부호라 둔다)
     @ParameterizedTest
     @CsvSource(
             delimiter = '|',
@@ -52,6 +52,7 @@ class ArticleTitleCleanerTest {
                 "A-B 협력 발표 | A-B 협력 발표",
                 "<신화통신> 보도 | <신화통신> 보도",
                 "코스피 하락-마감 | 코스피 하락-마감",
+                "- 4% 상승 | 4% 상승",
             })
     void stripsLeadingDashes(String title, String expected) {
         assertThat(ArticleTitleCleaner.clean(title)).isEqualTo(expected);
@@ -75,6 +76,8 @@ class ArticleTitleCleanerTest {
                 "market bigt; 상승",
                 "물가 5%; 상승", // 낱말이 아님
                 "표 밖 apos; nbsp; 그대로", // 표 밖은 건드리지 않는다
+                "-4% 급락하더니 돌연 ‘빨간불’…하이닉스", // 숫자 앞의 - 는 음수 부호다 (기사 11556)
+                "-0.5%p 내린 기준금리",
             })
     void leavesEverythingElse(String title) {
         assertThat(ArticleTitleCleaner.clean(title)).isEqualTo(title);
