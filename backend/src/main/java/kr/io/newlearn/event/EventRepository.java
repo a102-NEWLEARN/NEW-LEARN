@@ -20,6 +20,19 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @EntityGraph(attributePaths = "issue")
     Optional<Event> findWithIssueById(Long id);
 
+    // 같은 날(KST) 이름이 글자까지 같은 사건. 판정이 NEW 로 답했을 때 새로 만들기 전에 본다(Jira 211).
+    // 판정 후보는 기사 유사도 top-5 사건이라, 한 이슈에 가까운 사건이 여럿이면 정작 맞는 사건이 후보에서 밀려난다 —
+    // 2026-11-15 운영에서 「세무사 수석 합격자, 경찰에 자수서 제출」이 22분 차이로 두 번 생겼다(4834 · 4862).
+    // 날까지 보는 것은 「뉴욕증시 3대 지수 상승 출발」처럼 이름이 같아도 날이 다르면 진짜 별개 사건이기 때문이다.
+    // 날짜는 화면과 같은 KST 로 가른다(ApiTime). 먼저 생긴 것에 붙인다
+    @Query(value = """
+                    select * from event e where e.title = :title
+                      and (e.occurred_at at time zone 'Asia/Seoul')::date
+                        = (cast(:occurredAt as timestamptz) at time zone 'Asia/Seoul')::date
+                    order by e.id limit 1
+                    """, nativeQuery = true)
+    Optional<Event> findSameDayTwin(String title, Instant occurredAt);
+
     // 시각이 같은 사건도 ID로 가른다. A4와 같은 순서(공개 기사가 있는 사건만)에서 인접한 한 건만 읽는다.
     @Query("""
             select e from Event e where e.issue.id = :issueId

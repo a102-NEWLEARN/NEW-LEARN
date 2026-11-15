@@ -24,7 +24,7 @@ function OriginalLink() {
         {SAMPLE_ARTICLE.publisher} ·{" "}
         {formatFullDateTime(SAMPLE_ARTICLE.publishedAt)}
       </p>
-      <p className="mt-[6px] text-[clamp(17px,1.5vw,20px)] leading-[1.45] font-bold text-fg-neutral">
+      <p className="mt-[6px] text-[clamp(16px,1.5vw,20px)] leading-[1.45] font-bold text-fg-neutral">
         {SAMPLE_ARTICLE.title}
       </p>
       <p className="mt-[10px] inline-flex items-center gap-x1 text-[15px] font-bold text-fg-brand">
@@ -49,7 +49,7 @@ function EventArticles() {
           기사 {SAMPLE_EVENT.articleCount}건
         </span>
       </div>
-      <p className="mt-[8px] text-[clamp(17px,1.5vw,20px)] font-bold text-fg-neutral">
+      <p className="mt-[8px] text-[clamp(16px,1.5vw,20px)] font-bold text-fg-neutral">
         {SAMPLE_EVENT.title}
       </p>
       <ul className="mt-[10px] flex flex-col divide-y divide-stroke-neutral-weak border-t border-stroke-neutral-weak">
@@ -77,7 +77,7 @@ function AiSummary() {
         </span>
         <AiBadge />
       </div>
-      <p className="mt-[8px] text-[clamp(16px,1.4vw,18px)] leading-[1.7] text-fg-neutral">
+      <p className="mt-[8px] text-[clamp(15px,1.4vw,18px)] leading-[1.7] text-fg-neutral">
         {SAMPLE_ISSUE.summary}
       </p>
     </div>
@@ -89,7 +89,7 @@ function MeaningExample() {
   const [before, after] = TERM_SENTENCE.split(TERM);
   return (
     <div>
-      <p className="text-[clamp(16px,1.4vw,18px)] leading-[1.7] text-fg-neutral">
+      <p className="text-[clamp(15px,1.4vw,18px)] leading-[1.7] text-fg-neutral">
         {before}
         <span className="rounded-[3px] bg-bg-brand-weak px-[2px] font-bold text-fg-brand">
           {TERM}
@@ -149,17 +149,17 @@ export function TrustSection() {
       aria-labelledby="landing-trust"
       className="border-t border-stroke-neutral-weak bg-bg-layer-default"
     >
-      <div className="mx-auto max-w-[1280px] px-[clamp(20px,10vw,176px)] py-[clamp(64px,8vw,112px)]">
+      <div className="mx-auto max-w-[1280px] px-[clamp(20px,10vw,176px)] py-[clamp(80px,8vw,112px)]">
         <Reveal>
           <h2
             id="landing-trust"
-            className="text-center text-[clamp(28px,3.6vw,48px)] leading-[1.3] font-extrabold tracking-[-0.04em] text-fg-neutral"
+            className="text-center text-[clamp(24px,3.6vw,48px)] leading-[1.3] font-extrabold tracking-[-0.04em] text-fg-neutral"
           >
             요약보다 근거를 먼저, <br />
             판단은 읽는 사람에게.
           </h2>
         </Reveal>
-        <div className="mt-[clamp(40px,5vw,64px)] grid grid-cols-1 gap-x-[clamp(32px,6vw,96px)] gap-y-[clamp(48px,6vw,80px)] md:grid-cols-2">
+        <div className="mt-[clamp(40px,5vw,64px)] grid grid-cols-1 gap-x-[clamp(32px,6vw,96px)] gap-y-[clamp(56px,6vw,80px)] md:grid-cols-2">
           {ITEMS.map(([title, description, visual], i) => (
             <div key={title}>
               <Reveal delay={i * 70}>
@@ -168,11 +168,11 @@ export function TrustSection() {
                     <span className="text-[15px] font-extrabold text-fg-brand tabular-nums">
                       {`0${i + 1}`}
                     </span>
-                    <span className="text-[clamp(22px,2vw,28px)] font-extrabold tracking-[-0.03em] text-fg-neutral">
+                    <span className="text-[clamp(19px,2vw,28px)] font-extrabold tracking-[-0.03em] text-fg-neutral">
                       {title}
                     </span>
                   </h3>
-                  <p className="mt-[10px] text-[16px] leading-[1.7] text-fg-neutral-muted">
+                  <p className="mt-[10px] text-[16px] leading-[1.7] text-fg-neutral-muted max-md:text-[14px]">
                     {description}
                   </p>
                   <div className="mt-[22px]">{visual}</div>

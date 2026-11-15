@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
+import { IconChevronRightSmallLine } from "@karrotmarket/react-monochrome-icon";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { TextField, TextFieldInput } from "seed-design/ui/text-field";
@@ -190,13 +191,17 @@ export function LoginPage() {
             to={rawNext === null ? "/signup" : signupPath(next)}
             label="회원가입"
           />
-          {/* 테두리 없는 글자 버튼 — 보조 버튼 *회원가입* 과 겨루지 않게 [가정] (EXPERIENCE.md IA 로그인 행).
+          {/* 작은 회색 글자 링크 — 보조 버튼 *회원가입* 과 겨루지 않게 (EXPERIENCE.md IA 로그인 행).
+              굵은 큰 글자 버튼은 홀로 떠 보였다 (2026-11-15 사용자 「안 예쁘다」).
               닫기(AuthClose)와 같이 로그인 화면을 기록에서 뺀다 — 뒤로 가기로 다시 오지 않게 */}
-          <ActionButton asChild variant="ghost" size="large" className="w-full">
-            <Link to={guestPath(rawNext)} replace>
-              로그인 없이 시작하기
-            </Link>
-          </ActionButton>
+          <Link
+            to={guestPath(rawNext)}
+            replace
+            className="t4-medium mx-auto inline-flex h-x10 items-center gap-x0_5 rounded-r2 px-x3 text-fg-neutral-muted transition-colors hover:text-fg-neutral hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+          >
+            로그인 없이 시작하기
+            <IconChevronRightSmallLine aria-hidden size={16} />
+          </Link>
         </form>
       </main>
     </div>

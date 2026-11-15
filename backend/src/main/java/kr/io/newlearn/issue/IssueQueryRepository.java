@@ -37,6 +37,11 @@ public class IssueQueryRepository {
     // AGGREGATE 처럼 issue 를 먼저 엮으면 집계 앞 정렬이 행마다 제목 · 요약을 달고 가서, 운영(1만 1천 행)에서 정렬 메모리를 넘겨 디스크를 썼다.
     // 수 · 기간 · 순서는 AGGREGATE 와 같다(운영 11-12 에 정렬 2 × 분야 6 × 크기 4 의 모든 쪽을 견줘 같음). 이슈 밖 사건(issue_id 가 빈)은
     // issue 와 붙지 않아 어차피 빠지지만 집계 일을 덜려고 미리 뺀다. 자른 뒤에 issue 를 붙이면 그 묶음이 칸을 먹는다(CategoryIssueQueryTest)
+    //
+    // 🔴 **사이트는 이 모양을 쓰지 않는다.** QUERY_MIN_PUBLIC_ARTICLES=3 이라 threshold.isOff() 가 늘 false 여서
+    // 아래 LIST_WITH_THRESHOLD 로 간다(findCards 의 삼항). 이 상수를 지키는 CategoryIssueQueryTest 도 기본값 1 로 돌아
+    // 여기만 검사한다 — **A2 를 고칠 때 여기만 고치면 시험은 전부 초록인데 사이트는 안 고쳐진다.** 둘을 같이 고친다.
+    // 하나로 합치는 것은 Jira S15P31A102-210 (발표 뒤) — 문턱 1 이면 두 질의의 결과가 같다
     private static final String LIST = """
             select i.id, i.title, i.summary, i.created_at,
                 c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at

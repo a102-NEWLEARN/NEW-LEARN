@@ -447,6 +447,40 @@ class EventMatchIntegrationTest {
         assertThat(matchRecord(ARTICLE).get("reason").asString()).isEqualTo("후보와 다른 사건이다");
     }
 
+    // Jira 211 — 같은 날 이름이 글자까지 같은 사건이 이미 있으면 새로 만들지 않고 거기 붙인다.
+    // 후보는 기사 유사도 top-5 라 한 이슈에 가까운 사건이 여럿이면 맞는 사건이 밀려난다 — 2026-11-15 운영에서
+    // 「세무사 수석 합격자, 경찰에 자수서 제출」이 22분 차이로 두 번 생겨 타임라인에 점이 둘로 보였다
+    @Test
+    void newWithTheSameTitleOnTheSameDayJoinsTheTwinInstead() throws Exception {
+        ready(ARTICLE, 0); // 마인드맵의 occurred_at 은 2026-10-05T15:00Z = KST 10-06
+        long twin = event(3590, "한빛반도체 텍사스 공장 착공식", "2026-10-05T16:00:00Z", "EXTRACTED");
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", created("착공식"))).andExpect(status().isNoContent());
+
+        assertThat(linkedEvent(ARTICLE)).as("새로 만들지 않고 쌍둥이에 붙었다").isEqualTo(twin);
+        assertThat(count("select count(*) from event where title = '한빛반도체 텍사스 공장 착공식'"))
+                .as("사건이 하나뿐이다")
+                .isEqualTo(1);
+        // 그 사건은 이미 이슈 판정을 거쳤다 — 다시 걸지 않는다
+        assertThat(count("select count(*) from analysis_job where article_id = " + ARTICLE + " and stage = 'ISSUE'"))
+                .isZero();
+    }
+
+    // 날이 다르면 이름이 같아도 별개 사건이다 — 운영의 「뉴욕증시 3대 지수 상승 출발」이 3주 차이로 둘이다
+    @Test
+    void theSameTitleOnAnotherDayStillMakesANewEvent() throws Exception {
+        ready(ARTICLE, 0);
+        event(3591, "한빛반도체 텍사스 공장 착공식", "2026-10-01T16:00:00Z", "EXTRACTED");
+        long match = queuedMatch(ARTICLE);
+
+        w1(match, envelope(1, "match-v1", created("착공식"))).andExpect(status().isNoContent());
+
+        assertThat(linkedEvent(ARTICLE)).as("새 사건을 만들었다").isNotEqualTo(3591L);
+        assertThat(count("select count(*) from event where title = '한빛반도체 텍사스 공장 착공식'"))
+                .isEqualTo(2);
+    }
+
     // AC-6 — 뽑은 시점이 없으면 이 기사의 발행 시각으로 채우고 FIRST_PUBLISHED 로 적는다
     @Test
     void newWithoutAnExtractedTimeUsesThePublishedTime() throws Exception {

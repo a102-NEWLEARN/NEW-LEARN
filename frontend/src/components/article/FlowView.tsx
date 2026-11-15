@@ -348,11 +348,12 @@ function LeafCard({
       {on && (
         <p
           id={aboutId}
-          className={`t3-bold flex items-center gap-x1_5 px-x2 ${tone.label} ${RISE}`}
+          className={`t3-bold flex items-start gap-x1_5 px-x2 ${tone.label} ${RISE}`}
         >
+          {/* 두 줄로 넘어가도 점은 첫 줄 가운데에 둔다 */}
           <span
             aria-hidden
-            className={`size-[6px] shrink-0 rounded-full ${tone.dot}`}
+            className={`mt-[calc(0.5lh-3px)] size-[6px] shrink-0 rounded-full ${tone.dot}`}
           />
           {about}
         </p>

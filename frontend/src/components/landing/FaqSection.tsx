@@ -30,16 +30,16 @@ export function FaqSection() {
   const baseId = useId();
 
   return (
-    <div className="mx-auto max-w-[860px] px-[clamp(16px,3vw,32px)]">
+    <div className="mx-auto max-w-[860px] px-[clamp(24px,3vw,32px)]">
       <section
         id="faq"
         aria-labelledby={`${baseId}-title`}
-        className="py-[clamp(64px,8vw,104px)]"
+        className="py-[clamp(80px,8vw,104px)]"
       >
         <Reveal>
           <h2
             id={`${baseId}-title`}
-            className="text-center text-[clamp(28px,3.6vw,44px)] leading-[1.3] font-extrabold tracking-[-0.04em] text-fg-neutral"
+            className="text-center text-[clamp(24px,3.6vw,44px)] leading-[1.3] font-extrabold tracking-[-0.04em] text-fg-neutral"
           >
             자주 묻는 질문
           </h2>
@@ -58,7 +58,7 @@ export function FaqSection() {
                   aria-expanded={expanded}
                   aria-controls={answerId}
                   onClick={() => setOpen(expanded ? null : i)}
-                  className="flex w-full items-center gap-x3 px-x1 py-[22px] text-left text-[18px] font-bold text-fg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                  className="flex w-full items-center gap-x3 px-x1 py-[22px] text-left text-[18px] font-bold max-md:py-[20px] max-md:text-[16px] text-fg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                 >
                   <span className="flex-1">{question}</span>
                   <IconChevronDownLine
@@ -71,7 +71,7 @@ export function FaqSection() {
                 {expanded && (
                   <p
                     id={answerId}
-                    className="px-x1 pb-[24px] text-[16px] leading-[1.75] text-fg-neutral-muted motion-safe:animate-[newlearn-fade-in_180ms_var(--seed-timing-function-enter)_backwards]"
+                    className="px-x1 pb-[24px] text-[16px] leading-[1.75] max-md:text-[14px] text-fg-neutral-muted motion-safe:animate-[newlearn-fade-in_180ms_var(--seed-timing-function-enter)_backwards]"
                   >
                     {answer}
                   </p>

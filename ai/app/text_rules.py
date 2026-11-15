@@ -37,3 +37,15 @@ def blank(value: object) -> bool:
 def has_nul(*values: object) -> bool:
     """U+0000 이 든 글. DB 가 받지 못해 API 가 400 으로 돌려준다(api-internal.md 5절)."""
     return any(isinstance(v, str) and "\x00" in v for v in values)
+
+
+def cut(text: str, limit: int) -> str:
+    """이름이 길면 limit 자로 자른다 — 마지막 글자는 「…」.
+
+    왜 자르나 — 길다고 답을 통째로 버리면 그 기사가 사건에, 그 사건이 이슈에 영영 안 붙는다
+    (2026-11-15 에 label 11자로 기사 10건이 그랬다). 그렇다고 그대로 두면 타임라인 노드와
+    이슈 머리에 문장이 들어앉는다. 그래서 버리지도 두지도 않고 자른다(사용자 결정 2026-11-15).
+
+    이름(사건 title · issueTitle)에만 쓴다. 요약과 키워드(label)는 자르면 뜻이 사라져 그대로 둔다.
+    """
+    return text if len(text) <= limit else text[: limit - 1] + "…"
