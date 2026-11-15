@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from app.extract.postprocess import OutputInvalid
-from app.text_rules import POLITE_ENDING, blank, has_nul
+from app.text_rules import POLITE_ENDING, blank, cut, has_nul
 
 DECISIONS = ("EXISTING", "NEW")
 ROLES = ("MAIN", "REACTION")
@@ -57,8 +57,6 @@ def check_answer(
     title, label, summary = title.strip(), label.strip(), summary.strip()
     if role not in ROLES:
         raise OutputInvalid(f"role {role!r}")
-    if len(title) > TITLE_MAX:
-        raise OutputInvalid(f"title {len(title)}자(최대 {TITLE_MAX})")
     if POLITE_ENDING.search(summary):
         raise OutputInvalid("summary 가 합니다 · 해요체")
     for name in banned:
@@ -66,6 +64,11 @@ def check_answer(
             raise OutputInvalid("쓰면 안 되는 이름을 씀")
 
     warnings: list[str] = []
+    if len(title) > TITLE_MAX:
+        # 길다고 버리면 그 기사가 사건에 영영 안 붙는다(아래 label 과 같은 사고). 그렇다고 그대로
+        # 두면 타임라인 노드에 문장이 들어앉는다 — 버리지도 두지도 않고 자른다(사용자 2026-11-15).
+        warnings.append(f"title {len(title)}자 → {TITLE_MAX}자로 자름")
+        title = cut(title, TITLE_MAX)
     if not LABEL_MIN <= len(label) <= LABEL_MAX:
         # 길이는 프롬프트에 주는 제안이고 API 는 막지 않는다(api-internal.md 5절 — 넘치면 화면이
         # 줄임표로 자른다). 버리면 다시 물어도 같은 답이 와서 그 기사가 사건에 영영 안 붙는다
