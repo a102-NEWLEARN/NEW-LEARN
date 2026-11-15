@@ -124,6 +124,8 @@ preStop 10초(이때도 큐를 읽는다) → 종료 신호 → 하던 작업을
 
 `ai.yaml` 의 세 값을 `"true"` 로 바꾸는 MR 하나. 되돌릴 때는 **이름이 아니라 값**을 되돌린다(`"false"`).
 
+🔴 판정 · 이슈 플래그를 끄면 40분 뒤 경보 `NewlearnAnalysisLineStuck`(critical)이 울린다 — 꺼진 단계는 소비자가 없어 작업이 `QUEUED` 로 남는다. 끄는 MR 과 함께 silence 를 건다(`infra/server/alerts.md` 「분석 작업 경보가 오면」).
+
 ### 켠 뒤 보기
 
 ```bash
