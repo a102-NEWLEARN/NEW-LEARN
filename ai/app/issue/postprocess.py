@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from app.extract.postprocess import OutputInvalid
-from app.text_rules import POLITE_ENDING, blank, has_nul
+from app.text_rules import POLITE_ENDING, blank, cut, has_nul
 
 DECISIONS = ("ATTACH", "CREATE", "NONE")
 TITLE_MIN, TITLE_MAX = 2, 40
@@ -18,12 +18,14 @@ def _int(value: Any) -> bool:
     return type(value) is int
 
 
-def _summary(text: Any, banned: list[str]) -> str:
+def _summary(text: Any, banned: list[str], warnings: list[str]) -> str:
     if blank(text) or has_nul(text):
         raise OutputInvalid("issueSummary 가 비었거나 NUL")
     text = text.strip()
     if len(text) < SUMMARY_MIN:
-        raise OutputInvalid(f"issueSummary {len(text)}자(최소 {SUMMARY_MIN})")
+        # 길이는 프롬프트에 주는 제안이고 계약은 막지 않는다(api-internal.md 5절). 버리면 다시
+        # 물어도 같은 답이 와서 그 사건이 이슈에 영영 안 붙는다. 짧은 쪽은 자를 수도 없어 그대로 둔다
+        warnings.append(f"issueSummary {len(text)}자(제안 {SUMMARY_MIN}자 이상)")
     if POLITE_ENDING.search(text):
         raise OutputInvalid("issueSummary 가 합니다 · 해요체")
     if any(name in text for name in banned):
@@ -33,8 +35,12 @@ def _summary(text: Any, banned: list[str]) -> str:
 
 def check_answer(
     raw: str, event_id: int, issue_ids: set[int], event_ids: set[int], banned: list[str]
-) -> dict[str, Any]:
-    """W1 result. 틀리면 OutputInvalid."""
+) -> tuple[dict[str, Any], list[str]]:
+    """W1 result 와 경고. 틀리면 OutputInvalid.
+
+    경고는 거절할 만큼은 아니지만 알아야 하는 것이다 — 계약이 막지 않는 길이를 넘겼을 때.
+    버리면 그 사건이 이슈에 영영 안 붙어서(2026-11-15 label 사고) 경고로만 남긴다.
+    """
     try:
         out = json.loads(raw)
     except ValueError as e:
@@ -47,8 +53,9 @@ def check_answer(
     if blank(reason) or has_nul(reason):
         raise OutputInvalid("reason 이 비었거나 NUL")
     reason = reason.strip()
+    warnings: list[str] = []
     if decision == "NONE":
-        return {"decision": "NONE", "reason": reason}
+        return {"decision": "NONE", "reason": reason}, warnings
     if decision == "ATTACH":
         issue_id = out.get("issueId")
         if not _int(issue_id) or issue_id not in issue_ids:
@@ -56,9 +63,9 @@ def check_answer(
         return {
             "decision": "ATTACH",
             "issueId": issue_id,
-            "issueSummary": _summary(out.get("issueSummary"), banned),
+            "issueSummary": _summary(out.get("issueSummary"), banned, warnings),
             "reason": reason,
-        }
+        }, warnings
 
     ids = out.get("eventIds")
     if not isinstance(ids, list) or not all(_int(i) for i in ids):
@@ -75,14 +82,18 @@ def check_answer(
     if blank(title) or has_nul(title):
         raise OutputInvalid("issueTitle 이 비었거나 NUL")
     title = title.strip()
-    if not TITLE_MIN <= len(title) <= TITLE_MAX:
-        raise OutputInvalid(f"issueTitle {len(title)}자({TITLE_MIN}~{TITLE_MAX})")
+    if len(title) > TITLE_MAX:
+        # 이름은 이름답게 — 버리지도 두지도 않고 자른다(사용자 2026-11-15, text_rules.cut 주석)
+        warnings.append(f"issueTitle {len(title)}자 → {TITLE_MAX}자로 자름")
+        title = cut(title, TITLE_MAX)
+    elif len(title) < TITLE_MIN:
+        warnings.append(f"issueTitle {len(title)}자(제안 {TITLE_MIN}자 이상)")
     if any(name in title for name in banned):
         raise OutputInvalid("쓰면 안 되는 이름을 씀")
     return {
         "decision": "CREATE",
         "eventIds": ids,
         "issueTitle": title,
-        "issueSummary": _summary(out.get("issueSummary"), banned),
+        "issueSummary": _summary(out.get("issueSummary"), banned, warnings),
         "reason": reason,
-    }
+    }, warnings

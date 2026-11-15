@@ -16,7 +16,7 @@ from app.gms import GmsAuthError, GmsError
 from app.match_event.postprocess import check_answer
 from app.match_event.prompt import PROMPT_VERSION, SYSTEM_PROMPT
 from app.text_rules import private_names
-from app.worker import Diag, Envelope, Stage, StageBlocked, single_job_id
+from app.worker import Diag, Envelope, Stage, StageBlocked, single_job_id, warn_text
 
 STAGE = "MATCH_EVENT"
 STREAM = "analysis.match_event"
@@ -174,7 +174,7 @@ def match_event_stage(llm: ChatClient, model: str) -> Stage:
             f"MATCH_EVENT job={job_id} attempt={attempt} {envelope['status']}{code}"
             f" decision={diag.get('decision', '-')} role={diag.get('role', '-')}"
             f" candidates={diag.get('candidates', '?')} calls={diag.get('calls', '?')} tokens={tokens}"
-            f" warnings={len(diag.get('warnings', []))} {seconds:.1f}초 W1={w1}"
+            f" {warn_text(diag)} {seconds:.1f}초 W1={w1}"
         )
 
     return Stage(
