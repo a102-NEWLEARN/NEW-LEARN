@@ -38,20 +38,20 @@ export function LandingHero({ start }: LandingHeroProps) {
     >
       <LandingHeroMap />
       <div
-        className="relative z-[1] mx-auto flex max-w-[960px] flex-col items-center justify-center px-[clamp(16px,3vw,32px)] py-[clamp(48px,8vh,96px)] text-center"
+        className="relative z-[1] mx-auto flex max-w-[960px] flex-col items-center justify-center px-[clamp(24px,3vw,32px)] py-[clamp(48px,8vh,96px)] text-center"
         style={{
           minHeight: `min(820px, calc(100svh - ${LANDING_HEADER_HEIGHT}px))`,
         }}
       >
         <p
-          className={`text-[clamp(22px,2.6vw,34px)] leading-[1.3] font-bold tracking-[-0.03em] text-fg-neutral ${RISE_460}`}
+          className={`text-[clamp(19px,2.6vw,34px)] leading-[1.3] font-bold tracking-[-0.03em] text-fg-neutral ${RISE_460}`}
         >
           뉴스를 넘어, <span className="text-fg-brand">흐름</span>을 읽다
         </p>
         {/* 글자를 한 번에 읽게 이름을 따로 준다 — 안의 글자 조각은 화면 읽기에서 뺀다 */}
         <h1
           aria-label="NEW:LEARN"
-          className="mt-[14px] text-[clamp(56px,9vw,128px)] leading-[1.08] font-extrabold tracking-[-0.05em] text-fg-neutral"
+          className="mt-[14px] text-[clamp(48px,9vw,128px)] leading-[1.08] font-extrabold tracking-[-0.05em] text-fg-neutral"
         >
           <span className="block overflow-hidden pb-[0.06em]">
             <span
@@ -64,7 +64,7 @@ export function LandingHero({ start }: LandingHeroProps) {
           </span>
         </h1>
         <p
-          className={`mt-[22px] max-w-[560px] text-[clamp(15px,1.3vw,18px)] leading-[1.7] text-fg-neutral-muted ${RISE_560}`}
+          className={`mt-[22px] max-w-[560px] text-[clamp(14px,1.3vw,18px)] leading-[1.7] text-fg-neutral-muted ${RISE_560}`}
           style={enterAt(400)}
         >
           흩어진 뉴스를 연결해, 새로운 맥락을 배울 수 있는 뉴스 플랫폼

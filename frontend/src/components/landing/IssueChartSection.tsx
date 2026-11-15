@@ -4,7 +4,7 @@ import { LANDING_HEADER_HEIGHT } from "@/components/landing/LandingHeader";
 import { useScrollProgress } from "@/components/landing/useScrollProgress";
 import { formatEventDate } from "@/lib/date";
 
-const PAD_X = "clamp(16px,3vw,32px)";
+const PAD_X = "clamp(24px,3vw,32px)";
 
 type CaptionProps = {
   /** 지금 보이는 문장인가 — 아니면 누르기에서 뺀다 */
@@ -39,10 +39,10 @@ function Caption({
           : {}),
       }}
     >
-      <p className="text-[clamp(30px,4.2vw,54px)] leading-[1.25] font-extrabold tracking-[-0.04em] text-fg-neutral">
+      <p className="text-[clamp(24px,4.2vw,54px)] leading-[1.25] max-md:leading-[1.35] font-extrabold tracking-[-0.04em] text-fg-neutral">
         {title}
       </p>
-      <p className="mx-auto mt-[20px] max-w-[720px] text-[clamp(18px,1.8vw,23px)] leading-[1.6] font-medium text-fg-neutral-muted">
+      <p className="mx-auto mt-[20px] max-w-[720px] text-[clamp(15px,1.8vw,23px)] max-md:text-balance leading-[1.6] font-medium text-fg-neutral-muted">
         {description}
       </p>
     </div>

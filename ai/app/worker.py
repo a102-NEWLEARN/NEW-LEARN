@@ -85,6 +85,19 @@ class Stage:
     job_id: Callable[[dict[str, Any]], Any] | None = None
 
 
+def warn_text(diag: Diag) -> str:
+    """로그에 실을 경고. 개수만 찍으면 다시 일어나도 무엇이 걸렸는지 모른다(2026-11-15).
+
+    길어질 수 있어 앞 두 개 · 각 60자까지만 싣는다 — 나머지는 개수로.
+    """
+    warnings = diag.get("warnings") or []
+    if not warnings:
+        return "warnings=0"
+    shown = " · ".join(w[:60] for w in warnings[:2])
+    more = f" 외 {len(warnings) - 2}" if len(warnings) > 2 else ""
+    return f"warnings={len(warnings)}[{shown}{more}]"
+
+
 def single_job_id(payload: dict[str, Any]) -> Any:
     """판정 · 이슈 메시지의 작업 번호(jobId). 없으면 KeyError — 깨진 메시지로 기록하고 버린다."""
     return payload["jobId"]
@@ -284,7 +297,7 @@ def extract_stage(llm: ChatClient, model: str) -> Stage:
         return (
             f"EXTRACT job={job_id} attempt={attempt} {envelope['status']}{code}"
             f" calls={diag.get('calls', '?')} tokens={tokens}"
-            f" warnings={len(diag.get('warnings', []))} {seconds:.1f}초 W1={w1}"
+            f" {warn_text(diag)} {seconds:.1f}초 W1={w1}"
         )
 
     return Stage(

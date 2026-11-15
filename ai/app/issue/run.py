@@ -15,7 +15,7 @@ from app.gms import GmsAuthError, GmsError
 from app.issue.postprocess import CREATE_MIN_EVENTS, check_answer
 from app.issue.prompt import PROMPT_VERSION, SYSTEM_PROMPT
 from app.text_rules import private_names
-from app.worker import Diag, Envelope, Stage, StageBlocked, single_job_id
+from app.worker import Diag, Envelope, Stage, StageBlocked, single_job_id, warn_text
 
 STAGE = "ISSUE"
 STREAM = "analysis.issue"
@@ -115,7 +115,7 @@ async def run_issue(
 ) -> tuple[Envelope, Diag]:
     """(W1 봉투, 로그용 진단). GMS 키 오류(GmsAuthError)만 밖으로 던진다."""
     started = now_kst()
-    diag: Diag = {"calls": 0, "usage": []}
+    diag: Diag = {"calls": 0, "usage": [], "warnings": []}
 
     def envelope(
         result: dict[str, Any] | None, code: str | None, message: str
@@ -148,12 +148,13 @@ async def run_issue(
                 problem = "출력이 길이 상한에서 잘림"
                 continue
             try:
-                result = check_answer(
+                result, warnings = check_answer(
                     out.content, event_id, issue_ids, event_ids, banned
                 )
             except OutputInvalid as e:
                 problem = str(e)
                 continue
+            diag["warnings"] = warnings
             diag["decision"] = result["decision"]
             return envelope(result, None, ""), diag
         return envelope(None, "LLM_OUTPUT_INVALID", problem[:200]), diag
@@ -190,7 +191,8 @@ def issue_stage(llm: ChatClient, model: str) -> Stage:
         return (
             f"ISSUE job={job_id} attempt={attempt} {envelope['status']}{code}"
             f" decision={diag.get('decision', '-')} candidates={diag.get('candidates', '?')}"
-            f" calls={diag.get('calls', '?')} tokens={tokens} {seconds:.1f}초 W1={w1}"
+            f" calls={diag.get('calls', '?')} tokens={tokens}"
+            f" {warn_text(diag)} {seconds:.1f}초 W1={w1}"
         )
 
     return Stage(
