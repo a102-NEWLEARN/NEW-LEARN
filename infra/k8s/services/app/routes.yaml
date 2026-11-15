@@ -99,6 +99,16 @@ spec:
     #   판을 올릴 때: 새 해시를 옛 해시 옆에 먼저 더해 dev 에 반영하고(Argo CD app Synced 확인), 그 뒤에 frontend 배포 태그 MR 을 머지하고, 반영이 끝나면 옛 것을 뺀다 — 사이에 테마 script 가 막히는 틈이 없다
     #   style-src 의 'unsafe-inline' 은 vite.config.ts 가 넣는 @layer 순서 한 줄 · 런타임에 붙는 스타일 몫
     #   img-src 의 data: 는 Vite 가 로고 SVG(frontend/src/components/Logo.tsx)를 data: 주소로 번들에 넣어서 — 빼면 로고가 깨진다
+    #   분석 도구 두 개가 쓰는 출처 (Jira S15P31A102-214) — GA4(Google Analytics 4) · Microsoft Clarity(히트맵 · 세션 녹화). 화면 코드는 FE 몫(frontend/public/analytics.js)
+    #     GA4: script-src 에 www.googletagmanager.com(태그 파일), img-src · connect-src 에 그 호스트와 *.google-analytics.com(수집). 공식 문서는 script-src-elem 에 적지만 그 지시자가 없으면 script-src 로 내려온다
+    #       *.google-analytics.com 은 지역별 수집 주소(region1.google-analytics.com …)까지 덮으려고 와일드카드다
+    #       넣지 않은 것: *.g.doubleclick.net · *.google.com 은 Google Ads 를 연결한 속성에만 필요하다(공식 문서가 「Ads 기능 없이」 쪽에서 뺐다) — 우리는 Ads 를 안 쓴다
+    #       넣지 않은 것: *.analytics.google.com 은 공식 문서에 없고, 있더라도 analytics.google.com 자신은 못 잡는다 — 와일드카드는 아래 단계만 잡는다(CSP Level 3 2.3.1). 필요해지면 그때 정확한 호스트를 넣는다
+    #       넣지 않은 것: *.googletagmanager.com 와일드카드 — 공식 문서는 www 한 호스트만 적는다. GTM 서버 측 컨테이너를 쓰게 되면 그 주소를 따로 넣는다
+    #     Clarity: *.clarity.ms 와 c.bing.com 둘 다 공식 문서가 시키는 것이다. 태그는 www.clarity.ms 에서 받고 녹화는 a~z.clarity.ms 로 나눠 올린다(그래서 와일드카드다)
+    #       공식 예시는 default-src 에 'unsafe-inline' 과 같이 적지만, 우리는 지시자별로 나눠 넣고 'unsafe-inline' 은 넣지 않는다 — 인라인 스크립트 금지는 그대로다
+    #       frame-src 는 넣지 않았다 — 공식 문서에 Clarity 가 iframe 을 쓴다는 말이 없다(미확인). 콘솔에 frame 위반이 뜨면 그때 더한다
+    #     확인: 머지 뒤 사이트 응답 머리와 브라우저 콘솔로 본다. 304 캐시 때문에 옛 머리가 보일 수 있어 강제 새로고침으로
     - matches:
         - path:
             type: PathPrefix
@@ -116,7 +126,7 @@ spec:
               - name: Referrer-Policy
                 value: strict-origin-when-cross-origin
               - name: Content-Security-Policy
-                value: "default-src 'self'; script-src 'self' 'sha256-YBQY3WM31w/XgUZiCAkDXyEKGqOEfxNRIDEAoPoaHXY='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+                value: "default-src 'self'; script-src 'self' 'sha256-YBQY3WM31w/XgUZiCAkDXyEKGqOEfxNRIDEAoPoaHXY=' https://www.googletagmanager.com https://*.clarity.ms; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com https://*.clarity.ms https://c.bing.com; font-src 'self'; connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.clarity.ms https://c.bing.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
       backendRefs:
         - name: frontend
           port: 8080
