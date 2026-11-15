@@ -36,6 +36,34 @@ class ArticleTitleCleanerTest {
         assertThat(ArticleTitleCleaner.clean(title)).isEqualTo(expected);
     }
 
+    // 제목 앞에 붙어 오는 줄표 · 공백을 뗀다 (Jira 213). 운영 전수에서 「-」 하나로 시작하거나
+    // 앞뒤 공백이 있는 제목은 0건이라 넓게 떼도 멀쩡한 제목을 건드리지 않는다
+    @ParameterizedTest
+    @CsvSource(
+            delimiter = '|',
+            quoteCharacter = '\u0000',
+            value = {
+                "--코스피 또 폭락 | 코스피 또 폭락",
+                "- 단독 보도 | 단독 보도",
+                "—코스피 급락 | 코스피 급락",
+                "–환율 상승 | 환율 상승",
+                "---세 개 | 세 개",
+                "[속보] 코스피 급락 | [속보] 코스피 급락",
+                "A-B 협력 발표 | A-B 협력 발표",
+                "<신화통신> 보도 | <신화통신> 보도",
+                "코스피 하락-마감 | 코스피 하락-마감",
+            })
+    void stripsLeadingDashes(String title, String expected) {
+        assertThat(ArticleTitleCleaner.clean(title)).isEqualTo(expected);
+    }
+
+    // 줄표뿐이면 떼고 나서 빈 값이 된다 — B2 가 빈 제목을 400 으로 막으므로 그대로 둔다
+    @Test
+    void keepsATitleThatIsOnlyDashes() {
+        assertThat(ArticleTitleCleaner.clean("---")).isEqualTo("---");
+        assertThat(ArticleTitleCleaner.clean(" - ")).isEqualTo(" - ");
+    }
+
     @ParameterizedTest
     @ValueSource(
             strings = {
