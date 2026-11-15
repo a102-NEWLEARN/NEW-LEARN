@@ -62,12 +62,13 @@ class MatchEventResultHandler implements AnalysisResultHandler {
         var match = MatchEventResult.read(request.result());
         Article article = job.getArticle();
         // read 가 EXISTING 이면 eventId 를, NEW 면 newEvent 를 채운다
-        Event event = switch (match.decision()) {
-            case EXISTING -> attach(job, article, Objects.requireNonNull(match.eventId()));
+        Resolved resolved = switch (match.decision()) {
+            case EXISTING -> new Resolved(attach(job, article, Objects.requireNonNull(match.eventId())), false);
             case NEW -> create(job, article, Objects.requireNonNull(match.newEvent()));
         };
+        Event event = resolved.event();
         links.save(new ArticleEvent(article, event));
-        if (match.decision() == MatchEventResult.Decision.NEW) {
+        if (resolved.born()) {
             // 새 사건만 이슈에 붙일지 묻는다(api-internal.md 3절). 큐에는 넣지 않는다 — 「걸 차례를 기다리는」 표시다.
             // ISSUE 도 한 번에 하나씩이라 고르기(IssueDispatcher, Jira 40)가 이 작업을 하나씩 골라 그때 후보를 계산해 넣는다
             jobs.save(new AnalysisJob(article, AnalysisStage.ISSUE, RequestedBy.BATCH, null));
@@ -92,9 +93,12 @@ class MatchEventResultHandler implements AnalysisResultHandler {
         return events.getReferenceById(eventId);
     }
 
+    // 새로 태어난 사건인지(born) — 태어났을 때만 이슈에 붙일지 묻는다
+    private record Resolved(Event event, boolean born) {}
+
     // 발생 시점 = EXTRACT 가 뽑은 시점, 없으면 이 기사의 발행 시각(FIRST_PUBLISHED) (api-internal.md 5절)
     // 반응 대상 사건 번호도 보낸 후보 안이어야 한다. 선택 값이라 밖이면 400 대신 버리고 경고만 남긴다(Jira 134, AI 팀장 제안)
-    private Event create(AnalysisJob job, Article article, MatchEventResult.NewEvent created) {
+    private Resolved create(AnalysisJob job, Article article, MatchEventResult.NewEvent created) {
         @Nullable Long target = created.reactsToEventId();
         if (target != null && !sent(job, target)) {
             log.warn("반응 대상 사건 번호가 보낸 후보에 없어 null 로 받는다: 판정 작업 {} reactsToEventId={}", job.getId(), target);
@@ -106,15 +110,33 @@ class MatchEventResultHandler implements AnalysisResultHandler {
                 .orElse(null);
         Instant occurredAt = extracted == null ? article.getPublishedAt() : extracted;
         OccurredAtBasis basis = extracted == null ? OccurredAtBasis.FIRST_PUBLISHED : OccurredAtBasis.EXTRACTED;
-        return events.save(new Event(
-                created.title(),
-                created.label(),
-                created.summary(),
-                occurredAt,
-                basis,
-                created.role(),
-                created.reactsTo(),
-                target));
+        // 같은 날 이름이 글자까지 같은 사건이 이미 있으면 새로 만들지 않고 거기 붙인다(Jira 211).
+        // 후보가 기사 유사도 top-5 라 맞는 사건이 밀려나면 모델은 그 사건을 보지 못한 채 NEW 로만 답할 수 있다 —
+        // 그 결과가 화면에서 점 둘로 보인다. 까닭과 「같은 날」을 보는 이유는 EventRepository.findSameDayTwin
+        var twin = events.findSameDayTwin(created.title(), occurredAt);
+        if (twin.isPresent()) {
+            long twinId = twin.get().getId();
+            log.warn(
+                    "같은 날 이름이 같은 사건이 있어 새로 만들지 않고 붙인다: articleId={} jobId={} eventId={} title={}",
+                    article.getId(),
+                    job.getId(),
+                    twinId,
+                    created.title());
+            // 붙이는 쪽과 같은 규칙으로 시점만 당긴다(EXISTING 과 같음). 이름 · 키워드 · 요약은 처음 지은 그대로 둔다
+            events.pullOccurredAt(twinId, article.getPublishedAt(), OccurredAtBasis.FIRST_PUBLISHED, Instant.now());
+            return new Resolved(events.getReferenceById(twinId), false);
+        }
+        return new Resolved(
+                events.save(new Event(
+                        created.title(),
+                        created.label(),
+                        created.summary(),
+                        occurredAt,
+                        basis,
+                        created.role(),
+                        created.reactsTo(),
+                        target)),
+                true);
     }
 
     private boolean sent(AnalysisJob job, long eventId) {
