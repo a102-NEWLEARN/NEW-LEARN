@@ -15,17 +15,17 @@ type LandingClosingProps = {
 export function LandingClosing({ start }: LandingClosingProps) {
   return (
     <section aria-labelledby="landing-closing" className="bg-bg-brand-weak">
-      <div className="mx-auto max-w-[1120px] px-[clamp(16px,3vw,32px)] py-[clamp(80px,11vw,144px)] text-center">
+      <div className="mx-auto max-w-[1120px] px-[clamp(24px,3vw,32px)] py-[clamp(96px,11vw,144px)] text-center">
         <Reveal>
           <h2
             id="landing-closing"
-            className="text-[clamp(36px,5.6vw,72px)] leading-[1.18] font-extrabold tracking-[-0.045em] text-fg-neutral"
+            className="text-[clamp(28px,5.6vw,72px)] leading-[1.18] max-md:leading-[1.25] font-extrabold tracking-[-0.045em] text-fg-neutral"
           >
             뉴스를 읽는 서비스를 넘어, <br />
             <span className="text-fg-brand">뉴스를 이해하는 경험</span>
             으로.
           </h2>
-          <p className="mx-auto mt-[24px] max-w-[520px] text-[18px] leading-[1.7] text-fg-neutral-muted">
+          <p className="mx-auto mt-[24px] max-w-[520px] text-[18px] max-md:text-balance max-md:text-[15px] leading-[1.7] text-fg-neutral-muted">
             이슈마다 사건의 흐름을, 기사마다 네 갈래 정리를 바로 볼 수 있어요.
           </p>
           <div className="mt-x10 flex justify-center">
@@ -46,7 +46,7 @@ export function LandingClosing({ start }: LandingClosingProps) {
 export function LandingFooter() {
   return (
     <footer className="border-t border-stroke-neutral-weak bg-bg-layer-default">
-      <div className="mx-auto flex max-w-[1120px] flex-wrap items-start gap-x8 px-[clamp(16px,3vw,32px)] pt-x8 pb-x10 text-[13px] text-fg-neutral-muted">
+      <div className="mx-auto flex max-w-[1120px] flex-wrap items-start gap-x8 px-[clamp(24px,3vw,32px)] pt-x8 pb-x10 text-[13px] text-fg-neutral-muted">
         <div className="mr-auto">
           <button
             type="button"
