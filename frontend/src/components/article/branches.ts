@@ -6,7 +6,7 @@ export type BranchInfo = {
   name: string;
   /** 흐름지도 보기 이름. 마인드맵 보기에서는 이름 아래 작은 글자로 함께 둔다 (프로토타입 v21 MM4) */
   question: string;
-  /** 흐름지도에서 잎을 눌렀을 때 카드 아래에 붙는 한 줄 — 이 가지가 무엇인지 (2026-11-13 사용자, Jira 204) */
+  /** 흐름지도에서 잎을 눌렀을 때 카드 아래에 붙는 한 줄 — 이 가지를 어떻게 읽으면 좋은지 (2026-11-13 사용자, Jira 204 · 2026-11-15 「더 유익한 말」) */
   about: string;
   /** 가운데에서 어느 쪽으로 — 가로 −1 왼쪽 · 1 오른쪽, 세로 −1 위 · 1 아래 */
   side: -1 | 1;
@@ -53,7 +53,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   CORE: {
     name: "핵심 내용",
     question: "무슨 일이?",
-    about: "기사가 전하는 사실이에요",
+    about: "누가 · 언제 · 무엇을 했는지부터 잡아 보세요",
     side: 1,
     vertical: -1,
     tone: {
@@ -75,7 +75,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   CAUSE: {
     name: "원인·배경",
     question: "왜 일어났나?",
-    about: "이 일이 일어난 까닭과 배경이에요",
+    about: "직접 원인과 오래 쌓인 배경을 나눠 보면 사건이 또렷해져요",
     side: -1,
     vertical: -1,
     tone: {
@@ -97,7 +97,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   REACTION: {
     name: "반응",
     question: "누가 뭐라고 했나?",
-    about: "사람 · 기관이 이 일에 보인 반응이에요",
+    about: "누가 어느 편에 섰는지 나눠 보면 쟁점이 보여요",
     side: 1,
     vertical: 1,
     tone: {
@@ -119,7 +119,7 @@ export const BRANCHES: Record<BranchType, BranchInfo> = {
   OUTLOOK: {
     name: "전망",
     question: "앞으로는?",
-    about: "앞으로 어떻게 될지 내다본 것이에요",
+    about: "아직 일어나지 않은 예상이에요. 확정된 사실과 구분해 읽어요",
     side: -1,
     vertical: 1,
     tone: {
