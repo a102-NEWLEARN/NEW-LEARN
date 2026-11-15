@@ -32,7 +32,7 @@ newlearn_analysis_failed:
 
 newlearn_analysis_line:
   # 한 번에 하나씩 도는 판정(MATCH_EVENT) · 이슈(ISSUE) 줄에서 진행 중인 작업 중 가장 오래된 것의 나이(초)
-  # 진행 중 정의의 원본은 backend AnalysisJobRepository 의 findMatchInFlight · ISSUE 쪽 진행 중 질의다 — 한쪽을 바꾸면 다른 쪽도 바꾼다
+  # 진행 중 정의의 원본은 backend AnalysisJobRepository 의 findMatchInFlight · findIssueInFlight 다 — 한쪽을 바꾸면 다른 쪽도 바꾼다
   #   MATCH_EVENT: QUEUED, 또는 FAILED 인데 다시 걸 예정(retry_at 있음)
   #   ISSUE: 후보(candidates)가 있는 QUEUED, 또는 FAILED + retry_at. 후보가 빈 QUEUED 는 차례를 기다리는 대기 작업이라 뺀다
   # QUEUED 는 queued_at 부터, FAILED + retry_at 은 retry_at(다시 걸 때)부터 잰다. 건강한 재시도는 1분 스케줄러가 곧 QUEUED 로

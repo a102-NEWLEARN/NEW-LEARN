@@ -79,9 +79,9 @@ group by s.stage;
 
 ## 작업 순서
 
-- [ ] **C1** exporter 질의 · 권한 · 주석 (+ perf README · SSOT 6절 · netpol 주석) — 로컬 Docker 시험(검증 1)
-- [ ] **C2** 경보 셋 · promtool 시험 (+ alerts.md · ai-worker.md) — `infra_LINT` · `infra_TEST`, 되돌림 확인
-- [ ] **C3** `docs/testing.md` 6절
+- [x] **C1** exporter 질의 · 권한 · 주석 (+ perf README · SSOT 6절 · netpol 주석) — 로컬 Docker 시험(검증 1)
+- [x] **C2** 경보 셋 · promtool 시험 (+ alerts.md · ai-worker.md) — `infra_LINT` · `infra_TEST`, 되돌림 확인
+- [x] **C3** `docs/testing.md` 6절
 - [ ] MR → 파이프라인 초록 → **사람이 exporter 를 먼저 올린다**(아래) → 지표 · 경보 식 확인 → 머지(Argo CD `alerts` 앱이 규칙 반영)
 - [ ] 반영 뒤 규칙 셋 `inactive`, 첫 진짜 실패가 Mattermost 로 오는지 · `SSOT.md` 10절 한 줄
 
@@ -106,7 +106,7 @@ kubectl apply -k infra/k8s/bootstrap/pg-exporter
 
 ## 리스크
 
-- **AI 워커 플래그를 일부러 끄면 `LineStuck`(critical)이 40분 뒤 울리고 12시간마다 다시 온다.** 고르기는 플래그와 상관없이 작업을 큐에 넣고, 꺼진 단계는 소비자가 없어 `QUEUED` 로 남는다(`ai/app/main.py:179-200`). 11-14 에 실제로 ISSUE 를 껐다 켰다. → alerts.md · ai-worker.md 에 「끄는 MR 과 함께 silence」를 적는다
+- **AI 워커 플래그를 일부러 끄면 `LineStuck`(critical)이 약 45분 뒤(40분 + for 5m) 울리고 12시간마다 다시 온다.** 고르기는 플래그와 상관없이 작업을 큐에 넣고, 꺼진 단계는 소비자가 없어 `QUEUED` 로 남는다(`ai/app/main.py:179-200`). 11-14 에 실제로 ISSUE 를 껐다 켰다. → alerts.md · ai-worker.md 에 「끄는 MR 과 함께 silence」를 적는다
 - **exporter 의 사용자 정의 질의는 v0.20.1 에서 deprecated** 다(README: 「deprecated in favor of built-in collector functions」). 기능은 아직 있고 이미지는 digest 고정, 서비스는 길어야 12월. 질의를 못 읽으면 지표가 사라져 **`MetricsMissing` 이 스스로 알린다** — 이 주장은 검증 1에서 직접 확인한다
 - **질의 파일 형식을 공식 예제로 확인하지 못했다** — v0.20.1 의 `queries.yaml` 은 「수집기로 옮겼다」 한 줄만 남았다. 검증 1 이 첫 관문이다
 - **질의 하나가 실패할 때 수집 전체가 실패하면 기존 「조회 성능」 대시보드까지 죽는다** — 검증 1에서 열 하나를 revoke 해 확인한다

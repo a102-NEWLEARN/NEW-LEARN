@@ -502,6 +502,17 @@ tests:
             exp_annotations:
               summary: "분석 작업 EXTRACT 이 끝내 실패했다 — 30분 동안 1건"
               description: &analysis_failed "다시 걸리지 않는 실패다. 어느 기사 · 어떤 오류인지는 infra/server/alerts.md 「분석 작업 경보가 오면」"
+      # 30분 동안은 계속 운다 — offset 을 30분보다 줄이면 여기서 깨진다 (리뷰 2026-11-16)
+      - eval_time: 70m
+        alertname: NewlearnAnalysisJobFailed
+        exp_alerts:
+          - exp_labels:
+              notify: mattermost
+              severity: warning
+              stage: EXTRACT
+            exp_annotations:
+              summary: "분석 작업 EXTRACT 이 끝내 실패했다 — 30분 동안 1건"
+              description: *analysis_failed
       # 30분 뒤에는 offset 쪽도 5 라 풀림
       - eval_time: 71m
         alertname: NewlearnAnalysisJobFailed

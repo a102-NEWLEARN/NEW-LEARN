@@ -212,7 +212,7 @@ spec:
             description: "다시 걸리지 않는 실패다. 어느 기사 · 어떤 오류인지는 infra/server/alerts.md 「분석 작업 경보가 오면」"
         # ② 판정(MATCH_EVENT) · 이슈(ISSUE) 줄이 멈춤 — 한 번에 하나씩이라 하나가 막히면 새 기사 전부가 사건 · 이슈에 안 붙는다
         #   40분은 backend 의 멈춤 WARN(DispatchLine.STUCK_AFTER)과 같은 기준. 그 WARN 이 못 보는 FAILED + retry_at(다시 걸 때가 지났는데 안 걸림)도 본다
-        #   🔴 AI 워커의 단계 플래그를 일부러 끄면 소비자가 없어 40분 뒤 이것이 울린다 — 끄는 MR 과 함께 silence 를 건다(alerts.md)
+        #   🔴 AI 워커의 단계 플래그를 일부러 끄면 소비자가 없어 약 45분 뒤(40분 + for 5m) 이것이 울린다 — 끄는 MR 과 함께 silence 를 건다(alerts.md)
         - alert: NewlearnAnalysisLineStuck
           expr: |
             newlearn_analysis_line_oldest_inflight_seconds > 40 * 60

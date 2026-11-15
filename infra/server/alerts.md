@@ -76,7 +76,7 @@ Alertmanager 가 우리 경보 열(`infra/k8s/alerts/rules.yaml`)만 Mattermost 
   3. `retry_at` 이 지났는데 안 걸림(FAILED + retry_at) — backend 1분 스케줄러가 못 도는 것이다. backend 로그의 「실패한 작업을 다시 걸지 못했다」 · 「차례를 건너뛴다」 WARN
   4. 푸는 법은 `docs/api-internal.md` 3절 「큐 모양과 순서」의 「`MATCH_EVENT` 는 한 번에 하나씩」 대목(40분 멈춤 · 푸는 법)
 - **지표 없음**(`MetricsMissing`, warning) — 질의가 깨졌거나(권한 · 칸 이름) exporter 가 멈췄다. 이 동안 위 둘은 울리지 않는다. `stage` 이름표가 EXTRACT 면 실패 수 지표, MATCH_EVENT 면 줄 멈춤 지표가 빠진 것이다. `kubectl -n monitoring logs deploy/postgres-exporter` 에서 `queryNamespaceMappings` 오류를 찾는다(권한이면 `permission denied`). 권한은 `infra/server/perf/README.md` 「exporter 올리기」 2번의 한 줄로 다시 준다
-- 🔴 **AI 워커의 단계 플래그를 일부러 끄면 40분 뒤 `LineStuck` 이 울리고 12시간마다 다시 온다.** 고르기는 플래그와 상관없이 작업을 큐에 넣고, 꺼진 단계는 소비자가 없어 `QUEUED` 로 남는다. 끄는 MR 과 함께 silence 를 건다(관리 서버에서)
+- 🔴 **AI 워커의 단계 플래그를 일부러 끄면 약 45분 뒤(40분을 넘고 5분 이어지면) `LineStuck` 이 울리고 12시간마다 다시 온다.** 고르기는 플래그와 상관없이 작업을 큐에 넣고, 꺼진 단계는 소비자가 없어 `QUEUED` 로 남는다. 끄는 MR 과 함께 silence 를 건다(관리 서버에서)
 
   ```bash
   kubectl -n monitoring exec statefulset/alertmanager-kps-kube-prometheus-stack-alertmanager -c alertmanager -- amtool silence add --alertmanager.url=http://localhost:9093 alertname=NewlearnAnalysisLineStuck stage=ISSUE --duration=24h --author=<이름> --comment="ISSUE 플래그 끔 — MR !<번호>"

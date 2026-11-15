@@ -66,13 +66,13 @@ postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱�
 
    | 무엇을 | 어떻게 (어디서) | 기대 |
    |---|---|---|
-   | exporter | `kubectl -n monitoring logs deploy/postgres-exporter` (EC2) | 오류 줄 없음 |
+   | exporter | `kubectl -n monitoring logs deploy/postgres-exporter` (EC2) | 오류 줄 없음. 뜰 때마다 `level=WARN msg="The extended queries.yaml config is DEPRECATED"` 한 줄은 정상이다(분석 작업 질의) |
    | 수집 | `infra/server/README.md` 「모니터링」 5번의 수집 대상 명령 (EC2) | `postgres-exporter` 까지 모두 up |
    | DB 연결 | Grafana Explore 에서 `pg_up` | 1 |
    | 값 | 대시보드 「조회 성능」 | 패널 여섯에 모두 선이 있다. 아래 세 칸은 설치한 뒤부터 쌓인다 |
    | 분석 작업 질의 | Grafana Explore 에서 `newlearn_analysis_failed_terminal` · `newlearn_analysis_line_oldest_inflight_seconds` | 네 줄 · 두 줄이 나오고, 실패 수가 DB 의 `select stage, count(*) from analysis_job where status='FAILED' and retry_at is null and error_code is distinct from 'BACKLOG_SKIPPED' group by stage` 와 같다 |
 
-내리기: `kubectl delete -k infra/k8s/bootstrap/pg-exporter` → `kubectl -n monitoring delete secret postgres-exporter` → DB 에서 `drop role newlearn_monitor` → 길 정책 항목을 빼는 MR.
+내리기: 먼저 분석 작업 경보 셋(`infra/k8s/alerts/rules.yaml` 의 `NewlearnAnalysis*`)을 빼는 MR(또는 silence) — exporter 부터 지우면 10분 뒤 `NewlearnAnalysisMetricsMissing` 이 운다 → `kubectl delete -k infra/k8s/bootstrap/pg-exporter` → `kubectl -n monitoring delete secret postgres-exporter` → DB 에서 `revoke select (stage, status, retry_at, queued_at, error_code, candidates) on public.analysis_job from newlearn_monitor` 다음 `drop role newlearn_monitor`(열 권한이 남아 있으면 `drop role` 이 「some objects depend on it」으로 실패한다) → 길 정책 항목을 빼는 MR.
 
 ## 한 번 잴 때 순서
 
