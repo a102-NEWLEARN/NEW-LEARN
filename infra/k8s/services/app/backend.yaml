@@ -112,9 +112,10 @@ spec:
             # 이슈가 목록에 나오려면 보이는 사건이 몇 개 있어야 하는가 (Jira S15P31A102-208). 되돌릴 때는 값을 "1" 로.
             # 2026-11-15: 보이는 이슈 225개 중 26개가 사건 1 ~ 2개뿐이었다(사건을 뗀 뒤 남은 것). 3 으로 두면 225 → 199.
             # 목록에서만 뺀다 — 이슈 페이지와 기사 · 사건의 이슈 링크, 관심 이슈는 그대로다.
-            # 🔴 지금은 "1"(끔)이다 — 운영 실행 계획을 재고 나서 "3" 으로 켠다(계획 docs/plans/zazzy-questing-zebra.md 4 · 5번)
+            # 2026-11-15 켬. 켜기 전 응답 시간은 C:/tmp/208-steps/before.md 에 적어 두고 켠 뒤 같은 방법으로 다시 잰다 —
+            # SSH 터널이 없어 실행 계획(EXPLAIN) 대신 공개 주소에서 전후를 쟀다. 느려지면 값을 "1" 로 되돌린다(1 ~ 2분)
             - name: QUERY_MIN_PUBLIC_EVENTS
-              value: "1"
+              value: "3"
           # POSTGRES_DB · POSTGRES_USER · POSTGRES_PASSWORD (sealed-postgres-auth.yaml — data 의 DB 와 같은 값)
           envFrom:
             - secretRef:
