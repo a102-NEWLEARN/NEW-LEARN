@@ -6,10 +6,11 @@
 |---|---|
 | `eval_export.sql` | 운영에서 읽기만으로 이슈 · 사건 · 사건에 묶인 기사를 JSONL 로 뽑는다(기사 글은 제목과 본문 앞 240자). 사건마다 공개 기사 수 · 언론사 수(`released_articles` · `released_presses`)도 싣는다 |
 | `clustering_eval.py` | 후보 만들기 · Sonnet 묶음 나누기 · 모으기 · 사람 표본 · 기록 · 일치율 · 지표. 표준 라이브러리만 |
+| `extract_primary.py` | EXTRACT 가 대표 사건(`primaryCoreIndex`)을 고르는 정확도 채점. 표본이 층화라 층마다 재고 모집단 비율로 다시 묶는다. 표준 라이브러리만 |
 | `criteria-v4.md` | 판정 기준 — AI 팀 v4 사본 |
 | `judge-prompt.md` | Sonnet 판정 지시문 |
 | `gold/` | 정답 — 번호와 판정만(`human.tsv` 사람 · `sonnet*.tsv` Sonnet · `metrics.json` 지표) |
-| 시험 | `infra/ci/test_clustering_eval.py` · `test_final_gold_also.py` · `test_eval_threshold.py` (CI `infra_TEST`) |
+| 시험 | `infra/ci/test_clustering_eval.py` · `test_final_gold_also.py` · `test_eval_threshold.py` · `test_extract_primary.py` (CI `infra_TEST`) |
 
 ## 1. 무엇을 판정하나
 
@@ -20,6 +21,9 @@
 | `I:<이슈>:<사건>` | 이 사건이 이 이슈 흐름에 드나 | `Y` · `B` ~ `Z` · `0` |
 | `O:<사건>:<이슈>` | 이슈 밖 사건이 이 이슈에 드나 | `Y` · `N` |
 | `Q:<이슈>:<이슈>` | 두 이슈가 한 흐름인가 | `same_issue` · `unrelated` |
+| `E:<기사>` | 이 기사에 대표 사건이 있나 | `Y` · `N` |
+
+`E` 는 묶기 전 단계다 — 대표 사건이 없다고 본 기사는 판정(`MATCH_EVENT`)을 **아예 걸지 않아서**(`docs/api-internal.md` 3절) 여기서 틀리면 그 기사는 어떤 사건 · 이슈에도 못 들어간다. `clustering_eval.py` 는 세 토막 키만 다루므로 `E` 는 `extract_primary.py` 가 따로 채점한다.
 
 `P` 후보는 발생일 ±3일 안에서 제목 글자 겹침 상위 3 ∪ 벡터 중심 코사인 상위 3, 겹침 0.10 · 코사인 0.60 둘 다 아래면 뺀다. 후보 밖 놓침은 같은 날 사건 쌍 무작위 40개로 어림한다. 벡터는 AI 팀 파일(`dragonkue/BGE-m3-ko`, 제목 + 줄바꿈 + 본문 앞 800자)이다.
 
@@ -72,6 +76,26 @@ python -X utf8 -B infra/server/eval/clustering_eval.py metrics C:/tmp/206-steps/
 ```
 
 사람 판정은 Sonnet 답을 보지 않고 한다. 같은 키를 다시 기록하면 뒤 줄이 이긴다. 지표를 낼 때 사람 판정이 Sonnet 판정을 덮는다.
+
+### `E` — 대표 사건이 있나 (2026-11-15)
+
+🔴 **기준은 운영 지시문을 그대로 쓴다.** `ai/app/extract/prompt.py` 의 `[대표 사건 primaryCoreIndex]` 대목(약 5,000자)이고, `docs/api-internal.md` 5절의 한 줄 요약(「운세 · 시세표 · 축사 · 해설」)으로 재면 안 된다. 2026-11-15 에 그 요약으로 쟀더니 건너뛴 기사의 32.2% 가 틀린 것으로 나왔는데, 지시문으로 다시 재니 **13.3%** 였다 — 같은 기사 120건 중 **25건(20.8%)이 답이 갈렸다**. 요약에는 「단순 모집 · 행사 · 이벤트 · 출시 · 공연의 일정 · 참여 안내」가 null 이라는 규칙이 빠져 있었다.
+
+표본은 **층화**다 — 워커가 건너뛴 기사 90 + 고른 기사 30 을 따로 뽑아 섞어서 눈가림으로 판정했다. 그래서 날것의 정밀도 · 재현율은 모집단 값이 아니고, `--skip-share` 로 다시 묶어야 한다.
+
+```bash
+# 1) 정답셋의 기사 번호로 운영에서 워커 결과만 뽑는다(읽기만) — 「기사 번호<탭>1|0」, 1 이 대표 사건을 고른 것
+#    표본 · 판정 이유처럼 기사 글이 있는 것은 저장소 밖에 둔다(예: C:/tmp/pci-1115/)
+cut -f1 infra/server/eval/gold/sonnet-extract-primary.tsv | tail -n +2 | sed 's/^E://' | paste -sd, -
+
+# 2) 채점 — 건너뛴 기사의 몫은 그때 운영에서 센다
+python -X utf8 -B infra/server/eval/extract_primary.py \
+  infra/server/eval/gold/sonnet-extract-primary.tsv <워커 결과.tsv> --skip-share 0.321 --daily-skip 1038
+```
+
+2026-11-15 결과(최근 3일 기사, 건너뛴 몫 32.1%): **정밀도 0.967 · 재현율 0.939 · F1 0.953**. 건너뛴 기사의 13.3%(95% 7.8 ~ 21.9%)가 사실은 사건이 있고, 고른 기사의 3.3%(0.6 ~ 16.7%)는 사실 사건이 없다. 하루로 치면 약 **138건**(81 ~ 227)이 사건이 있는데 판정 줄에 못 들어간다.
+
+**말하지 못하는 것**: 판정자는 Sonnet 하나이고 사람 검수가 없다 — 그래서 파일 이름이 `sonnet-*` 이고 gold 가 아니라 silver 다(1절). 판정자끼리의 일치도도 재지 않았다. 표본은 최근 3일이다.
 
 ## 3. 지표
 

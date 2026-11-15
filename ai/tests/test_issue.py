@@ -116,6 +116,33 @@ async def test_create_names_issue_with_three_events_including_this():
     assert env["result"] == CREATE
 
 
+async def test_long_issue_title_is_cut_not_thrown_away():
+    # 버리면 그 사건이 이슈에 영영 안 붙어 에볼루션 맵에서 점 하나가 사라진다. 그렇다고 그대로
+    # 두면 이슈 머리에 문장이 들어앉는다 — 사용자 결정(2026-11-15): 40자에서 자른다.
+    env, diag = await run(FakeLlm(j(CREATE, issueTitle="가" * 41)))
+
+    assert env["status"] == "SUCCEEDED"
+    assert env["result"]["issueTitle"] == "가" * 39 + "…"
+    assert "issueTitle" in diag["warnings"][0]
+
+
+async def test_issue_title_at_the_limit_is_left_alone():
+    env, diag = await run(FakeLlm(j(CREATE, issueTitle="가" * 40)))
+
+    assert env["result"]["issueTitle"] == "가" * 40
+    assert diag["warnings"] == []
+
+
+async def test_short_issue_title_and_summary_pass_with_a_warning():
+    # 짧은 쪽은 자를 수가 없다. 화면을 깨지도 않으니 그대로 두고 경고만 남긴다.
+    env, diag = await run(FakeLlm(j(CREATE, issueTitle="상", issueSummary="상어 출몰")))
+
+    assert env["status"] == "SUCCEEDED"
+    assert env["result"]["issueTitle"] == "상"
+    assert env["result"]["issueSummary"] == "상어 출몰"
+    assert len(diag["warnings"]) == 2
+
+
 async def test_none_keeps_only_reason():
     env, _ = await run(FakeLlm(j(NONE, issueId=4001, issueSummary="x")))
 
@@ -192,7 +219,6 @@ async def test_two_candidate_events_are_enough_to_ask():
         j(CREATE, eventIds=[4011, 4012, 4001]),
         j(CREATE, issueTitle=""),
         j(CREATE, issueSummary=None),
-        j(CREATE, issueTitle="가" * 41),
         j(CREATE, issueSummary="상어가 나타나 해경이 나섰습니다."),
         j(CREATE, issueTitle="북항\u0000상어"),
         j(NONE, reason=""),

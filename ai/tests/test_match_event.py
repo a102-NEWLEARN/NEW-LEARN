@@ -199,6 +199,23 @@ async def test_label_outside_suggested_length_passes_with_warning(label):
     assert "label" in diag["warnings"][0]
 
 
+async def test_long_event_title_is_cut_not_thrown_away():
+    # 버리면 그 기사가 사건에 영영 안 붙는다(label 과 같은 사고). 그렇다고 그대로 두면 타임라인
+    # 노드에 문장이 들어앉는다 — 사용자 결정(2026-11-15): 이름은 이름답게, 40자에서 자른다.
+    env, diag = await run(FakeLlm(answer(newEvent={"title": "가" * 41})))
+
+    assert env["status"] == "SUCCEEDED"
+    assert env["result"]["newEvent"]["title"] == "가" * 39 + "…"
+    assert "title" in diag["warnings"][0]
+
+
+async def test_event_title_at_the_limit_is_left_alone():
+    env, diag = await run(FakeLlm(answer(newEvent={"title": "가" * 40})))
+
+    assert env["result"]["newEvent"]["title"] == "가" * 40
+    assert diag["warnings"] == []
+
+
 async def test_no_candidates_still_judges():
     llm = FakeLlm(answer())
 
@@ -241,7 +258,6 @@ async def test_user_message_carries_evidence_text_and_names_not_to_use():
         answer(newEvent={"role": None}),
         answer(reason=" "),
         answer(newEvent={"title": "착공\u0000식"}),
-        answer(newEvent={"title": "가" * 41}),
         answer(newEvent={"summary": "착공식을 열었습니다."}),
         answer(newEvent=None),
         "not json",
