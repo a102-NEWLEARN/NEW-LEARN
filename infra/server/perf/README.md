@@ -41,16 +41,22 @@ python3 load.py run <이름표> <시험 계정 아이디> --until <HH:MM>
 
 ## exporter 올리기
 
-postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱스 읽기 · 블록)를 지표로 바꾸고, 대시보드 「조회 성능」이 이 지표와 입구 로그의 API 응답 시간을 같이 그린다. 값은 `infra/k8s/bootstrap/pg-exporter/`, 왜 두었나는 `SSOT.md` 6절 「모니터링」. 저장소를 서버에 클론하지 않으므로 그 폴더를 먼저 서버로 보낸다(`infra/server/README.md` 「서버로 보내기」).
+postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱스 읽기 · 블록)를 지표로 바꾸고, 대시보드 「조회 성능」이 이 지표와 입구 로그의 API 응답 시간을 같이 그린다. 2026-11-16 부터는 분석 작업 표(`analysis_job`)도 세어 경보 셋의 근거가 된다(`queries.yaml`, `infra/server/alerts.md` 「분석 작업 경보가 오면」, Jira S15P31A102-215). 값은 `infra/k8s/bootstrap/pg-exporter/`, 왜 두었나는 `SSOT.md` 6절 「모니터링」. 저장소를 서버에 클론하지 않으므로 그 폴더를 먼저 서버로 보낸다(`infra/server/README.md` 「서버로 보내기」).
 
 1. **길 정책** — data 네임스페이스 `postgres-ingress` 에 exporter 항목이 있어야 5432 에 닿는다(`infra/k8s/services/data/netpol.yaml`). Argo CD 의 data 앱이 dev 를 따라 반영한다
-2. **DB 역할 · 비밀번호 Secret** (EC2, 사람이 친다) — 읽기 전용 역할 `newlearn_monitor`(`pg_monitor`)를 만들고 무작위 비밀번호를 정해 monitoring 의 Secret `postgres-exporter` 에 넣는다. 평문은 화면 · 명령 줄 · DB 로그에 남지 않는다(스크립트 머리 주석). 다시 돌리면 비밀번호를 바꾸고 exporter 를 다시 띄운다
+2. **DB 역할 · 비밀번호 Secret** (EC2, 사람이 친다) — 읽기 전용 역할 `newlearn_monitor`(`pg_monitor` + `analysis_job` 의 여섯 칸 SELECT)를 만들고 무작위 비밀번호를 정해 monitoring 의 Secret `postgres-exporter` 에 넣는다. 평문은 화면 · 명령 줄 · DB 로그에 남지 않는다(스크립트 머리 주석). 다시 돌리면 비밀번호를 바꾸고 exporter 를 다시 띄운다. `analysis_job` 은 backend 마이그레이션이 만드니 **클러스터를 새로 지을 때는 backend 가 한 번 뜬 뒤에** 돌린다(표가 없으면 권한 줄에서 멈추고 비밀번호는 그대로 둔다)
 
    ```bash
    bash infra/k8s/bootstrap/pg-exporter/make-secret.sh
    ```
 
-3. **설치** (EC2) — 대시보드(`query-perf-dashboard.json`)를 바꾼 뒤에도 같은 한 줄
+   이미 돌고 있는 운영에 권한만 더할 때는 스크립트를 다시 돌리지 않고 이 한 줄만 친다 — 비밀번호 교체도 재시작도 없다
+
+   ```bash
+   kubectl -n data exec -i postgres-0 -- psql -X -v ON_ERROR_STOP=1 -U newlearn -d newlearn -c "grant select (stage, status, retry_at, queued_at, error_code, candidates) on public.analysis_job to newlearn_monitor"
+   ```
+
+3. **설치** (EC2) — 대시보드(`query-perf-dashboard.json`)나 질의(`queries.yaml`)를 바꾼 뒤에도 같은 한 줄
 
    ```bash
    kubectl apply -k infra/k8s/bootstrap/pg-exporter
@@ -60,12 +66,13 @@ postgres_exporter 가 PostgreSQL 통계 표(기사 표 통째 읽기 · 인덱�
 
    | 무엇을 | 어떻게 (어디서) | 기대 |
    |---|---|---|
-   | exporter | `kubectl -n monitoring logs deploy/postgres-exporter` (EC2) | 오류 줄 없음 |
+   | exporter | `kubectl -n monitoring logs deploy/postgres-exporter` (EC2) | 오류 줄 없음. 뜰 때마다 `level=WARN msg="The extended queries.yaml config is DEPRECATED"` 한 줄은 정상이다(분석 작업 질의) |
    | 수집 | `infra/server/README.md` 「모니터링」 5번의 수집 대상 명령 (EC2) | `postgres-exporter` 까지 모두 up |
    | DB 연결 | Grafana Explore 에서 `pg_up` | 1 |
    | 값 | 대시보드 「조회 성능」 | 패널 여섯에 모두 선이 있다. 아래 세 칸은 설치한 뒤부터 쌓인다 |
+   | 분석 작업 질의 | Grafana Explore 에서 `newlearn_analysis_failed_terminal` · `newlearn_analysis_line_oldest_inflight_seconds` | 네 줄 · 두 줄이 나오고, 실패 수가 DB 의 `select stage, count(*) from analysis_job where status='FAILED' and retry_at is null and error_code is distinct from 'BACKLOG_SKIPPED' group by stage` 와 같다 |
 
-내리기: `kubectl delete -k infra/k8s/bootstrap/pg-exporter` → `kubectl -n monitoring delete secret postgres-exporter` → DB 에서 `drop role newlearn_monitor` → 길 정책 항목을 빼는 MR.
+내리기: 먼저 분석 작업 경보 셋(`infra/k8s/alerts/rules.yaml` 의 `NewlearnAnalysis*`)을 빼는 MR(또는 silence) — exporter 부터 지우면 10분 뒤 `NewlearnAnalysisMetricsMissing` 이 운다 → `kubectl delete -k infra/k8s/bootstrap/pg-exporter` → `kubectl -n monitoring delete secret postgres-exporter` → DB 에서 `revoke select (stage, status, retry_at, queued_at, error_code, candidates) on public.analysis_job from newlearn_monitor` 다음 `drop role newlearn_monitor`(열 권한이 남아 있으면 `drop role` 이 「some objects depend on it」으로 실패한다) → 길 정책 항목을 빼는 MR.
 
 ## 한 번 잴 때 순서
 
