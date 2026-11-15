@@ -86,11 +86,20 @@ class ArticleTitleMigrationTest {
         }
     }
 
-    // V16 — 제목 앞에 붙은 줄표 · 공백을 뗀다 (Jira S15P31A102-213). 결과가 ArticleTitleCleaner 와 같아야 한다
+    // V16 — 제목 앞에 붙은 줄표 · 공백을 뗀다 (Jira S15P31A102-213). 결과가 ArticleTitleCleaner 와 같아야 한다.
+    // 숫자 바로 앞의 「-」는 음수 부호라 두는 것까지 두 곳이 같아야 한다 — Java 는 lookahead, SQL 은 ARE 의 (?!…)
     @Test
     void v15ToV16StripsLeadingDashesLikeTheIngestApi() throws Exception {
         List<String> titles = List.of(
-                "--코스피 또 폭락… AI·반도체 성장 제동 위기감", "- 단독 보도", "—코스피 급락", "[속보] 코스피 급락", "A-B 협력 발표", "코스피 하락-마감", "---");
+                "--코스피 또 폭락… AI·반도체 성장 제동 위기감",
+                "- 단독 보도",
+                "—코스피 급락",
+                "[속보] 코스피 급락",
+                "A-B 협력 발표",
+                "코스피 하락-마감",
+                "---",
+                "-4% 급락하더니 돌연 ‘빨간불’…하이닉스", // 음수 부호 — 그대로 둔다 (기사 11556)
+                "- 4% 상승"); // 줄표를 떼고 남은 앞 공백도 턴다
         String schema = "title213_" + UUID.randomUUID().toString().replace("-", "");
         try (var connection = dataSource.getConnection()) {
             try {
@@ -123,7 +132,9 @@ class ArticleTitleMigrationTest {
                                 "[속보] 코스피 급락",
                                 "A-B 협력 발표",
                                 "코스피 하락-마감",
-                                "---"); // 줄표뿐이면 그대로 둔다
+                                "---", // 줄표뿐이면 그대로 둔다
+                                "-4% 급락하더니 돌연 ‘빨간불’…하이닉스",
+                                "4% 상승");
             } finally {
                 connection.setSchema("public");
                 try (var statement = connection.createStatement()) {
