@@ -51,7 +51,7 @@ export function LandingHeader({ start }: LandingHeaderProps) {
   return (
     <header
       data-scrolled={scrolled}
-      className={`sticky top-0 z-[5] flex shrink-0 items-center gap-x7 border-b px-[clamp(16px,3vw,32px)] transition-[background-color,border-color] duration-200 ${
+      className={`sticky top-0 z-[5] flex shrink-0 items-center gap-x7 border-b px-[clamp(24px,3vw,32px)] transition-[background-color,border-color] duration-200 ${
         scrolled
           ? "border-stroke-neutral-weak bg-bg-layer-default/90 backdrop-blur-[10px]"
           : "border-transparent bg-transparent"

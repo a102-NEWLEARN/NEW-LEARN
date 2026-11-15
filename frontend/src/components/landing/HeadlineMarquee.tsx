@@ -21,10 +21,10 @@ export function HeadlineMarquee() {
   return (
     <section
       aria-label="같은 사건, 다른 제목"
-      className="border-t border-stroke-neutral-weak pt-[clamp(56px,8vw,104px)] pb-[clamp(40px,6vw,72px)]"
+      className="border-t border-stroke-neutral-weak pt-[clamp(72px,8vw,104px)] pb-[clamp(56px,6vw,72px)]"
     >
       <Reveal>
-        <h2 className="mx-auto px-[clamp(16px,3vw,32px)] text-center text-[clamp(30px,4.4vw,56px)] leading-[1.28] font-extrabold tracking-[-0.04em] text-fg-neutral">
+        <h2 className="mx-auto px-[clamp(24px,3vw,32px)] text-center text-[clamp(24px,4.4vw,56px)] leading-[1.28] max-md:leading-[1.35] font-extrabold tracking-[-0.04em] text-fg-neutral">
           기사 한 편만으로는 <br />
           사건의 전체 전개를 알기 어려워요.
         </h2>
@@ -51,7 +51,7 @@ export function HeadlineMarquee() {
                   <span className="text-[13px] font-bold text-fg-neutral-subtle">
                     {headline.publisher}
                   </span>
-                  <span className="text-[clamp(17px,1.6vw,21px)] font-semibold text-fg-neutral-muted">
+                  <span className="text-[clamp(15px,1.6vw,21px)] font-semibold text-fg-neutral-muted">
                     {headline.title}
                   </span>
                 </span>

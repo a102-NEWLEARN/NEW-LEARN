@@ -173,7 +173,9 @@ test("잎을 누르면 그 카드를 키워 띄우고 아래에 가지 설명 �
 
   fireEvent.click(card(leaf));
 
-  const note = screen.getByText("원인·배경 — 이 일이 일어난 까닭과 배경이에요");
+  const note = screen.getByText(
+    "원인·배경 — 직접 원인과 오래 쌓인 배경을 나눠 보면 사건이 또렷해져요",
+  );
   expect(card(leaf).getAttribute("aria-describedby")).toBe(note.id);
   expect(card(leaf).className).toContain("motion-safe:scale-[1.04]");
   expect(card(leaf).className).toContain("shadow-");
@@ -182,7 +184,7 @@ test("잎을 누르면 그 카드를 키워 띄우고 아래에 가지 설명 �
   fireEvent.click(card(other));
   expect(screen.queryByText(/이 일이 일어난 까닭/)).toBeNull();
   expect(
-    screen.getByText("반응 — 사람 · 기관이 이 일에 보인 반응이에요"),
+    screen.getByText("반응 — 누가 어느 편에 섰는지 나눠 보면 쟁점이 보여요"),
   ).toBeDefined();
   expect(card(leaf).hasAttribute("aria-describedby")).toBe(false);
 });
