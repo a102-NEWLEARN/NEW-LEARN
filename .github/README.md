@@ -45,29 +45,27 @@ NEW:LEARN 은 기사 한 편을 **핵심 내용 · 원인·배경 · 반응 · �
 
 ### 2. 기사 마인드맵 — 흐름지도 · 마인드맵 두 보기
 
-기사 내용을 **핵심 내용 · 원인·배경 · 반응 · 전망**으로 나눠, 순서대로 읽는 흐름지도와 관계를 보는 마인드맵 두 가지로 보여 줍니다. 크게 보기로 화면을 꽉 채워 볼 수 있습니다.
+기사 내용을 **핵심 내용 · 원인·배경 · 반응 · 전망**으로 나눠, 순서대로 읽는 흐름지도와 관계를 보는 마인드맵 두 가지로 보여 줍니다. 마인드맵에서 가지를 누르면 그 가지로 다가가고, 크게 보기로 화면을 꽉 채워 볼 수 있습니다.
 
-| 흐름지도 | 마인드맵 |
-|:---:|:---:|
-| <img src="../docs/images/readme/02-article-flow.jpg" alt="흐름지도"> | <img src="../docs/images/readme/02-article-mindmap.jpg" alt="마인드맵"> |
+<p align="center"><img src="readme/article-mindmap.gif" alt="흐름지도에서 마인드맵으로 바꾸고, 핵심 내용 가지를 눌러 다가가는 모습" width="820"></p>
 
 ### 3. 이슈 에볼루션 맵 (화면의 「이슈 흐름」)
 
 같은 사건을 다룬 기사를 묶고, 이슈의 사건을 시간순으로 놓습니다. 상황을 바꾸는 행위는 **메인 흐름**, 반응 · 평가는 **서브 흐름**입니다. 사건을 누르면 요약과 관련 기사가 열립니다.
 
-<p align="center"><img src="../docs/images/readme/03-issue-map.jpg" alt="이슈 에볼루션 맵 — 사건을 눌러 요약과 관련 기사를 연 화면" width="820"></p>
+<p align="center"><img src="readme/issue-flow.gif" alt="이슈 흐름에서 사건을 눌러 요약과 관련 기사를 여는 모습" width="820"></p>
 
 ### 4. 기사 ↔ 이슈 양방향 탐색
 
-이슈에서 사건 · 관련 기사로 내려가고, 기사에서 **「이 기사가 속한 이슈 보기」**로 다시 올라옵니다.
+이슈에서 사건 · 관련 기사로 내려가고, 기사에서 **「이 기사가 속한 이슈 보기」**로 다시 올라옵니다. 올라오면 그 기사가 속한 사건이 열린 채로 보입니다.
 
-<p align="center"><img src="../docs/images/readme/04-article-to-issue.jpg" alt="기사 화면의 「이 기사가 속한 이슈 보기」" width="820"></p>
+<p align="center"><img src="readme/article-to-issue.gif" alt="기사에서 「이 기사가 속한 이슈 보기」를 눌러 이슈 흐름으로 가는 모습" width="820"></p>
 
 ### 5. 개인 뉴스 관리 · 용어사전
 
 관심 분야를 고르고 기사 북마크 · 관심 이슈를 저장합니다. 기사에서 모르는 말을 드래그해 **「의미」**를 누르면 **그 기사 문맥에 맞는 뜻**을 보여 줍니다.
 
-<p align="center"><img src="../docs/images/readme/05-glossary.jpg" alt="용어사전 — 「DeFi」를 드래그해 연 문맥 뜻" width="820"></p>
+<p align="center"><img src="readme/glossary.gif" alt="「DeFi」를 드래그하고 「의미」를 눌러 문맥 뜻을 여는 모습" width="820"></p>
 
 <br>
 
