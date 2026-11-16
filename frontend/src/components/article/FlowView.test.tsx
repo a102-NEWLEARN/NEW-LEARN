@@ -89,6 +89,32 @@ test("가지를 A9 순서대로 질문 제목 · 번호 · 이름과 잎 수로 
   expect(within(step("앞으로는?")).getByText("전망 · 1개")).toBeDefined();
 });
 
+// 넓은 자리에서 4열 고정이면 두 갈래 기사가 왼쪽에 좁게 몰리고 문장이 길게 꺾였다 → 가지 수만큼 열을 두고 최대 폭도 줄인다
+// (2026-11-16 디자인 피드백, Jira 216). 가지가 하나면 넓은 자리에서도 세로다
+const columns = () => step("무슨 일이?").parentElement!;
+
+test("넓은 자리에서는 가지 수만큼 열을 둔다 — 두 갈래면 2열 · 960px, 네 갈래면 4열 · 1280px", () => {
+  renderFlow([branch("CORE", "가"), branch("OUTLOOK", "라")]);
+  expect(columns().className).toContain("@min-[1024px]:grid-cols-2");
+  expect(columns().parentElement!.className).toContain(
+    "@min-[1024px]:max-w-[960px]",
+  );
+  cleanup();
+
+  renderFlow();
+  expect(columns().className).toContain("@min-[1024px]:grid-cols-4");
+  expect(columns().parentElement!.className).toContain(
+    "@min-[1024px]:max-w-[1280px]",
+  );
+});
+
+test("가지가 하나면 넓은 자리에서도 세로로 둔다", () => {
+  renderFlow([branch("CORE", "가", "나")]);
+
+  expect(columns().className).not.toContain("@min-[1024px]:grid-cols");
+  expect(step("무슨 일이?").className).not.toContain("@min-[1024px]:flex");
+});
+
 test("빠진 가지는 두지 않고 번호를 당긴다", () => {
   renderFlow([branch("CORE", "가"), branch("OUTLOOK", "라")]);
 
@@ -398,6 +424,15 @@ test("머리 줄은 기사 제목이 아니라 AI 한 줄 요지다 — h1 과 �
   const header = screen.getByText("기사 핵심").closest("div")!;
   expect(header.contains(summary)).toBe(true);
   expect(header.className).not.toContain("hidden");
+});
+
+// 요약부터 눈이 가게 기사 핵심 줄을 옅은 민트 칸에 넣는다 (2026-11-16 디자인 피드백, Jira 216)
+test("기사 핵심 줄은 옅은 민트 칸에 둔다", () => {
+  renderFlow();
+
+  expect(screen.getByText("기사 핵심").closest("div")!.className).toContain(
+    "bg-bg-brand-weak",
+  );
 });
 
 // 요지 줄도 드래그하면 용어사전 「의미」가 뜬다 — A26 이 기사 요지를 화면 글로 받는다 (2026-11-13 사용자, Jira 202)

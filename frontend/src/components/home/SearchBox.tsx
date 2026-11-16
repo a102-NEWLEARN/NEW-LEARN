@@ -394,7 +394,9 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
               aria-busy={!current}
               className={current ? undefined : "opacity-60"}
             >
-              {numbered.map((group) => (
+              {/* 묶음 제목은 진한 13px, 두 번째 묶음부터 위에 구분선 — 연한 작은 제목으로만 나뉘어 잘 구별되지 않았다.
+                  개수는 「5개 중 4개」 — 「4 / 5개」는 무엇을 센 것인지 읽기 어려웠다 (2026-11-16 디자인 피드백, Jira 216) */}
+              {numbered.map((group, groupIndex) => (
                 <div
                   key={group.label}
                   role="group"
@@ -403,13 +405,16 @@ export function SearchBox({ focusRequest }: SearchBoxProps) {
                       ? `${group.labelId} ${group.countId}`
                       : group.labelId
                   }
-                  className="pb-x1_5"
+                  className={`pb-x1_5 ${groupIndex > 0 ? "mt-x1 border-t border-stroke-neutral-subtle pt-x1" : ""}`}
                 >
-                  <div className="t2-bold flex items-center justify-between px-x4 pt-x1_5 pb-x1 text-fg-neutral-muted">
+                  <div className="t3-bold flex items-center justify-between px-x4 pt-x2 pb-x1 text-fg-neutral">
                     <span id={group.labelId}>{group.label}</span>
                     {group.total > group.options.length && (
-                      <span id={group.countId} className="font-medium">
-                        {group.options.length} / {group.total}개
+                      <span
+                        id={group.countId}
+                        className="t2-medium text-fg-neutral-muted tabular-nums"
+                      >
+                        {group.total}개 중 {group.options.length}개
                       </span>
                     )}
                   </div>

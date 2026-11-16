@@ -265,7 +265,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `schemaVersion` | string | 응답 모양의 버전. 화면이 모르는 버전이면 옛 화면이 깨지지 않게 안내만 한다 | `article_mindmap.schema_version` |
 | `generatedAt` | 시각 | 「AI 가 언제 만들었나」 표시 | `article_mindmap.generated_at` |
 | `aiGenerated` | boolean | AI 생성 표시를 붙이라는 신호. 지금은 늘 true(PRD FR-7) | 고정값 |
-| `title` | string | 가운데 글자. 지금은 기사 제목이다. 나중에 AI 가 지은 제목을 쓸 수 있다 | `content.title` 이 있으면 그것, 없으면 `article.title` |
+| `title` | string | 가운데 글자. 지금은 기사 제목이다. 나중에 AI 가 지은 제목을 쓸 수 있다. 화면은 대표 사건이 없는 기사에만 쓰고, 있으면 A8 `event.title` 을 가운데에 둔다(EXPERIENCE 보기 탭, Jira 216) | `content.title` 이 있으면 그것, 없으면 `article.title` |
 | `branches` | array | 가지와 잎. 저장한 `content.branches` 에서 근거(`evidence`)를 뺀 모양이다(3절) | `article_mindmap.content` |
 
 ```json

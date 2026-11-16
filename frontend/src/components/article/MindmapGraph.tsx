@@ -131,8 +131,13 @@ function aroundOrigin(box: Box): Box {
 type MindmapGraphProps = {
   /** 이 기사 — 잎 · 가운데 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
   articleId: number;
-  /** 가운데 글자 — A9 title(지금은 기사 제목) */
+  /** 가운데 글자 — 대표 사건 제목, 없으면 A9 title(기사 제목) */
   title: string;
+  /**
+   * 가운데 글자가 대표 사건 제목이면 그 사건 — 가운데 글을 드래그하면 사건 문맥으로 뜻을 찾는다.
+   * A26 의 기사 화면 글에는 사건 제목이 없어서다 (docs/api-screen.md A26, Jira 216)
+   */
+  titleEventId?: number | null;
   /** A9 가지 — 내용이 있는 것만 온다 */
   branches: MindmapBranch[];
   /** 범례에서 끈 가지 — 그 가지 · 잎 · 선을 그리지 않는다. 나머지 가지는 제자리다 */
@@ -148,13 +153,14 @@ const branchOfLeaf = (key: string) => key.split("-")[0] as BranchType;
 /** 마우스를 올린 노드 — 가지면 잎이 없고, 잎이면 그 잎 키 */
 type Hover = { type: BranchType; leaf: string | null } | null;
 
-// F04 기사 마인드맵 생성의 마인드맵 보기 — 가운데 기사 제목, 네 방향 가지, 가지 바깥쪽 잎 (프로토타입 v21 MindmapGraph).
+// F04 기사 마인드맵 생성의 마인드맵 보기 — 가운데 대표 사건 제목(없으면 기사 제목), 네 방향 가지, 가지 바깥쪽 잎 (프로토타입 v21 MindmapGraph).
 // 자리는 mindmapLayout 이 정하고 여기서는 그린다. 확대 · 이동은 d3-zoom 이 맡는다.
 // 가지를 누르면 그 가지만 화면에 맞추고 나머지는 흐리게, 잎을 누르면 그 잎을 강조한다 (EXPERIENCE.md 보기 탭).
 // 노드 상세 카드는 띄우지 않는다 (S15P31A102-59)
 export function MindmapGraph({
   articleId,
   title,
+  titleEventId = null,
   branches,
   hidden = NONE_HIDDEN,
   showLabels = true,
@@ -760,8 +766,8 @@ export function MindmapGraph({
                 style={HALO}
                 className="cursor-text fill-fg-neutral stroke-bg-layer-default font-bold select-text"
                 {...meaningProps(
-                  "ARTICLE",
-                  articleId,
+                  titleEventId === null ? "ARTICLE" : "EVENT",
+                  titleEventId ?? articleId,
                   layout.root.lines.at(-1)?.endsWith("…") ?? false,
                 )}
               >
