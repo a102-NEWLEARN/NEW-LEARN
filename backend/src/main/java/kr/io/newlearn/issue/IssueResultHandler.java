@@ -51,6 +51,9 @@ class IssueResultHandler implements AnalysisResultHandler {
         this.finder = finder;
         this.jsonMapper = jsonMapper;
         this.rewriteSummaryOnAttach = rewriteSummaryOnAttach;
+        if (createMinMainEvents < 0) {
+            log.warn("newlearn.analysis.issue.create-min-main-events={} 는 0 보다 작다 — 0(끔)으로 올린다", createMinMainEvents);
+        }
         this.createMinMainEvents = Math.max(0, createMinMainEvents);
     }
 

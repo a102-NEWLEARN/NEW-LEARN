@@ -726,7 +726,8 @@ class IssueStageIntegrationTest {
     }
 
     // 켜 두면 ATTACH 가 발표에 쓸 이슈의 요약을 다시 쓰고 분야를 다시 계산한다(고정 28개 목록을 보지 않는다)
-    // 이 묶음은 운영과 같은 설정이다 — 요약 덮어쓰기를 끄고, 메인 흐름 사건이 없는 CREATE 는 이슈를 만들지 않는다(Jira 224).
+    // 이 묶음은 운영 설정 중 둘을 켠다 — 요약 덮어쓰기를 끄고, 메인 흐름 사건이 없는 CREATE 는 이슈를 만들지 않는다(Jira 224).
+    // (운영의 후보 거리 상한 0.40 은 위 CandidateDistanceCap 묶음이 따로 본다)
     // 가드 시험을 따로 묶으면 시험용 앱이 하나 늘어 CI DB 연결 상한에 가까워져 여기에 함께 둔다
     @Nested
     @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
@@ -795,6 +796,9 @@ class IssueStageIntegrationTest {
             assertThat(count("select count(*) from issue where title = '서브만 이슈'"))
                     .isZero();
             assertThat(jobState(job)).startsWith("SUCCEEDED");
+            assertThat(record(job).get("reason").asString())
+                    .as("판정 기록에는 까닭이 남는다")
+                    .isEqualTo("한 흐름의 사건들이다");
         }
 
         // 메인 흐름 사건이 하나라도 섞이면 지금처럼 만든다
