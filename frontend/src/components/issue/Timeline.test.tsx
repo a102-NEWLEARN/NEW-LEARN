@@ -669,3 +669,23 @@ test("레인 선 위 사건의 라벨은 선 밑에, 선에서 벗어난 사건�
   // 서브 흐름에는 레인 선이 없다
   expect(shiftY(node(/세제 혜택 패키지/))).toBe(-8);
 });
+
+// 이슈 화면이 「세로 | 지도」 전환을 넣는 자리 (Jira 221)
+test("도구줄에 이슈 화면이 준 보기 전환을 확대 · 축소 앞에 둔다", async () => {
+  const { events } = await fetchTimeline(12);
+  render(
+    <Timeline
+      events={events}
+      selectedId={null}
+      onSelect={() => {}}
+      onDeselect={() => {}}
+      viewSwitch={<div role="group" aria-label="이슈 흐름 보기" />}
+    />,
+  );
+
+  const viewSwitch = screen.getByRole("group", { name: "이슈 흐름 보기" });
+  const zoom = screen.getByRole("group", { name: "확대 · 축소" });
+  expect(
+    viewSwitch.compareDocumentPosition(zoom) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
