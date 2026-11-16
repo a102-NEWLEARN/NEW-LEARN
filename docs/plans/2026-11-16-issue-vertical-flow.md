@@ -40,11 +40,11 @@ F07 사건 중심 이슈 에볼루션 맵의 넓은 화면에 **세로 보기**�
 
 ## 작업 순서
 
-- [ ] 1. `refactor(frontend)` — `TimelineList` 에서 `TimelineEvents` 를 떼어 낸다. 확인: 고치지 않은 `TimelineList.test.tsx` 10개와 `IssuePage.test.tsx` 좁은 화면 시험이 그대로 통과한다
-- [ ] 2. `feat(frontend)` — `IssueFlowSplit` · `IssueViewSwitch`. 시험을 먼저 쓴다: 처음엔 최신 사건(120) 내용 · 줄을 누르면 고르고 오른쪽 제목으로 포커스 · 오른쪽에서 Esc 면 고른 줄로 포커스 · 고른 줄 `aria-current` · 처음 골라 둔 사건은 목록을 스크롤하지 않고 주소로 연 사건은 스크롤 · 전환 버튼 `aria-pressed`. 확인: `IssueFlowSplit.test.tsx` 빨강 → 초록
-- [ ] 3. `feat(frontend)` — 이슈 화면에 전환을 붙인다(`IssuePage` · `Timeline` 자리 · `analytics`). 시험을 먼저 쓴다: 넓은 화면 기본은 세로 보기이고 `?event=` 없이 최신 사건이 오른쪽에 있으며 주소는 비어 있다 · 「지도」를 누르면 `?view=map`(REPLACE) + 가로 지도이고 패널은 닫혀 있다 · 「세로」로 돌아오면 쿼리가 지워진다 · `?view=map` 으로 열면 지도다 · 세로 보기에서 이전/다음을 누르면 `?event=` 가 붙는다 · 좁은 화면은 `?view=map` 이어도 세로 목록 + 시트다. 기존 넓은 화면 시험 중 **지도 동작을 보는 것은 주소에 `?view=map` 을 붙인다** — 기본 보기가 바뀌어서다. 단언은 그대로 두고, 주소 문자열을 통째로 비교하는 곳만 `view=map` 을 넣는다(예: `"?event=119"` → `"?view=map&event=119"`). 확인: Node 26 전체 시험
-- [ ] 4. `docs(frontend)` — EXPERIENCE.md · DESIGN.md 를 위 줄대로 고친다. 확인: 문서끼리, 그리고 코드와 어긋나는 문장이 없는지 grep(「가로 지도」 · 「사건 패널이 열」 · 「닫으면」)
-- [ ] 5. 화면 확인 — 목업 모드 5199 에서 1440×900 · 1024×768 스크린샷(처음 연 모습 · 사건을 고른 모습 · 지도로 바꾼 모습), 키보드(Tab 으로 줄 → Enter → 오른쪽 제목 → Esc → 그 줄). `.notes/mr/S15P31A102-221/` 에 둔다. 그다음 `/verify` · MR 초안 `.notes/mr/S15P31A102-221.md`
+- [x] 1. `refactor(frontend)` — `TimelineList` 에서 `TimelineEvents` 를 떼어 낸다. 확인: 고치지 않은 `TimelineList.test.tsx` 10개와 `IssuePage.test.tsx` 좁은 화면 시험이 그대로 통과한다
+- [x] 2. `feat(frontend)` — `IssueFlowSplit` · `IssueViewSwitch`. 시험을 먼저 쓴다: 처음엔 최신 사건(120) 내용 · 줄을 누르면 고르고 오른쪽 제목으로 포커스 · 오른쪽에서 Esc 면 고른 줄로 포커스 · 고른 줄 `aria-current` · 처음 골라 둔 사건은 목록을 스크롤하지 않고 주소로 연 사건은 스크롤 · 전환 버튼 `aria-pressed`. 확인: `IssueFlowSplit.test.tsx` 빨강 → 초록
+- [x] 3. `feat(frontend)` — 이슈 화면에 전환을 붙인다(`IssuePage` · `Timeline` 자리 · `analytics`). 시험을 먼저 쓴다: 넓은 화면 기본은 세로 보기이고 `?event=` 없이 최신 사건이 오른쪽에 있으며 주소는 비어 있다 · 「지도」를 누르면 `?view=map`(REPLACE) + 가로 지도이고 패널은 닫혀 있다 · 「세로」로 돌아오면 쿼리가 지워진다 · `?view=map` 으로 열면 지도다 · 세로 보기에서 이전/다음을 누르면 `?event=` 가 붙는다 · 좁은 화면은 `?view=map` 이어도 세로 목록 + 시트다. 기존 넓은 화면 시험 중 **지도 동작을 보는 것은 주소에 `?view=map` 을 붙인다** — 기본 보기가 바뀌어서다. 단언은 그대로 두고, 주소 문자열을 통째로 비교하는 곳만 `view=map` 을 넣는다(예: `"?event=119"` → `"?view=map&event=119"`). 확인: Node 26 전체 시험
+- [x] 4. `docs(frontend)` — EXPERIENCE.md · DESIGN.md 를 위 줄대로 고친다. 확인: 문서끼리, 그리고 코드와 어긋나는 문장이 없는지 grep(「가로 지도」 · 「사건 패널이 열」 · 「닫으면」)
+- [x] 5. 화면 확인 — 목업 모드 5199 에서 1440×900 · 1024×768 스크린샷(처음 연 모습 · 사건을 고른 모습 · 지도로 바꾼 모습), 키보드(Tab 으로 줄 → Enter → 오른쪽 제목 → Esc → 그 줄). `.notes/mr/S15P31A102-221/` 에 둔다. 그다음 `/verify` · MR 초안 `.notes/mr/S15P31A102-221.md`
 
 ## 안 바꿀 것
 
@@ -73,6 +73,14 @@ F07 사건 중심 이슈 에볼루션 맵의 넓은 화면에 **세로 보기**�
 - **AC-3** 키보드로 사건을 고르고 이전 · 다음으로 넘길 수 있다 — `IssueFlowSplit.test` 포커스 · Esc 시험 + 화면에서 Tab/Enter/Esc 직접 확인
 - **AC-4** frontend 시험(Node 26) · 린트 · 포맷 · 빌드 통과 — 숫자로 적는다
 - 폰이 그대로인지 — 고치지 않은 `TimelineList.test.tsx` 와 좁은 화면 시험 통과 + 390×844 스크린샷 한 장
+
+## 한 일 (2026-11-16)
+
+- 커밋: `2db4f95` 목록 떼어 내기 · `5ecba1e` 세로 보기 · 전환 버튼 · `2a330b0` 이슈 화면 연결 · `d255684` 문서
+- 순서를 하나 바꿨다 — 문서(4) 전에 화면 확인(5)을 먼저 했다. 레이아웃이 어긋나면 문서 내용도 바뀌어서다
+- 계획에 없던 것 하나: 지도 보기에서 다른 이슈의 사건 주소로 옮길 때 `?view=map` 을 남긴다(`IssuePage` 의 이슈 바로잡기). 보기 쿼리를 더하면서 생긴 빈틈이라 같은 커밋에 넣고 시험을 붙였다
+- 기존 시험 12곳에 `?view=map` 을 붙였다 — 단언은 그대로, 주소 문자열만 `view=map` 을 넣었다. 목록은 MR 초안 `.notes/mr/S15P31A102-221.md`
+- 화면: `.notes/mr/S15P31A102-221/` 1440 · 1024 · 폰 스크린샷 5장, 키보드(줄 → Enter → 오른쪽 제목 → Esc → 그 줄) 확인
 
 ## 되돌리는 법
 
