@@ -22,7 +22,7 @@ class IssueServiceTest {
     EventRepository events = mock(EventRepository.class);
     InterestIssueRepository interests = mock(InterestIssueRepository.class);
     IssueService service = new IssueService(
-            categories, queries, events, interests, new IssueCardAssembler(queries), new PublicEventThreshold(1, 1));
+            categories, queries, events, interests, new IssueCardAssembler(queries), new PublicEventThreshold(1, 1, 0));
 
     @Test
     void missingIssueDoesNotReadCountsOrReferences() {
