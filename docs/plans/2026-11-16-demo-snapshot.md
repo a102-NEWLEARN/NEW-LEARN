@@ -33,11 +33,11 @@ flowchart LR
 
 브랜치: `git nb feat frontend 220 demo-snapshot` (220 은 머지됨 · 같은 티켓 이어서). 새 작업 폴더에서 한다.
 
-- [ ] 1. `registerServiceWorker` 가 `demo` 도 빼게 — 실패 테스트 먼저 → 고침
-- [ ] 2. `.notes` 의 변환 스크립트로 `data/*.json` 생성 + `.prettierignore` — 변환하면서 검사: 내가 만든 이슈 목록 항목이 받은 홈 목록 응답과 같다, 기사 요약이 받은 사건 기사 목록 항목과 같다
-- [ ] 3. `db.ts` + `db.test.ts` — 실패 테스트 먼저
-- [ ] 4. `handlers.ts` + `main.tsx` + `package.json` + `vercel.json` — `npm run build -- --mode demo` 를 띄워 브라우저로 확인
-- [ ] 5. README · vite 주석
+- [x] 1. `registerServiceWorker` 가 `demo` 도 빼게 — 실패 테스트 먼저 → 고침
+- [x] 2. `.notes` 의 변환 스크립트로 `data/*.json` 생성 + `.prettierignore` — 변환하면서 검사: 내가 만든 이슈 목록 항목이 받은 홈 목록 응답과 같다, 기사 요약이 받은 사건 기사 목록 항목과 같다
+- [x] 3. `db.ts` + `db.test.ts` — 실패 테스트 먼저
+- [x] 4. `handlers.ts` + `main.tsx` + `package.json` + `vercel.json` — `npm run build -- --mode demo` 를 띄워 브라우저로 확인
+- [x] 5. README · vite 주석
 
 ## 안 바꿀 것
 
