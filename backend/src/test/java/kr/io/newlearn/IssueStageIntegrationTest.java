@@ -469,6 +469,21 @@ class IssueStageIntegrationTest {
         assertThat(jobState(job)).startsWith("SUCCEEDED");
     }
 
+    // 메인 흐름 가드(Jira 224)는 기본으로 꺼져 있다 — 서브 흐름 사건만이어도 지금처럼 만든다
+    @Test
+    void createWithoutAMainEventStillMakesTheIssueWhenTheGuardIsOff() throws Exception {
+        event(4011, 5, null, "2026-10-05T00:00:00Z", "REACTION");
+        event(4012, 8, null, "2026-10-05T00:00:00Z", "REACTION");
+        event(OWN, 0, null, "2026-10-05T00:00:00Z", "REACTION");
+        long job = dispatched(OWN);
+
+        w1(job, envelope(1, "issue-v1", create("서브만 이슈", "반응만 이어졌다.", OWN, 4011, 4012)))
+                .andExpect(status().isNoContent());
+
+        assertThat(issueOf(OWN)).as("가드를 끄면 만든다").isNotZero();
+        assertThat(jobState(job)).startsWith("SUCCEEDED");
+    }
+
     // AC-7 — NONE 이면 사건은 이슈 밖에 그대로이고 판정 기록만 남는다
     @Test
     void noneLeavesTheEventOutside() throws Exception {
@@ -711,6 +726,8 @@ class IssueStageIntegrationTest {
     }
 
     // 켜 두면 ATTACH 가 발표에 쓸 이슈의 요약을 다시 쓰고 분야를 다시 계산한다(고정 28개 목록을 보지 않는다)
+    // 이 묶음은 운영과 같은 설정이다 — 요약 덮어쓰기를 끄고, 메인 흐름 사건이 없는 CREATE 는 이슈를 만들지 않는다(Jira 224).
+    // 가드 시험을 따로 묶으면 시험용 앱이 하나 늘어 CI DB 연결 상한에 가까워져 여기에 함께 둔다
     @Nested
     @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
     @SpringBootTest
@@ -720,7 +737,8 @@ class IssueStageIntegrationTest {
             properties = {
                 "newlearn.internal.worker-key=" + IssueStageIntegrationTest.WORKER_KEY,
                 "newlearn.internal.batch-key=batch-key-for-issue-stage-test",
-                "newlearn.analysis.issue.rewrite-summary-on-attach=false"
+                "newlearn.analysis.issue.rewrite-summary-on-attach=false",
+                "newlearn.analysis.issue.create-min-main-events=1"
             })
     class AttachWithoutRewrite {
 
@@ -757,6 +775,60 @@ class IssueStageIntegrationTest {
 
             assertThat(categories(issueOf(OWN))).containsExactly("economy");
         }
+
+        // ── 메인 흐름 가드 (Jira 224) ──
+
+        // 고른 사건이 모두 서브 흐름이면 이슈를 만들지 않는다 — 작업은 성공으로 끝나고 사건은 이슈 밖에 그대로다
+        @Test
+        void createWithoutAMainEventMakesNoIssue() throws Exception {
+            event(4011, 5, null, "2026-10-05T00:00:00Z", "REACTION");
+            event(4012, 8, null, "2026-10-05T00:00:00Z", "REACTION");
+            event(OWN, 0, null, "2026-10-05T00:00:00Z", "REACTION");
+            long job = dispatched(OWN);
+
+            w1(job, envelope(1, "issue-v1", create("서브만 이슈", "반응만 이어졌다.", OWN, 4011, 4012)))
+                    .andExpect(status().isNoContent());
+
+            assertThat(issueOf(OWN)).as("이슈를 만들지 않았다").isZero();
+            assertThat(issueOf(4011)).isZero();
+            assertThat(issueOf(4012)).isZero();
+            assertThat(count("select count(*) from issue where title = '서브만 이슈'"))
+                    .isZero();
+            assertThat(jobState(job)).startsWith("SUCCEEDED");
+        }
+
+        // 메인 흐름 사건이 하나라도 섞이면 지금처럼 만든다
+        @Test
+        void createWithOneMainEventStillMakesTheIssue() throws Exception {
+            event(4011, 5, null);
+            event(4012, 8, null, "2026-10-05T00:00:00Z", "REACTION");
+            event(OWN, 0, null, "2026-10-05T00:00:00Z", "REACTION");
+            long job = dispatched(OWN);
+
+            w1(job, envelope(1, "issue-v1", create("메인 있는 이슈", "일이 있었고 반응이 이어졌다.", OWN, 4011, 4012)))
+                    .andExpect(status().isNoContent());
+
+            long created = issueOf(OWN);
+            assertThat(created).as("새 이슈에 들어갔다").isNotZero();
+            assertThat(issueOf(4011)).isEqualTo(created);
+            assertThat(issueOf(4012)).isEqualTo(created);
+        }
+
+        // 가드는 후보 검사 뒤에 선다 — 서브만이어도 보낸 후보 밖 사건을 고르면 지금처럼 400 이다(계약 · AC-8)
+        @Test
+        void aReactionOnlyCreateOutsideTheCandidatesIsStillRejected() throws Exception {
+            event(4011, 5, null, "2026-10-05T00:00:00Z", "REACTION");
+            event(OWN, 0, null, "2026-10-05T00:00:00Z", "REACTION");
+            long job = dispatched(OWN);
+            event(4060, 1, null, "2026-10-05T00:00:00Z", "REACTION");
+
+            w1(job, envelope(1, "issue-v1", create("서브만 이슈", "요약", OWN, 4011, 4060)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("RESULT_SCHEMA_INVALID"));
+
+            assertThat(issueOf(OWN)).isZero();
+            assertThat(issueOf(4011)).isZero();
+        }
     }
 
     // ── 도우미 ──
@@ -788,17 +860,23 @@ class IssueStageIntegrationTest {
 
     // 사건과 그 사건을 만든 기사(같은 번호) — 기사 벡터는 [cos θ, sin θ, 0, …]
     private void event(long id, double degrees, @Nullable String category, String occurredAt) {
+        event(id, degrees, category, occurredAt, "MAIN");
+    }
+
+    // 역할을 고르는 판 — 서브 흐름(REACTION) 사건을 만들 때 쓴다(Jira 224)
+    private void event(long id, double degrees, @Nullable String category, String occurredAt, String role) {
         article(id, category);
         embedding(id, degrees);
         jdbc.sql("""
                 insert into event(id,title,label,summary,occurred_at,occurred_at_basis,created_at,updated_at,role)
-                values (:id,:title,:label,:summary,cast(:at as timestamptz),'EXTRACTED',now(),now(),'MAIN')
+                values (:id,:title,:label,:summary,cast(:at as timestamptz),'EXTRACTED',now(),now(),:role)
                 """)
                 .param("id", id)
                 .param("title", "사건 " + id)
                 .param("label", "키워드 " + id)
                 .param("summary", "요약 " + id)
                 .param("at", occurredAt)
+                .param("role", role)
                 .update();
         link(id, id);
     }

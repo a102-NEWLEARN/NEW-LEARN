@@ -12,6 +12,7 @@ import kr.io.newlearn.analysis.ResultFields;
 import kr.io.newlearn.analysis.ResultSchemaInvalidException;
 import kr.io.newlearn.analysis.dto.JobResultRequest;
 import kr.io.newlearn.event.EventRepository;
+import kr.io.newlearn.event.EventRole;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ class IssueResultHandler implements AnalysisResultHandler {
     private final IssueCandidateFinder finder;
     private final JsonMapper jsonMapper;
     private final boolean rewriteSummaryOnAttach;
+    private final int createMinMainEvents;
 
     IssueResultHandler(
             IssueRepository issues,
@@ -41,13 +43,15 @@ class IssueResultHandler implements AnalysisResultHandler {
             EventRepository events,
             IssueCandidateFinder finder,
             JsonMapper jsonMapper,
-            @Value("${newlearn.analysis.issue.rewrite-summary-on-attach:true}") boolean rewriteSummaryOnAttach) {
+            @Value("${newlearn.analysis.issue.rewrite-summary-on-attach:true}") boolean rewriteSummaryOnAttach,
+            @Value("${newlearn.analysis.issue.create-min-main-events:0}") int createMinMainEvents) {
         this.issues = issues;
         this.categories = categories;
         this.events = events;
         this.finder = finder;
         this.jsonMapper = jsonMapper;
         this.rewriteSummaryOnAttach = rewriteSummaryOnAttach;
+        this.createMinMainEvents = Math.max(0, createMinMainEvents);
     }
 
     @Override
@@ -117,8 +121,12 @@ class IssueResultHandler implements AnalysisResultHandler {
         return issueId;
     }
 
-    // 이번 사건을 꼭 넣고, 나머지는 보낸 후보 사건 중에서. 사건 수(3개 이상) · 중복은 IssueResult.read 가 봤다
-    private long create(
+    // 이번 사건을 꼭 넣고, 나머지는 보낸 후보 사건 중에서. 사건 수(3개 이상) · 중복은 IssueResult.read 가 봤다.
+    // 메인 흐름(MAIN) 사건이 문턱보다 적으면 이슈를 만들지 않고 null — NONE 과 같게 사건은 이슈 밖에 남는다(Jira S15P31A102-224).
+    // 서브 흐름(반응 · 평가 · 여론)만으로는 「무슨 일이 있었나」가 없어 이슈 흐름이 서지 않는다. AI 워커는 사건 역할을 몰라
+    // (ISSUE 메시지에 role 이 없다) 여기서 막는다. 후보 검사 뒤에 둔다 — 후보 밖 사건을 고른 답은 서브만이어도 400 이다.
+    // 판정 기록에는 까닭만 남아 막은 횟수는 아래 로그로만 센다
+    private @Nullable Long create(
             IssueCandidateFinder.Candidates sent,
             long eventId,
             List<Long> eventIds,
@@ -131,6 +139,18 @@ class IssueResultHandler implements AnalysisResultHandler {
         for (long chosen : eventIds) {
             if (chosen != eventId && !sent.hasEvent(chosen)) {
                 throw new ResultSchemaInvalidException("eventIds 의 사건이 보낸 후보에 없다: " + chosen);
+            }
+        }
+        if (createMinMainEvents > 0) {
+            long mains = events.countByIdInAndRole(eventIds, EventRole.MAIN);
+            if (mains < createMinMainEvents) {
+                log.info(
+                        "메인 흐름 사건이 없어 이슈를 만들지 않는다 eventId={} eventIds={} mainEvents={} 문턱={}",
+                        eventId,
+                        eventIds,
+                        mains,
+                        createMinMainEvents);
+                return null;
             }
         }
         Issue issue = issues.save(new Issue(title, summary));

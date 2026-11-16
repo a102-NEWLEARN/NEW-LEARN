@@ -12,6 +12,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
+
+    // 고른 사건 중 메인 흐름(MAIN)이 몇 개인가 — 이슈 판정 CREATE 의 만들기 가드(IssueResultHandler, Jira S15P31A102-224)
+    long countByIdInAndRole(Collection<Long> ids, EventRole role);
     // A4 타임라인 — 공개 기사가 minPublicArticles 건 이상인 사건만, 발생 시점 · ID 오름차순(docs/api.md 1절, Jira 179 · 206)
     @Query("select e from Event e where e.issue.id = :issueId and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE
             + " order by e.occurredAt asc, e.id asc")

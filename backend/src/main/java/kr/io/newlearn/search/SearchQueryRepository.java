@@ -25,18 +25,21 @@ class SearchQueryRepository {
         this.threshold = threshold;
     }
 
-    // 목록에 나오는 이슈만(docs/api.md 1절) — 보이는 사건이 문턱만큼 있는 이슈다, 만든 때 최신순
+    // 목록에 나오는 이슈만(docs/api.md 1절) — 보이는 사건이 문턱만큼 있고 메인 흐름 사건도 문턱만큼 있는 이슈다, 만든 때 최신순
     List<IssueRef> issues(String query) {
         return jdbc.sql("""
                         select id, title from issue i
                         where strpos(lower(title), lower(:q)) > 0 and
-                        """ + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS + """
+                        """ + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS + " and "
+                        + PublicEventSql.ISSUE_HAS_ENOUGH_MAIN_EVENTS + """
                         order by created_at desc, id desc
                         limit :limit
                         """)
                 .param("q", query)
                 .param("publicArticleSkip", threshold.skip())
                 .param("publicEventSkip", threshold.eventSkip())
+                .param("minMainEvents", threshold.minMainEvents())
+                .param("mainEventSkip", threshold.mainEventSkip())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new IssueRef(rs.getLong("id"), rs.getString("title")))
                 .list();
