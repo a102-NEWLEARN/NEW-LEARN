@@ -53,6 +53,14 @@ test("탭을 누르면 그 분야로 바뀐다", () => {
   expect(screen.getByRole("tabpanel").textContent).toBe("politics 내용");
 });
 
+// SEED 탭 내용 칸은 기본이 overflow-y: auto 라, 카드가 10px 아래에서 떠오르는 동안 넘친 만큼 세로 스크롤바가 잠깐 생겼다
+// (Jira 219). jsdom 은 CSS 를 계산하지 않아 덮는 클래스가 붙었는지만 본다 — 스크롤바가 안 생기는지는 브라우저에서 확인한다
+test("탭 내용 칸은 스크롤하지 않는다 — 떠오르는 카드가 잠깐 넘쳐도 스크롤바가 생기지 않게", () => {
+  renderWithProviders(<Harness />);
+
+  expect(screen.getByRole("tabpanel").classList).toContain("overflow-visible");
+});
+
 test("→ 키로 다음 탭을 고른다", () => {
   renderWithProviders(<Harness />);
 
