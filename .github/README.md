@@ -15,6 +15,9 @@
 <br><br>
 
 [![Live](https://img.shields.io/badge/Live-newlearn.io.kr-28CDAA?style=for-the-badge&logo=googlechrome&logoColor=white)](https://newlearn.io.kr)
+[![Demo](https://img.shields.io/badge/Demo-목_서버_·_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://newlearn-issue.vercel.app/home)
+
+<sub>Demo 는 서버 없이 도는 판입니다. 2026-11-16 실제 서비스에서 받은 기사 스냅샷(이슈 16 · 기사 1,938)에 목 서버(MSW)가 답하고, 로그인은 아무 아이디 · 비밀번호로 됩니다.</sub>
 
 <a href="#-주요-기능">주요 기능</a> ·
 <a href="#-팀원">팀원</a> ·
@@ -241,7 +244,33 @@ EXPERIENCE.md 의 모션 규칙(작은 움직임 200ms 이하 · 큰 움직임 2
 - 등장 · 그리기 · 흐름 같은 키프레임은 테마 파일([`newlearn-theme.css`](../frontend/src/newlearn-theme.css))에 21개를 두고, 마인드맵 · 이슈 흐름의 확대 · 이동은 D3 transition 으로 했습니다
 - **동작 줄이기**(`prefers-reduced-motion`)를 켠 사람에게는 위치 · 크기 변화를 모두 빼고 처음부터 다 그린 모양을 보여 줍니다. 원 커서도 띄우지 않습니다
 
-**그 밖에** — 서버 응답은 TanStack Query 로 다룹니다. 백엔드 없이 화면만 띄우는 목 모드(MSW, `npm run dev:mock`)가 있고, 홈 화면에 앱처럼 설치할 수 있습니다(PWA). 시험은 Vitest · Testing Library 입니다.
+**Lighthouse — 먼저 재고, 작고 확실한 것부터**
+
+운영 사이트를 먼저 재 보니, 계획했던 화면 단위 코드 분할로 줄일 몫은 우리 번들의 14%(source map 으로 셈)뿐이었습니다. 받은 JS 491KB 가운데 42%는 사용 분석 스크립트였고, 랜딩이 느린 큰 까닭은 애니메이션이었습니다. 그래서 계획을 바꿔 한 줄로 고칠 수 있는 지적 세 가지부터 고쳤습니다.
+
+| 지적 | 고친 것 |
+|---|---|
+| `robots.txt` 가 없어 nginx 가 로봇에게 화면 HTML 을 내줌(SEO 감점) | `public/robots.txt` 를 두고 `/api/` 만 막음 |
+| `<head>` 의 사용 분석 스크립트가 화면 그리기를 막음 | `analytics.js` 에 `defer` |
+| 빌드 때 테마 스크립트가 `<meta charset>` 을 문서 앞 1024바이트 밖으로 밀어냄 | nginx `charset utf-8;` 로 응답 머리에 문자셋을 붙임 |
+
+배포 뒤 운영에서 다시 잰 값입니다(손님 화면, 화면마다 3번 잰 가운데 값).
+
+| 화면 | 성능 | SEO | 권장사항 | TBT | 실제 LCP |
+|---|--:|--:|--:|--:|--:|
+| 랜딩 | 50 → **58** | 92 → **100** | 69 → **73** | 694 → **438ms** | 1.38 → **1.33초** |
+| 로그인 | 92 → **93** | 92 → **100** | 69 → **73** | 149 → **99ms** | 0.33 → **0.29초** |
+| 홈 | 82 → **85** | 92 → **100** | 69 → **73** | 155 → **103ms** | 0.39 → **0.34초** |
+| 이슈 | 66 → **70** | 92 → **100** | 69 → **73** | 246 → **126ms** | 0.99 → **0.94초** |
+| 기사 | 61 → **67** | 92 → **100** | 69 → **73** | 244 → **134ms** | 0.99 → **0.89초** |
+
+- 세 가지 모두 시험을 먼저 썼습니다. 파일을 읽어 확인하는 시험 3개가 고치기 전에는 실패하고 고친 뒤 통과합니다([`page-load.test.ts`](../frontend/src/page-load.test.ts))
+- **시뮬레이션 LCP 만 늘었습니다**(랜딩 8.3 → 9.1초). `defer` 로 사용 분석 요청의 우선순위가 High 에서 Low 로 내려간 탓입니다. 같은 측정 기록에서 이 우선순위만 High 로 되돌려 다시 계산하니 8.97 → 7.52초로 줄었습니다. 실제 LCP 는 다섯 화면 모두 줄어서, 도구의 계산 방식이 만든 숫자로 보고 되돌리지 않았습니다
+- 이슈 · 기사 CLS(0.054 · 0.098)는 Lighthouse 가 헤더 로고를 원인으로 짚었지만, 로고에 크기를 적어도 그대로였습니다. layout-shift 기록을 열어 보니 로딩 자리보다 큰 제목 · 요약이 들어오며 아래가 61 · 95px 밀린 것이어서, 별도 작업으로 넘겼습니다
+
+<sub>Lighthouse 13.6.0, 모바일 시뮬레이션(왕복 150ms · 1.6Mbps · CPU 4배 느림)으로 잰 실험실 값입니다. 실제 LCP 는 느린 조건 없이 Chrome 이 그린 시점입니다. SEO 100 은 기본 점검 항목 점수이지 검색 순위가 아닙니다. 자세히는 [SSOT](../SSOT.md) 10절 11-16 에 있습니다.</sub>
+
+**그 밖에** — 서버 응답은 TanStack Query 로 다룹니다. 백엔드 없이 화면만 띄우는 목 모드(MSW, `npm run dev:mock`)가 있고, 같은 방식에 실제 기사 스냅샷을 담은 [데모](https://newlearn-issue.vercel.app/home)를 Vercel 에 올렸습니다(`--mode demo`). 홈 화면에 앱처럼 설치할 수 있습니다(PWA). 시험은 Vitest · Testing Library 입니다.
 
 </details>
 
