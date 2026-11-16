@@ -198,7 +198,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>🎨 프론트엔드 · 디자인 시스템 — SEED 위에 NEW:LEARN 을 입히고, 문서대로 움직이게</b></summary>
+<summary><b>🎨 프론트엔드 · 디자인 시스템 · Lighthouse — SEED 위에 NEW:LEARN 을 입히고, 문서대로 움직이고, 재 보고 고치게</b></summary>
 
 <br>
 
