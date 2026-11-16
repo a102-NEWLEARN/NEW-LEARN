@@ -22,7 +22,7 @@ class EventServiceTest {
         var links = mock(ArticleEventRepository.class);
         var articles = mock(ArticleRepository.class);
         var summaries = mock(ArticleSummaryAssembler.class);
-        var service = new EventService(events, links, articles, summaries, new PublicEventThreshold(1, 1));
+        var service = new EventService(events, links, articles, summaries, new PublicEventThreshold(1, 1, 0));
         when(articles.findReleasedByEventId(eq(49L), any())).thenReturn(Page.empty());
         assertThatThrownBy(() -> service.get(49)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.articles(49, "oldest", new PageQuery(0, 4), null))
@@ -38,7 +38,7 @@ class EventServiceTest {
                 mock(ArticleEventRepository.class),
                 articles,
                 mock(ArticleSummaryAssembler.class),
-                new PublicEventThreshold(1, 1));
+                new PublicEventThreshold(1, 1, 0));
         when(articles.findReleasedByEventId(eq(49L), any())).thenReturn(Page.empty());
         var pageable = ArgumentCaptor.forClass(Pageable.class);
 
