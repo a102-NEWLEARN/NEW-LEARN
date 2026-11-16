@@ -28,3 +28,13 @@ test("사용 분석 스크립트(analytics.js)는 defer 로 불러 첫 화면 �
   expect(tags).toHaveLength(1);
   expect(tags[0]).toMatch(/\sdefer[\s>]/);
 });
+
+test("nginx 가 응답 머리에 문자셋(utf-8)을 붙인다 — <meta charset> 이 첫 1024바이트 밖으로 밀려서", () => {
+  // SEED 테마 script(빌드 때 플러그인이 넣는다)가 <meta charset> 앞에 들어가 Lighthouse charset 항목이 깎였다
+  const conf = readFileSync(file("nginx.conf"), "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => !line.startsWith("#"));
+
+  expect(conf).toContain("charset utf-8;");
+});

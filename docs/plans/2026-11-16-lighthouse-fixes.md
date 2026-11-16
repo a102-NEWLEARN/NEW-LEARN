@@ -14,6 +14,7 @@
 | --- | --- | --- |
 | SEO 92 — `/robots.txt` 가 없어 화면 HTML 이 대신 나간다(오류 98개) | 모든 화면 | `public/robots.txt` 를 둔다 |
 | 화면 그리기를 막는 자원 — `<head>` 의 `analytics.js` 가 async · defer 없이 불린다 | 모든 화면 | `defer` 를 붙인다 |
+| 권장사항 charset — SEED 테마 script 가 `<meta charset>` 앞에 들어가 첫 1024바이트 밖으로 밀리고, 응답 머리에도 문자셋이 없다 | 모든 화면 | `nginx.conf` 에 `charset utf-8;` — 응답 머리에 문자셋을 붙인다(7단계, 2026-11-16 사용자가 더함) |
 
 ## 발표에서 말할 것
 
@@ -28,7 +29,8 @@
 
 - 새 `frontend/public/robots.txt` — 모든 로봇 허용, `/api/` 만 막기
 - `frontend/index.html` — `<script src="/analytics.js" defer>`
-- 새 `frontend/src/page-load.test.ts` — index.html 이 analytics.js 를 defer 로 부르는지, robots.txt 가 있고 규칙이 맞는지(파일을 읽는 시험. `pwa/manifest.test.ts` 와 같은 방식)
+- 새 `frontend/src/page-load.test.ts` — index.html 이 analytics.js 를 defer 로 부르는지, robots.txt 가 있고 규칙이 맞는지, nginx.conf 가 charset 을 거는지(파일을 읽는 시험. `pwa/manifest.test.ts` 와 같은 방식)
+- `frontend/nginx.conf` — server 블록에 `charset utf-8;`. 기본 `charset_types` 가 text/html · text/plain · application/javascript 라 화면 HTML 과 robots.txt 에 붙는다
 - `SSOT.md` 10절 「잰 것」 — 운영 측정과 전후 숫자
 - 이 계획 파일 — `2026-11-16-lighthouse-fixes.md` 로 이름을 바꾼다
 
@@ -41,19 +43,21 @@
 - [x] 4. robots.txt · analytics defer — 시험 먼저(커밋 두 개)
 - [x] 5. 전후 다시 재기 — scratchpad 의 Node 시험 서버(gzip 레벨 5, 없는 파일은 index.html, `/api` 는 운영으로)에 지금 `origin/frontend` 빌드와 이 브랜치 빌드를 두 포트로 띄우고 번갈아 화면 다섯 개를 3번씩 쟀다. SSOT 10절에 적는다(커밋)
 - [ ] 6. `/verify` → MR(대상 `frontend`) → 배포 뒤 운영에서 다시 잰다
+- [ ] 7. charset — 시험 먼저, `nginx.conf` 한 줄(커밋). 로컬 시험 서버에 같은 머리를 붙여 Lighthouse charset 항목이 통과하는지 본다. SSOT 10절 줄에 더한다
 
 ## 안 바꿀 것
 
 - 라우트 · 화면 코드 · 로딩 화면(Skeleton) · 애니메이션 · 글꼴 · 로고
 - `public/analytics.js` 의 내용(217 작업 파일). 부르는 줄에 `defer` 만 붙인다
-- `nginx.conf` · infra · `vite.config.ts` · `package.json` 의존성
-- 접근성 지적(명암 · aria 속성)과 권장사항 지적(제3자 쿠키 · 401 콘솔 오류 · charset)
+- `nginx.conf` 의 charset 한 줄 밖 · infra · `vite.config.ts` · `package.json` 의존성
+- 접근성 지적(명암 · 랜딩 단계 버튼 이름 · SEED 탭 패널의 `aria-selected`)과 권장사항 지적(제3자 쿠키 · 401 콘솔 오류). 탭 패널의 `aria-selected` 는 SEED 탭이 붙이고 props 로 못 지운다(`mergeProps` 가 `undefined` 를 덮어쓰지 않는다)
 
 ## 리스크
 
 - **로컬에서는 사용 분석이 돌지 않는다.** `analytics.js` 가 운영 도메인에서만 GA · Clarity 를 붙인다. 그래서 5단계 전후 비교에는 GA · Clarity 가 빠진다. defer 의 효과는 배포 뒤 운영에서 다시 재야 온전히 보인다
 - `defer` 로 바꾸면 GA · Clarity 가 HTML 을 다 읽은 뒤에 붙는다. 화면 코드(module script)보다 먼저 도는 순서는 그대로이고(빌드 결과 index.html 에서 확인), 화면 쪽 `track()` 은 gtag 가 없어도 조용히 넘어간다(`src/lib/analytics.ts`). 첫 페이지뷰가 몇십 ms 늦게 잡힐 수 있다
 - robots.txt 로 `/api/` 를 막으면 검색 로봇이 API 를 긁지 않는다. 화면 주소는 모두 허용이라 검색 노출에는 영향이 없다
+- **nginx 를 이 PC 에서 못 돌린다**(Docker 없음, 11-06 gzip 때와 같다). `charset` 은 nginx 기본 모듈(`ngx_http_charset_module`) 지시어이고 server 블록에서 쓸 수 있다는 것을 문서로 확인한다. 설정이 틀리면 이미지가 뜨지 않으니 배포 뒤 바로 `curl -I` 로 본다
 
 ## 어떻게 검증하나
 
