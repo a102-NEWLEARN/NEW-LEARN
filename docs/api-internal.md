@@ -365,6 +365,7 @@ B2 로 적재해 둔 기사에 분석을 건다. 적재할 때 `released_at` 은
 
 - `NONE` 이면 사건은 이슈 밖에 남는다. 그 기사들은 개별 기사로 보인다(`data-model.md` 2절 issue)
 - `ATTACH` · `CREATE` 를 저장할 때 API 가 다시 확인한다 — 이번 사건이 있고, 이번 사건과 `eventIds` 의 사건이 모두 아직 이슈 밖(`issue_id` 가 빔)이고, `ATTACH` 의 이슈가 있어야 한다. 아니면 409 `JOB_STATE_CONFLICT` 로 거절하고, 그 시도를 `FAILED` · `error_code` `JOB_STATE_CONFLICT` 로 적은 뒤 후보를 새로 계산해 바로 다시 건다(시도 3까지, `api.md` 2절). 확인과 바꾸기는 한 문장이다 — `issue_id` 가 빈 사건만 바꾸고, 바뀐 행 수가 사건 수와 다르면 되돌린다(2026-10-29 Jira 40). ISSUE 는 한 번에 하나씩이라 정상 흐름에서는 나오지 않고, 사람이 사건 · 이슈를 고쳤을 때 나온다
+- `CREATE` 를 저장할 때 고른 사건 중 메인 흐름(`event.role` = MAIN) 사건이 `ISSUE_CREATE_MIN_MAIN_EVENTS`(기본 0 = 끔 · 사이트 1)개보다 적으면 API 가 이슈를 만들지 않고 `NONE` 처럼 끝낸다 — 작업은 `SUCCEEDED`, 사건은 이슈 밖 그대로, 판정 기록에는 까닭만 남는다(2026-11-16 Jira 224). 위 400 · 409 검사 뒤에 본다. 워커와 메시지는 바뀌지 않는다 — 메시지에 사건 역할이 없어 API 가 막는다
 - `issue_category` 는 이슈를 만들 때와 사건을 붙일 때 API 가 다시 채운다(규칙은 `data-model.md` issue 절). 워커 결과에는 넣지 않는다
 - API 가 ISSUE 결과를 받을 때(2026-10-29 BE 안, Jira 40). EXTRACT · MATCH_EVENT 와 같은 기준이다 — 저장할 수 없으면 400(한 번 다시 건다), 버려도 같으면 받는다
 

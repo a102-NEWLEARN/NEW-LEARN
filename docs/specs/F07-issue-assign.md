@@ -14,7 +14,7 @@
   — `messageCarriesTheEventAndTheRecentEventsOfEachIssue`
 - AC-5: `ATTACH` 면 이번 사건이 그 이슈에 들어가고, 이슈 요약은 받은 요약으로 덮어쓰고 이름은 그대로다. 판정 기록 `{ reason, model, promptVersion }` 이 `analysis_job.result` 에 남는다
   — `attachPutsTheEventInAndRewritesTheSummary`
-- AC-6: `CREATE` 면 받은 이름 · 요약으로 새 이슈를 만들고, 이번 사건을 포함한 사건 3개 이상이 그 이슈에 들어간다
+- AC-6: `CREATE` 면 받은 이름 · 요약으로 새 이슈를 만들고, 이번 사건을 포함한 사건 3개 이상이 그 이슈에 들어간다. 단 고른 사건 중 메인 흐름(MAIN) 사건이 `ISSUE_CREATE_MIN_MAIN_EVENTS`(기본 0 = 끔 · 사이트 1)개보다 적으면 이슈를 만들지 않고 `NONE` 처럼 끝낸다 — 작업은 `SUCCEEDED`, 사건은 이슈 밖 그대로다. 후보 검사(AC-8)가 먼저라 후보 밖 사건을 고른 답은 그대로 400 이다(Jira 224) — 확인: `IssueStageIntegrationTest`
   — `createMakesAnIssueWithTheChosenEvents`
 - AC-7: `NONE` 이면 사건은 이슈 밖에 그대로이고 판정 기록만 남는다
   — `noneLeavesTheEventOutside` · `aMissingModelIsKeptAsNull`(봉투의 `model` · `promptVersion` 이 없으면 기록에 null)
