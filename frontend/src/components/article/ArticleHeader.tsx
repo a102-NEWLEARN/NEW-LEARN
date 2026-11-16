@@ -8,6 +8,7 @@ import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { meaningProps } from "@/components/meaning/meaningProps";
 import { errorDescription } from "@/components/state/ErrorState";
+import { track } from "@/lib/analytics";
 import { formatFullDateTime } from "@/lib/date";
 
 type ArticleHeaderProps = {
@@ -52,7 +53,15 @@ function IssueLink({ article }: { article: ArticleDetail }) {
         size="small"
         className={ACTION}
       >
-        <Link to={to}>이 기사가 속한 이슈 보기</Link>
+        {/* 기사에서 이슈 흐름으로 넘어가는지 GA 로 보낸다 */}
+        <Link
+          to={to}
+          onClick={() =>
+            track("issue_link_click", { has_event: Boolean(article.event) })
+          }
+        >
+          이 기사가 속한 이슈 보기
+        </Link>
       </ActionButton>
     );
   }
@@ -172,7 +181,18 @@ export function ArticleHeader({
             // 이슈 보기가 없으면(안내 문구뿐이면) 반으로 늘리지 않고 글자 폭만큼
             className={`border-stroke-neutral-weak ${article.issue ? ACTION : "max-md:h-x10"}`}
           >
-            <a href={article.url} target="_blank" rel="noopener noreferrer">
+            {/* 맥락을 본 뒤 원문까지 읽으러 가는지 GA 로 보낸다 */}
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() =>
+                track("original_article_click", {
+                  publisher: article.publisher.name,
+                  has_issue: Boolean(article.issue),
+                })
+              }
+            >
               원문 보기
               <span className="sr-only">
                 {" "}
