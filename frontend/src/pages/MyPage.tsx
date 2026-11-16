@@ -3,23 +3,23 @@ import { useQuery } from "@tanstack/react-query";
 import { bookmarksQuery } from "@/api/bookmarks";
 import { interestIssuesQuery } from "@/api/interestIssues";
 import { meQuery } from "@/api/members";
-import { InterestIssues } from "@/components/mypage/InterestIssues";
 import { InterestSettings } from "@/components/mypage/InterestSettings";
 import { MyPageSection } from "@/components/mypage/MyPageSection";
 import { QueryState } from "@/components/state/QueryState";
 import { usePageTitle } from "@/components/usePageTitle";
 import { metaLine } from "@/lib/meta";
 
-// 마이페이지 — 이름 · 아이디 보기, 관심 분야 바꾸기, 관심 이슈
-// (EXPERIENCE.md Information Architecture, 프로토타입 v21 MyPageScreen). 로그아웃은 헤더 프로필 메뉴에 있다(ProfileMenu)
+// 마이페이지 — 이름 · 아이디 보기, 관심 분야 바꾸기 (EXPERIENCE.md Information Architecture, 프로토타입 v21 MyPageScreen).
+// 관심 이슈 목록은 나의 뉴스함으로 옮겼다 — 저장한 것은 뉴스함, 계정 설정은 여기 (2026-11-16 사용자, Jira 216).
+// 로그아웃은 헤더 프로필 메뉴에 있다(ProfileMenu)
 export function MyPage() {
   usePageTitle("마이페이지");
   const me = useQuery(meQuery);
   const member = me.data;
-  // 머리 줄의 개수 — 아래 관심 이슈 섹션 · 나의 뉴스함과 같은 쿼리라 받아 둔 것이 있으면 다시 안 부른다
+  // 머리 줄의 개수 — 나의 뉴스함과 같은 쿼리라 받아 둔 것이 있으면 다시 안 부른다
   const interestIssues = useQuery(interestIssuesQuery);
   const bookmarks = useQuery(bookmarksQuery);
-  // 셋 다 받았을 때만 그린다. 받는 중이거나 하나라도 실패하면 줄을 두지 않는다 — 아래 섹션이 각자 실패를 알린다
+  // 셋 다 받았을 때만 그린다. 받는 중이거나 하나라도 실패하면 줄을 두지 않는다 — 목록 실패는 나의 뉴스함이 알린다
   const counts =
     member && interestIssues.data && bookmarks.data
       ? // 좁으면 꺾인다 — 점 뒤에서만 (metaLine)
@@ -55,7 +55,7 @@ export function MyPage() {
           )}
         </div>
       </div>
-      {/* 개인정보 → 관심 분야 → 관심 이슈 — 섹션마다 위 1px 줄(MyPageSection). 관심 분야 저장은 화면 아래에 붙은 줄 하나 */}
+      {/* 개인정보 → 관심 분야 — 섹션마다 위 1px 줄(MyPageSection). 관심 분야 저장은 화면 아래에 붙은 줄 하나 */}
       <div className="mt-x6 flex flex-col">
         <MyPageSection title="개인정보">
           <QueryState
@@ -88,14 +88,8 @@ export function MyPage() {
             }
           </QueryState>
         </MyPageSection>
-        {/* 관심 이슈는 관심 분야와 저장 줄 사이에 둔다 — 저장 줄이 맨 아래에 오게. 내 정보를 못 받았으면 관심 이슈만 */}
-        {member ? (
-          <InterestSettings member={member}>
-            <InterestIssues />
-          </InterestSettings>
-        ) : (
-          <InterestIssues />
-        )}
+        {/* 관심 분야는 지금 관심 분야(A17)로 시작한다 — 내 정보를 못 받았으면 두지 않는다(개인정보 섹션이 실패를 알린다) */}
+        {member && <InterestSettings member={member} />}
       </div>
     </div>
   );

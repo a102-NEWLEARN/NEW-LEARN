@@ -9,7 +9,7 @@ import {
 import { fetchIssue } from "@/api/issue";
 import { fetchIssues, issuesAllQuery } from "@/api/issues";
 
-// 가짜 API 가 docs/api-screen.md A23 ~ A25 대로 답하는지 — 별 · 마이페이지 관심 이슈가 이 응답에 기댄다
+// 가짜 API 가 docs/api-screen.md A23 ~ A25 대로 답하는지 — 별 · 나의 뉴스함 관심 이슈가 이 응답에 기댄다
 
 test("저장하면 바뀐 상태를 받고, 이미 저장한 이슈면 저장한 시각이 그대로다", async () => {
   await expect(addInterestIssue(12)).resolves.toEqual({

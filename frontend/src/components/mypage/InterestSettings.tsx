@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 import { ActionButton } from "seed-design/ui/action-button";
 import { ApiError, isSessionExpired } from "@/api/error";
@@ -31,15 +31,13 @@ function differs(codes: readonly string[], member: Member) {
 
 type InterestSettingsProps = {
   member: Member;
-  /** 관심 분야 섹션과 저장 줄 사이에 둘 것 — 마이페이지의 관심 이슈 섹션. 저장 줄이 화면 맨 아래에 오게 */
-  children?: ReactNode;
 };
 
 // 마이페이지 관심 분야 — 지금 관심 분야를 고른 칩으로 시작해 고치고, 화면 아래에 붙은 *변경사항 저장하기* 로 A18 에 보낸다.
 // 저장하면 알림만 띄우고 마이페이지에 남는다 (EXPERIENCE.md IA 마이페이지 행).
 // 섹션 제목 옆 *저장* 이 촌스럽다 → 맨 아래 버튼 하나, 바꾼 것이 없으면 누를 수 없다. 바꾼 채 다른 화면으로 가려 하면
 // 「저장하지 않고 나갈까요?」로 묻는다 (2026-11-12 사용자, Jira 195). 로그아웃 · 세션 만료로 떠날 때는 묻지 않는다
-export function InterestSettings({ member, children }: InterestSettingsProps) {
+export function InterestSettings({ member }: InterestSettingsProps) {
   const headingId = useId();
   const [codes, setCodes] = useState(() =>
     member.categories.map((category) => category.code),
@@ -122,8 +120,7 @@ export function InterestSettings({ member, children }: InterestSettingsProps) {
           error={error ?? undefined}
         />
       </MyPageSection>
-      {children}
-      {/* 화면 아래에 붙은 저장 줄 — 관심 이슈가 길어도 어디서나 바로 누른다. 좌우 여백까지 바탕을 채운다
+      {/* 화면 아래에 붙은 저장 줄 — 좁은 화면에서 칩이 길어도 어디서나 바로 누른다. 좌우 여백까지 바탕을 채운다
           (SEED 테마는 음수 간격 클래스를 만들지 않아 px 로 쓴다) */}
       <div className="sticky bottom-0 z-[2] -mx-[20px] mt-x6 border-t border-stroke-neutral-weak bg-bg-layer-default px-[20px] pt-x3 pb-[max(12px,env(safe-area-inset-bottom))] md:-mx-[24px] md:px-[24px]">
         {failure && (

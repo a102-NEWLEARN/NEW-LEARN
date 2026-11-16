@@ -5,23 +5,24 @@ import type { ItemList } from "@/api/types";
 import { server } from "@/mocks/node";
 import { renderRoute } from "@/test/render";
 
-// 마이페이지 관심 이슈 (docs/plans/2026-11-03-interest-issues.md). 가짜 회원은 12번(경제, 나중에 저장) · 21번(정치)을 저장해 두었다
+// 나의 뉴스함 관심 이슈 (docs/plans/2026-11-03-interest-issues.md, 마이페이지에서 옮김 docs/plans/2026-11-16-library-interest-issues.md).
+// 가짜 회원은 12번(경제, 나중에 저장) · 21번(정치)을 저장해 두었다
 
 async function openSection() {
-  const rendered = renderRoute("/me");
+  const rendered = renderRoute("/bookmarks");
   const section = await within(screen.getByRole("main")).findByRole("region", {
     name: "관심 이슈",
   });
   return { ...rendered, section };
 }
 
-test("마이페이지 맨 끝 섹션(개인정보 · 관심 분야 다음)으로 저장한 이슈를 저장한 순서대로 보인다", async () => {
+test("나의 뉴스함 첫 섹션(북마크한 기사 앞)으로 저장한 이슈를 저장한 순서대로 보인다", async () => {
   const { section } = await openSection();
 
   const headings = within(screen.getByRole("main"))
     .getAllByRole("heading", { level: 2 })
     .map((heading) => heading.textContent);
-  expect(headings).toEqual(["개인정보", "관심 분야", "관심 이슈"]);
+  expect(headings).toEqual(["관심 이슈", "북마크한 기사"]);
   expect(within(section).getByText("별표로 저장한 이슈예요.")).toBeDefined();
 
   const list = await within(section).findByRole("list", { name: "관심 이슈" });
@@ -59,7 +60,7 @@ test("저장한 이슈가 없으면 별표를 눌러 보라고 안내한다", as
   ).toBeDefined();
 });
 
-test("불러오지 못하면 그 자리에 안내와 다시 시도를 둔다", async () => {
+test("불러오지 못하면 그 자리에 안내와 다시 시도를 두고, 북마크한 기사는 그대로 보인다", async () => {
   let fail = true;
   server.use(
     http.get("/api/v1/members/me/interest-issues", () =>
@@ -70,6 +71,9 @@ test("불러오지 못하면 그 자리에 안내와 다시 시도를 둔다", a
 
   expect(
     await within(section).findByText("관심 이슈를 불러오지 못했어요"),
+  ).toBeDefined();
+  expect(
+    await screen.findByRole("list", { name: "북마크한 기사" }),
   ).toBeDefined();
   fail = false;
   fireEvent.click(within(section).getByRole("button", { name: "다시 시도" }));

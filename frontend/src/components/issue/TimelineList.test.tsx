@@ -68,6 +68,31 @@ test("서브 흐름 사건은 들여쓰고 메인 흐름 선에서 점선으로 
   expect(main.querySelector("[data-branch-line]")).toBeNull();
 });
 
+// 가로 지도와 같은 규칙 — 최신 사건은 짙은 청록, 고른 사건은 채움 대신 고리 (2026-11-16 디자인 피드백, Jira 216)
+const fillOf = (button: HTMLElement) =>
+  button.querySelector("[data-node]")?.getAttribute("class") ?? "";
+
+test("가장 늦게 일어난 사건 하나만 최신 사건으로 짙은 청록 노드에 두고 이름에 「최신 사건」을 붙인다", async () => {
+  await renderList();
+
+  const latest = node(/엔지니어 수급 우려/);
+  expect(latest.getAttribute("data-latest")).toBe("true");
+  expect(latest.getAttribute("aria-label")).toMatch(/, 최신 사건$/);
+  expect(screen.getAllByRole("button", { name: /최신 사건/ })).toHaveLength(1);
+  expect(fillOf(latest)).toContain("bg-bg-brand-solid");
+  expect(fillOf(node(/착공식/))).toContain("bg-bg-brand-accent");
+});
+
+test("고른 사건은 채움을 바꾸지 않고 둘레에 고리를 둔다", async () => {
+  await renderList(119);
+
+  const ceremony = node(/착공식/);
+  expect(fillOf(ceremony)).toContain("bg-bg-brand-accent");
+  expect(fillOf(ceremony)).not.toContain("bg-bg-brand-solid");
+  expect(ceremony.querySelector("[data-selected-ring]")).not.toBeNull();
+  expect(node(/공식 발표/).querySelector("[data-selected-ring]")).toBeNull();
+});
+
 test("사건을 누르면 고르고, 고른 사건은 지금 고른 것(aria-current)으로 읽힌다", async () => {
   const { onSelect } = await renderList(119);
 

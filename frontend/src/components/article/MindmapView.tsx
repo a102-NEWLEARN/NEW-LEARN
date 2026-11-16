@@ -28,8 +28,10 @@ export const INITIAL_MINDMAP_SETTINGS: MindmapSettings = {
 type MindmapViewProps = {
   /** 이 기사 — 잎 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
   articleId: number;
-  /** 가운데 글자 — A9 title */
+  /** 가운데 글자 — 대표 사건 제목, 없으면 A9 title(기사 제목) */
   title: string;
+  /** 가운데 글자가 대표 사건 제목이면 그 사건 — 가운데 글은 사건 문맥으로 뜻을 찾는다 (MindmapGraph) */
+  titleEventId?: number | null;
   /** A9 가지 — 내용이 있는 것만 온다 */
   branches: MindmapBranch[];
   settings: MindmapSettings;
@@ -46,6 +48,7 @@ type MindmapViewProps = {
 export function MindmapView({
   articleId,
   title,
+  titleEventId = null,
   branches,
   settings,
   onSettingsChange,
@@ -149,6 +152,7 @@ export function MindmapView({
         <MindmapGraph
           articleId={articleId}
           title={title}
+          titleEventId={titleEventId}
           branches={branches}
           hidden={hidden}
           showLabels={showLabels}

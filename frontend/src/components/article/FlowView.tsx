@@ -38,6 +38,24 @@ const ARROW_AFTER = LINE_AFTER + 260;
 // 머리 줄 점의 파문 — 다 나온 뒤부터 3초마다 번진다
 const HEADER_PULSE_AT = 1800;
 
+// 자리가 1024px 이상일 때의 열 수 · 최대 폭 — 가지 수만큼 열을 둔다. 4열 고정이면 두 갈래 기사가 왼쪽에 좁게 몰리고
+// 문장이 길게 꺾였다 (2026-11-16 디자인 피드백, Jira 216). Tailwind 가 찾을 수 있게 클래스를 통째로 적는다.
+// 가지가 하나면 넓은 자리에서도 세로다
+const WIDE: Partial<Record<number, { cols: string; width: string }>> = {
+  2: {
+    cols: "@min-[1024px]:grid-cols-2",
+    width: "@min-[1024px]:max-w-[960px]",
+  },
+  3: {
+    cols: "@min-[1024px]:grid-cols-3",
+    width: "@min-[1024px]:max-w-[1200px]",
+  },
+  4: {
+    cols: "@min-[1024px]:grid-cols-4",
+    width: "@min-[1024px]:max-w-[1280px]",
+  },
+};
+
 type FlowViewProps = {
   /** 이 기사 — 잎 글을 드래그하면 이 기사의 문맥으로 뜻을 찾는다(F13 용어사전) */
   articleId: number;
@@ -56,7 +74,8 @@ const leafKey = (type: string, index: number) => `${type}:${index}`;
 
 // 기사 마인드맵의 흐름지도 보기 — 가지를 「무슨 일이? → 왜 일어났나? → 누가 뭐라고 했나? → 앞으로는?」 순서로
 // 읽는 목록 (프로토타입 v21 MindmapFlowMap · FlowCard, Jira S15P31A102-58).
-// 자리가 1024px 이상이면 가지 하나가 한 열인 가로, 아니면 세로다. 컨테이너 쿼리라 넓이를 재는 코드가 없다.
+// 자리가 1024px 이상이면 가지 하나가 한 열인 가로(가지 수만큼 열), 아니면 세로다. 가지가 하나면 늘 세로다.
+// 컨테이너 쿼리라 넓이를 재는 코드가 없다.
 // 잎을 누르면 그 카드를 키워 띄우고 아래에 가지가 무엇인지 한 줄을 붙인다(나머지는 흐리게, 2026-11-13 사용자 · Jira 204).
 // 노드 상세는 F05(추후). 다시 누르기 · 빈 곳 · Esc 로 푼다 (EXPERIENCE.md 보기 탭)
 export function FlowView({
@@ -70,6 +89,7 @@ export function FlowView({
   const idPrefix = useId();
   // 공백뿐인 요지는 없는 것으로 본다 — 빈 머리 줄을 두지 않게
   const headline = summary?.trim() || null;
+  const wide = WIDE[branches.length] ?? null;
 
   // Esc — 강조를 푼다. 먼저 받은 쪽이 preventDefault 했거나 다른 창(dialog) 안에서 누른 Esc 는
   // 그쪽 몫이다 (MindmapGraph 와 같다)
@@ -102,7 +122,9 @@ export function FlowView({
       className={`@container min-h-0 flex-1 overflow-y-auto ${fill ? "" : "max-md:overflow-visible"}`}
     >
       {/* 좁은 화면 — 좌우 20px, 맨 아래 96px (DESIGN.md Layout & Spacing 「스크롤 끝」) */}
-      <div className="mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 @min-[1024px]:max-w-[1280px]">
+      <div
+        className={`mx-auto w-full max-w-[860px] px-x5 pt-x6 pb-[96px] md:px-x8 md:pt-x7 md:pb-x16 ${wide?.width ?? ""}`}
+      >
         {/* AI 생성 표시 — 탭 줄 오른쪽 끝이 아니라 그린 내용 맨 위 첫 줄. 기사 머리 가까이 두면 기사를 AI 가 쓴 것처럼 읽힌다
             (2026-11-12 사용자, Jira 195) */}
         {aiGenerated && (
@@ -111,10 +133,11 @@ export function FlowView({
           </div>
         )}
         {/* 머리 줄 — 기사 핵심 한 문장(A8 summary, AI 요지). 전에는 A9 title(= 기사 제목)이라 바로 위 h1 과 같은 글이
-            두 번 보였다 (2026-11-12 사용자 QA, Jira 197). h1 과 다른 글이라 낭독하고 좁은 자리에서도 둔다 */}
+            두 번 보였다 (2026-11-12 사용자 QA, Jira 197). h1 과 다른 글이라 낭독하고 좁은 자리에서도 둔다.
+            요약부터 눈이 가게 옅은 민트 칸에 넣는다 (2026-11-16 디자인 피드백, Jira 216) */}
         {headline && (
           <div
-            className={`flex items-center gap-x3_5 ${RISE}`}
+            className={`flex items-center gap-x3_5 rounded-r3 bg-bg-brand-weak px-x4 py-x3_5 md:px-x5 md:py-x4 ${RISE}`}
             style={enterAt(0)}
           >
             {/* 기사 핵심 점 — 튀어나온 뒤 3초마다 파문이 번진다 (마인드맵 보기의 가운데 원과 같다) */}
@@ -141,7 +164,7 @@ export function FlowView({
           </div>
         )}
         <ol
-          className={`grid gap-y-x10 @min-[1024px]:grid-cols-4 @min-[1024px]:gap-x-x7 ${headline ? "mt-x7" : ""}`}
+          className={`grid gap-y-x10 ${wide ? `${wide.cols} @min-[1024px]:gap-x-x7` : ""} ${headline ? "mt-x7" : ""}`}
         >
           {branches.map(({ type, items }, index) => {
             const { name, question, about, tone } = BRANCHES[type];
@@ -152,7 +175,7 @@ export function FlowView({
               // 세로 — 번호 원 | 질문 · 이름, 그 아래 잎 카드. 가로 — 번호 줄 · 질문 · 잎 카드를 위에서 아래로
               <li
                 key={type}
-                className="relative grid grid-cols-[30px_minmax(0,1fr)] gap-x-x4 gap-y-x3 @min-[1024px]:flex @min-[1024px]:flex-col @min-[1024px]:gap-x2_5"
+                className={`relative grid grid-cols-[30px_minmax(0,1fr)] gap-x-x4 gap-y-x3 ${wide ? "@min-[1024px]:flex @min-[1024px]:flex-col @min-[1024px]:gap-x2_5" : ""}`}
               >
                 {/* 세로 — 번호 원 아래에서 다음 번호 원 4px 앞까지 (가지 사이 간격 40px).
                     위에서 아래로 자라고 그 끝을 따라 가지색 점이 달려간다 */}
@@ -206,7 +229,7 @@ export function FlowView({
                 <div
                   role="group"
                   aria-labelledby={`${headId}-q ${headId}-n`}
-                  className="col-start-2 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x3 @min-[1024px]:grid-cols-1"
+                  className={`col-start-2 grid grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] gap-x3 ${wide ? "@min-[1024px]:grid-cols-1" : ""}`}
                 >
                   {items.map(({ text }, itemIndex) => {
                     const key = leafKey(type, itemIndex);

@@ -42,7 +42,7 @@
 
 | 영역 | 언어 · 프레임워크 |
 |---|---|
-| `frontend` | TypeScript 6 · React 19 · Vite 8 · Tailwind CSS 4 · SEED Design · TanStack Query · Zustand · React Router · D3. Node 26 |
+| `frontend` | TypeScript 6 · React 19 · Vite 8 · Tailwind CSS 4 · SEED Design · TanStack Query · React Router · D3. Node 26 |
 | `backend` | Java 25 · Spring Boot 4.1 (Web MVC · Security · Data JPA · Flyway) · Lombok · Gradle 9 (Groovy DSL) |
 | `ai` | Python 3.14 · FastAPI · LangChain · sentence-transformers (torch CPU 판) · uv |
 | `infra` | Terraform 1.16 (AWS provider 6) — 관리 서버 EC2. 쿠버네티스 Helm 값 · Argo CD 앱 목록 · 매니페스트(`infra/k8s/`)와 kind 리허설 스크립트(`infra/kind/`) |
