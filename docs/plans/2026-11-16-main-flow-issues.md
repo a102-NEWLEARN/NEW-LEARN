@@ -42,9 +42,9 @@
 
 ## 작업 순서
 
-- [ ] **C1** 실패하는 시험 먼저(목록 두 모양 · 만들기 가드 · 문턱 값) → 구현 → `backend_LINT` · `backend_TEST`, 고친 코드를 되돌려 새 시험이 **단언에서** 빨개지는지
-- [ ] **C2** Swagger · 스펙 · 계약 문서 · SSOT 9절 · `backend.yaml` env
-- [ ] MR → reviewer 조수 → 파이프라인 초록 → 머지 → 배포 태그 MR(backend 새 이미지) → 사이트 확인 → SSOT 10절 · Jira 완료 · 분야 브랜치 맞추기
+- [x] **C1** 실패하는 시험 먼저(목록 두 모양 · 만들기 가드 · 문턱 값) → 구현 → `backend_LINT` · `backend_TEST`, 고친 코드를 되돌려 새 시험이 **단언에서** 빨개지는지
+- [x] **C2** Swagger · 스펙 · 계약 문서 · SSOT 9절 · `backend.yaml` env
+- [x] MR → reviewer 조수 → 파이프라인 초록 → 머지 → 배포 태그 MR(backend 새 이미지) → 사이트 확인 → SSOT 10절 · Jira 완료 · 분야 브랜치 맞추기
 
 ## 안 바꿀 것
 
