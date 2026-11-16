@@ -117,6 +117,40 @@ test("고른 사건은 지금 고른 것(aria-current)으로 읽히고 시간축
   expect(screen.getByTestId("selected-date").textContent).toBe("10.06");
 });
 
+// 최신 사건은 짙은 청록, 나머지 메인은 민트 — 고른 사건은 채움을 바꾸지 않고 둘레 고리로 보인다.
+// 전에는 고르면 짙은 청록으로 채워 최신 사건과 헷갈렸다 (2026-11-16 디자인 피드백, Jira 216)
+const fillOf = (button: HTMLElement) =>
+  button.querySelector("[data-node]")!.getAttribute("class");
+
+test("가장 늦게 일어난 사건 하나만 최신 사건으로 짙은 청록 노드에 두고 이름에 「최신 사건」을 붙인다", async () => {
+  await renderTimeline();
+
+  const latest = node(/엔지니어 수급 우려/);
+  expect(latest.getAttribute("data-latest")).toBe("true");
+  expect(latest.getAttribute("aria-label")).toMatch(/, 최신 사건$/);
+  expect(screen.getAllByRole("button", { name: /최신 사건/ })).toHaveLength(1);
+  expect(fillOf(latest)).toContain("fill-bg-brand-solid");
+  expect(fillOf(node(/착공식/))).toContain("fill-bg-brand-accent");
+});
+
+test("고른 사건은 채움을 바꾸지 않고 둘레에 고리를 둔다", async () => {
+  await renderTimeline(119);
+
+  const ceremony = node(/착공식/);
+  expect(fillOf(ceremony)).toContain("fill-bg-brand-accent");
+  expect(fillOf(ceremony)).not.toContain("fill-bg-brand-solid");
+  expect(ceremony.querySelector("[data-selected-ring]")).not.toBeNull();
+  expect(node(/공식 발표/).querySelector("[data-selected-ring]")).toBeNull();
+});
+
+test("최신 사건을 고르면 짙은 청록 채움에 고리가 더해진다", async () => {
+  await renderTimeline(120);
+
+  const latest = node(/엔지니어 수급 우려/);
+  expect(fillOf(latest)).toContain("fill-bg-brand-solid");
+  expect(latest.querySelector("[data-selected-ring]")).not.toBeNull();
+});
+
 test("타임라인 빈 곳을 누르면 고르기를 푼다 — 노드를 누를 때는 풀지 않는다", async () => {
   const { onDeselect } = await renderTimeline(119);
 
@@ -300,8 +334,9 @@ test("기사 · 언론사가 0이면 그 항목을 빼고 적는다", async () =
     />,
   );
 
+  // 사건이 하나뿐이라 그 사건이 최신 사건이다
   expect(node(/착공식/).getAttribute("aria-label")).toBe(
-    "10.06 한빛반도체 텍사스 공장 착공식, 메인 흐름",
+    "10.06 한빛반도체 텍사스 공장 착공식, 메인 흐름, 최신 사건",
   );
   expect(screen.queryByText(/기사 0/)).toBeNull();
   act(() => node(/착공식/).focus());

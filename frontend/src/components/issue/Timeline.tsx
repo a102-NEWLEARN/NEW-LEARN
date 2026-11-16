@@ -22,6 +22,7 @@ import { ActionButton } from "seed-design/ui/action-button";
 import type { TimelineEvent } from "@/api/timeline";
 import {
   GUTTER,
+  latestEventId,
   layoutTimeline,
   RIGHT_ROOM,
   type PlacedEvent,
@@ -137,6 +138,8 @@ export function Timeline({
     () => layoutTimeline(events, { width }),
     [events, width],
   );
+  // 최신 사건 — 노드를 짙은 청록으로 칠한다 (2026-11-16 디자인 피드백, Jira 216)
+  const latestId = useMemo(() => latestEventId(events), [events]);
   // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치. 그린 뒤 옮겨 둔다
   const sizeRef = useRef({ width, height });
   const layoutRef = useRef(layout);
@@ -525,6 +528,7 @@ export function Timeline({
               const isSelected = event.id === selectedId;
               const isHovered = event.id === hoverId;
               const isFocused = event.id === focusId;
+              const isLatest = event.id === latestId;
               const label = labelOf(event);
               const shown = fitText(event.label, label.width, NAME_SIZE);
               const meta = joined(dateText(event), articlesText(event));
@@ -537,11 +541,13 @@ export function Timeline({
                   data-coach="event"
                   tabIndex={0}
                   data-event-id={event.id}
+                  data-latest={isLatest || undefined}
                   aria-current={isSelected ? "true" : undefined}
                   aria-label={[
                     `${dateText(event)} ${event.title}`,
                     LANE_NAME[event.lane],
                     articlesText(event),
+                    isLatest ? "최신 사건" : null,
                   ]
                     .filter(Boolean)
                     .join(", ")}
@@ -565,7 +571,8 @@ export function Timeline({
                   <circle r={r + 14} className="fill-transparent" />
                   {/* 선 끝이 지나갈 때 튀어나온다 */}
                   <g className={SPRING_IN} style={enterAt(enter)}>
-                    {/* 고르면 바탕이 튀어나오고 둘레에 파문이 번진다 */}
+                    {/* 고르면 채움은 그대로 두고 옅은 민트 바탕 · 짙은 청록 고리가 튀어나오며 둘레에 파문이 번진다.
+                        전에는 노드를 짙은 청록으로 채워 최신 사건과 헷갈렸다 (2026-11-16 디자인 피드백, Jira 216) */}
                     {isSelected && (
                       <>
                         <rect
@@ -579,12 +586,14 @@ export function Timeline({
                           className={`stroke-bg-brand-solid ${RIPPLE_ONCE}`}
                         />
                         <rect
+                          data-selected-ring
                           x={-r - 5}
                           y={-r - 5}
                           width={2 * r + 10}
                           height={2 * r + 10}
                           rx={5}
-                          className={`fill-bg-brand-weak ${SPRING_IN}`}
+                          strokeWidth={2}
+                          className={`fill-bg-brand-weak stroke-bg-brand-solid ${SPRING_IN}`}
                         />
                       </>
                     )}
@@ -604,6 +613,7 @@ export function Timeline({
                       className={`${HOVER_SPRING} ${isHovered && !isSelected ? "motion-safe:scale-[1.15]" : ""}`}
                     >
                       <rect
+                        data-node
                         x={-r}
                         y={-r}
                         width={2 * r}
@@ -611,7 +621,7 @@ export function Timeline({
                         rx={3}
                         strokeWidth={main ? 3 : 2}
                         className={`transition-[fill,stroke] duration-[var(--seed-duration-color-transition)] ${
-                          isSelected
+                          isLatest
                             ? "fill-bg-brand-solid stroke-palette-static-white"
                             : main
                               ? "fill-bg-brand-accent stroke-palette-static-white"
