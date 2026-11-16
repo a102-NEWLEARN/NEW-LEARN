@@ -53,8 +53,11 @@ import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { track } from "@/lib/analytics";
 import { prefersReducedMotion } from "@/lib/motion";
 
-// 확대 · 축소 범위와 버튼 한 번의 배율 (프로토타입 v21)
+// 확대 · 축소 범위와 버튼 한 번의 배율 (프로토타입 v21). 줄이는 하한은 50% 지만, 사건이 많아 50% 로도 다 안 들어오면
+// 다 들어오는 배율까지 줄인다 — 전체 보기로 시작부터 끝이 딱 보이게 (2026-11-16 사용자, Jira 223)
 const SCALE_EXTENT: [number, number] = [0.5, 4];
+// 다 들어오는 배율이 이보다 작아지지는 않게 — 아주 좁은 폭에서 0 이나 음수가 되지 않게
+const MIN_FIT = 0.05;
 const ZOOM_OUT = 0.8;
 const ZOOM_IN = 1.25;
 // 잴 수 없을 때(jsdom) 쓰는 타임라인 자리 크기
@@ -118,6 +121,8 @@ type TimelineProps = {
   onDeselect: () => void;
   /** 도구줄 「이슈 흐름」 옆 — 기간 · 사건 · 기사 수 */
   summary?: ReactNode;
+  /** 도구줄의 「지도 | 세로」 — 이슈 화면이 넣는다 (Jira 221) */
+  viewSwitch?: ReactNode;
 };
 
 // F07 사건 중심 이슈 에볼루션 맵 — 가로는 시간, 세로는 메인 흐름 · 서브 흐름 레인 (프로토타입 v21 LaneTimeline).
@@ -129,6 +134,7 @@ export function Timeline({
   onSelect,
   onDeselect,
   summary,
+  viewSwitch,
 }: TimelineProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -141,15 +147,29 @@ export function Timeline({
   );
   // 최신 사건 — 노드를 짙은 청록으로 칠한다 (2026-11-16 디자인 피드백, Jira 216)
   const latestId = useMemo(() => latestEventId(events), [events]);
-  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치. 그린 뒤 옮겨 둔다
+  // 다 들어오는 배율 — 첫 사건부터 마지막 사건의 이름표 자리(LABEL_ROOM)까지 화면에 들어온다. 100% 보다 키우지 않는다.
+  // 줄이는 하한은 50% 와 이 배율 중 작은 것이다 (Jira 223)
+  const fitScale = useMemo(() => {
+    const last = Math.max(0, ...layout.events.map((event) => event.x));
+    if (last === 0) return 1;
+    return Math.min(1, Math.max(MIN_FIT, (width - GUTTER - LABEL_ROOM) / last));
+  }, [layout, width]);
+  const minScale = Math.min(SCALE_EXTENT[0], fitScale);
+  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 배율. 그린 뒤 옮겨 둔다
   const sizeRef = useRef({ width, height });
   const layoutRef = useRef(layout);
+  const fitScaleRef = useRef(fitScale);
+  const minScaleRef = useRef(minScale);
+  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown>>(null);
   useLayoutEffect(() => {
     sizeRef.current = { width, height };
     layoutRef.current = layout;
-  }, [width, height, layout]);
+    fitScaleRef.current = fitScale;
+    minScaleRef.current = minScale;
+    // 처음에는 아래 d3-zoom 을 붙일 때 하한을 읽는다. 그 뒤 배치 · 폭이 바뀌면 여기서 고친다
+    zoomRef.current?.scaleExtent([minScale, SCALE_EXTENT[1]]);
+  }, [width, height, layout, fitScale, minScale]);
 
-  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown>>(null);
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
   // − · + 버튼이 노리는 배율. 움직임이 끝나면 비운다
   const targetScale = useRef<number | null>(null);
@@ -175,7 +195,7 @@ export function Timeline({
   useEffect(() => {
     const svg = svgRef.current!;
     const behavior = zoom<SVGSVGElement, unknown>()
-      .scaleExtent(SCALE_EXTENT)
+      .scaleExtent([minScaleRef.current, SCALE_EXTENT[1]])
       // d3 기본 조건(Ctrl 은 휠만 · 왼쪽 버튼만)에 하나를 더한다 — 사건 이름 위에서 마우스를 누르면 지도를 끌지 않고
       // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 휠 확대와 터치 이동은 그대로다
       .filter(
@@ -223,7 +243,8 @@ export function Timeline({
   // 버튼 배율은 움직이는 중의 배율이 아니라 앞 버튼이 노린 배율에서 잰다 — 빠르게 두 번 눌러도 두 번 다 먹게
   const scaleBy = (factor: number) => {
     reopening.current = false;
-    const [min, max] = SCALE_EXTENT;
+    const min = minScaleRef.current;
+    const max = SCALE_EXTENT[1];
     const from = targetScale.current ?? transformRef.current.k;
     const next = Math.min(max, Math.max(min, from * factor));
     targetScale.current = next;
@@ -240,11 +261,11 @@ export function Timeline({
           if (targetScale.current === next) targetScale.current = null;
         });
   };
-  // 전체 보기 — 그리는 영역이 다 들어오게. 100% 보다 키우지 않고 50% 아래로 줄이지 않는다
+  // 전체 보기 — 첫 사건부터 마지막 사건의 이름표까지 다 들어오는 배율로 맞춘다. 100% 보다 키우지 않는다.
+  // 전에는 50% 아래로 줄이지 않아 사건이 많은 이슈는 오른쪽이 잘렸다 (2026-11-16 사용자, Jira 223)
   const fit = () => {
     reopening.current = false;
-    const room = sizeRef.current.width - GUTTER - 60;
-    apply(atScale(Math.max(0.5, Math.min(1, room / layoutRef.current.width))));
+    apply(atScale(fitScaleRef.current));
   };
   // 그 사건이 화면 가운데쯤 오게 가로로 옮긴다. 배율은 그대로
   const centerOn = (event: PlacedEvent, duration = 300) => {
@@ -418,6 +439,7 @@ export function Timeline({
             </span>
           )}
         </div>
+        {viewSwitch}
         <div
           role="group"
           aria-label="확대 · 축소"

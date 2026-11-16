@@ -44,8 +44,8 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
   const issue = query.data;
   const failed = !issue && query.isError;
 
-  // 요약은 세 줄로 줄이고 잘렸으면 *더보기* 를 단다 (프로토타입 v21, 두 줄 → 세 줄은 2026-11-13 사용자 · Jira 202).
-  // 잘렸는지는 글자 수가 아니라 화면에서 잰다 — 좁은 화면에서는 짧은 요약도 세 줄을 넘는다. 폭이 바뀌면 다시 잰다
+  // 요약은 한 줄로 줄이고 잘렸으면 *더보기* 로 펼치고 *접기* 로 다시 접는다 (프로토타입 v21 두 줄 → 2026-11-13 세 줄 · Jira 202 →
+  // 2026-11-16 한 줄 · Jira 221 — 이슈 흐름이 더 보이게). 잘렸는지는 글자 수가 아니라 화면에서 잰다. 폭이 바뀌면 다시 잰다
   const summaryRef = useRef<HTMLParagraphElement>(null);
   const [clamped, setClamped] = useState(false);
   const summary = issue?.summary;
@@ -135,10 +135,10 @@ export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
           style={enterAt(HEADER_AT.summary)}
         >
           {/* 요약은 진한 글자에 왼쪽 민트 막대 — 회색은 눈에 덜 띄었다 (2026-11-12 사용자 QA, Jira 197).
-              글자는 16px 로 한 단계 줄이고 줄 간격 1.7 · 세 줄 · 폭 960px 로 더 많이 보인다 (2026-11-13 사용자, Jira 202) */}
+              글자는 16px 로 한 단계 줄이고 줄 간격 1.7 · 폭 960px (2026-11-13 사용자, Jira 202). 한 줄만 보인다 (2026-11-16 사용자, Jira 221) */}
           <p
             ref={summaryRef}
-            className={`t5-regular text-fg-neutral border-l-[3px] border-bg-brand-accent pl-x3 leading-[1.7] ${more ? "" : "line-clamp-3"}`}
+            className={`t5-regular text-fg-neutral border-l-[3px] border-bg-brand-accent pl-x3 leading-[1.7] ${more ? "" : "line-clamp-1"}`}
             {...meaningProps("ISSUE", issue.id)}
           >
             {issue.summary}

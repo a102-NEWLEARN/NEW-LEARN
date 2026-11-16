@@ -30,7 +30,17 @@ import org.springframework.transaction.annotation.Transactional;
 // 이슈마다 「사건 수 / 그중 보이는 사건 수」
 //   THREE 3/3 · EDGE 4/3(딱 문턱) → 보인다
 //   TWO_EVENTS 2/2 · ONE_EVENT 1/1 · MIXED 4/2(사건은 넷이지만 둘은 기사가 2건뿐) → 목록에서 빠진다
-@SpringBootTest(properties = {"newlearn.query.min-public-articles=3", "newlearn.query.min-public-events=3"})
+//
+// 메인 흐름 문턱(Jira 224)도 운영과 같이 1 로 켠다 — 보이는 사건 중 메인(MAIN)이 하나도 없는 이슈는 같은 자리에서 빠진다.
+// 위 이슈들의 사건은 모두 MAIN 이라 결과가 그대로다. 메인 흐름 픽스처(society 분야, 「메인흐름검증」)
+//   MAIN_ONE 메인 1 · 서브 2 → 보인다 / SUB_ONLY 서브 3 → 빠진다 / THIN_MAIN 메인은 기사 2건뿐(안 보임) · 서브 3 → 빠진다
+// 이 클래스가 사이트 경로(LIST_WITH_THRESHOLD)를 지킨다. 기사 문턱 1 의 LIST 모양은 MinMainEventsListShapeTest
+@SpringBootTest(
+        properties = {
+            "newlearn.query.min-public-articles=3",
+            "newlearn.query.min-public-events=3",
+            "newlearn.query.min-main-events=1"
+        })
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @Transactional
@@ -40,6 +50,10 @@ class MinPublicEventsApiIntegrationTest {
     static final int ONE_EVENT = 20803;
     static final int MIXED = 20804;
     static final int EDGE = 20805;
+    static final int MAIN_ONE = 20806;
+    static final int SUB_ONLY = 20807;
+    static final int THIN_MAIN = 20808;
+    static final int SUB_ONLY_FIRST = 208071;
 
     static final int TWO_EVENTS_FIRST = 208021;
 
@@ -80,6 +94,24 @@ class MinPublicEventsApiIntegrationTest {
         visibleEvent(208052, EDGE, "사건수검증 딱 나", "2026-10-21T00:00:00Z");
         visibleEvent(208053, EDGE, "사건수검증 딱 다", "2026-10-22T00:00:00Z");
         thinEvent(208054, EDGE, "사건수검증 딱 라", "2026-10-23T00:00:00Z");
+
+        // 메인 흐름 — 다른 이슈보다 먼저 만들고 사건도 앞서 일어나 두 정렬 모두 맨 뒤에 온다
+        issue(MAIN_ONE, "메인흐름검증 메인 하나 이슈", "2026-09-28T00:00:00Z", "society");
+        issue(SUB_ONLY, "메인흐름검증 서브만 이슈", "2026-09-29T00:00:00Z", "society");
+        issue(THIN_MAIN, "메인흐름검증 메인이 안 보이는 이슈", "2026-09-30T00:00:00Z", "society");
+
+        visibleEvent(208061, MAIN_ONE, "메인흐름검증 하나 가", "2026-10-01T00:00:00Z");
+        visibleEvent(208062, MAIN_ONE, "메인흐름검증 하나 나", "2026-10-02T00:00:00Z", "REACTION");
+        visibleEvent(208063, MAIN_ONE, "메인흐름검증 하나 다", "2026-10-03T00:00:00Z", "REACTION");
+
+        visibleEvent(SUB_ONLY_FIRST, SUB_ONLY, "메인흐름검증 서브 가", "2026-10-01T00:00:00Z", "REACTION");
+        visibleEvent(208072, SUB_ONLY, "메인흐름검증 서브 나", "2026-10-02T00:00:00Z", "REACTION");
+        visibleEvent(208073, SUB_ONLY, "메인흐름검증 서브 다", "2026-10-03T00:00:00Z", "REACTION");
+
+        thinEvent(208081, THIN_MAIN, "메인흐름검증 안 보이는 메인", "2026-10-01T00:00:00Z");
+        visibleEvent(208082, THIN_MAIN, "메인흐름검증 안보임 나", "2026-10-02T00:00:00Z", "REACTION");
+        visibleEvent(208083, THIN_MAIN, "메인흐름검증 안보임 다", "2026-10-03T00:00:00Z", "REACTION");
+        visibleEvent(208084, THIN_MAIN, "메인흐름검증 안보임 라", "2026-10-04T00:00:00Z", "REACTION");
     }
 
     // 총수(개수 질의)와 행(목록 질의)이 같은 규칙이어야 쪽 계산이 맞는다
@@ -87,12 +119,14 @@ class MinPublicEventsApiIntegrationTest {
     void issueListAndTotalLeaveOutIssuesWithFewerVisibleEvents() throws Exception {
         mvc.perform(get("/api/v1/issues"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2))
-                .andExpect(jsonPath("$.items", hasSize(2)))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.items", hasSize(3)))
                 .andExpect(jsonPath("$.items[0].id").value(EDGE))
                 .andExpect(jsonPath("$.items[0].eventCount").value(3))
                 .andExpect(jsonPath("$.items[1].id").value(THREE))
-                .andExpect(jsonPath("$.items[1].eventCount").value(3));
+                .andExpect(jsonPath("$.items[1].eventCount").value(3))
+                .andExpect(jsonPath("$.items[2].id").value(MAIN_ONE))
+                .andExpect(jsonPath("$.items[2].eventCount").value(3));
     }
 
     // 분야 · 정렬 · 쪽 넘기기가 모두 같은 규칙을 따라야 한다 — 한 곳만 거르면 쪽이 비거나 총수가 어긋난다
@@ -100,9 +134,10 @@ class MinPublicEventsApiIntegrationTest {
     void filtersSortAndPagesFollowTheSameRule() throws Exception {
         mvc.perform(get("/api/v1/issues").param("sort", "createdAt"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
                 .andExpect(jsonPath("$.items[0].id").value(EDGE))
-                .andExpect(jsonPath("$.items[1].id").value(THREE));
+                .andExpect(jsonPath("$.items[1].id").value(THREE))
+                .andExpect(jsonPath("$.items[2].id").value(MAIN_ONE));
         mvc.perform(get("/api/v1/issues").param("category", "world"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0))
@@ -112,8 +147,8 @@ class MinPublicEventsApiIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(0));
         mvc.perform(get("/api/v1/issues").param("size", "1").param("page", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2))
-                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(3))
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].id").value(THREE));
     }
@@ -125,7 +160,44 @@ class MinPublicEventsApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[?(@.code=='politics')].issueCount").value(contains(2)))
                 .andExpect(jsonPath("$.items[?(@.code=='world')].issueCount").value(contains(0)))
-                .andExpect(jsonPath("$.items[?(@.code=='economy')].issueCount").value(contains(0)));
+                .andExpect(jsonPath("$.items[?(@.code=='economy')].issueCount").value(contains(0)))
+                .andExpect(jsonPath("$.items[?(@.code=='society')].issueCount").value(contains(1)));
+    }
+
+    // ── 메인 흐름 (Jira 224) ──
+
+    // 보이는 메인 사건이 하나도 없으면 목록 · 전체 수에서 빠진다. 메인이 있어도 기사가 모자라 안 보이면 없는 것과 같다
+    @Test
+    void issuesWithoutAVisibleMainEventAreLeftOutOfTheList() throws Exception {
+        mvc.perform(get("/api/v1/issues").param("category", "society"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].id").value(MAIN_ONE));
+    }
+
+    // 검색의 이슈 칸도 같은 기준이다. 사건 칸은 그대로라 서브 사건에서 그 이슈 페이지로 넘어갈 수 있다
+    @Test
+    void searchLeavesOutIssuesWithoutAMainEventButKeepsTheirEvents() throws Exception {
+        mvc.perform(get("/api/v1/search").param("q", "메인흐름검증"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.issues", hasSize(1)))
+                .andExpect(jsonPath("$.issues[0].id").value(MAIN_ONE))
+                .andExpect(jsonPath("$.events[?(@.id==" + SUB_ONLY_FIRST + ")]", hasSize(1)));
+    }
+
+    // 목록에서만 뺀다 — 이슈 페이지와 타임라인은 그대로 열린다(서브 흐름 사건만 보인다)
+    @Test
+    void issuePageStaysOpenForIssuesWithoutAMainEvent() throws Exception {
+        mvc.perform(get("/api/v1/issues/" + SUB_ONLY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventCount").value(3));
+        mvc.perform(get("/api/v1/issues/" + SUB_ONLY + "/timeline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events", hasSize(3)));
+        mvc.perform(get("/api/v1/issues/" + THIN_MAIN + "/timeline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events", hasSize(3)));
     }
 
     // 이슈 칸에서는 빠지지만 사건 칸은 그대로다 — 사건을 누르면 살아 있는 이슈 페이지로 간다
@@ -200,7 +272,12 @@ class MinPublicEventsApiIntegrationTest {
 
     // 공개 기사 3건 — 기사 문턱을 넘어 화면에 보이는 사건이다. 첫 기사 번호를 돌려준다(A8 확인용)
     private long visibleEvent(int id, int issueId, String title, String occurredAt) {
-        event(id, issueId, title, occurredAt);
+        return visibleEvent(id, issueId, title, occurredAt, "MAIN");
+    }
+
+    // 역할을 고르는 판 — 서브 흐름(REACTION) 사건을 만들 때 쓴다(Jira 224)
+    private long visibleEvent(int id, int issueId, String title, String occurredAt, String role) {
+        event(id, issueId, title, occurredAt, role);
         long first = article("thr208a", id);
         article("thr208b", id);
         article("thr208c", id);
@@ -215,14 +292,19 @@ class MinPublicEventsApiIntegrationTest {
     }
 
     private void event(int id, int issueId, String title, String occurredAt) {
+        event(id, issueId, title, occurredAt, "MAIN");
+    }
+
+    private void event(int id, int issueId, String title, String occurredAt, String role) {
         jdbc.sql("""
                 insert into event(id,issue_id,title,label,occurred_at,occurred_at_basis,created_at,updated_at,role)
-                values (:id,:issue,:title,'키워드',cast(:at as timestamptz),'EXTRACTED',now(),now(),'MAIN')
+                values (:id,:issue,:title,'키워드',cast(:at as timestamptz),'EXTRACTED',now(),now(),:role)
                 """)
                 .param("id", id)
                 .param("issue", issueId)
                 .param("title", title)
                 .param("at", occurredAt)
+                .param("role", role)
                 .update();
     }
 
