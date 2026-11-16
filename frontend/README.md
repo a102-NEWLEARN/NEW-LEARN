@@ -13,11 +13,12 @@ NEW:LEARN 화면(React)이다. 개발 서버는 `npm run dev` 면 진짜 API(백
 | `src/lib/`        | 화면과 상관없는 도우미 (날짜 표기)                                                               |
 | `src/api/`        | 클라이언트 · 오류 · 목록 타입, 엔드포인트마다 파일 하나 (호출 함수 · 타입 · query key)           |
 | `src/mocks/`      | 가짜 API(MSW) 핸들러 · 가짜 데이터                                                               |
-| `src/stores/`     | Zustand. 서버 데이터는 넣지 않는다 (TanStack Query 몫)                                           |
 | `src/test/`       | 테스트 설정 · 도우미                                                                             |
 | `seed-design/ui/` | SEED CLI 가 내려받는 컴포넌트. 손대지 않는다                                                     |
 
 테스트는 대상 파일 옆에 `*.test.ts(x)` 로 둔다.
+
+상태는 전역 저장소에 두지 않는다. 서버 데이터는 TanStack Query 캐시, 고른 사건 · 보기 · 탭 · 쪽은 주소(`useSearchParams`), 그 밖은 쓰는 컴포넌트의 상태다. 처음에 넣었던 Zustand 는 쓸 곳이 없어 2026-11-16 뺐다.
 
 ## import
 
