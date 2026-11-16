@@ -30,6 +30,7 @@ import { enterAt, RISE } from "@/components/motion/screenMotion";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
+import { track } from "@/lib/analytics";
 import { formatEventDate, formatFullDate } from "@/lib/date";
 import { uniqueById, uniqueCount } from "@/lib/uniqueById";
 
@@ -79,7 +80,9 @@ export function EventPanel({
   // 이전 · 다음으로 옮긴 뒤 누른 버튼이 없어졌으면(마지막 · 첫 사건) 남은 쪽 버튼으로 포커스를 옮긴다
   const navRef = useRef<HTMLElement>(null);
   const stepped = useRef(false);
-  const step = (nextId: number) => {
+  // 이전 · 다음으로 흐름을 따라 읽는지 GA 로 보낸다
+  const step = (nextId: number, direction: "previous" | "next") => {
+    track("event_step", { direction });
     stepped.current = true;
     onSelectEvent(nextId);
   };
@@ -235,7 +238,7 @@ export function EventPanel({
               direction="previous"
               event={detail.previousEvent}
               alone={!detail.nextEvent}
-              onClick={step}
+              onClick={(id) => step(id, "previous")}
             />
           )}
           {detail.nextEvent && (
@@ -243,7 +246,7 @@ export function EventPanel({
               direction="next"
               event={detail.nextEvent}
               alone={!detail.previousEvent}
-              onClick={step}
+              onClick={(id) => step(id, "next")}
             />
           )}
         </nav>
@@ -336,6 +339,8 @@ function RelatedArticles({
   // 받은 쪽이 모두 본 기사면 새 기사가 붙을 때까지 다음 쪽을 더 받는다 (최신 기사와 같다)
   const loadMore = async () => {
     const from = items.length;
+    // 관련 기사를 5건 넘게 더 찾아 읽는지 GA 로 보낸다
+    track("related_more_click", { sort, loaded: from });
     const sortAt = sort;
     focusFrom.current = from;
     let result = await articles.fetchNextPage();

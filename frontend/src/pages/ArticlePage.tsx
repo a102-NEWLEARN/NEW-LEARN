@@ -32,6 +32,7 @@ import { ErrorState } from "@/components/state/ErrorState";
 import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { LoadingState } from "@/components/state/LoadingState";
 import { usePageTitle } from "@/components/usePageTitle";
+import { track } from "@/lib/analytics";
 import { toId } from "@/lib/id";
 import { prefersReducedMotion } from "@/lib/motion";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -114,6 +115,8 @@ function ArticleView({ articleId }: { articleId: number }) {
   const revealMap = useRef(false);
   const setView = useCallback(
     (next: string) => {
+      // 처음 보기(흐름지도)에서 마인드맵으로 바꿔 보는지 GA 로 보낸다
+      track("article_view_switch", { view: next });
       revealMap.current = next === "map" && narrow;
       setSearchParams(
         (params) => {
@@ -138,6 +141,11 @@ function ArticleView({ articleId }: { articleId: number }) {
   // (2026-11-12 사용자, Jira 195). 숨긴 가지 · 라벨 표시는 여기서 들고 있어 창에서도 같다. 확대 · 포커스 · 강조는 창에서 새로 시작한다
   const [expanded, setExpanded] = useState(false);
   const drawn = drawable(mindmap.data) ? mindmap.data : null;
+  // 마인드맵 가운데 — 대표 사건 제목. 긴 기사 제목을 한 번 더 두니 잘렸다 (2026-11-16 디자인 피드백, Jira 216).
+  // 사건이 없는 기사 · A8 이 실패했으면 A9 title(기사 제목)
+  const centerEvent = article.data?.event?.title.trim()
+    ? article.data.event
+    : null;
   const renderView = (
     which: View,
     { title, branches, aiGenerated }: Mindmap,
@@ -151,10 +159,14 @@ function ArticleView({ articleId }: { articleId: number }) {
         aiGenerated={aiGenerated}
         fill={fill}
       />
+    ) : article.isPending ? (
+      // 가운데 글자는 A8 을 받아야 정해진다 — 기사 제목으로 그렸다가 사건 제목으로 바뀌며 배치가 튀지 않게 기다린다
+      <MindmapSkeleton />
     ) : (
       <MindmapView
         articleId={articleId}
-        title={title}
+        title={centerEvent?.title ?? title}
+        titleEventId={centerEvent?.id ?? null}
         branches={branches}
         aiGenerated={aiGenerated}
         settings={mapSettings}
@@ -210,6 +222,8 @@ function ArticleView({ articleId }: { articleId: number }) {
               // 직접 준다. 그래야 닫은 뒤 이 버튼으로 돌아온다
               onClick={(click) => {
                 click.currentTarget.focus();
+                // 어느 보기를 크게 보는지 GA 로 보낸다
+                track("article_expand", { view });
                 setExpanded(true);
               }}
               className="flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"

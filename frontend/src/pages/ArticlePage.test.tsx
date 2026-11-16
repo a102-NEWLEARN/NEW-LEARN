@@ -45,6 +45,20 @@ function mindmapWith(change: object) {
   );
 }
 
+// A8 응답을 바꾼다
+function articleWith(change: object) {
+  server.use(
+    http.get("/api/v1/articles/11901", async ({ request }) => {
+      const real = await fetch(request.url.replace("11901", "11902"));
+      return HttpResponse.json({
+        ...(await real.json()),
+        id: 11901,
+        ...change,
+      });
+    }),
+  );
+}
+
 const heading = () =>
   screen.findByRole("heading", {
     level: 1,
@@ -118,6 +132,36 @@ test("주소의 ?view=map 으로 열면 마인드맵 탭이 골라져 있다", a
 
   expect(await map()).toBeDefined();
   expect(tab("마인드맵").getAttribute("aria-selected")).toBe("true");
+});
+
+// 가운데에 긴 기사 제목을 한 번 더 두니 잘렸다 → 대표 사건 제목을 둔다. 사건 제목은 A26 의 기사 화면 글이 아니라
+// 가운데 글은 사건 문맥으로 뜻을 찾는다 (2026-11-16 디자인 피드백, Jira 216)
+test("마인드맵 가운데는 대표 사건 제목이고, 드래그하면 그 사건의 문맥으로 뜻을 찾는다", async () => {
+  articleWith({
+    event: {
+      id: 119,
+      title: "착공식 열고 양산 예고",
+      label: "착공식",
+      occurredAt: "2026-10-06T00:00:00+09:00",
+    },
+  });
+  renderRoute(`${PATH}?view=map`);
+
+  const center = await within(await map()).findByText("착공식 열고 양산 예고");
+  expect(center.closest("text")!.getAttribute("data-meaning")).toBe(
+    "EVENT:119",
+  );
+});
+
+test("대표 사건이 없는 기사는 가운데에 A9 title 을 두고 기사의 문맥으로 뜻을 찾는다", async () => {
+  articleWith({ event: null, eventMatchStatus: "NO_EVENT", issue: null });
+  mindmapWith({ title: "짧은 기사 제목" });
+  renderRoute(`${PATH}?view=map`);
+
+  const center = await within(await map()).findByText("짧은 기사 제목");
+  expect(center.closest("text")!.getAttribute("data-meaning")).toBe(
+    "ARTICLE:11901",
+  );
 });
 
 // 폰에서 마인드맵 칸이 기사 머리 아래에서 시작해 가운데 원이 화면 아래 끝에 놓였다 →

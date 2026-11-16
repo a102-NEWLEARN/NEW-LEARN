@@ -22,6 +22,7 @@ import { ActionButton } from "seed-design/ui/action-button";
 import type { TimelineEvent } from "@/api/timeline";
 import {
   GUTTER,
+  latestEventId,
   layoutTimeline,
   RIGHT_ROOM,
   type PlacedEvent,
@@ -49,6 +50,7 @@ import {
 } from "@/components/motion/screenMotion";
 import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
+import { track } from "@/lib/analytics";
 import { prefersReducedMotion } from "@/lib/motion";
 
 // 확대 · 축소 범위와 버튼 한 번의 배율 (프로토타입 v21)
@@ -137,6 +139,8 @@ export function Timeline({
     () => layoutTimeline(events, { width }),
     [events, width],
   );
+  // 최신 사건 — 노드를 짙은 청록으로 칠한다 (2026-11-16 디자인 피드백, Jira 216)
+  const latestId = useMemo(() => latestEventId(events), [events]);
   // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치. 그린 뒤 옮겨 둔다
   const sizeRef = useRef({ width, height });
   const layoutRef = useRef(layout);
@@ -315,10 +319,22 @@ export function Timeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, measured.width]);
 
-  const onNodeKeyDown = (event: KeyboardEvent, id: number) => {
+  // 사건 고르기 — 어느 레인의 몇째 사건을 마우스 · 키보드로 골랐는지 GA 로 보낸다.
+  // 몇째는 시간순(왼쪽부터) 자리다. 이슈는 주소(/issues/:id)로 GA 가 따로 안다
+  const selectEvent = (placed: PlacedEvent, via: "click" | "keyboard") => {
+    track("timeline_node_click", {
+      lane: placed.lane,
+      position: layout.events.filter((other) => other.x < placed.x).length + 1,
+      total: layout.events.length,
+      via,
+    });
+    onSelect(placed.id);
+  };
+
+  const onNodeKeyDown = (event: KeyboardEvent, placed: PlacedEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
-    onSelect(id);
+    selectEvent(placed, "keyboard");
   };
 
   // 라벨 — 같은 레인 오른쪽 이웃 노드까지 64px 이상 남으면 오른쪽, 아니면 노드 아래 (프로토타입).
@@ -525,6 +541,7 @@ export function Timeline({
               const isSelected = event.id === selectedId;
               const isHovered = event.id === hoverId;
               const isFocused = event.id === focusId;
+              const isLatest = event.id === latestId;
               const label = labelOf(event);
               const shown = fitText(event.label, label.width, NAME_SIZE);
               const meta = joined(dateText(event), articlesText(event));
@@ -537,11 +554,13 @@ export function Timeline({
                   data-coach="event"
                   tabIndex={0}
                   data-event-id={event.id}
+                  data-latest={isLatest || undefined}
                   aria-current={isSelected ? "true" : undefined}
                   aria-label={[
                     `${dateText(event)} ${event.title}`,
                     LANE_NAME[event.lane],
                     articlesText(event),
+                    isLatest ? "최신 사건" : null,
                   ]
                     .filter(Boolean)
                     .join(", ")}
@@ -549,9 +568,9 @@ export function Timeline({
                   onClick={(mouse) => {
                     mouse.stopPropagation();
                     // 사건 이름을 드래그한 끝의 클릭(용어사전)은 사건 고르기가 아니다
-                    if (!isTextDragClick(mouse)) onSelect(event.id);
+                    if (!isTextDragClick(mouse)) selectEvent(event, "click");
                   }}
-                  onKeyDown={(key) => onNodeKeyDown(key, event.id)}
+                  onKeyDown={(key) => onNodeKeyDown(key, event)}
                   onMouseEnter={() => setHoverId(event.id)}
                   onMouseLeave={() => setHoverId(null)}
                   onFocus={() => {
@@ -565,7 +584,8 @@ export function Timeline({
                   <circle r={r + 14} className="fill-transparent" />
                   {/* 선 끝이 지나갈 때 튀어나온다 */}
                   <g className={SPRING_IN} style={enterAt(enter)}>
-                    {/* 고르면 바탕이 튀어나오고 둘레에 파문이 번진다 */}
+                    {/* 고르면 채움은 그대로 두고 옅은 민트 바탕 · 짙은 청록 고리가 튀어나오며 둘레에 파문이 번진다.
+                        전에는 노드를 짙은 청록으로 채워 최신 사건과 헷갈렸다 (2026-11-16 디자인 피드백, Jira 216) */}
                     {isSelected && (
                       <>
                         <rect
@@ -579,12 +599,14 @@ export function Timeline({
                           className={`stroke-bg-brand-solid ${RIPPLE_ONCE}`}
                         />
                         <rect
+                          data-selected-ring
                           x={-r - 5}
                           y={-r - 5}
                           width={2 * r + 10}
                           height={2 * r + 10}
                           rx={5}
-                          className={`fill-bg-brand-weak ${SPRING_IN}`}
+                          strokeWidth={2}
+                          className={`fill-bg-brand-weak stroke-bg-brand-solid ${SPRING_IN}`}
                         />
                       </>
                     )}
@@ -604,6 +626,7 @@ export function Timeline({
                       className={`${HOVER_SPRING} ${isHovered && !isSelected ? "motion-safe:scale-[1.15]" : ""}`}
                     >
                       <rect
+                        data-node
                         x={-r}
                         y={-r}
                         width={2 * r}
@@ -611,7 +634,7 @@ export function Timeline({
                         rx={3}
                         strokeWidth={main ? 3 : 2}
                         className={`transition-[fill,stroke] duration-[var(--seed-duration-color-transition)] ${
-                          isSelected
+                          isLatest
                             ? "fill-bg-brand-solid stroke-palette-static-white"
                             : main
                               ? "fill-bg-brand-accent stroke-palette-static-white"

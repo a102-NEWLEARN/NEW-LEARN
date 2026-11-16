@@ -27,7 +27,7 @@ const issue: IssueSummary = {
   interested: false,
 };
 
-// 최근 사건 날짜는 올해인지에 따라 연도를 붙인다. Date 만 고정한다
+// 업데이트 날짜는 올해인지에 따라 연도를 붙인다. Date 만 고정한다
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-23T09:00:00+09:00"));
@@ -42,22 +42,26 @@ test("카드 전체가 이슈 화면으로 가는 링크 하나다", () => {
   expect(link.textContent).toContain("한빛반도체 미국 공장 건설");
 });
 
-test("분야 · 최근 사건 · 사건과 기사 수를 보인다", () => {
+// 카드는 분야 탭 아래에만 놓여 카드마다 같은 분야명이 되풀이됐다 → 그 자리에 업데이트 날짜(A2 lastEventAt)를 두고,
+// 같은 날짜가 두 번 보이지 않게 최근 사건 줄은 「최근 사건」만 적는다 (2026-11-16 디자인 피드백, Jira 216)
+test("업데이트 날짜 · 최근 사건 · 사건과 기사 수를 보인다 — 분야는 위 탭에 있어 적지 않는다", () => {
   renderWithProviders(<IssueCard issue={issue} />);
 
   const link = screen.getByRole("link");
-  expect(screen.getByText("경제")).toBeDefined();
-  expect(screen.getByText("최근 사건 · 10.09")).toBeDefined();
+  expect(screen.getByText("10.09 업데이트")).toBeDefined();
+  expect(screen.getByText("최근 사건")).toBeDefined();
   expect(screen.getByText("텍사스 공장 엔지니어 수급 우려 보도")).toBeDefined();
+  expect(link.textContent).not.toContain("경제");
   expect(link.textContent).toContain("사건 8");
   expect(link.textContent).toContain("기사 23");
 });
 
-test("최근 사건이 올해가 아니면 연도를 붙인다", () => {
+test("업데이트 날짜가 올해가 아니면 연도를 붙인다", () => {
   renderWithProviders(
     <IssueCard
       issue={{
         ...issue,
+        lastEventAt: "2025-12-01T10:00:00+09:00",
         lastEvent: {
           ...lastEvent,
           occurredAt: "2025-12-01T10:00:00+09:00",
@@ -66,7 +70,19 @@ test("최근 사건이 올해가 아니면 연도를 붙인다", () => {
     />,
   );
 
-  expect(screen.getByText("최근 사건 · 2025.12.01")).toBeDefined();
+  expect(screen.getByText("2025.12.01 업데이트")).toBeDefined();
+});
+
+// 제목 · 최근 사건 제목이 한 줄인 카드는 안쪽 줄이 올라가 옆 카드와 어긋났다 (2026-11-16 디자인 피드백, Jira 216)
+test("카드가 두 열 이상 놓이는 640px 이상에서는 제목 · 최근 사건 제목이 줄 수와 상관없이 두 줄 자리를 잡는다 — 폰은 한 열이라 빈칸만 생긴다", () => {
+  renderWithProviders(<IssueCard issue={issue} />);
+
+  expect(screen.getByText("한빛반도체 미국 공장 건설").className).toContain(
+    "sm:min-h-[2lh]",
+  );
+  expect(
+    screen.getByText("텍사스 공장 엔지니어 수급 우려 보도").className,
+  ).toContain("sm:min-h-[2lh]");
 });
 
 test("사건이 없는 이슈는 최근 사건 줄을 두지 않는다 (A2 기간 · lastEvent 가 null)", () => {
@@ -87,9 +103,10 @@ test("사건이 없는 이슈는 최근 사건 줄을 두지 않는다 (A2 기�
   const link = screen.getByRole("link");
   expect(link.textContent).toContain("한빛반도체 미국 공장 건설");
   expect(link.textContent).not.toContain("최근 사건");
+  expect(link.textContent).not.toContain("업데이트");
 });
 
-test("분야가 여럿이면 모두 적는다", () => {
+test("분야가 여럿이어도 카드에는 적지 않는다", () => {
   renderWithProviders(
     <IssueCard
       issue={{
@@ -102,7 +119,9 @@ test("분야가 여럿이면 모두 적는다", () => {
     />,
   );
 
-  expect(screen.getByText("경제 · 국제")).toBeDefined();
+  const link = screen.getByRole("link");
+  expect(link.textContent).not.toContain("경제");
+  expect(link.textContent).not.toContain("국제");
 });
 
 test("개수가 0이면 「0개」로 쓰지 않고 그 항목을 뺀다 (v2 IssueCard)", () => {
@@ -114,7 +133,7 @@ test("개수가 0이면 「0개」로 쓰지 않고 그 항목을 뺀다 (v2 Iss
 });
 
 // 관심 이슈 표시 (PRD FR-28, Jira 172)
-test("관심 이슈면 분야 옆에 「관심 이슈」를 붙인다", () => {
+test("관심 이슈면 업데이트 날짜 옆에 「관심 이슈」를 붙인다", () => {
   renderWithProviders(<IssueCard issue={{ ...issue, interested: true }} />);
 
   expect(screen.getByRole("link").textContent).toContain("관심 이슈");
