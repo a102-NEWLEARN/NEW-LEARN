@@ -43,7 +43,7 @@ export function InterestButton({
     onSuccess: (state) => {
       // 그사이 로그아웃했으면 손님 화면에 회원 상태를 다시 넣지 않는다
       if (queryClient.getQueryData(meQuery.queryKey) === null) return;
-      // 이슈 머리 · 홈 추천 · 분야별 이슈의 별을 응답대로 바꾸고 관심 이슈 목록(마이페이지 · 홈 추천 순서)을 새로 받게 한다
+      // 이슈 머리 · 홈 추천 · 분야별 이슈의 별을 응답대로 바꾸고 관심 이슈 목록(나의 뉴스함 · 마이페이지 개수 · 홈 추천 순서)을 새로 받게 한다
       setInterested(queryClient, issueId, state.interested);
       snackbar.show(
         state.interested ? "관심 이슈로 저장했어요" : "관심 이슈에서 뺐어요",

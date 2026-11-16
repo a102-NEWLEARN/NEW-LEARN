@@ -3,21 +3,25 @@ import { Skeleton } from "@seed-design/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { interestIssuesQuery } from "@/api/interestIssues";
-import { MyPageSection } from "@/components/mypage/MyPageSection";
+import {
+  BOOKMARKS_LIST,
+  BookmarksSection,
+} from "@/components/bookmarks/BookmarksSection";
 import { QueryState } from "@/components/state/QueryState";
 
-// 마이페이지 관심 이슈 — 별표로 저장한 이슈를 저장한 순서대로 (A25, 프로토타입 v21 MyPageScreen).
+// 나의 뉴스함 관심 이슈 — 별표로 저장한 이슈를 저장한 순서대로 (A25, 프로토타입 v21 LibraryScreen 「이슈」 묶음).
+// 마이페이지에 있던 것을 옮겼다 — 저장한 것은 뉴스함, 계정 설정은 마이페이지 (2026-11-16 사용자, Jira 216).
 // 「지난 방문 이후 새 사건 N」 배지는 데이터가 없어 그리지 않는다 (docs/api-screen.md A25)
 export function InterestIssues() {
   const issues = useQuery(interestIssuesQuery);
 
   return (
-    <MyPageSection title="관심 이슈" description="별표로 저장한 이슈예요.">
+    <BookmarksSection title="관심 이슈" description="별표로 저장한 이슈예요.">
       <QueryState
         query={issues}
         loadingLabel="관심 이슈 불러오는 중"
         skeleton={
-          <div className="flex flex-col gap-x2">
+          <div className="flex flex-col gap-x3">
             {Array.from({ length: 2 }, (_, at) => (
               <Skeleton key={at} radius="8" width="full" height="x12" />
             ))}
@@ -31,20 +35,16 @@ export function InterestIssues() {
         }}
       >
         {(items) => (
-          // 행 사이는 카드 안 구분선. 누를 때 바탕은 글자 바깥 8px 까지 번진다 — 글자는 제목 줄에 맞는다.
-          // SEED 테마는 음수 간격 클래스(-mx-x2)를 만들지 않아 px 로 쓴다
-          <ul
-            aria-label="관심 이슈"
-            className="-mx-[8px] flex flex-col divide-y divide-stroke-neutral-subtle"
-          >
+          // 북마크한 기사와 같은 상자 · 같은 행 여백(ArticleRow)
+          <ul aria-label="관심 이슈" className={BOOKMARKS_LIST}>
             {items.map((issue) => (
               <li key={issue.id}>
                 <Link
                   to={`/issues/${issue.id}`}
-                  className="flex items-center gap-x2_5 rounded-r2 px-x2 py-x2_5 transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                  className="flex items-center gap-x3 rounded-r2 px-x2 py-x3 transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
                 >
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="t5-medium truncate text-fg-neutral">
+                  <span className="flex min-w-0 flex-1 flex-col gap-x1">
+                    <span className="t5-medium line-clamp-2 text-fg-neutral">
                       {issue.title}
                     </span>
                     <span className="t2-regular text-fg-neutral-muted tabular-nums">
@@ -65,6 +65,6 @@ export function InterestIssues() {
           </ul>
         )}
       </QueryState>
-    </MyPageSection>
+    </BookmarksSection>
   );
 }
