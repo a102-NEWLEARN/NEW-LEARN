@@ -133,9 +133,15 @@ export function CategoryTabs({
           />
         )}
       </div>
-      {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다 */}
+      {/* 탭마다 내용 자리를 둬서 탭의 aria-controls 가 가리킬 곳이 있게 한다. 내용은 고른 탭에만 그린다.
+          SEED 내용 칸은 기본이 세로 스크롤(overflow-y: auto)이라 카드가 10px 아래에서 떠오르는 동안 넘친 만큼
+          스크롤바가 잠깐 생겼다(Jira 219). 넘겨 보는 탭이 아니라 칸이 스크롤할 일이 없어 덮는다 */}
       {tabs.map((tab) => (
-        <TabsContent key={tab.code} value={tab.code}>
+        <TabsContent
+          key={tab.code}
+          value={tab.code}
+          className="overflow-visible"
+        >
           {tab.code === value && children}
         </TabsContent>
       ))}

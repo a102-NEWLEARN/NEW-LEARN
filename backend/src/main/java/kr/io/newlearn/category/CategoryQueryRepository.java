@@ -21,6 +21,7 @@ public class CategoryQueryRepository {
     public Map<String, Long> issueCounts() {
         return counts("select ic.category_code, count(*) as total from issue_category ic"
                 + " join issue i on i.id = ic.issue_id where " + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS
+                + " and " + PublicEventSql.ISSUE_HAS_ENOUGH_MAIN_EVENTS
                 + " group by ic.category_code");
     }
 
@@ -37,6 +38,8 @@ public class CategoryQueryRepository {
         jdbc.sql(sql)
                 .param("publicArticleSkip", threshold.skip())
                 .param("publicEventSkip", threshold.eventSkip())
+                .param("minMainEvents", threshold.minMainEvents())
+                .param("mainEventSkip", threshold.mainEventSkip())
                 .query((rs, row) -> {
                     counts.put(rs.getString("category_code"), rs.getLong("total"));
                     return rs.getString("category_code");

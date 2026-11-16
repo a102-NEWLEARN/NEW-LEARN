@@ -11,6 +11,7 @@ type EventName =
   | "event_step"
   | "related_more_click"
   | "article_view_switch"
+  | "issue_view_switch"
   | "original_article_click"
   | "issue_link_click"
   | "article_expand";
