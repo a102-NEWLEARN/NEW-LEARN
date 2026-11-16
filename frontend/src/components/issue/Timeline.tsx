@@ -118,7 +118,7 @@ type TimelineProps = {
   onDeselect: () => void;
   /** 도구줄 「이슈 흐름」 옆 — 기간 · 사건 · 기사 수 */
   summary?: ReactNode;
-  /** 도구줄의 「세로 | 지도」 — 이슈 화면이 넣는다 (Jira 221) */
+  /** 도구줄의 「지도 | 세로」 — 이슈 화면이 넣는다 (Jira 221) */
   viewSwitch?: ReactNode;
 };
 

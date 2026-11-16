@@ -172,9 +172,9 @@ test("처음 골라 둔 최신 사건은 목록을 스크롤하지 않는다 —
   expect(list().scrollTop).toBe(0);
 });
 
-// ── 「세로 | 지도」 전환 ──────────────────────────────
+// ── 「지도 | 세로」 전환 ──────────────────────────────
 
-test("보기 전환은 세로 · 지도 버튼 묶음이고 고른 보기가 눌린 상태다", () => {
+test("보기 전환은 지도 · 세로 버튼 묶음이고 고른 보기가 눌린 상태다", () => {
   const onChange = vi.fn();
   renderWithProviders(<IssueViewSwitch view="list" onChange={onChange} />);
 

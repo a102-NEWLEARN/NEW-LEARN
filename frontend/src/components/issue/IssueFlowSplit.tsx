@@ -20,7 +20,7 @@ type IssueFlowSplitProps = {
   onSelect: (eventId: number) => void;
   /** 「이슈 흐름」 옆 — 기간 · 사건 · 기사 수 */
   summary?: ReactNode;
-  /** 도구줄의 「세로 | 지도」 */
+  /** 도구줄의 「지도 | 세로」 */
   viewSwitch?: ReactNode;
 };
 

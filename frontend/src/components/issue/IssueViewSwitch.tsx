@@ -1,9 +1,9 @@
-// 넓은 화면 이슈 흐름의 보기 — 세로(기본) · 지도 (Jira 221)
+// 넓은 화면 이슈 흐름의 보기 — 지도(기본) · 세로 (Jira 221)
 export type IssueView = "list" | "map";
 
 const VIEWS: { value: IssueView; label: string }[] = [
-  { value: "list", label: "세로" },
   { value: "map", label: "지도" },
+  { value: "list", label: "세로" },
 ];
 
 type IssueViewSwitchProps = {
@@ -11,7 +11,7 @@ type IssueViewSwitchProps = {
   onChange: (view: IssueView) => void;
 };
 
-// 「세로 | 지도」 — 이슈 흐름 도구줄에 둔다. 탭이 아니라 보기를 고르는 버튼 묶음이라 관련 기사 정렬(EventPanel)과 같은
+// 「지도 | 세로」 — 이슈 흐름 도구줄에 둔다. 기본 보기를 앞에 둔다. 탭이 아니라 보기를 고르는 버튼 묶음이라 관련 기사 정렬(EventPanel)과 같은
 // 알약 모양 · aria-pressed 를 쓴다 (DESIGN.md 보기 전환). 이미 고른 보기를 다시 누르면 아무것도 하지 않는다
 export function IssueViewSwitch({ view, onChange }: IssueViewSwitchProps) {
   return (
