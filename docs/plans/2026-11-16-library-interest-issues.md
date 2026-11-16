@@ -71,7 +71,7 @@
 - [x] 0. worktree · 브랜치 만들기, 계획 파일 커밋 — `docs(plan)`
 - [x] 1. 관심 이슈를 뉴스함으로 — 시험 빨강 → 초록, `/bookmarks` · `/me` 1440 · 393 스크린숏 — `feat(frontend)`
 - [x] 2. Zustand 정리 — `npm ls zustand` 없음, `git diff package-lock.json` 이 zustand 줄만, 빌드 통과 — `chore(frontend)`
-- [ ] 3. `/verify` · MR 초안 `.notes/mr/S15P31A102-216-library.md`
+- [x] 3. `/verify` · MR 초안 `.notes/mr/S15P31A102-216-library.md`
 
 항목마다 시작 전에 짧게 개요를 말하고 OK 를 받는다. 스크린숏은 `.notes/mr/S15P31A102-216-library/`.
 
