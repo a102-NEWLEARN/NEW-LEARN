@@ -457,3 +457,85 @@ test("넓은 화면은 가로 지도다", async () => {
     screen.queryByRole("heading", { level: 3, name: "2026년 8월" }),
   ).toBeNull();
 });
+
+// ── 넓은 화면 세로 보기 · 「지도 | 세로」 전환 (Jira 221) ──────────────────
+// 기본은 가로 지도다(2026-11-16 사용자). 세로 보기는 ?view=list — 왼쪽 세로 흐름 + 오른쪽 고른 사건 칸
+
+const LATEST = "텍사스 공장 엔지니어 수급 우려 보도";
+const map = () => document.querySelector('svg[aria-label="사건 타임라인"]');
+const pressed = (name: string) =>
+  screen.getByRole("button", { name }).getAttribute("aria-pressed");
+
+test("「세로」를 누르면 기록을 쌓지 않고 ?view=list 로 세로 보기를 보인다 — 고른 사건이 없으면 최신 사건을 오른쪽에 보이고 주소에는 남기지 않는다", async () => {
+  const { router } = renderRoute("/issues/12");
+  await node(/착공식/);
+  expect(pressed("지도")).toBe("true");
+
+  fireEvent.click(screen.getByRole("button", { name: "세로" }));
+
+  expect(router.state.location.search).toBe("?view=list");
+  expect(router.state.historyAction).toBe("REPLACE");
+  const detail = await panel();
+  expect(
+    await within(detail).findByRole("heading", { level: 2, name: LATEST }),
+  ).toBeDefined();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "2026년 8월" }),
+  ).toBeDefined();
+  expect(map()).toBeNull();
+  expect(pressed("세로")).toBe("true");
+});
+
+test("「지도」로 돌아오면 ?view 를 지우고 고른 사건은 그대로 둔다", async () => {
+  const { router } = renderRoute("/issues/12?view=list&event=119");
+  await panelTitle("한빛반도체 텍사스 공장 착공식");
+
+  fireEvent.click(screen.getByRole("button", { name: "지도" }));
+
+  expect(router.state.location.search).toBe("?event=119");
+  expect(router.state.historyAction).toBe("REPLACE");
+  expect(map()).not.toBeNull();
+  expect(await panelTitle("한빛반도체 텍사스 공장 착공식")).toBeDefined();
+});
+
+test("세로 보기에서 사건을 누르면 기록을 쌓지 않고 ?event= 를 붙인다", async () => {
+  const { router } = renderRoute("/issues/12?view=list");
+  await panelTitle(LATEST);
+
+  fireEvent.click(await node(/착공식/));
+
+  expect(router.state.location.search).toBe("?view=list&event=119");
+  expect(router.state.historyAction).toBe("REPLACE");
+  expect(await panelTitle("한빛반도체 텍사스 공장 착공식")).toBeDefined();
+});
+
+test("세로 보기에서 이전 사건을 누르면 기록을 쌓지 않고 ?event= 를 붙인다", async () => {
+  const { router } = renderRoute("/issues/12?view=list");
+  await panelTitle(LATEST);
+
+  fireEvent.click(await screen.findByRole("button", { name: /이전 사건/ }));
+
+  expect(router.state.location.search).toBe("?view=list&event=119");
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+test("세로 보기에서 주소의 사건이 다른 이슈의 사건이면 세로 보기 그대로 그 이슈 주소로 바꾼다", async () => {
+  const { router } = renderRoute("/issues/13?view=list&event=119");
+
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/issues/12"),
+  );
+  expect(router.state.location.search).toBe("?view=list&event=119");
+});
+
+test("좁은 화면은 ?view=list 여도 지금처럼 세로 목록 + 시트이고 오른쪽 칸 · 전환이 없다", async () => {
+  stubScreen("narrow");
+  renderRoute("/issues/12?view=list");
+
+  expect(
+    await screen.findByRole("heading", { level: 3, name: "2026년 8월" }),
+  ).toBeDefined();
+  expect(map()).toBeNull();
+  expect(screen.queryByRole("complementary", { name: "사건 상세" })).toBeNull();
+  expect(screen.queryByRole("group", { name: "이슈 흐름 보기" })).toBeNull();
+});

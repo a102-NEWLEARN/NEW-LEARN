@@ -43,8 +43,8 @@ export default defineConfig(({ mode }) => {
       // NEW:LEARN 은 라이트 테마만 쓴다 (DESIGN.md). 이 플러그인이 <html data-seed-color-mode> 를
       // 옵션 값으로 덮어쓰므로 index.html 이 아니라 여기서 고정한다
       seedDesignPlugin({ colorMode: "light-only" }),
-      // 가짜 API(MSW) 의 서비스 워커를 개발 서버에서만 내준다. 빌드 결과에는 들어가지 않는다.
-      // 켜는 곳은 src/main.tsx (npm run dev:mock)
+      // 가짜 API(MSW) 의 서비스 워커를 개발 서버에서 내준다. 빌드에는 목 빌드(--mode mock · Vercel 데모 --mode demo)일 때만 들어간다.
+      // 켜는 곳은 src/main.tsx (npm run dev:mock · dev:demo)
       msw(),
     ],
     resolve: {

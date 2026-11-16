@@ -1,6 +1,9 @@
 import { expect, test } from "vitest";
 import type { TimelineEvent } from "@/api/timeline";
-import { layoutTimeline } from "@/components/issue/timelineLayout";
+import {
+  latestEventId,
+  layoutTimeline,
+} from "@/components/issue/timelineLayout";
 
 const NOW = new Date("2026-10-28T09:00:00+09:00");
 
@@ -199,4 +202,17 @@ test("늘리는 폭은 레인 이름 칸(140)과 오른쪽 여백(200)을 뺀 �
   const events = [event(1, at("08-04"), "MAIN"), event(2, at("08-05"), "MAIN")];
 
   expect(layoutTimeline(events, { now: NOW, width: 2000 }).width).toBe(1660);
+});
+
+// 최신 사건 — 짙은 청록으로 칠할 하나. A2 lastEvent 와 같은 규칙: 발생 시점 내림차순, 같으면 id 가 큰 것 (Jira 216)
+test("최신 사건은 가장 늦게 일어난 사건이고, 같은 시각이면 id 가 큰 것이다", () => {
+  expect(
+    latestEventId([
+      event(3, at("09-02"), "MAIN"),
+      event(7, at("10-06"), "SUB"),
+      event(5, at("10-06"), "MAIN"),
+      event(9, at("08-04"), "MAIN"),
+    ]),
+  ).toBe(7);
+  expect(latestEventId([])).toBeNull();
 });

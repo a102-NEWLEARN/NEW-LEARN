@@ -265,7 +265,7 @@ A10 ~ A12 는 사용자 URL 분석이 쓰던 번호다. 2026-10-20 팀 회의로
 | `schemaVersion` | string | 응답 모양의 버전. 화면이 모르는 버전이면 옛 화면이 깨지지 않게 안내만 한다 | `article_mindmap.schema_version` |
 | `generatedAt` | 시각 | 「AI 가 언제 만들었나」 표시 | `article_mindmap.generated_at` |
 | `aiGenerated` | boolean | AI 생성 표시를 붙이라는 신호. 지금은 늘 true(PRD FR-7) | 고정값 |
-| `title` | string | 가운데 글자. 지금은 기사 제목이다. 나중에 AI 가 지은 제목을 쓸 수 있다 | `content.title` 이 있으면 그것, 없으면 `article.title` |
+| `title` | string | 가운데 글자. 지금은 기사 제목이다. 나중에 AI 가 지은 제목을 쓸 수 있다. 화면은 대표 사건이 없는 기사에만 쓰고, 있으면 A8 `event.title` 을 가운데에 둔다(EXPERIENCE 보기 탭, Jira 216) | `content.title` 이 있으면 그것, 없으면 `article.title` |
 | `branches` | array | 가지와 잎. 저장한 `content.branches` 에서 근거(`evidence`)를 뺀 모양이다(3절) | `article_mindmap.content` |
 
 ```json
@@ -446,7 +446,7 @@ A17은 DB의 현재 목록을 읽으므로 이미 로그인한 다른 세션에�
 
 ### A25. 관심 이슈 목록 — `GET /api/v1/members/me/interest-issues`
 
-마이페이지의 *관심 이슈* 가 부른다(PRD FR-19, Jira 64). 로그인이 필요하다. A22 처럼 쪽 없이 전부 `items` 로 주고, 정렬은 저장한 시각 최신순, 같으면 이슈 `id` 내림차순. 항목은 A2 이슈 카드(`interested` 는 늘 true)에 `interestedAt`(저장한 시각, `interest_issue.created_at`)을 더한다. 공개 기사가 하나도 없는 이슈는 빠진다 — 저장 행은 남아 기사가 다시 공개되면 돌아온다(`api.md` 1절, 2026-11-09 Jira 179). 「지난 방문 이후 새 사건 N」은 보류라 데이터가 없다 — 마이페이지의 「새 사건 N」 배지는 그리지 않는다(2026-10-26). 홈 추천에서 별표한 이슈를 먼저 보이는 것은 화면이 A25 와 A2 를 합친다 — A2 에 정렬 인자를 더하지 않는다. 없으면 200 과 빈 `items`(화면: 「아직 저장한 이슈가 없어요」).
+나의 뉴스함의 *관심 이슈* 와 마이페이지 머리 줄 개수가 부른다(PRD FR-19, Jira 64. 목록은 2026-11-16 마이페이지에서 나의 뉴스함으로 옮겼다, Jira 216). 로그인이 필요하다. A22 처럼 쪽 없이 전부 `items` 로 주고, 정렬은 저장한 시각 최신순, 같으면 이슈 `id` 내림차순. 항목은 A2 이슈 카드(`interested` 는 늘 true)에 `interestedAt`(저장한 시각, `interest_issue.created_at`)을 더한다. 공개 기사가 하나도 없는 이슈는 빠진다 — 저장 행은 남아 기사가 다시 공개되면 돌아온다(`api.md` 1절, 2026-11-09 Jira 179). 「지난 방문 이후 새 사건 N」은 보류라 데이터가 없다 — 관심 이슈의 「새 사건 N」 배지는 그리지 않는다(2026-10-26). 홈 추천에서 별표한 이슈를 먼저 보이는 것은 화면이 A25 와 A2 를 합친다 — A2 에 정렬 인자를 더하지 않는다. 없으면 200 과 빈 `items`(화면: 「아직 저장한 이슈가 없어요」).
 
 ### A26. 드래그한 말의 문맥 뜻 — `POST /api/v1/dictionary/meaning`
 
