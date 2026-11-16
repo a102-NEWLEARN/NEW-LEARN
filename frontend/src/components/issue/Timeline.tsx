@@ -118,6 +118,8 @@ type TimelineProps = {
   onDeselect: () => void;
   /** 도구줄 「이슈 흐름」 옆 — 기간 · 사건 · 기사 수 */
   summary?: ReactNode;
+  /** 도구줄의 「지도 | 세로」 — 이슈 화면이 넣는다 (Jira 221) */
+  viewSwitch?: ReactNode;
 };
 
 // F07 사건 중심 이슈 에볼루션 맵 — 가로는 시간, 세로는 메인 흐름 · 서브 흐름 레인 (프로토타입 v21 LaneTimeline).
@@ -129,6 +131,7 @@ export function Timeline({
   onSelect,
   onDeselect,
   summary,
+  viewSwitch,
 }: TimelineProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -418,6 +421,7 @@ export function Timeline({
             </span>
           )}
         </div>
+        {viewSwitch}
         <div
           role="group"
           aria-label="확대 · 축소"
