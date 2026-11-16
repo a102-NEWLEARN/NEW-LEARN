@@ -120,7 +120,7 @@ test("고른 사건은 지금 고른 것(aria-current)으로 읽히고 시간축
 // 최신 사건은 짙은 청록, 나머지 메인은 민트 — 고른 사건은 채움을 바꾸지 않고 둘레 고리로 보인다.
 // 전에는 고르면 짙은 청록으로 채워 최신 사건과 헷갈렸다 (2026-11-16 디자인 피드백, Jira 216)
 const fillOf = (button: HTMLElement) =>
-  button.querySelector("[data-node]")!.getAttribute("class");
+  button.querySelector("[data-node]")?.getAttribute("class") ?? "";
 
 test("가장 늦게 일어난 사건 하나만 최신 사건으로 짙은 청록 노드에 두고 이름에 「최신 사건」을 붙인다", async () => {
   await renderTimeline();

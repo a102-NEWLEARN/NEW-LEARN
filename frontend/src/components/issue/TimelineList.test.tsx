@@ -70,7 +70,7 @@ test("서브 흐름 사건은 들여쓰고 메인 흐름 선에서 점선으로 
 
 // 가로 지도와 같은 규칙 — 최신 사건은 짙은 청록, 고른 사건은 채움 대신 고리 (2026-11-16 디자인 피드백, Jira 216)
 const fillOf = (button: HTMLElement) =>
-  button.querySelector("[data-node]")!.getAttribute("class");
+  button.querySelector("[data-node]")?.getAttribute("class") ?? "";
 
 test("가장 늦게 일어난 사건 하나만 최신 사건으로 짙은 청록 노드에 두고 이름에 「최신 사건」을 붙인다", async () => {
   await renderList();
