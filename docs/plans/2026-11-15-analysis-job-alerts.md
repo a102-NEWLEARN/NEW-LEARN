@@ -84,7 +84,7 @@ group by s.stage;
 - [x] **C3** `docs/testing.md` 6절
 - [x] MR → 파이프라인 초록 → **사람이 exporter 를 먼저 올린다**(아래) → 지표 · 경보 식 확인 → 머지(Argo CD `alerts` 앱이 규칙 반영)
 - [x] 반영 뒤 규칙 셋 `inactive` · `SSOT.md` 10절 한 줄 (2026-11-16, MR !1039 → dev `ade489a`)
-- [ ] 첫 진짜 실패가 Mattermost 로 오는지
+- [x] 첫 진짜 실패가 Mattermost 로 오는지 (11-16 21:43 · 11-17 02:44 · 03:43 EXTRACT 끝난 실패 셋, 사용자 확인 11-17)
 
 **사람 몫**(EC2, 파일 카드로 — `infra/server/README.md` 「서버로 보내기」로 폴더를 먼저 보냄). 운영에서는 **`make-secret.sh` 를 다시 돌리지 않고 권한 한 줄만** 친다 — 비밀번호 교체도 재시작도 없다:
 
