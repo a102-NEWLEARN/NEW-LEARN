@@ -57,6 +57,7 @@ public class IssueQueryRepository {
                     select 1 from issue_category ic where ic.issue_id = e.issue_id and ic.category_code = :category))
                 group by e.issue_id
                 having count(distinct e.id) >= :minPublicEvents
+                    and count(distinct e.id) filter (where e.role = 'MAIN') >= :minMainEvents
             ) c
             join issue i on i.id = c.issue_id
             order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
@@ -76,7 +77,7 @@ public class IssueQueryRepository {
                     count(distinct x.press_code) as publisher_count,
                     min(x.occurred_at) as first_event_at, max(x.occurred_at) as last_event_at
                 from (
-                    select e.id, e.issue_id, e.occurred_at, a.id as aid, a.press_code,
+                    select e.id, e.issue_id, e.occurred_at, e.role, a.id as aid, a.press_code,
                         count(*) over (partition by e.id) as public_articles
                     from event e
                     join article_event ae on ae.event_id = e.id
@@ -87,6 +88,7 @@ public class IssueQueryRepository {
                 where x.public_articles >= :minPublicArticles
                 group by x.issue_id
                 having count(distinct x.id) >= :minPublicEvents
+                    and count(distinct x.id) filter (where x.role = 'MAIN') >= :minMainEvents
             ) c
             join issue i on i.id = c.issue_id
             order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
@@ -108,18 +110,22 @@ public class IssueQueryRepository {
 
     public Page<CardRow> findCards(@Nullable String category, String sort, Pageable pageable) {
         long total = jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS
-                        + " and " + CATEGORY_FILTER)
+                        + " and " + PublicEventSql.ISSUE_HAS_ENOUGH_MAIN_EVENTS + " and " + CATEGORY_FILTER)
                 .param("category", category, Types.VARCHAR)
                 .param("publicArticleSkip", threshold.skip())
                 .param("publicEventSkip", threshold.eventSkip())
+                .param("minMainEvents", threshold.minMainEvents())
+                .param("mainEventSkip", threshold.mainEventSkip())
                 .query(Long.class)
                 .single();
         // 수를 세는 질의와 행을 가져오는 질의가 따로다 — 둘에 같은 문턱을 묶지 않으면 총수와 쪽이 어긋난다.
-        // 사건 수 문턱은 두 모양 모두 having 으로 거르므로 :minPublicEvents 를 늘 넣는다(안 넣으면 첫 요청에서 깨진다)
+        // 사건 수 · 메인 흐름 문턱은 두 모양 모두 having 으로 거르므로 :minPublicEvents · :minMainEvents 를 늘 넣는다
+        // (안 넣으면 첫 요청에서 깨진다). 메인 흐름은 count(distinct …) filter 라 끔(0)이면 늘 참이다
         List<CardRow> rows = jdbc.sql(threshold.isOff() ? LIST : LIST_WITH_THRESHOLD)
                 .param("category", category, Types.VARCHAR)
                 .param("minPublicArticles", threshold.minArticles())
                 .param("minPublicEvents", threshold.minEvents())
+                .param("minMainEvents", threshold.minMainEvents())
                 .param("sort", sort)
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset())

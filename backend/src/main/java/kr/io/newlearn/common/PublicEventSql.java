@@ -41,6 +41,19 @@ public final class PublicEventSql {
                 offset :publicEventSkip limit 1)
             """;
 
+    // 「보이는 메인 흐름 사건이 N개 이상인 이슈」 — 위 조각과 같은 자리(A2 · A1 · A13 이슈 칸)에 함께 붙인다(Jira S15P31A102-224).
+    // 보이는 = 공개 기사가 문턱 이상인 사건이다 — A4 타임라인의 메인 레인과 같은 집합이다(역할이 REACTION 이 아니면 MAIN 레인).
+    // 끔(:minMainEvents = 0)이면 참이다. :mainEventSkip 은 끔이어도 0 아래로 내려가지 않는다(PublicEventThreshold.mainEventSkip)
+    public static final String ISSUE_HAS_ENOUGH_MAIN_EVENTS = """
+            (:minMainEvents = 0 or exists (select 1 from event main_event
+                where main_event.issue_id = i.id and main_event.role = 'MAIN'
+                and exists (select 1 from article_event main_link
+                    join article main_article on main_article.id = main_link.article_id
+                    where main_link.event_id = main_event.id and main_article.released_at is not null
+                    offset :publicArticleSkip limit 1)
+                offset :mainEventSkip limit 1))
+            """;
+
     public static final String JPQL_EVENT_HAS_PUBLIC_ARTICLE = """
             (select count(publicLink) from ArticleEvent publicLink
                 where publicLink.event = e and publicLink.article.releasedAt is not null) >= :minPublicArticles
