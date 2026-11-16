@@ -59,6 +59,32 @@ Alertmanager 가 우리 경보 열(`infra/k8s/alerts/rules.yaml`)만 Mattermost 
 - **멈춤** — `kubectl -n monitoring get pod -l app.kubernetes.io/name=alloy -o wide` 로 어느 노드인지, `describe pod` · `logs --previous` 로 까닭. Pod 는 Running 인데 울리면 지표 수집 실패다 — Prometheus 화면 Status › Targets 의 `monitoring/alloy`
 - 한계: 수집 대상이 통째로 사라지면(ServiceMonitor 를 지움) 버린 로그 경보는 조용하다 — job 이름이 반영 뒤에 정해져 `absent()` 를 쓰지 않았다
 
+## 분석 작업 경보가 오면 (`NewlearnAnalysisJobFailed` · `NewlearnAnalysisLineStuck` · `NewlearnAnalysisMetricsMissing`)
+
+셋 다 분석 작업 표(`analysis_job`) 이야기다. backend 에는 지표가 없어서 postgres_exporter 가 DB 를 직접 센다(`infra/k8s/bootstrap/pg-exporter/queries.yaml`). 식과 까닭은 `rules.yaml` 주석, 왜 이 길인가는 계획 `docs/plans/2026-11-15-analysis-job-alerts.md`(Jira S15P31A102-215). 사이트는 멀쩡하다 — 새 기사의 마인드맵이나 사건 · 이슈 연결이 빠지거나 늦는다.
+
+- **끝내 실패**(`JobFailed`, warning) — 그 기사는 다시 걸리지 않는다. EXTRACT 면 마인드맵이 영영 없고, 판정 · 이슈면 그 기사 · 사건이 묶이지 않는다. 바탕값은 하루 1 ~ 3건, 전부 EXTRACT `LLM_OUTPUT_INVALID`(2026-11-15 기준). 어느 기사 · 어떤 오류인지:
+
+  ```bash
+  kubectl -n data exec -i postgres-0 -- psql -X -U newlearn -d newlearn -c "select j.stage, j.article_id, j.error_code, left(j.error_message, 80) as 메시지, j.finished_at at time zone 'Asia/Seoul' as 끝난시각, left(a.title, 40) as 제목 from analysis_job j join article a on a.id = j.article_id where j.status = 'FAILED' and j.retry_at is null and j.error_code is distinct from 'BACKLOG_SKIPPED' order by j.finished_at desc limit 10"
+  ```
+
+  오류 코드마다 다시 거는 규칙은 backend `RetryPolicy`(재시도를 다 쓴 뒤에 여기 온다). 몰려서 오면 GMS 상태와 AI 워커 로그(`kubectl -n ai logs deploy/ai --since=1h`)를 본다
+- **줄 멈춤**(`LineStuck`, critical) — 판정(MATCH_EVENT) · 이슈(ISSUE)는 한 번에 하나씩이라 하나가 막히면 뒤 기사가 전부 기다린다. 먼저 일부러 끈 것인지 본다(아래 🔴). 아니면
+  1. AI 워커 — `kubectl -n ai get pod` · `kubectl -n ai logs deploy/ai --since=1h`. 그 단계 소비자가 떠 있나, W1 을 보냈나
+  2. backend 멈춤 WARN — Grafana › Explore › Loki 에서 `{namespace="app"} |= "줄이 멈췄을 수 있다"`. 막힌 작업 번호가 나온다
+  3. `retry_at` 이 지났는데 안 걸림(FAILED + retry_at) — backend 1분 스케줄러가 못 도는 것이다. backend 로그의 「실패한 작업을 다시 걸지 못했다」 · 「차례를 건너뛴다」 WARN
+  4. 푸는 법은 `docs/api-internal.md` 3절 「큐 모양과 순서」의 「`MATCH_EVENT` 는 한 번에 하나씩」 대목(40분 멈춤 · 푸는 법)
+- **지표 없음**(`MetricsMissing`, warning) — 질의가 깨졌거나(권한 · 칸 이름) exporter 가 멈췄다. 이 동안 위 둘은 울리지 않는다. `stage` 이름표가 EXTRACT 면 실패 수 지표, MATCH_EVENT 면 줄 멈춤 지표가 빠진 것이다. `kubectl -n monitoring logs deploy/postgres-exporter` 에서 `queryNamespaceMappings` 오류를 찾는다(권한이면 `permission denied`). 권한은 `infra/server/perf/README.md` 「exporter 올리기」 2번의 한 줄로 다시 준다
+- 🔴 **AI 워커의 단계 플래그를 일부러 끄면 약 45분 뒤(40분을 넘고 5분 이어지면) `LineStuck` 이 울리고 12시간마다 다시 온다.** 고르기는 플래그와 상관없이 작업을 큐에 넣고, 꺼진 단계는 소비자가 없어 `QUEUED` 로 남는다. 끄는 MR 과 함께 silence 를 건다(관리 서버에서)
+
+  ```bash
+  kubectl -n monitoring exec statefulset/alertmanager-kps-kube-prometheus-stack-alertmanager -c alertmanager -- amtool silence add --alertmanager.url=http://localhost:9093 alertname=NewlearnAnalysisLineStuck stage=ISSUE --duration=24h --author=<이름> --comment="ISSUE 플래그 끔 — MR !<번호>"
+  ```
+
+  다시 켜면 `amtool silence expire <ID>`(ID 는 `amtool silence query`). **Alertmanager 가 다시 뜨면 silence 는 사라진다** — 디스크를 붙이지 않았다(`monitoring-values.yaml` 의 Alertmanager 주석). 그때 다시 건다
+- 한계: 메시지를 잃어(큐에 못 넣음) 다시 넣어도 `queued_at` 은 그대로라, W1 이 올 때까지 최대 15분 동안 줄 멈춤이 남을 수 있다. 고르기가 작업을 만들기 전에 예외로 계속 실패하면 진행 중 작업이 0 이라 이 경보는 못 잡는다(그때는 backend 로그)
+
 ## 바꿀 때
 
 - 경보 식을 바꿀 때는 먼저 Prometheus 에 그대로 물어 지금 값을 본다. 규칙만 바꾸면 MR 하나(Argo CD 가 반영)
