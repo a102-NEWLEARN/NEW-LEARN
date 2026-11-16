@@ -43,7 +43,7 @@
 - [x] 4. robots.txt · analytics defer — 시험 먼저(커밋 두 개)
 - [x] 5. 전후 다시 재기 — scratchpad 의 Node 시험 서버(gzip 레벨 5, 없는 파일은 index.html, `/api` 는 운영으로)에 지금 `origin/frontend` 빌드와 이 브랜치 빌드를 두 포트로 띄우고 번갈아 화면 다섯 개를 3번씩 쟀다. SSOT 10절에 적는다(커밋)
 - [ ] 6. `/verify` → MR(대상 `frontend`) → 배포 뒤 운영에서 다시 잰다
-- [ ] 7. charset — 시험 먼저, `nginx.conf` 한 줄(커밋). 로컬 시험 서버에 같은 머리를 붙여 Lighthouse charset 항목이 통과하는지 본다. SSOT 10절 줄에 더한다
+- [x] 7. charset — 시험 먼저, `nginx.conf` 한 줄(커밋). 로컬 시험 서버에 같은 머리를 붙여 Lighthouse charset 항목이 통과하는지 본다. SSOT 10절 줄에 더한다
 
 ## 안 바꿀 것
 
