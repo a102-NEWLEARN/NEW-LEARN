@@ -49,6 +49,7 @@ import {
 } from "@/components/motion/screenMotion";
 import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { useKeyboardInput } from "@/components/useKeyboardInput";
+import { track } from "@/lib/analytics";
 import { prefersReducedMotion } from "@/lib/motion";
 
 // 확대 · 축소 범위와 버튼 한 번의 배율 (프로토타입 v21)
@@ -315,10 +316,22 @@ export function Timeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, measured.width]);
 
-  const onNodeKeyDown = (event: KeyboardEvent, id: number) => {
+  // 사건 고르기 — 어느 레인의 몇째 사건을 마우스 · 키보드로 골랐는지 GA 로 보낸다.
+  // 몇째는 시간순(왼쪽부터) 자리다. 이슈는 주소(/issues/:id)로 GA 가 따로 안다
+  const selectEvent = (placed: PlacedEvent, via: "click" | "keyboard") => {
+    track("timeline_node_click", {
+      lane: placed.lane,
+      position: layout.events.filter((other) => other.x < placed.x).length + 1,
+      total: layout.events.length,
+      via,
+    });
+    onSelect(placed.id);
+  };
+
+  const onNodeKeyDown = (event: KeyboardEvent, placed: PlacedEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
-    onSelect(id);
+    selectEvent(placed, "keyboard");
   };
 
   // 라벨 — 같은 레인 오른쪽 이웃 노드까지 64px 이상 남으면 오른쪽, 아니면 노드 아래 (프로토타입).
@@ -549,9 +562,9 @@ export function Timeline({
                   onClick={(mouse) => {
                     mouse.stopPropagation();
                     // 사건 이름을 드래그한 끝의 클릭(용어사전)은 사건 고르기가 아니다
-                    if (!isTextDragClick(mouse)) onSelect(event.id);
+                    if (!isTextDragClick(mouse)) selectEvent(event, "click");
                   }}
-                  onKeyDown={(key) => onNodeKeyDown(key, event.id)}
+                  onKeyDown={(key) => onNodeKeyDown(key, event)}
                   onMouseEnter={() => setHoverId(event.id)}
                   onMouseLeave={() => setHoverId(null)}
                   onFocus={() => {

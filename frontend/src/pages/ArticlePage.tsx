@@ -32,6 +32,7 @@ import { ErrorState } from "@/components/state/ErrorState";
 import { MeaningGuide } from "@/components/meaning/MeaningGuide";
 import { LoadingState } from "@/components/state/LoadingState";
 import { usePageTitle } from "@/components/usePageTitle";
+import { track } from "@/lib/analytics";
 import { toId } from "@/lib/id";
 import { prefersReducedMotion } from "@/lib/motion";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -114,6 +115,8 @@ function ArticleView({ articleId }: { articleId: number }) {
   const revealMap = useRef(false);
   const setView = useCallback(
     (next: string) => {
+      // 처음 보기(흐름지도)에서 마인드맵으로 바꿔 보는지 GA 로 보낸다
+      track("article_view_switch", { view: next });
       revealMap.current = next === "map" && narrow;
       setSearchParams(
         (params) => {
@@ -210,6 +213,8 @@ function ArticleView({ articleId }: { articleId: number }) {
               // 직접 준다. 그래야 닫은 뒤 이 버튼으로 돌아온다
               onClick={(click) => {
                 click.currentTarget.focus();
+                // 어느 보기를 크게 보는지 GA 로 보낸다
+                track("article_expand", { view });
                 setExpanded(true);
               }}
               className="flex size-x10 shrink-0 items-center justify-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
