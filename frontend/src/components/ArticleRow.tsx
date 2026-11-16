@@ -57,7 +57,8 @@ export function ArticleRow({
         className="group flex min-w-0 flex-1 items-center gap-x3 rounded-r2 px-x2 py-x3 transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-x1">
-          <span className="t5-medium line-clamp-2 text-fg-neutral">
+          {/* 제목은 굵게 — 언론사 · 시각 줄과 명암 차이를 키운다 (2026-11-16 디자인 피드백, Jira 216) */}
+          <span className="t5-bold line-clamp-2 text-fg-neutral">
             {article.title}
           </span>
           <span className="t2-regular flex flex-wrap items-center gap-x1_5 text-fg-neutral-muted tabular-nums">

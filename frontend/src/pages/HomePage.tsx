@@ -109,7 +109,8 @@ export function HomePage() {
       >
         {/* 뒤에 까는 마인드맵 모양 배경. 섹션은 자르지 않는다 — 검색 목록이 섹션 밖으로 내려온다 */}
         <HomeHeroBackground />
-        <div className="relative mx-auto max-w-[780px] px-x5 pt-x12 pb-x10 text-center md:px-x6 md:pt-x16 md:pb-x12">
+        {/* 위아래 여백 — 검색 영역이 첫 화면을 덜 차지하고 아래 추천 카드가 더 보이게 줄였다 (2026-11-16 디자인 피드백, Jira 216) */}
+        <div className="relative mx-auto max-w-[780px] px-x5 pt-x8 pb-x7 text-center md:px-x6 md:pt-x10 md:pb-x8">
           <HomeGreeting member={member} pending={me.isPending} />
           {/* 처음 가입한 사람 가이드가 비추는 자리(data-tour) — OnboardingTour */}
           <div data-tour="search">

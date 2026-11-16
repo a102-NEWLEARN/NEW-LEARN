@@ -1,0 +1,4 @@
+# 검색 로봇 규칙 — 화면 주소는 모두 열고 API 만 막는다 (Jira 218)
+# 이 파일이 없으면 nginx 가 화면 주소처럼 index.html 을 내줘서 로봇이 규칙 대신 HTML 을 받는다
+User-agent: *
+Disallow: /api/

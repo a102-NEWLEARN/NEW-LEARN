@@ -5,7 +5,8 @@ import { problem as apiProblem } from "@/mocks/handlers";
 import { server } from "@/mocks/node";
 import { renderRoute } from "@/test/render";
 
-// 마이페이지 — 이름 · 개수 줄과 개인정보 · 관심 분야 · 관심 이슈 카드. 회원은 handlers.ts 의 A17 예시다.
+// 마이페이지 — 이름 · 개수 줄과 개인정보 · 관심 분야 섹션. 회원은 handlers.ts 의 A17 예시다.
+// 관심 이슈 목록은 나의 뉴스함으로 옮겼다 — 시험은 components/bookmarks/InterestIssues.test.tsx (2026-11-16)
 // 로그아웃(A16)은 헤더 프로필 메뉴로 옮겼다 — 시험은 components/shell/ProfileMenu.test.tsx (2026-11-05, S15P31A102-182)
 
 async function openMyPage() {
@@ -29,7 +30,7 @@ test("셸 안에 이름 · 아이디를 띄우고, 로그아웃 버튼은 두지
   expect(document.title).toContain("마이페이지");
 });
 
-test("섹션은 개인정보 → 관심 분야 → 관심 이슈 차례다", async () => {
+test("섹션은 개인정보 → 관심 분야 차례이고 관심 이슈는 없다", async () => {
   await openMyPage();
   const main = screen.getByRole("main");
   await within(main).findByRole("region", { name: "관심 분야" });
@@ -39,10 +40,10 @@ test("섹션은 개인정보 → 관심 분야 → 관심 이슈 차례다", asy
       .getAllByRole("region")
       .map((region) => region.getAttribute("aria-labelledby"))
       .map((id) => document.getElementById(id ?? "")?.textContent),
-  ).toEqual(["개인정보", "관심 분야", "관심 이슈"]);
+  ).toEqual(["개인정보", "관심 분야"]);
 });
 
-// 마이페이지의 관심 이슈 목록(A25)이 401 이어도 로그인 화면으로 (Jira 165)
+// 머리 줄 개수로 받는 관심 이슈 목록(A25)이 401 이어도 로그인 화면으로 (Jira 165)
 test("관심 이슈를 받다가 세션이 끝났으면(401) 로그인 화면으로 보낸다", async () => {
   server.use(
     http.get("/api/v1/members/me/interest-issues", () =>
@@ -72,21 +73,26 @@ test("이름 아래에 관심 분야 · 관심 이슈 · 북마크 개수를 보
 });
 
 test("개수 하나라도 못 받으면 머리 줄을 그리지 않는다", async () => {
+  let answered = 0;
   server.use(
-    http.get("/api/v1/members/me/bookmarks", () =>
-      apiProblem(
+    http.get("/api/v1/members/me/bookmarks", () => {
+      answered += 1;
+      return apiProblem(
         500,
         "INTERNAL_ERROR",
         "서버 오류",
         "/api/v1/members/me/bookmarks",
-      ),
-    ),
+      );
+    }),
+    // 기본 응답으로 넘기되 받은 것을 센다
+    http.get("/api/v1/members/me/interest-issues", () => {
+      answered += 1;
+    }),
   );
   await openMyPage();
-  // 관심 이슈 목록이 그려질 때까지 기다린 뒤에도 줄이 없다
-  await within(screen.getByRole("main")).findByRole("link", {
-    name: /한빛반도체 미국 공장 건설/,
-  });
+  // 두 목록 응답이 다 온 뒤 화면에 닿을 틈을 줘도 줄이 없다
+  await waitFor(() => expect(answered).toBe(2));
+  await new Promise((resolve) => setTimeout(resolve, 50));
 
   expect(screen.queryByText(/관심 분야 \d+개/)).toBeNull();
 });

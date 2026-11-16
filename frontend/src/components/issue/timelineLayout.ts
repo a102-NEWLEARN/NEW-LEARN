@@ -98,6 +98,22 @@ type LayoutOptions = {
 
 const timeOf = (event: TimelineEvent) => Date.parse(event.occurredAt);
 
+/**
+ * 최신 사건 — 노드를 짙은 청록으로 칠할 하나. 발생 시점이 가장 늦은 사건, 같으면 id 가 큰 것
+ * (A2 lastEvent 와 같은 규칙, docs/api-screen.md A2). 사건이 없으면 null (2026-11-16 디자인 피드백, Jira 216)
+ */
+export function latestEventId(events: TimelineEvent[]): number | null {
+  let latest: TimelineEvent | null = null;
+  for (const event of events)
+    if (
+      !latest ||
+      timeOf(event) > timeOf(latest) ||
+      (timeOf(event) === timeOf(latest) && event.id > latest.id)
+    )
+      latest = event;
+  return latest?.id ?? null;
+}
+
 function kstYearMonth(ms: number) {
   const date = new Date(ms + KST_OFFSET);
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };

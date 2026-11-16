@@ -15,6 +15,9 @@
     <meta name="apple-mobile-web-app-title" content="NEW:LEARN" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>NEW:LEARN</title>
+    <!-- GA4 · Clarity 사용 분석 — CSP 때문에 인라인이 아닌 같은 출처 파일로 불러온다.
+         defer — 첫 화면 그리기를 막지 않게 HTML 을 다 읽은 뒤 돈다 (Lighthouse, Jira 218) -->
+    <script src="/analytics.js" defer></script>
   </head>
   <body>
     <div id="root"></div>

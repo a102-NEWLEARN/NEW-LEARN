@@ -244,13 +244,35 @@ test("목록 이름은 비었을 때 「최근 업데이트된 이슈」, 글자
   expect(screen.getByRole("listbox", { name: "검색 결과" })).toBeDefined();
 });
 
-test("묶음마다 보일 수를 넘으면 잘라 보이고 묶음 이름에 「4 / 5개」를 붙인다", async () => {
+// 「4 / 5개」는 무엇을 센 것인지 읽기 어려웠다 → 「5개 중 4개」 (2026-11-16 디자인 피드백, Jira 216)
+test("묶음마다 보일 수를 넘으면 잘라 보이고 묶음 이름에 「5개 중 4개」를 붙인다", async () => {
   renderSearch();
 
   await openWith("공");
 
-  const events = await screen.findByRole("group", { name: "사건 4 / 5개" });
+  const events = await screen.findByRole("group", {
+    name: "사건 5개 중 4개",
+  });
   expect(within(events).getAllByRole("option")).toHaveLength(4);
+});
+
+// 이슈 · 사건 · 기사 묶음이 연한 작은 제목으로만 나뉘어 잘 구별되지 않았다 (2026-11-16 디자인 피드백, Jira 216)
+test("묶음 제목은 진한 글자로 두고, 두 번째 묶음부터 위에 구분선을 둔다", async () => {
+  renderSearch();
+
+  await openWith("공장");
+  await screen.findByRole("group", { name: "기사" });
+
+  const groups = within(screen.getByRole("listbox")).getAllByRole("group");
+  expect(
+    groups.map((group) => group.getAttribute("aria-labelledby")),
+  ).toHaveLength(3);
+  expect(groups[0].className).not.toContain("border-t");
+  expect(groups[1].className).toContain("border-t");
+  expect(groups[2].className).toContain("border-t");
+  const title = within(groups[1]).getByText("사건").parentElement!;
+  expect(title.className).toContain("t3-bold");
+  expect(title.className).toMatch(/(^|\s)text-fg-neutral(\s|$)/);
 });
 
 // 줄 id 가 순번이면 결과가 바뀌어도 aria-activedescendant 가 그대로라 스크린 리더가 새 줄을 읽지 않는다
