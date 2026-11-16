@@ -83,20 +83,6 @@ export function TimelineList({
       "absolute top-full right-0 z-20 mt-x2 w-[min(300px,calc(100vw-40px))]",
     howTo: "사건을 누르면 그 사건의 기사를 아래에서 보여 줘요.",
   });
-  const dates = formatTimelineDates(events.map((event) => event.occurredAt));
-  // 최신 사건 — 노드를 짙은 청록으로 칠한다. 가로 지도와 같은 규칙 (2026-11-16 디자인 피드백, Jira 216)
-  const latestId = latestEventId(events);
-  const listed: ListedEvent[] = events.map((event, index) => ({
-    ...event,
-    index,
-    dateLabel: dates[index],
-    estimated: event.occurredAtBasis === "FIRST_PUBLISHED",
-  }));
-  const span = Math.min(SPAN_MAX, PER_EVENT * Math.max(0, events.length - 1));
-  const enterOf = (index: number) =>
-    Math.round(
-      START + (events.length > 1 ? (index / (events.length - 1)) * span : 0),
-    );
 
   return (
     <section aria-labelledby="timeline-title" className="px-x5 pt-x5 pb-[96px]">
@@ -116,47 +102,91 @@ export function TimelineList({
         {tip.button}
         {tip.panel}
       </div>
-      <div role="group" aria-label="사건 타임라인" className="relative mt-x5">
-        {/* 메인 흐름 선 — 사건 사이 관계가 아니라 레인 자리다 (DESIGN.md timeline-rail). 위에서 아래로 자란다.
-            위치는 px 로 준다 — SEED 테마에는 top-x3 같은 위치 클래스가 없다 */}
-        <span
-          data-rail
-          aria-hidden
-          className={`absolute top-[12px] bottom-[12px] left-[13px] z-[1] w-[2px] rounded-full bg-bg-brand-accent ${GROW_Y}`}
-          style={{
-            animationDelay: `${START}ms`,
-            animationDuration: `${span || 300}ms`,
-            animationTimingFunction: "linear",
-          }}
-        />
-        {byMonth(listed).map((month, monthIndex) => (
-          <section key={month.key} aria-labelledby={`timeline-${month.key}`}>
-            <h3
-              id={`timeline-${month.key}`}
-              className={`t3-bold relative z-[2] ml-[36px] text-fg-neutral-subtle ${monthIndex === 0 ? "" : "mt-x4"} ${RISE}`}
-              style={enterAt(
-                Math.max(0, enterOf(month.items[0].index) - MONTH_BEFORE),
-              )}
-            >
-              {month.label}
-            </h3>
-            <ol className="mt-x1 flex flex-col gap-x1">
-              {month.items.map((event) => (
-                <li key={event.id}>
-                  <EventRow
-                    event={event}
-                    selected={event.id === selectedId}
-                    latest={event.id === latestId}
-                    enterAt={enterOf(event.index)}
-                    onSelect={onSelect}
-                  />
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))}
-      </div>
+      <TimelineEvents
+        events={events}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        className="mt-x5"
+      />
     </section>
+  );
+}
+
+type TimelineEventsProps = Pick<
+  TimelineListProps,
+  "events" | "selectedId" | "onSelect"
+> & {
+  className?: string;
+};
+
+// 세로 타임라인의 사건 목록 — 민트 선 · 달 제목 · 사건 줄. 좁은 화면 세로 타임라인(TimelineList)과
+// 넓은 화면 세로 보기(IssueFlowSplit)가 같이 쓴다 (Jira 221)
+export function TimelineEvents({
+  events,
+  selectedId,
+  onSelect,
+  className = "",
+}: TimelineEventsProps) {
+  const dates = formatTimelineDates(events.map((event) => event.occurredAt));
+  // 최신 사건 — 노드를 짙은 청록으로 칠한다. 가로 지도와 같은 규칙 (2026-11-16 디자인 피드백, Jira 216)
+  const latestId = latestEventId(events);
+  const listed: ListedEvent[] = events.map((event, index) => ({
+    ...event,
+    index,
+    dateLabel: dates[index],
+    estimated: event.occurredAtBasis === "FIRST_PUBLISHED",
+  }));
+  const span = Math.min(SPAN_MAX, PER_EVENT * Math.max(0, events.length - 1));
+  const enterOf = (index: number) =>
+    Math.round(
+      START + (events.length > 1 ? (index / (events.length - 1)) * span : 0),
+    );
+
+  return (
+    <div
+      role="group"
+      aria-label="사건 타임라인"
+      className={`relative ${className}`}
+    >
+      {/* 메인 흐름 선 — 사건 사이 관계가 아니라 레인 자리다 (DESIGN.md timeline-rail). 위에서 아래로 자란다.
+            위치는 px 로 준다 — SEED 테마에는 top-x3 같은 위치 클래스가 없다 */}
+      <span
+        data-rail
+        aria-hidden
+        className={`absolute top-[12px] bottom-[12px] left-[13px] z-[1] w-[2px] rounded-full bg-bg-brand-accent ${GROW_Y}`}
+        style={{
+          animationDelay: `${START}ms`,
+          animationDuration: `${span || 300}ms`,
+          animationTimingFunction: "linear",
+        }}
+      />
+      {byMonth(listed).map((month, monthIndex) => (
+        <section key={month.key} aria-labelledby={`timeline-${month.key}`}>
+          <h3
+            id={`timeline-${month.key}`}
+            className={`t3-bold relative z-[2] ml-[36px] text-fg-neutral-subtle ${monthIndex === 0 ? "" : "mt-x4"} ${RISE}`}
+            style={enterAt(
+              Math.max(0, enterOf(month.items[0].index) - MONTH_BEFORE),
+            )}
+          >
+            {month.label}
+          </h3>
+          <ol className="mt-x1 flex flex-col gap-x1">
+            {month.items.map((event) => (
+              <li key={event.id}>
+                <EventRow
+                  event={event}
+                  selected={event.id === selectedId}
+                  latest={event.id === latestId}
+                  enterAt={enterOf(event.index)}
+                  onSelect={onSelect}
+                />
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
   );
 }
 
