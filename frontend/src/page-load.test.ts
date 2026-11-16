@@ -18,3 +18,13 @@ test("robots.txt 가 있어 검색 로봇이 화면 HTML 대신 규칙을 받는
     .filter((line) => line && !line.startsWith("#"));
   expect(rules).toEqual(["User-agent: *", "Disallow: /api/"]);
 });
+
+test("사용 분석 스크립트(analytics.js)는 defer 로 불러 첫 화면 그리기를 막지 않는다", () => {
+  // <head> 의 보통 script 는 받고 돌 때까지 화면 그리기를 멈춘다. defer 는 HTML 을 다 읽은 뒤
+  // 화면 코드(module script)보다 먼저 차례대로 돈다 — 화면 쪽 track() 은 gtag 가 없어도 넘어간다
+  const html = readFileSync(file("index.html"), "utf8");
+  const tags = html.match(/<script[^>]*\bsrc="\/analytics\.js"[^>]*>/g) ?? [];
+
+  expect(tags).toHaveLength(1);
+  expect(tags[0]).toMatch(/\sdefer[\s>]/);
+});
