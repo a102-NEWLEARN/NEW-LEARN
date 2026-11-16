@@ -138,6 +138,11 @@ function ArticleView({ articleId }: { articleId: number }) {
   // (2026-11-12 사용자, Jira 195). 숨긴 가지 · 라벨 표시는 여기서 들고 있어 창에서도 같다. 확대 · 포커스 · 강조는 창에서 새로 시작한다
   const [expanded, setExpanded] = useState(false);
   const drawn = drawable(mindmap.data) ? mindmap.data : null;
+  // 마인드맵 가운데 — 대표 사건 제목. 긴 기사 제목을 한 번 더 두니 잘렸다 (2026-11-16 디자인 피드백, Jira 216).
+  // 사건이 없는 기사 · A8 이 실패했으면 A9 title(기사 제목)
+  const centerEvent = article.data?.event?.title.trim()
+    ? article.data.event
+    : null;
   const renderView = (
     which: View,
     { title, branches, aiGenerated }: Mindmap,
@@ -151,10 +156,14 @@ function ArticleView({ articleId }: { articleId: number }) {
         aiGenerated={aiGenerated}
         fill={fill}
       />
+    ) : article.isPending ? (
+      // 가운데 글자는 A8 을 받아야 정해진다 — 기사 제목으로 그렸다가 사건 제목으로 바뀌며 배치가 튀지 않게 기다린다
+      <MindmapSkeleton />
     ) : (
       <MindmapView
         articleId={articleId}
-        title={title}
+        title={centerEvent?.title ?? title}
+        titleEventId={centerEvent?.id ?? null}
         branches={branches}
         aiGenerated={aiGenerated}
         settings={mapSettings}
