@@ -13,7 +13,12 @@ import { eventQuery } from "@/api/event";
 import { type IssueDetail, issueQuery } from "@/api/issue";
 import { timelineQuery } from "@/api/timeline";
 import { EventDetailPane } from "@/components/issue/EventDetailPane";
+import { IssueFlowSplit } from "@/components/issue/IssueFlowSplit";
 import { IssueHeader } from "@/components/issue/IssueHeader";
+import {
+  type IssueView,
+  IssueViewSwitch,
+} from "@/components/issue/IssueViewSwitch";
 import { Timeline } from "@/components/issue/Timeline";
 import { TimelineList } from "@/components/issue/TimelineList";
 import { EmptyState } from "@/components/state/EmptyState";
@@ -21,6 +26,7 @@ import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { usePageTitle } from "@/components/usePageTitle";
+import { track } from "@/lib/analytics";
 import { formatPeriod } from "@/lib/date";
 import { toId } from "@/lib/id";
 import { metaLine } from "@/lib/meta";
@@ -43,6 +49,12 @@ const ISSUE_COACH: CoachMark[] = [
 ];
 
 const NOT_FOUND_TITLE = "이슈를 찾을 수 없어요";
+
+// 넓은 화면 이슈 흐름의 보기 — view 가 없으면 가로 지도다(2026-11-16 사용자). 세로 보기는 `?view=list`
+// (Jira 221 — 「흐름을 한눈에 보기엔 세로가 편하다」는 피드백으로 더했다)
+const DEFAULT_VIEW: IssueView = "map";
+const toView = (raw: string | null): IssueView =>
+  raw === "list" || raw === "map" ? raw : DEFAULT_VIEW;
 
 const isNotFound = (error: unknown) =>
   error instanceof ApiError && error.code === "ISSUE_NOT_FOUND";
@@ -85,8 +97,29 @@ function IssueView({ issueId }: { issueId: number }) {
     [setSearchParams],
   );
 
-  // 사건 패널 — 고른 사건이 있으면 열린다 (EXPERIENCE.md 앱 셸 「오른쪽 패널」)
+  // 보기 바꾸기도 기록을 쌓지 않는다. 기본(지도)이면 쿼리를 지운다 — 홈 ?view=latest 와 같다 (EXPERIENCE.md 이동 규칙).
+  // 좁은 화면은 늘 세로 목록이라 보기를 보지 않는다
+  const view = toView(searchParams.get("view"));
+  const setView = useCallback(
+    (next: IssueView) => {
+      // 세로 보기를 얼마나 고르는지 GA 로 보낸다
+      track("issue_view_switch", { view: next });
+      setSearchParams(
+        (params) => {
+          if (next === DEFAULT_VIEW) params.delete("view");
+          else params.set("view", next);
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  // 사건 패널 — 고른 사건이 있으면 열린다 (EXPERIENCE.md 앱 셸 「오른쪽 패널」). 넓은 화면 세로 보기(?view=list)는 패널 대신
+  // 오른쪽 칸에 늘 보인다(IssueFlowSplit)
   const narrow = useMediaQuery(NARROW_SCREEN);
+  const splitView = !narrow && view === "list";
   // 좁은 화면 시트는 닫히며 미끄러져 내려가는 동안(SEED) 마지막 사건을 그대로 보인다
   const [sheetEventId, setSheetEventId] = useState(selectedId);
   if (selectedId !== null && selectedId !== sheetEventId)
@@ -102,12 +135,14 @@ function IssueView({ issueId }: { issueId: number }) {
     selectedEvent.data?.issue && selectedEvent.data.issue.id !== issueId
       ? selectedEvent.data.issue.id
       : null;
+  // 기본이 아닌 보기(세로)면 옮긴 주소에도 그 보기를 남긴다
+  const viewQuery = view === DEFAULT_VIEW ? "" : `view=${view}&`;
   useEffect(() => {
     if (otherIssueId !== null && selectedId !== null)
-      navigate(`/issues/${otherIssueId}?event=${selectedId}`, {
+      navigate(`/issues/${otherIssueId}?${viewQuery}event=${selectedId}`, {
         replace: true,
       });
-  }, [otherIssueId, selectedId, navigate]);
+  }, [otherIssueId, selectedId, navigate, viewQuery]);
   // 닫으면 포커스를 그 사건 노드로 돌린다 (Accessibility Floor). 타임라인에 없는 사건이면 이슈 제목으로
   const pageRef = useRef<HTMLDivElement>(null);
   const closePanel = useCallback(() => {
@@ -151,6 +186,15 @@ function IssueView({ issueId }: { issueId: number }) {
                 onSelect={setEvent}
                 summary={issue.data && summaryOf(issue.data)}
               />
+            ) : splitView ? (
+              // 넓은 화면 세로 보기 ?view=list — 왼쪽 세로 흐름 + 오른쪽 고른 사건 칸 (Jira 221)
+              <IssueFlowSplit
+                events={timeline.data.events}
+                selectedId={selectedId}
+                onSelect={setEvent}
+                summary={issue.data && summaryOf(issue.data)}
+                viewSwitch={<IssueViewSwitch view={view} onChange={setView} />}
+              />
             ) : (
               <Timeline
                 events={timeline.data.events}
@@ -158,6 +202,7 @@ function IssueView({ issueId }: { issueId: number }) {
                 onSelect={setEvent}
                 onDeselect={closePanel}
                 summary={issue.data && summaryOf(issue.data)}
+                viewSwitch={<IssueViewSwitch view={view} onChange={setView} />}
               />
             )
           ) : timeline.isError ? (
@@ -184,7 +229,8 @@ function IssueView({ issueId }: { issueId: number }) {
               onSelectEvent={setEvent}
             />
           )
-        : panelOpen &&
+        : !splitView &&
+          panelOpen &&
           otherIssueId === null && (
             <EventDetailPane
               open

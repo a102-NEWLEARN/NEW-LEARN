@@ -42,17 +42,20 @@ test("운영 빌드인지는 따로 안 알려 주면 빌드 설정에서 읽는
   expect(container.register).toHaveBeenCalledWith("/sw.js", { scope: "/" });
 });
 
-test("목 빌드(vite build --mode mock)는 운영 빌드여도 등록하지 않는다", () => {
-  // Vercel 데모(Jira 220)는 운영 빌드에 가짜 API 를 켠다 — 우리 워커가 MSW 워커 자리를 빼앗지 않게
-  vi.stubEnv("PROD", true);
-  vi.stubEnv("MODE", "mock");
-  const container = fakeContainer();
-  registerServiceWorker({ container });
+test.each(["mock", "demo"])(
+  "목 빌드(vite build --mode %s)는 운영 빌드여도 등록하지 않는다",
+  (mode) => {
+    // 목 빌드 · Vercel 데모(Jira 220)는 운영 빌드에 가짜 API 를 켠다 — 우리 워커가 MSW 워커 자리를 빼앗지 않게
+    vi.stubEnv("PROD", true);
+    vi.stubEnv("MODE", mode);
+    const container = fakeContainer();
+    registerServiceWorker({ container });
 
-  window.dispatchEvent(new Event("load"));
+    window.dispatchEvent(new Event("load"));
 
-  expect(container.register).not.toHaveBeenCalled();
-});
+    expect(container.register).not.toHaveBeenCalled();
+  },
+);
 
 test("서비스 워커를 못 쓰는 브라우저면 아무것도 하지 않는다", () => {
   expect(() =>
