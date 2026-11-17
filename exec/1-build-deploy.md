@@ -12,6 +12,7 @@ flowchart LR
   W["ai 워커<br/>FastAPI"] --> R
   W -->|"분석 결과"| B
   W --> L["SSAFY GMS<br/>LLM"]
+  B -->|"용어사전 문맥 뜻"| L
   C["news-ingest<br/>CronJob 15분"] -->|"기사 적재 · 분석 등록"| B
 ```
 
@@ -46,15 +47,15 @@ flowchart LR
 | 비밀값 | Sealed Secrets v0.40.0 (차트 2.20.0) · kubeseal 0.40.0 | 봉인 스크립트 `infra/server/seal-secrets.sh` |
 | TLS 인증서 | cert-manager v1.21.2 + Let's Encrypt (HTTP-01) | `infra/k8s/gateway/` |
 | 저장 공간 | local-path-provisioner v0.0.37 (StorageClass `newlearn-local`) | `infra/k8s/apps/templates/local-path.yaml` |
-| CI | GitLab CI (SSAFY GitLab CE 18.11) · GitLab Runner 0.88.4 (쿠버네티스 executor) | `.gitlab-ci.yml`, `infra/k8s/bootstrap/gitlab-runner-values.yaml` |
+| CI | GitLab CI (SSAFY GitLab CE 18.11.5) · GitLab Runner 18.11.4 (차트 0.88.4, 쿠버네티스 executor) | `.gitlab-ci.yml`, `infra/k8s/bootstrap/gitlab-runner-values.yaml` |
 | 이미지 굽기 | Kaniko (osscontainertools v1.28.6) — 특권 없이 잡 안에서 굽기 | `.gitlab-ci.yml` 의 `w4` 잡 |
 | 이미지 저장소 | GitHub Container Registry(GHCR) 비공개 패키지 | `.gitlab-ci.yml` 의 `IMAGE_PREFIX` |
-| 모니터링 · 로그 · 경보 | kube-prometheus-stack 92.10.1 (Prometheus · Grafana · Alertmanager), Loki 7.5.0, Alloy 1.14.3 | `infra/k8s/bootstrap/`, `infra/server/logging.md`, 경보 `infra/k8s/alerts/rules.yaml` |
+| 모니터링 · 로그 · 경보 | kube-prometheus-stack 차트 92.10.1 (Prometheus · Grafana · Alertmanager), Loki 이미지 3.6.11 (차트 7.5.0), Alloy v1.21.2 (차트 1.14.3) | `infra/k8s/bootstrap/`, `infra/server/logging.md`, 경보 `infra/k8s/alerts/rules.yaml` |
 | 인프라 코드 | Terraform 1.16.6 (AWS provider 6) | `infra/terraform/` |
 
 ### 개발 도구 (IDE)
 
-저장소에는 IDE 설정 파일이 없습니다. 개발 환경은 컨테이너로 돌아서 특정 IDE 에 묶이지 않고, 빌드에 실제로 쓰는 JDK · Node · Python 판은 위 표의 컨테이너 이미지에 고정돼 있습니다. 관리자 PC 에서 확인한 판은 아래와 같습니다.
+저장소에는 IDE 설정 파일이 없습니다. 개발 환경은 컨테이너로 돌아서 특정 IDE 에 묶이지 않습니다. 운영 이미지 · CI 이미지의 JDK · Node · Python 판은 위 표처럼 고정돼 있고, 로컬 compose 의 `node:26-alpine` · `eclipse-temurin:25-jdk` 는 판을 고정하지 않습니다(`docs/dev-environment.md`). 관리자 PC 에서 확인한 판은 아래와 같습니다.
 
 | 도구 | 판 |
 |---|---|
@@ -71,11 +72,15 @@ IDE 는 필수가 아닙니다. 빌드와 실행은 아래 명령만으로 됩�
 
 ## 1-2. 클론 → 로컬 실행
 
-**준비물은 Docker Desktop(Engine 25 이상) 하나입니다.** 화면 · API · AI 워커 · DB · Redis 가 모두 컨테이너로 뜹니다. Windows 는 WSL 2 Ubuntu 터미널에서, WSL 쪽 폴더(`~/` 아래)에 클론합니다 — C: 드라이브에 클론하면 고친 파일이 컨테이너에 반영되지 않습니다.
+**준비물은 Docker Desktop(Engine 25 이상)과 Git · Git LFS 입니다.** 화면 · API · AI 워커 · DB · Redis 가 모두 컨테이너로 뜹니다. Windows 는 WSL 2 Ubuntu 터미널에서, WSL 쪽 폴더(`~/` 아래)에 클론합니다 — C: 드라이브에 클론하면 고친 파일이 컨테이너에 반영되지 않습니다. 덤프는 Git LFS 로 올려 두어서, WSL Ubuntu 처럼 git-lfs 가 없으면 먼저 깝니다.
+
+```bash
+sudo apt install -y git git-lfs && git lfs install
+```
 
 ### ① 클론
 
-`data/` 의 기사 SQLite(Git LFS, 약 1.66GB)는 실행에 필요 없습니다. 받지 않고 클론한 뒤 3장 덤프만 받습니다.
+`data/` 의 기사 SQLite(Git LFS, 약 1.66GB)는 실행에 필요 없습니다. 받지 않고 클론한 뒤 3장 덤프만 받습니다. Git LFS 없이 받으려면 GitLab 웹의 `exec/files/db/` 파일 화면에서 덤프를 내려받아 같은 자리에 둡니다.
 
 ```bash
 GIT_LFS_SKIP_SMUDGE=1 git clone https://lab.ssafy.com/s15-final/S15P31A102.git
@@ -97,7 +102,9 @@ cp .env.example .env
 
 값은 그대로 둡니다. `LLM_MODE=mock` 이 기본이라 GMS 키 없이도 뜹니다. 실제 LLM 을 부르려면 1-3 의 GMS 칸을 채웁니다.
 
-### ③ 띄우기
+**운영과 같은 데이터로 보려면 여기서 ③ 대신 3장 「되살리는 법」으로 갑니다.** 덤프는 backend 가 처음 뜨기 전에 빈 DB 에 넣어야 합니다 — backend 가 먼저 뜨면 Flyway 가 빈 스키마를 만들어 덤프와 부딪힙니다. ③ 은 빈 DB 로 띄우는 길입니다.
+
+### ③ 띄우기 (빈 DB)
 
 ```bash
 docker compose --profile full up -d --wait
@@ -109,7 +116,7 @@ docker compose --profile full up -d --wait
 | http://localhost:5173/actuator/health | `UP` — 화면 → API → DB · Redis 가 이어졌다는 뜻 |
 | http://localhost:8080/actuator/health · http://localhost:8000/health | API · 워커 헬스 200 |
 
-처음에는 이미지(약 1.9 GB)와 의존성(약 1.8 GB)을 받느라 몇 분 걸립니다. 빈 DB 로 뜨므로 홈에 이슈가 없습니다. **운영과 같은 데이터로 보려면 3장 방법으로 덤프를 먼저 넣습니다.**
+처음에는 이미지(약 1.9 GB)와 의존성(약 1.8 GB)을 받느라 몇 분 걸립니다. 빈 DB 로 뜨므로 홈에 이슈가 없습니다.
 
 | 명령 | 뜨는 것 | 이럴 때 |
 |---|---|---|
@@ -141,18 +148,22 @@ docker compose --profile full up -d --wait
 
 ### 로컬 — 루트 `.env` (`.env.example` 을 복사)
 
-compose 와 IDE 에서 띄운 API · 워커가 같은 파일을 읽습니다.
+읽는 곳이 띄우는 방법에 따라 다릅니다.
+
+- **compose 로 띄울 때**: compose 가 루트 `.env` 를 읽어 컨테이너마다 정해진 값만 넘깁니다(`compose.yaml` 의 `environment`). backend 컨테이너에는 DB · Redis · `INTERNAL_*` 만, ai 컨테이너에는 `LLM_MODE` · `GMS_*` · 워커 스위치 · `INTERNAL_WORKER_KEY` 가 갑니다. backend 의 나머지 값(`GMS_API_KEY` · `GMS_BASE_URL` · `GMS_MODEL` · `STDICT_API_KEY` · 목록 기준값 `QUERY_MIN_*` 등)은 **`backend/.env`** 에 넣습니다 — backend 가 시작할 때 자기 폴더의 `.env` 를 읽고, git 은 이 파일을 무시합니다. 이 길은 `QUERY_MIN_*` 으로 확인했습니다(3장).
+- **IDE · `./gradlew bootRun` 으로 띄울 때**: backend 가 루트 `.env` 를 바로 읽습니다.
 
 | 변수 | 뜻 | 비우면 |
 |---|---|---|
 | `POSTGRES_DB` · `POSTGRES_USER` · `POSTGRES_PASSWORD` | 로컬 DB 이름 · 계정 (이 PC 127.0.0.1 에만 열림) | 기본값 그대로 써도 됨 |
 | `DB_PORT` · `REDIS_PORT` · `BACKEND_PORT` · `AI_PORT` · `FRONTEND_PORT` | 내 PC 에 여는 포트 | 기본 5432 · 6379 · 8080 · 8000 · 5173 |
-| `SESSION_COOKIE_SECURE` | 세션 쿠키에 Secure 를 붙일지 (로컬 false, 운영 true) | |
+| `SESSION_COOKIE_SECURE` | 세션 쿠키에 Secure 를 붙일지 (로컬 false, 운영 true) | false |
 | `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` | 직원용 문(`/internal/v1`) 출입증 — 워커 · 수집 배치 | 직원용 API 가 모두 막힘 |
 | `STDICT_API_KEY` | 국립국어원 표준국어대사전 키 (2장 — 지금 화면은 안 씀) | 사전 API 502 |
 | `NEWSDATA_API_KEY` | 수집 배치를 로컬에서 돌려 볼 때만 | |
-| `LLM_MODE` · `GMS_MODEL` · `GMS_API_KEY` · `GMS_BASE_URL` | LLM. `mock` 이면 GMS 를 부르지 않음 | 모의 응답 · 용어사전 문맥 뜻 502 |
-| `WORKER_ALLOW_MOCK` · `EMBED_WORKER_ENABLED` · `MATCH_EVENT_WORKER_ENABLED` · `ISSUE_WORKER_ENABLED` | 워커 단계 스위치 | 그 단계를 돌리지 않음 |
+| `LLM_MODE` · `GMS_MODEL` | AI 워커의 LLM. `mock` 이면 워커가 GMS 를 부르지 않고 모의 응답 | 워커가 GMS 를 안 부름 |
+| `GMS_API_KEY` · `GMS_BASE_URL` | GMS 키 · 주소. backend 의 용어사전 문맥 뜻(A26)은 `LLM_MODE` 를 보지 않고 이 둘이 있으면 부름(비용이 듦) | 문맥 뜻 502 |
+| `WORKER_ALLOW_MOCK` · `EMBED_WORKER_ENABLED` · `MATCH_EVENT_WORKER_ENABLED` · `ISSUE_WORKER_ENABLED` | 워커 단계 스위치 | 워커가 큐를 읽지 않음(기본) |
 
 ### 빌드 · CI — GitLab CI/CD 변수
 
@@ -160,10 +171,10 @@ compose 와 IDE 에서 띄운 API · 워커가 같은 파일을 읽습니다.
 
 | 변수 | 쓰는 잡 | 무엇 |
 |---|---|---|
-| `GHCR_USER` · `GHCR_TOKEN` | `w4:backend` · `w4:frontend` · `w4:ai` | 구운 이미지를 GHCR 에 올리는 계정 · 토큰(`write:packages`). dev 파이프라인에만 들어감 |
+| `GHCR_USER` · `GHCR_TOKEN` | `w4:backend` · `w4:frontend` · `w4:ai`, `w5:deploy-mr` | 구운 이미지를 GHCR 에 올리는 계정 · 토큰(`write:packages`). `w5` 는 그 태그가 GHCR 에 있는지 볼 때 씀. dev 파이프라인에만 들어감 |
 | `DEPLOY_MR_TOKEN` | `w5:deploy-mr` | 배포 태그 MR 을 여는 프로젝트 액세스 토큰(Developer · `api`) |
 
-`.gitlab-ci.yml` 안에서 정하는 변수 중 알아 둘 것: `IMAGE_PREFIX`(이미지 이름 앞부분), `W4_PUSH`(dev 에서 영역이 바뀔 때만 이미지를 올림), `GIT_LFS_SKIP_SMUDGE`(잡에서 LFS 파일을 받지 않음). 화면은 `VITE_*` 빌드 변수가 없고, `npm run build`(운영) · `npm run build -- --mode demo`(Vercel 데모) 두 모드뿐입니다.
+`.gitlab-ci.yml` 안에서 정하는 변수 중 알아 둘 것: `IMAGE_PREFIX`(이미지 이름 앞부분), `W4_PUSH`(dev 에서 영역이 바뀔 때만 이미지를 올림), `GIT_LFS_SKIP_SMUDGE`(잡에서 LFS 파일을 받지 않음). 화면은 `VITE_*` 빌드 변수가 없고, 빌드 모드로 나뉩니다: `npm run build`(운영 — 가짜 API 없음) · `--mode demo`(Vercel 데모 — 기사 스냅샷) · `--mode mock`(가짜 API).
 
 ### 운영 — 쿠버네티스 매니페스트 · 봉인 Secret
 
@@ -180,7 +191,20 @@ compose 와 IDE 에서 띄운 API · 워커가 같은 파일을 읽습니다.
 | 이미지 받기 (app · ai) | — | `ghcr-pull`(GHCR 읽기 토큰) | `ghcr` |
 | 관리 화면 · 알림 | — | `basic-auth`(`/argocd` · `/grafana` 팝업 계정), `argocd-webhook`, `argocd-notifications-secret` · `alertmanager-mattermost`(Mattermost 웹훅) | `basic-auth` · `argocd-webhook` · `mattermost` · `alertmanager` |
 
-봉인 명령은 EC2 에서 `bash infra/server/seal-secrets.sh <명령>` 입니다. 값을 물어 받아 공개키로 잠근 `sealed-*.yaml` 만 저장소에 남깁니다. 봉인하지 않고 서버에서 직접 넣는 Secret 은 둘 — Argo CD 가 저장소를 읽는 배포 토큰(`repo-newlearn`, `bootstrap-argocd.sh` 가 물음)과 GitLab Runner 토큰(`gitlab-runner-token` · `gitlab-runner-build-token`)입니다.
+봉인 명령은 EC2 에서 `bash infra/server/seal-secrets.sh <명령>` 입니다. 값을 물어 받아 공개키로 잠근 `sealed-*.yaml` 만 저장소에 남깁니다.
+
+봉인하지 않고 사람이 서버에서 직접 만드는 Secret 도 있습니다. 저장소에는 이름과 만드는 명령만 있습니다.
+
+| Secret | 무엇 | 만드는 곳 |
+|---|---|---|
+| `repo-newlearn` (argocd) | Argo CD 가 저장소를 읽는 GitLab 배포 토큰 | `infra/server/bootstrap-argocd.sh` 가 물음 |
+| `argocd-initial-admin-secret` (argocd) | Argo CD admin 첫 비밀번호 — 설치 때 Argo CD 가 만들고, 바꾼 뒤 지움 | `infra/server/README.md` 「Argo CD 깔기」 |
+| `gitlab-runner-token` · `gitlab-runner-build-token` | GitLab Runner 토큰 | `infra/server/README.md` 「GitLab Runner」 |
+| `grafana-admin` (monitoring) | Grafana 관리자 계정 | `infra/server/README.md` 「모니터링」 |
+| `gitlab-ci-exporter` (monitoring) | CI 잡 지표용 GitLab 읽기 토큰 | 같은 곳 |
+| `postgres-exporter` (monitoring) | DB 통계 읽기 계정 `newlearn_monitor` | `infra/k8s/bootstrap/pg-exporter/make-secret.sh` |
+
+원본: `infra/k8s/services/*`, `infra/server/seal-secrets.sh`, `.env.example`, `compose.yaml`, `.gitlab-ci.yml`, `SSOT.md` 6 · 7절
 
 ---
 
@@ -210,7 +234,8 @@ flowchart LR
 | `app` | backend · frontend · news-ingest(CronJob) | 워커 |
 | `ai` | ai 워커 (EXTRACT · EMBED · MATCH_EVENT · ISSUE) | 워커 |
 | `data` | postgres · redis (StatefulSet), DB 백업 CronJob 둘 | 워커 (백업 Pod 는 관리 서버) |
-| `envoy-gateway-system` | Envoy Gateway · 상한 서비스 · cert-manager 인증서 | 워커 |
+| `envoy-gateway-system` | Envoy Gateway · 상한 서비스 · HTTPS 인증서(Certificate) | 워커 |
+| `cert-manager` · `local-path-storage` | cert-manager · local-path-provisioner | 워커 |
 | `argocd` · `sealed-secrets` | Argo CD · Sealed Secrets 컨트롤러 | 워커 |
 | `monitoring` | Prometheus · Grafana · Alertmanager · Loki · Alloy | 관리 서버 (Alloy 는 두 서버 모두) |
 | `gitlab-runner` · `gitlab-runner-build` | CI 러너 | 관리 서버 (굽기 잡은 워커) |
@@ -221,7 +246,7 @@ flowchart LR
 - **DB 변경은 하위 호환으로만**: 교체 중에는 옛 판과 새 판이 같이 돕니다. 이미 적용된 마이그레이션은 고치지 않고 새 파일(`V17__…`)로만 바꿉니다. backend 는 `ddl-auto: validate` 라 스키마가 엔티티와 다르면 뜨지 않습니다.
 - **AI 워커 첫 기동**: init 컨테이너가 임베딩 모델(약 2.3GB)을 Hugging Face 에서 PVC 로 한 번 받습니다(1분 안팎). 그 뒤에는 오프라인으로 뜹니다.
 - **비밀값 키 백업**: Sealed Secrets 개인키를 잃으면 서버를 다시 만들 때 저장소의 봉인 Secret 을 못 풉니다. 키는 인프라 담당 PC 에 백업합니다(`infra/server/README.md` 「Sealed Secrets 키」). **다른 클러스터에 배포할 때는 자기 키로 모든 Secret 을 다시 봉인해야 합니다.**
-- **이미지 저장소가 비공개**: GHCR 패키지는 인프라 담당 개인 계정 아래 비공개입니다. 다른 곳에 배포하려면 자기 레지스트리로 `.gitlab-ci.yml` 의 `IMAGE_PREFIX` · CI 변수 · `ghcr-pull` Secret · 배포 태그 파일을 바꿉니다.
+- **이미지 저장소가 비공개**: GHCR 패키지는 인프라 담당 개인 계정 아래 비공개입니다. 다른 곳에 배포하려면 자기 레지스트리로 `.gitlab-ci.yml` 의 `IMAGE_PREFIX` · CI 변수 · `ghcr-pull` Secret, 배포 태그 파일(`kustomization.yaml` 의 `images`), 그리고 Deployment 매니페스트의 이미지 이름(`infra/k8s/services/app/backend.yaml` · `frontend.yaml` · `services/ai/ai.yaml`)을 함께 바꿉니다 — kustomize 는 이미지 이름이 같을 때만 태그를 바꿉니다.
 - **토큰 만료**: GHCR 토큰 · `DEPLOY_MR_TOKEN` · Argo CD 배포 토큰 · CI 지표 토큰은 2026-11-30 에 만료됩니다.
 - **운영 서버는 발표 뒤 내립니다.** EC2 는 `terraform destroy` 로 지우고(멈추기만 하면 EBS · 탄력적 IP 요금이 나감), 서버 명령(`ssh newlearn …`, `kubectl …`)은 서버가 있을 때만 됩니다.
 - **새 클러스터를 처음부터 세우는 순서**: `infra/README.md`(Terraform apply) → `infra/server/README.md`(EC2 · Lightsail 받는 날 스크립트 → WireGuard → kubeadm · Cilium → 워커 join → Argo CD · Secret 봉인 → 러너 · 모니터링) 순서입니다.
@@ -243,12 +268,13 @@ flowchart LR
 | 로컬 DB · Redis · 앱 컨테이너 | `compose.yaml`, 값은 루트 `.env` (이름은 `.env.example`) |
 | 운영 DB · Redis | `infra/k8s/services/data/postgres.yaml` · `redis.yaml` |
 | 운영 앱 환경 변수 | `infra/k8s/services/app/backend.yaml` · `services/ai/ai.yaml` · `services/ingest/news-ingest.yaml` |
-| 운영 비밀값 (봉인) | `infra/k8s/services/*/sealed-*.yaml`, 만드는 스크립트 `infra/server/seal-secrets.sh` |
+| 운영 비밀값 (봉인) | `infra/k8s/services/*/sealed-*.yaml`, 관리 화면 · 알림 `infra/k8s/admin-ui/sealed-*.yaml`, 경보 `infra/k8s/alerts/sealed-alertmanager-mattermost.yaml`. 만드는 스크립트 `infra/server/seal-secrets.sh` |
+| 서버에서 직접 만드는 Secret | 1-3 끝의 표 |
 | AI 워커 설정 | `ai/app/config.py` (기본값), 로컬 값은 루트 `.env` |
 | 화면 설정 | `frontend/vite.config.ts` (개발 서버 `/api` 프록시), `frontend/nginx.conf` (운영) |
 | 입구 · 인증서 | `infra/k8s/services/app/routes.yaml` · `ratelimit.yaml`, `infra/k8s/gateway/` |
 | CI · CD | `.gitlab-ci.yml`, `infra/ci/deploy_mr.py`, `infra/k8s/apps/` (Argo CD 앱 목록) |
-| 인프라 (AWS) | `infra/terraform/` — 상태 파일 위치는 `backend.hcl.example`(실제 버킷 이름은 저장소 밖) |
+| 인프라 (AWS) | `infra/terraform/` — 입력값 `terraform.tfvars.example`(SSH 공개키 · 관리자 IP · 워커 IP · 예산 알림 메일 · 백업 버킷 이름), 상태 파일 위치 `backend.hcl.example`(실제 값은 저장소 밖) |
 
 ### DB 계정
 
@@ -258,3 +284,11 @@ flowchart LR
 | `newlearn_monitor` (읽기 전용, `pg_monitor`) | postgres_exporter — 조회 성능 대시보드 | 운영 Secret `postgres-exporter`(사람이 서버에서 만듦, `infra/server/perf/README.md`) |
 
 Redis 는 비밀번호가 없고 쿠버네티스 NetworkPolicy 로 같은 클러스터의 정해진 Pod 만 받습니다.
+
+### 관리 화면 계정
+
+| 계정 | 쓰는 곳 | 있는 곳 |
+|---|---|---|
+| 관리 화면 팝업 계정 | `https://newlearn.io.kr/argocd` · `/grafana` 앞의 브라우저 팝업(HTTP 기본 인증) | 봉인 Secret `basic-auth`(`seal-secrets.sh basic-auth`) — 아이디 · 비밀번호는 팀에 따로 알림 |
+| Argo CD admin | 동기화 · 설정 변경 | 인프라 담당만 앎(첫 비밀번호는 바꾼 뒤 지움) |
+| Grafana 관리자 | 대시보드 관리 — SSH 터널로만 | Secret `grafana-admin` |

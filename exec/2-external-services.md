@@ -4,7 +4,7 @@
 
 **소셜 로그인은 쓰지 않습니다.** 회원은 서비스 안에서 아이디 · 비밀번호로 가입하고 로그인합니다(비밀번호는 해시만 DB 에 저장, 로그인 세션은 Redis). 외부 인증 서비스 가입은 필요 없습니다.
 
-「지금 쓰나」는 2026-11-17 dev 브랜치의 코드 · 매니페스트로 확인했습니다.
+「지금 쓰나」는 2026-11-17 dev 브랜치의 코드 · 매니페스트와 운영 문서로 확인했습니다.
 
 | 서비스 | 쓰는 곳 | 지금 쓰나 | 필요한 설정 (환경 변수 / Secret) |
 |---|---|---|---|
@@ -22,6 +22,8 @@
 | Microsoft Clarity | 화면 사용 기록 분석 | 씀 (운영 도메인에서만) | 없음 (`frontend/public/analytics.js`) |
 | SSAFY GitLab (lab.ssafy.com) | 소스 · MR · CI, Argo CD 가 읽는 저장소 | 씀 | 러너 토큰 · 배포 토큰 · 프로젝트 액세스 토큰(1-3) |
 | Mattermost (SSAFY) | 배포 알림 · 경보 | 씀 | Secret `argocd-notifications-secret` · `alertmanager-mattermost` |
+| Anthropic Claude Code | 운영 작업: 매일 아침 기사 분야 라벨을 제목으로 정함(서비스 코드 밖, 인프라 담당 PC) | 씀 (운영 작업만) | 없음 — 인프라 담당 계정. 절차는 `infra/server/category-labels.md` |
+| 공개 패키지 저장소 (Docker Hub · GHCR 공개 이미지 · npm · PyPI · PyTorch CPU 색인 · Maven Central · Gradle 배포판) | 이미지 · 의존성 받기 | 씀 | 없음 — 가입 없이 받음 |
 
 ---
 
@@ -36,7 +38,8 @@
 
 - AI 워커: 기사마다 마인드맵(가지 4개: 핵심 내용 · 원인·배경 · 반응 · 전망)과 대표 사건을 뽑고(EXTRACT), 같은 사건인지 판정하고(MATCH_EVENT), 이슈에 붙이거나 새 이슈를 만듭니다(ISSUE). 작업은 Redis Streams 큐로 받습니다.
 - backend: 기사 · 이슈 화면에서 드래그한 말의 문맥 뜻(A26 `POST /api/v1/dictionary/meaning`)을 바로 부릅니다. 하루 상한 `MEANING_DAILY_LIMIT`(운영 3,000), 같은 말은 Redis 에 하루 둡니다.
-- 로컬은 `LLM_MODE=mock` 이 기본이라 키 없이 모의 응답으로 돕니다. 실제로 부르려면 `gms` 로 바꾸고 키를 넣습니다(비용이 듭니다).
+- 로컬 AI 워커는 `LLM_MODE=mock` 이 기본이라 키 없이 모의 응답으로 돕니다. 실제로 부르려면 루트 `.env` 에서 `gms` 로 바꾸고 키 · 주소를 넣습니다(비용이 듭니다).
+- backend 의 문맥 뜻은 `LLM_MODE` 를 보지 않고 `GMS_API_KEY` · `GMS_BASE_URL` 이 있으면 부릅니다. compose 로 띄우면 이 둘을 `backend/.env` 에 넣습니다 — compose 는 이 값을 backend 컨테이너에 넘기지 않습니다(1-3).
 
 ## 2-2. NewsData.io — 뉴스 수집
 
