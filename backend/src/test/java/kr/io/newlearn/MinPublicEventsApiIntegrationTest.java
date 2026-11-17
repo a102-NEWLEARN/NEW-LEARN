@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-// 사건 수 문턱 — 보이는 사건이 N개 미만인 이슈는 「둘러보다 마주치는 길」에서만 뺀다 (Jira 208, 계획 docs/plans/zazzy-questing-zebra.md)
+// 사건 수 문턱 — 보이는 사건이 N개 미만인 이슈는 「둘러보다 마주치는 길」에서만 뺀다 (Jira S15P31A102-208)
 //   빼는 곳: A2 이슈 목록(행 · 전체 수) · A1 분야별 개수 · A13 검색의 이슈 칸
 //   그대로: A3 · A4 이슈 페이지, A5 · A8 의 이슈 링크, A13 검색의 사건 칸, A23 저장 · A25 목록
 //
@@ -114,7 +114,7 @@ class MinPublicEventsApiIntegrationTest {
         visibleEvent(208084, THIN_MAIN, "메인흐름검증 안보임 라", "2026-10-04T00:00:00Z", "REACTION");
     }
 
-    // 총수(개수 질의)와 행(목록 질의)이 같은 규칙이어야 쪽 계산이 맞는다
+    // 행과 전체 수(같은 목록 질의, 끝을 넘은 쪽만 개수 질의)가 같은 규칙이어야 쪽 계산이 맞는다
     @Test
     void issueListAndTotalLeaveOutIssuesWithFewerVisibleEvents() throws Exception {
         mvc.perform(get("/api/v1/issues"))
@@ -151,6 +151,11 @@ class MinPublicEventsApiIntegrationTest {
                 .andExpect(jsonPath("$.totalPages").value(3))
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].id").value(THREE));
+        // 끝을 넘은 쪽 — 행이 없어 전체 수만 따로 센다. 그 수도 같은 규칙이어야 한다(Jira 227)
+        mvc.perform(get("/api/v1/issues").param("size", "1").param("page", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.items", hasSize(0)));
     }
 
     // A1 합과 A2 전체 수가 어긋나면 화면의 분야 칸과 목록이 서로 다른 말을 한다
