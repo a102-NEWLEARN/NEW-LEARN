@@ -185,8 +185,13 @@ export function Timeline({
   // TIP — 레인 뜻 · 「추정」 뜻. 창은 타임라인 오른쪽 위에 띄운다
   const tip = useTimelineTip({
     panelClassName: "absolute top-[12px] right-[12px] z-20 w-[300px]",
-    howTo: "휠이나 끌기로 옮기고, 사건을 누르면 그 사건을 골라요.",
+    howTo:
+      "휠로 위아래, Shift+휠이나 끌기로 옆으로 옮겨요. Ctrl+휠(맥은 ⌘+휠)이나 두 손가락 벌리기로 확대해요. 사건을 누르면 그 사건을 골라요.",
   });
+
+  // 그냥 휠을 처음 굴렸을 때 한 번 — 확대는 Ctrl/⌘+휠로 옮겨 갔다고 알린다 (Jira 229)
+  const [wheelHint, setWheelHint] = useState(false);
+  const wheelHinted = useRef(false);
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
   const screenX = (x: number) => transform.applyX(GUTTER + x);
@@ -196,14 +201,24 @@ export function Timeline({
     const svg = svgRef.current!;
     const behavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([minScaleRef.current, SCALE_EXTENT[1]])
-      // d3 기본 조건(Ctrl 은 휠만 · 왼쪽 버튼만)에 하나를 더한다 — 사건 이름 위에서 마우스를 누르면 지도를 끌지 않고
-      // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 휠 확대와 터치 이동은 그대로다
-      .filter(
-        (event: MouseEvent) =>
-          (!event.ctrlKey || event.type === "wheel") &&
-          !event.button &&
-          !(event.type === "mousedown" && isMeaningText(event.target)),
+      // 휠은 Ctrl · ⌘ 를 누른 것만 확대 · 축소한다 — 트랙패드 핀치도 브라우저가 Ctrl+휠로 보낸다. 그냥 휠은 아래 onWheel 이
+      // 세로 스크롤 · 옆으로 옮기기로 쓴다. 휠이 늘 확대라 아래 서브 흐름으로 내려갈 수 없었다 (2026-11-17 사용자, Jira 229).
+      // 그 밖은 d3 기본 조건(Ctrl 없이 · 왼쪽 버튼만)에 하나를 더한다 — 사건 이름 위에서 마우스를 누르면 지도를 끌지 않고
+      // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 터치 이동 · 확대는 그대로다
+      .filter((event: MouseEvent) =>
+        event.type === "wheel"
+          ? event.ctrlKey || event.metaKey
+          : !event.ctrlKey &&
+            !event.button &&
+            !(event.type === "mousedown" && isMeaningText(event.target)),
       )
+      // d3 기본값은 Ctrl 이면 10배로 키운다(작게 움직이는 핀치용). 마우스 Ctrl+휠 한 칸(100 안팎)까지 10배가 되면
+      // 한 칸에 4배씩 뛰어서, 크게 움직인 것은 핀치가 아니라 휠 한 칸으로 본다
+      .wheelDelta((event: WheelEvent) => {
+        const unit = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
+        const pinch = event.ctrlKey && Math.abs(event.deltaY) < 50;
+        return -event.deltaY * unit * (pinch ? 10 : 1);
+      })
       .extent(() => [
         [0, 0],
         [sizeRef.current.width, sizeRef.current.height],
@@ -222,7 +237,41 @@ export function Timeline({
       );
     select(svg).call(behavior).on("dblclick.zoom", null);
     zoomRef.current = behavior;
+
+    // Ctrl · ⌘ 없는 휠 — Shift+휠 · 가로로 더 큰 휠(트랙패드 좌우)은 시간축을 따라 옆으로 옮기고, 세로 휠은 막지 않아
+    // 브라우저가 지도 칸을 스크롤한다. 처음 세로로 굴리면 확대하는 법을 잠깐 알린다
+    let hintTimer = 0;
+    const onWheel = (wheel: WheelEvent) => {
+      if (wheel.ctrlKey || wheel.metaKey) return;
+      const dx = wheel.shiftKey ? wheel.deltaX || wheel.deltaY : wheel.deltaX;
+      const sideways =
+        wheel.shiftKey || Math.abs(wheel.deltaX) > Math.abs(wheel.deltaY);
+      if (sideways && dx !== 0) {
+        wheel.preventDefault();
+        const unit =
+          wheel.deltaMode === 1
+            ? 16
+            : wheel.deltaMode
+              ? sizeRef.current.width
+              : 1;
+        targetScale.current = null;
+        reopening.current = false;
+        select(svg).call(
+          behavior.translateBy,
+          -(dx * unit) / transformRef.current.k,
+          0,
+        );
+        return;
+      }
+      if (wheel.deltaY === 0 || wheelHinted.current) return;
+      wheelHinted.current = true;
+      setWheelHint(true);
+      hintTimer = window.setTimeout(() => setWheelHint(false), 2500);
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
     return () => {
+      svg.removeEventListener("wheel", onWheel);
+      window.clearTimeout(hintTimer);
       select(svg).interrupt().on(".zoom", null);
     };
   }, []);
@@ -426,7 +475,7 @@ export function Timeline({
   return (
     <section
       aria-labelledby="timeline-title"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-r3 border border-stroke-neutral-subtle"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-r3 border border-stroke-neutral-subtle"
     >
       <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x4 py-x2_5">
         <div className="mr-auto flex flex-wrap items-baseline gap-x2_5">
@@ -874,6 +923,19 @@ export function Timeline({
         )}
         {tip.panel}
       </div>
+      {/* 그냥 휠을 처음 굴렸을 때 — 지도 칸 아래 가운데. 스크롤해도 제자리에 있게 스크롤 칸 밖에 둔다 */}
+      <p
+        role="status"
+        className="pointer-events-none absolute inset-x-0 bottom-[16px] z-20 flex justify-center"
+      >
+        {wheelHint && (
+          <span
+            className={`t4-medium block whitespace-nowrap rounded-full border border-stroke-neutral-weak bg-bg-layer-floating px-x4 py-x2 text-fg-neutral shadow-s2 ${FADE_IN}`}
+          >
+            Ctrl+휠(맥은 ⌘+휠)로 확대 · 축소해요
+          </span>
+        )}
+      </p>
     </section>
   );
 }
