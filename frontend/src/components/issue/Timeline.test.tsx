@@ -752,3 +752,127 @@ test("도구줄에 이슈 화면이 준 보기 전환을 확대 · 축소 앞에
     viewSwitch.compareDocumentPosition(zoom) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 });
+
+// 휠이 늘 확대라 지도 위에서는 세로 스크롤이 막혀 아래 서브 흐름으로 내려갈 수 없었다 (2026-11-17 사용자, Jira 229).
+// 휠은 세로 스크롤, Shift+휠 · 가로 휠은 옆으로 옮기기, Ctrl/⌘+휠 · 핀치는 확대 · 축소
+const map = () => screen.getByRole("group", { name: "사건 타임라인" });
+
+test("그냥 휠은 확대하지 않고 세로 스크롤로 넘긴다 — 처음 한 번 확대하는 법을 알려 준다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  // fireEvent 는 막지(preventDefault) 않았으면 true 다 — 브라우저가 지도 칸을 스크롤한다
+  expect(fireEvent.wheel(map(), { deltaY: 100 })).toBe(true);
+  expect(zoomLevel()).toBe(start);
+  expect(screen.getByRole("status").textContent).toMatch(/Ctrl\+휠/);
+});
+
+test("Ctrl · ⌘ + 휠은 확대 · 축소한다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  expect(fireEvent.wheel(map(), { deltaY: -100, ctrlKey: true })).toBe(false);
+  expect(zoomLevel()).toBeGreaterThan(start);
+  const zoomed = zoomLevel();
+
+  fireEvent.wheel(map(), { deltaY: 100, metaKey: true });
+  expect(zoomLevel()).toBeLessThan(zoomed);
+});
+
+test("마우스 Ctrl+휠 한 칸은 조금씩 확대한다 — 트랙패드 핀치처럼 크게 뛰지 않는다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  fireEvent.wheel(map(), { deltaY: -100, ctrlKey: true });
+  expect(zoomLevel() / start).toBeLessThan(1.3);
+});
+
+test("Shift+휠 · 가로 휠은 배율을 그대로 두고 시간축을 따라 옆으로 옮긴다", async () => {
+  renderMany();
+  const start = zoomLevel();
+  const first = nodeXs()[0];
+
+  expect(fireEvent.wheel(map(), { deltaX: 200 })).toBe(false);
+  expect(nodeXs()[0]).toBeCloseTo(first - 200);
+
+  fireEvent.wheel(map(), { deltaY: 100, shiftKey: true });
+  expect(nodeXs()[0]).toBeCloseTo(first - 300);
+  expect(zoomLevel()).toBe(start);
+});
+
+// 같은 날 쌓인 사건 접기 — 5건 이상이면 3건만 보이고 「+N건」 칩으로 접는다 (2026-11-17 사용자, 스마트안경 이슈)
+function renderStacked(selectedId: number | null = null) {
+  const events: TimelineEvent[] = Array.from({ length: 10 }, (_, index) => ({
+    id: index + 1,
+    title: `같은 날 사건 ${index + 1}`,
+    label: `키워드 ${index + 1}`,
+    lane: "MAIN",
+    occurredAt: "2026-11-16T00:00:00+09:00",
+    occurredAtBasis: "EXTRACTED",
+    articleCount: 3,
+    publisherCount: 2,
+  }));
+  const onDeselect = vi.fn();
+  render(
+    <Timeline
+      events={events}
+      selectedId={selectedId}
+      onSelect={vi.fn()}
+      onDeselect={onDeselect}
+    />,
+  );
+  return { onDeselect };
+}
+const eventNodes = () =>
+  screen.getAllByRole("button", { name: /메인 흐름, 기사/ });
+
+test("같은 날 사건이 5건 이상이면 3건만 보이고 「+N건」 칩을 누르면 그 칸을 펼치고 「접기」로 다시 접는다", () => {
+  const { onDeselect } = renderStacked();
+
+  expect(eventNodes()).toHaveLength(3);
+  const more = screen.getByRole("button", {
+    name: "11.16 메인 흐름 사건 7건 더 보기",
+  });
+  expect(more.textContent).toBe("+7건");
+  expect(more.getAttribute("aria-expanded")).toBe("false");
+  // 레인 이름 칸은 숨긴 사건까지 센다
+  expect(
+    within(screen.getByRole("list", { name: "레인" })).getByText("사건 10"),
+  ).toBeDefined();
+
+  fireEvent.click(more);
+  expect(eventNodes()).toHaveLength(10);
+  const fold = screen.getByRole("button", {
+    name: "11.16 메인 흐름 사건 접기",
+  });
+  expect(fold.textContent).toBe("접기");
+  expect(fold.getAttribute("aria-expanded")).toBe("true");
+  // 칩을 누른 것은 지도 빈 곳 클릭(고르기 풀기)이 아니다
+  expect(onDeselect).not.toHaveBeenCalled();
+
+  fireEvent.click(fold);
+  expect(eventNodes()).toHaveLength(3);
+});
+
+test("칩은 Enter · Space 로도 펼치고 접는다", () => {
+  renderStacked();
+
+  fireEvent.keyDown(screen.getByRole("button", { name: /7건 더 보기/ }), {
+    key: "Enter",
+  });
+  expect(eventNodes()).toHaveLength(10);
+  fireEvent.keyDown(screen.getByRole("button", { name: /사건 접기/ }), {
+    key: " ",
+  });
+  expect(eventNodes()).toHaveLength(3);
+});
+
+test("접은 칸에서도 고른 사건과 최신 사건은 늘 보인다", () => {
+  renderStacked(5);
+
+  const ids = eventNodes().map((item) => item.getAttribute("data-event-id"));
+  expect(ids).toContain("5");
+  // 같은 시각이면 id 가 큰 것이 최신 사건이다
+  expect(ids).toContain("10");
+  expect(ids).toHaveLength(3);
+});

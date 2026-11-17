@@ -68,7 +68,6 @@ export function LandingFooter() {
         <div className="flex flex-col gap-[6px]">
           <span className="font-bold text-fg-neutral">안내</span>
           <span>AI 생성 요약은 언론사 원문과 함께 확인하세요.</span>
-          <span>SSAFY 15기 자율 프로젝트 · A102</span>
           <span>© 2026 NEW:LEARN</span>
         </div>
       </div>
