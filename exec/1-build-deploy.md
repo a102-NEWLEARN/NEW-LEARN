@@ -182,7 +182,7 @@ docker compose --profile full up -d --wait
 
 | 워크로드 | 평문 값(매니페스트) | 비밀값 — Secret 이름(키) | 봉인 명령 |
 |---|---|---|---|
-| backend (`services/app/backend.yaml`) | `DB_HOST` · `DB_PORT` · `REDIS_HOST` · `REDIS_PORT` · `SESSION_COOKIE_SECURE=true` · `JAVA_TOOL_OPTIONS` · `GMS_BASE_URL` · `GMS_MODEL=gpt-6-luna` · `MEANING_DAILY_LIMIT=3000` · 목록 기준값(`QUERY_MIN_*` 등) | `postgres-auth`(DB 이름 · 계정 · 비밀번호), `internal-api`(`INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY`), `gms-api`(`GMS_API_KEY`), `stdict-api`(`STDICT_API_KEY`) | `db` · `internal-api` · `gms-app` · `stdict` |
+| backend (`services/app/backend.yaml`) | `DB_HOST` · `DB_PORT` · `DB_OPTIONS="-c jit=off"` · `REDIS_HOST` · `REDIS_PORT` · `SESSION_COOKIE_SECURE=true` · `JAVA_TOOL_OPTIONS` · `GMS_BASE_URL` · `GMS_MODEL=gpt-6-luna` · `MEANING_DAILY_LIMIT=3000` · 목록 기준값(`QUERY_MIN_*` 등) | `postgres-auth`(DB 이름 · 계정 · 비밀번호), `internal-api`(`INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY`), `gms-api`(`GMS_API_KEY`), `stdict-api`(`STDICT_API_KEY`) | `db` · `internal-api` · `gms-app` · `stdict` |
 | frontend (`services/app/frontend.yaml`) | 없음 | — | — |
 | ai (`services/ai/ai.yaml`) | `LLM_MODE=gms` · `GMS_BASE_URL` · `GMS_MODEL` · 워커 스위치 셋 `true` · `BACKEND_URL` · `HF_HUB_OFFLINE=1` · 모델 `dragonkue/BGE-m3-ko`(판 고정) | `gms-api`(`GMS_API_KEY`), `internal-api`(`INTERNAL_API_KEY` — backend 의 워커 키와 같은 값) | `gms` · `internal-api` |
 | news-ingest CronJob (`services/ingest/news-ingest.yaml`) | `INGEST_*`(15분마다 최근 30분, 회차 50 · 하루 5,000건 상한 등) · `BACKEND_URL` | `newsdata-api`(`NEWSDATA_API_KEY`), `internal-api`(`INTERNAL_BATCH_KEY`) | `newsdata` · `internal-api` |

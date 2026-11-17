@@ -46,6 +46,12 @@ spec:
               value: postgres.data.svc
             - name: DB_PORT
               value: "5432"
+            # backend 연결에만 넘기는 PostgreSQL 세션 설정(application.yaml 의 spring.datasource.hikari.data-source-properties.options).
+            # 화면 쿼리(A1 분야별 이슈 수 · A13 검색)가 실행마다 JIT 컴파일을 해 더 느렸다 — 2026-11-17 운영에서 앱 SQL 을 PREPARE 해 잰 값
+            # A1 28.6 → 13.3 ms · A13 검색 이슈 칸 14.2 → 0.9 · 사건 칸 10.9 → 4.7 (Jira S15P31A102-230). DB 서버 설정 · psql 스크립트는 그대로.
+            # 값 글자가 틀리면 연결이 안 열려 새 Pod 가 Ready 가 안 된다(옛 Pod 가 계속 받음). 되돌리기: 값을 "" 로(이름은 두고)
+            - name: DB_OPTIONS
+              value: "-c jit=off"
             - name: REDIS_HOST
               value: redis.data.svc
             - name: REDIS_PORT
