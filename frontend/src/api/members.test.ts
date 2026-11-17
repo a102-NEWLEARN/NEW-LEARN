@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
+import { clearTabLogin } from "@/lib/tabLogin";
 import type { FieldError } from "@/api/error";
 import { changeCategories, fetchMe, signUp } from "@/api/members";
 import { server } from "@/mocks/node";
@@ -50,6 +51,55 @@ test("401 이면 손님이라 null 을 받는다", async () => {
   );
 
   await expect(fetchMe()).resolves.toBeNull();
+});
+
+// 탭을 닫으면 로그아웃 — 이 탭에서 로그인하지 않았고 로그인한 다른 탭도 없으면 남은 세션을 끝낸다 (2026-11-17 사용자)
+test("회원이어도 이 탭에서 로그인하지 않았고 로그인한 다른 탭도 없으면 로그아웃을 보내고 손님(null)을 받는다", async () => {
+  clearTabLogin();
+  let loggedOut = false;
+  server.use(
+    http.post("/api/v1/auth/logout", () => {
+      loggedOut = true;
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+
+  await expect(fetchMe()).resolves.toBeNull();
+  expect(loggedOut).toBe(true);
+});
+
+test("로그아웃을 보내다 실패해도 손님(null)으로 본다", async () => {
+  clearTabLogin();
+  server.use(http.post("/api/v1/auth/logout", () => problem(403, "FORBIDDEN")));
+
+  await expect(fetchMe()).resolves.toBeNull();
+});
+
+test("로그인한 다른 탭이 답하면 로그아웃하지 않고 회원 정보를 받는다", async () => {
+  clearTabLogin();
+  const other = new BroadcastChannel("newlearn.tab-login");
+  other.onmessage = (event) => {
+    if (event.data === "ask") other.postMessage("here");
+  };
+  let loggedOut = false;
+  server.use(
+    http.post("/api/v1/auth/logout", () => {
+      loggedOut = true;
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+
+  const me = await fetchMe();
+  other.close();
+  expect(me?.loginId).toBe("newlearn01");
+  expect(loggedOut).toBe(false);
+});
+
+test("가입하면 이 탭에 로그인 표시를 둔다", async () => {
+  clearTabLogin();
+
+  await signUp(newMember);
+  expect(sessionStorage.getItem("newlearn.tab-login")).toBe("1");
 });
 
 test("401 이 아닌 오류는 그대로 던진다", async () => {

@@ -799,3 +799,80 @@ test("Shift+휠 · 가로 휠은 배율을 그대로 두고 시간축을 따라 
   expect(nodeXs()[0]).toBeCloseTo(first - 300);
   expect(zoomLevel()).toBe(start);
 });
+
+// 같은 날 쌓인 사건 접기 — 5건 이상이면 3건만 보이고 「+N건」 칩으로 접는다 (2026-11-17 사용자, 스마트안경 이슈)
+function renderStacked(selectedId: number | null = null) {
+  const events: TimelineEvent[] = Array.from({ length: 10 }, (_, index) => ({
+    id: index + 1,
+    title: `같은 날 사건 ${index + 1}`,
+    label: `키워드 ${index + 1}`,
+    lane: "MAIN",
+    occurredAt: "2026-11-16T00:00:00+09:00",
+    occurredAtBasis: "EXTRACTED",
+    articleCount: 3,
+    publisherCount: 2,
+  }));
+  const onDeselect = vi.fn();
+  render(
+    <Timeline
+      events={events}
+      selectedId={selectedId}
+      onSelect={vi.fn()}
+      onDeselect={onDeselect}
+    />,
+  );
+  return { onDeselect };
+}
+const eventNodes = () =>
+  screen.getAllByRole("button", { name: /메인 흐름, 기사/ });
+
+test("같은 날 사건이 5건 이상이면 3건만 보이고 「+N건」 칩을 누르면 그 칸을 펼치고 「접기」로 다시 접는다", () => {
+  const { onDeselect } = renderStacked();
+
+  expect(eventNodes()).toHaveLength(3);
+  const more = screen.getByRole("button", {
+    name: "11.16 메인 흐름 사건 7건 더 보기",
+  });
+  expect(more.textContent).toBe("+7건");
+  expect(more.getAttribute("aria-expanded")).toBe("false");
+  // 레인 이름 칸은 숨긴 사건까지 센다
+  expect(
+    within(screen.getByRole("list", { name: "레인" })).getByText("사건 10"),
+  ).toBeDefined();
+
+  fireEvent.click(more);
+  expect(eventNodes()).toHaveLength(10);
+  const fold = screen.getByRole("button", {
+    name: "11.16 메인 흐름 사건 접기",
+  });
+  expect(fold.textContent).toBe("접기");
+  expect(fold.getAttribute("aria-expanded")).toBe("true");
+  // 칩을 누른 것은 지도 빈 곳 클릭(고르기 풀기)이 아니다
+  expect(onDeselect).not.toHaveBeenCalled();
+
+  fireEvent.click(fold);
+  expect(eventNodes()).toHaveLength(3);
+});
+
+test("칩은 Enter · Space 로도 펼치고 접는다", () => {
+  renderStacked();
+
+  fireEvent.keyDown(screen.getByRole("button", { name: /7건 더 보기/ }), {
+    key: "Enter",
+  });
+  expect(eventNodes()).toHaveLength(10);
+  fireEvent.keyDown(screen.getByRole("button", { name: /사건 접기/ }), {
+    key: " ",
+  });
+  expect(eventNodes()).toHaveLength(3);
+});
+
+test("접은 칸에서도 고른 사건과 최신 사건은 늘 보인다", () => {
+  renderStacked(5);
+
+  const ids = eventNodes().map((item) => item.getAttribute("data-event-id"));
+  expect(ids).toContain("5");
+  // 같은 시각이면 id 가 큰 것이 최신 사건이다
+  expect(ids).toContain("10");
+  expect(ids).toHaveLength(3);
+});

@@ -3,6 +3,7 @@ import type { TimelineEvent } from "@/api/timeline";
 import {
   latestEventId,
   layoutTimeline,
+  stackKey,
 } from "@/components/issue/timelineLayout";
 
 const NOW = new Date("2026-10-28T09:00:00+09:00");
@@ -215,4 +216,93 @@ test("최신 사건은 가장 늦게 일어난 사건이고, 같은 시각이면
     ]),
   ).toBe(7);
   expect(latestEventId([])).toBeNull();
+});
+
+// 같은 날 · 같은 레인 사건이 5건 이상이면 3건만 놓고 「+N건」 칩으로 접는다. 스마트안경 이슈는 11.16 메인 사건 10건이
+// 쌓여 메인 흐름 레인이 562px 가 됐다 (2026-11-17 사용자)
+const tenOnOneDay = () =>
+  Array.from({ length: 10 }, (_, index) =>
+    event(index + 1, at("11-16"), "MAIN"),
+  );
+
+test("같은 날 같은 레인 사건이 5건 이상이면 3건만 놓고 나머지 수를 칩으로 남긴다", () => {
+  const layout = layoutTimeline(tenOnOneDay(), { now: NOW });
+  const [main] = layout.lanes;
+
+  expect(layout.events).toHaveLength(3);
+  expect(layout.folds).toEqual([
+    expect.objectContaining({
+      key: stackKey("MAIN", at("11-16")),
+      lane: "MAIN",
+      hidden: 7,
+      expanded: false,
+      x: layout.events[0].x,
+    }),
+  ]);
+  // 칩은 4번째 사건 자리에 둔다
+  const [, , third] = layout.events;
+  expect(layout.folds[0].y - third.y).toBe(48);
+  // 레인은 3건과 칩까지만 늘어난다. 레인 이름 칸의 사건 수는 숨긴 사건까지 센다
+  expect(main.height).toBeLessThan(300);
+  expect(main.top + main.height).toBeGreaterThanOrEqual(
+    layout.folds[0].y + 12 + 12,
+  );
+  expect(main.count).toBe(10);
+});
+
+test("4건이면 칩이 4번째 자리를 그대로 차지해 줄어드는 높이가 없어서 접지 않는다", () => {
+  const layout = layoutTimeline(tenOnOneDay().slice(0, 4), { now: NOW });
+
+  expect(layout.events).toHaveLength(4);
+  expect(layout.folds).toEqual([]);
+});
+
+test("펼친 칸은 다 놓고, 마지막 사건 아래에 접는 칩을 둔다", () => {
+  const layout = layoutTimeline(tenOnOneDay(), {
+    now: NOW,
+    expanded: new Set([stackKey("MAIN", at("11-16"))]),
+  });
+  const last = layout.events[layout.events.length - 1];
+  const [main] = layout.lanes;
+
+  expect(layout.events).toHaveLength(10);
+  expect(layout.folds).toEqual([
+    expect.objectContaining({ hidden: 0, expanded: true }),
+  ]);
+  expect(layout.folds[0].y - last.y).toBe(48);
+  expect(main.top + main.height).toBeGreaterThanOrEqual(
+    layout.folds[0].y + 12 + 12,
+  );
+});
+
+test("접을 때 고른 사건 · 최신 사건을 먼저 남기고, 그다음 기사 수 많은 사건을 남긴다. 놓는 순서는 id 순이다", () => {
+  const events = tenOnOneDay().map((item) =>
+    item.id === 6 ? { ...item, articleCount: 20 } : item,
+  );
+  const layout = layoutTimeline(events, { now: NOW, pinned: [9, 2, null] });
+
+  expect(layout.events.map((item) => item.id)).toEqual([2, 6, 9]);
+  // 첫 사건은 메인 흐름 선 위다
+  expect(layout.events[0].y).toBe(layout.lanes[0].top + layout.lanes[0].nodeY);
+});
+
+test("접힌 칸은 레인마다 따로 센다 — 서브 흐름 칸은 서브 흐름 레인에 칩을 둔다", () => {
+  const layout = layoutTimeline(
+    [
+      ...tenOnOneDay(),
+      ...Array.from({ length: 5 }, (_, index) =>
+        event(20 + index, at("11-16"), "SUB"),
+      ),
+    ],
+    { now: NOW },
+  );
+  const [, sub] = layout.lanes;
+
+  expect(layout.events).toHaveLength(6);
+  expect(layout.folds.map((fold) => [fold.lane, fold.hidden])).toEqual([
+    ["MAIN", 7],
+    ["SUB", 2],
+  ]);
+  expect(layout.folds[1].y).toBeGreaterThan(sub.top);
+  expect(sub.count).toBe(5);
 });
