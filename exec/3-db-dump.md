@@ -1,28 +1,28 @@
 # 3. DB 덤프
 
-운영 DB(PostgreSQL 18.6 + pgvector 0.8.7)의 **2026-11-17 07:24(한국) 백업**에서 회원 정보를 비우고 다시 뜬 덤프입니다. 스키마는 Flyway V16 까지입니다. 저장소에는 그 뒤 `V17__public_link_lookup_indexes.sql`(인덱스 둘, 2026-11-17)이 있어, 이 덤프를 넣고 backend 를 띄우면 Flyway 가 V17 을 붙입니다.
+운영 DB(PostgreSQL 18.6 + pgvector 0.8.7)의 **2026-11-18 07:42(한국) 백업**에서 회원 정보를 비우고 다시 뜬 덤프입니다. 스키마는 Flyway V17 까지로 저장소의 마지막 마이그레이션과 같습니다.
 
-이 백업은 그날 아침 기사 분야 라벨을 반영하기 **직전**에 뜬 것입니다. 그래서 지금 운영(4장 캡처)과 견주면 기사 1,882건의 분야와 숨김 130건이 반영 전 값이고(`SSOT.md` 10절 2026-11-17 줄), 그 뒤 15분마다 들어온 기사도 없습니다. 이슈 · 사건 구성과 분야별 이슈 수는 운영과 같았습니다(아래 「되살리는 법」).
+이 백업은 그날 아침 마지막 기사 분야 라벨(라벨이 없던 공개 기사 4,826건, 07:41 반영)을 넣은 **바로 뒤**에 뜬 것입니다. 그 뒤 15분마다 들어온 기사는 없습니다. 분야별 이슈 수는 백업 직후 운영 사이트와 같았습니다(아래 「되살리는 법」).
 
 | 파일 | 내용 |
 |---|---|
-| `exec/files/db/newlearn-20261117-0724.dump` | 데이터 + 스키마 (`pg_dump -Fc`, gzip, 383,249,896 바이트). Git LFS 로 올렸습니다 — 받는 법은 1-2 ① |
+| `exec/files/db/newlearn-20261118-0742.dump` | 데이터 + 스키마 (`pg_dump -Fc`, gzip, 422,914,363 바이트). Git LFS 로 올렸습니다 — 받는 법은 1-2 ① |
 | `exec/files/db/schema.sql` | 같은 덤프의 스키마만 (`pg_dump --schema-only`, 평문, 읽기용). 실제 스키마는 backend 가 뜰 때 Flyway 가 `backend/src/main/resources/db/migration/` 으로 만듭니다 |
 
 ## 들어 있는 것
 
 | 표 | 행 수 | 내용 |
 |---|---|---|
-| `article` | 174,054 | 뉴스 기사(NewsData.io 수집). 화면에 나오는 것은 분석 · 분야 기준을 넘은 공개 기사만 |
-| `analysis_job` | 74,784 | 분석 작업(마인드맵 추출 · 임베딩 · 동일 사건 판정 · 이슈)과 상태 |
-| `article_mindmap` | 29,619 | 기사 마인드맵(가지 4개)과 근거 문장 |
-| `article_embedding` | 29,642 | 기사 벡터(1024차원, pgvector) |
-| `article_event` | 22,984 | 기사 ↔ 사건 연결 |
-| `event` | 6,309 | 사건 |
-| `issue` · `issue_category` | 325 · 322 | 이슈와 분야 |
+| `article` | 182,203 | 뉴스 기사(NewsData.io 수집). 화면에 나오는 것은 분석 · 분야 기준을 넘은 공개 기사만 |
+| `analysis_job` | 89,647 | 분석 작업(마인드맵 추출 · 임베딩 · 동일 사건 판정 · 이슈)과 상태 |
+| `article_mindmap` | 34,473 | 기사 마인드맵(가지 4개)과 근거 문장 |
+| `article_embedding` | 34,492 | 기사 벡터(1024차원, pgvector) |
+| `article_event` | 26,320 | 기사 ↔ 사건 연결 |
+| `event` | 8,137 | 사건 |
+| `issue` · `issue_category` | 370 · 366 | 이슈와 분야 |
 | `press` · `press_mapping` | 112 · 114 | 언론사 |
 | `category` · `category_mapping` | 5 · 18 | 분야(정치 · 경제 · 사회 · 국제 · IT·과학) |
-| `flyway_schema_history` | 16 | 마이그레이션 기록 V1 ~ V16 |
+| `flyway_schema_history` | 17 | 마이그레이션 기록 V1 ~ V17 |
 | `ingest_run` | 0 | 수집 배치 실행 기록 |
 | `member` · `member_category` · `bookmark` · `interest_issue` | 0 | **회원 정보 — 비움** (아래) |
 
@@ -37,7 +37,7 @@
 
 push 전에 확인한 것:
 
-- 새 DB 에 끝까지 되살려 표마다 행 수를 원본 백업과 견줬습니다. 회원 네 표만 0 이고(원본 14 · 34 · 4 · 6), 나머지 14개 표는 원본과 같습니다. 남은 스키마는 `public` 하나입니다.
+- 새 DB 에 끝까지 되살려 표마다 행 수를 원본 백업과 견줬습니다. 회원 네 표만 0 이고(원본 16 · 41 · 4 · 6), 나머지 14개 표는 원본과 같습니다. 남은 스키마는 `public` 하나입니다.
 - 덤프 전체를 평문으로 풀어 키 모양(AWS · GitHub · GitLab · OpenAI 형식 · 개인키 머리)과 GMS 주소를 찾았습니다 — 0건. 자유 글 칸(`analysis_job.error_message` · `result`)에도 키 · IP 모양 · 비밀 낱말 0건입니다(오류 문구 9건은 모두 「가지 0개」).
 - 덤프에 회원 네 표의 데이터 줄(`COPY`)이 없습니다.
 
@@ -50,7 +50,7 @@ docker compose up -d --wait db
 ```
 
 ```bash
-docker compose cp exec/files/db/newlearn-20261117-0724.dump db:/tmp/newlearn.dump
+docker compose cp exec/files/db/newlearn-20261118-0742.dump db:/tmp/newlearn.dump
 ```
 
 ```bash
@@ -72,8 +72,8 @@ docker compose --profile full up -d --wait
   QUERY_MIN_MAIN_EVENTS=1
   ```
 
-  2026-11-17 에 이렇게 해서 분야별 이슈 수(46 · 57 · 46 · 43 · 11)와 이슈 231(사건 4 · 기사 47)이 운영과 같아지는 것을 확인했습니다. 다 본 뒤에는 `backend/.env` 를 지웁니다 — 호스트에서 돌리는 `./gradlew test` 도 이 파일을 읽습니다.
-- 넣은 뒤 컨테이너 안 사본(383MB)은 지워도 됩니다: `docker compose exec db rm /tmp/newlearn.dump`
+  2026-11-17 에 그날 덤프로 이렇게 해서 분야별 이슈 수와 이슈 231(사건 4 · 기사 47)이 운영과 같아지는 것을 확인했습니다. 2026-11-18 덤프는 backend 의 목록 조건(`PublicEventSql`)을 같은 기준값으로 덤프에 바로 돌려, 분야별 이슈 수 정치 45 · 경제 57 · 사회 46 · 국제 44 · IT·과학 11 이 백업 직후 운영 사이트(`/api/v1/categories`)와 같고 이슈 231 이 사건 4 · 기사 47 그대로인 것을 봤습니다. 다 본 뒤에는 `backend/.env` 를 지웁니다 — 호스트에서 돌리는 `./gradlew test` 도 이 파일을 읽습니다.
+- 넣은 뒤 컨테이너 안 사본(423MB)은 지워도 됩니다: `docker compose exec db rm /tmp/newlearn.dump`
 - 확인한 시간(관리자 PC, Docker Engine 29.6.2): 덤프 넣기 20초, 처음 `up`(의존성 받기 · 컴파일) 약 5분.
 - 로컬 기본값은 워커 스위치가 비어 있어(`WORKER_ALLOW_MOCK` 등) AI 워커가 큐를 읽지 않습니다. 덤프의 분석 결과를 그대로 보여 줄 뿐 새 분석은 돌지 않습니다.
 

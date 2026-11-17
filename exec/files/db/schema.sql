@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ZxIjp4X5JyLchcGdFlaAjPAvLQn09vQ2jhux2uCsg1O5UFjGzNrCUeyRaTsJX50
+\restrict QynQAG4ISvsrN6DAPHdyRJdYRd7lK1IFHRqfz7slXsRqTFOuaXrHIygEk4KttVl
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg12+2)
 -- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg12+2)
@@ -553,6 +553,13 @@ ALTER TABLE ONLY public.press
 
 
 --
+-- Name: article_event_event_article_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX article_event_event_article_idx ON public.article_event USING btree (event_id, article_id);
+
+
+--
 -- Name: article_event_event_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -571,6 +578,13 @@ CREATE INDEX article_public_category_published_idx ON public.article USING btree
 --
 
 CREATE INDEX article_public_published_idx ON public.article USING btree (published_at DESC, id DESC) INCLUDE (press_code) WHERE (released_at IS NOT NULL);
+
+
+--
+-- Name: article_released_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX article_released_id_idx ON public.article USING btree (id) INCLUDE (press_code) WHERE (released_at IS NOT NULL);
 
 
 --
@@ -743,5 +757,5 @@ ALTER TABLE ONLY public.press_mapping
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ZxIjp4X5JyLchcGdFlaAjPAvLQn09vQ2jhux2uCsg1O5UFjGzNrCUeyRaTsJX50
+\unrestrict QynQAG4ISvsrN6DAPHdyRJdYRd7lK1IFHRqfz7slXsRqTFOuaXrHIygEk4KttVl
 
