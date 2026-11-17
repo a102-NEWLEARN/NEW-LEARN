@@ -11,6 +11,15 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
+    hikari:
+      data-source-properties:
+        # backend 연결에만 넘기는 PostgreSQL 세션 설정(PgJDBC options). 사이트는 "-c jit=off" (Jira S15P31A102-230).
+        # 화면 쿼리는 수 ms 짜리인데, 추정 비용이 JIT 문턱(기본 10만)을 넘으면 실행마다 컴파일했다 — 2026-11-17 운영에서
+        # 앱 SQL 을 PREPARE 해 잰 값: A1 분야별 이슈 수 28.6 → 13.3 ms · A13 검색 이슈 칸 14.2 → 0.9 · 사건 칸 10.9 → 4.7.
+        # 비면 빈 options 가 가서 서버 기본값 그대로다(로컬 · CI). DB 서버 설정 · psql 스크립트는 건드리지 않는다.
+        # 운영 · CI 에서는 Flyway 도 이 연결을 써서 마이그레이션도 같은 설정이다(DDL 은 JIT 대상이 아니다).
+        # 되돌리기는 infra/k8s/services/app/backend.yaml 의 DB_OPTIONS 값을 "" 로
+        options: ${DB_OPTIONS:}
   jpa:
     open-in-view: false
     hibernate:

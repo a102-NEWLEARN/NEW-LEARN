@@ -25,13 +25,13 @@ NEW:LEARN 이 제대로 도는지 확인한 방법을 한 장에 모았습니다
 
 | 영역 | 도구 | 시험 수 | 무엇을 지키나 |
 |---|---|--:|---|
-| Backend | JUnit · Testcontainers(로컬은 실제 PostgreSQL · Redis 컨테이너, CI 는 잡 옆에 띄운 PostgreSQL · Redis) · Spotless · Error Prone · NullAway | 514 | API 응답 · 오류 코드, 쿼리 결과, AI 결과 저장 전 검사. null 위험과 컴파일 경고는 빌드 실패 |
+| Backend | JUnit · Testcontainers(로컬은 실제 PostgreSQL · Redis 컨테이너, CI 는 잡 옆에 띄운 PostgreSQL · Redis) · Spotless · Error Prone · NullAway | 517 | API 응답 · 오류 코드, 쿼리 결과, AI 결과 저장 전 검사. null 위험과 컴파일 경고는 빌드 실패 |
 | Frontend | Vitest · ESLint · Prettier · 타입 검사(CI 빌드) | 640 | 화면 컴포넌트 · 상태 · 문구, API 호출 · 라우팅 |
 | AI 워커 | pytest · ruff | 204 | 핵심 정보 추출(EXTRACT) 전처리 · 출력 검사 · 발생 시점 풀이, GMS 호출 재시도 · 시간 제한, 작업 큐 처리 · 결과 보내기, 임베딩 입력 · 벡터 검사 |
 | Infra | `terraform test`(보안 그룹 · 백업 버킷), unittest([`infra/ci/`](../infra/ci/) 시험 파일 14개 — 배포 태그 MR · 뉴스 수집 · 분야 라벨 · AI 결과 적재 변환 · 부하 시험 도구 · 지난 기사 B2 변환, 그리고 8절 정확도 평가 도구 일곱), promtool(경보 규칙) | 425 | 인프라 코드와 운영 스크립트, 8절 정확도 평가 도구 |
 | 하네스 | 셸 시험([`.claude/hooks/tests/`](../.claude/hooks/tests/)) | — | 커밋 훅 · 시크릿 스캔 · MR 규칙 검사 자체 |
 
-- 시험 수는 dev 에서 시험 함수를 센 값입니다 — Backend 는 `@Test` · `@ParameterizedTest`, Frontend 는 `it(` · `test(` · `test.each`, AI 는 `def test_` · `async def test_`. 매개변수로 여러 번 도는 경우는 한 번으로 셌습니다. Backend 는 2026-11-16(Jira 224 반영), AI · Infra 는 2026-11-15, Frontend 는 2026-11-13 에 센 값입니다. Infra 만 함수를 세지 않고 `unittest discover` 가 실제로 돈 수입니다
+- 시험 수는 dev 에서 시험 함수를 센 값입니다 — Backend 는 `@Test` · `@ParameterizedTest`, Frontend 는 `it(` · `test(` · `test.each`, AI 는 `def test_` · `async def test_`. 매개변수로 여러 번 도는 경우는 한 번으로 셌습니다. Backend 는 2026-11-17(Jira 230 반영), AI · Infra 는 2026-11-15, Frontend 는 2026-11-13 에 센 값입니다. Infra 만 함수를 세지 않고 `unittest discover` 가 실제로 돈 수입니다
 - MR · dev 파이프라인마다 `w0:rules` 가 저장소 전체와 MR 커밋 이력에서 시크릿을 한 번 더 찾고, MR 이면 커밋 제목 · MR 제목 규칙을 봅니다. MR 본문 양식은 기계가 보지 않습니다
 - dev 를 분야 브랜치(`infra` · `backend` · `frontend` · `ai`)에 맞추는 MR 은 dev 에서 이미 검사한 커밋이라 무거운 잡을 다시 돌지 않습니다. 배포 태그 MR(`deploy/app` · `deploy/ai`)을 머지한 dev 커밋도 태그 한 줄만 바뀌어 영역 검사를 다시 돌지 않습니다(`w0:rules` · `w12:infra` 는 돈다)
 - **머지 막기(Pipelines must succeed)는 켜지 않았습니다**(`SSOT.md` 6절). 파이프라인이 성공한 뒤에 머지하는 것은 팀 약속이고, 커밋 훅은 클론마다 설치해야 돌아갑니다
