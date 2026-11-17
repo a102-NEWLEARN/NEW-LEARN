@@ -128,8 +128,8 @@ public class IssueQueryRepository {
                 .param("offset", pageable.getOffset())
                 .query((rs, rowNum) -> new CountedCard(mapCard(rs, rowNum), rs.getLong("total_count")))
                 .list();
-        // getPage 는 덜 찬 첫 쪽이면 행 수로 끝내고, 그 밖에만 전체 수를 묻는다. 끝을 넘은 쪽은 행이 없어
-        // 창 함수가 값을 못 주므로 그때만 따로 센다
+        // getPage 는 덜 찬 쪽이면 행 수(첫 쪽)나 offset + 행 수(그 밖의 쪽)로 끝내고, 꽉 찬 쪽과 끝을 넘은 쪽에서만
+        // 전체 수를 묻는다. 끝을 넘은 쪽은 행이 없어 창 함수가 값을 못 주므로 그때만 따로 센다
         return PageableExecutionUtils.getPage(
                 rows.stream().map(CountedCard::card).toList(),
                 pageable,

@@ -25,7 +25,7 @@ A2 는 사용자 요청의 약 32%다(입구 로그 7일 비율 — `infra/serve
 `IssueQueryRepository.findCards` 를 질의 둘 → 하나로.
 
 - `LIST` · `LIST_WITH_THRESHOLD` **두 모양 모두** 바깥 select 에 `count(*) over () as total_count` 한 칸
-- 쪽은 Spring Data 의 `PageableExecutionUtils.getPage(rows, pageable, () -> …)` 로 만든다. 이 도구는 덜 찬 첫 쪽이면 행 수를, 빈 행이고 첫 쪽이 아니면(끝을 넘은 쪽) 공급자를 부른다. 공급자는 행이 있으면 첫 행의 `total_count`, 없으면 **지금 전체 수 질의를 그대로** 부른다 — 창 함수는 행이 없으면 값을 못 주기 때문이다. 손으로 짠 갈래가 없다. 화면이 끝 너머 쪽을 부르는 일은 드물다
+- 쪽은 Spring Data 의 `PageableExecutionUtils.getPage(rows, pageable, () -> …)` 로 만든다. 이 도구는 덜 찬 쪽이면 행 수(첫 쪽)나 `offset` + 행 수(그 밖의 쪽)로 끝내고, 꽉 찬 쪽과 끝을 넘은 쪽(빈 행 · 첫 쪽 아님)에서만 공급자를 부른다 — 이번 고침의 이득은 꽉 찬 쪽에서 난다. 공급자는 행이 있으면 첫 행의 `total_count`, 없으면 **지금 전체 수 질의를 그대로** 부른다 — 창 함수는 행이 없으면 값을 못 주기 때문이다. 손으로 짠 갈래가 없다. 화면이 끝 너머 쪽을 부르는 일은 드물다
 
 ## 바꿀 파일
 
@@ -56,7 +56,7 @@ A2 는 사용자 요청의 약 32%다(입구 로그 7일 비율 — `infra/serve
 
 ## 리스크
 
-- **전체 수를 세는 모양이 바뀐다.** 지금은 이슈 표에서 `exists` 로, 새로는 사건을 묶어 `having` 으로 센다. 두 모양이 다른 답을 내는 경우가 있으면 화면의 전체 수가 바뀐다. 오늘 운영(분야 없음)은 203 = 203 이었고, 머지 전 전수 비교로 분야 다섯 · 정렬 둘을 본다. 대신 행과 전체 수가 같은 계산에서 나와 「총수와 쪽이 어긋남」은 구조적으로 줄어든다. A1(여전히 `exists` 모양) 합 = A2 전체 수는 시험 `categoryCountsLeaveOutTheSameIssuesAsTheList` 가 지킨다
+- **전체 수를 세는 모양이 바뀐다.** 지금은 이슈 표에서 `exists` 로, 새로는 사건을 묶어 `having` 으로 센다. 두 모양이 다른 답을 내는 경우가 있으면 화면의 전체 수가 바뀐다. 오늘 운영(분야 없음)은 203 = 203 이었고, 머지 전 전수 비교로 분야 6갈래 × (첫 쪽 · 가운데 쪽)을 본다(작업 순서 둘째 줄). 대신 행과 전체 수가 같은 계산에서 나와 「총수와 쪽이 어긋남」은 구조적으로 줄어든다. A1(여전히 `exists` 모양) 합 = A2 전체 수는 시험 `categoryCountsLeaveOutTheSameIssuesAsTheList` 가 지킨다
 - **끝 넘은 쪽은 지금처럼 질의 둘**이다(행 0 + 수). 느려지지 않지만 빨라지지도 않는다
 - **끔 경로(`LIST`, 문턱 1)는 운영이 안 쓴다** — 시험(`CategoryIssueQueryTest` · `MinMainEventsListShapeTest`)으로만 본다
 - **발표 전날(11-17) backend 를 새로 띄운다.** Argo CD 교체 1 ~ 2분, 데이터 · 설정은 안 바뀐다. 기본은 오늘 배포(맨 위), 「머지까지만」이면 배포 태그 MR 을 미룬다
@@ -65,10 +65,10 @@ A2 는 사용자 요청의 약 32%다(입구 로그 7일 비율 — `infra/serve
 ## 어떻게 검증하나
 
 1. **시험** — `backend_TEST` 전체 초록. 되돌림 확인 셋:
-   - 끝 넘은 쪽 갈래를 지우고 0 을 돌려주면 → 새 단언 둘이 빨개진다
+   - 끝 넘은 쪽 갈래를 지우고 0 을 돌려주면 → 끝 넘은 쪽 단언이 빨개진다(실제로는 원래 있던 `CategoryIssueQueryTest:87` 과 새 `MinPublicEventsApiIntegrationTest` 단언. 새 politics 단언은 87줄에서 먼저 멈춰 둘째 되돌림에서 걸렸다)
    - 갈래의 수 질의에 분야를 안 넘기면 → `CategoryIssueQueryTest` 의 분야 단언이 빨개진다
    - `total_count` 대신 `rows.size()` 를 쓰면 → 기존 단언(`aggregateCountsAndBulkReferences` 의 쪽 크기 2 · 전체 3, `filtersSortAndPagesFollowTheSameRule` 의 `size=1&page=1` · 전체 3)이 빨개진다
-2. **운영 전수 비교(머지 전)** — 위 12갈래가 모두 같다
+2. **운영 전수 비교(머지 전)** — 분야 6갈래 × (첫 쪽 · 가운데 쪽)이 모두 같다
 3. **사이트(배포 뒤)** — 배포된 backend 이미지 판부터 확인(11-15 교훈). A2 `totalElements` 가 배포 직전 값과 같고, A1 분야별 이슈 수 합 = A2 전체 수, 끝 넘은 쪽(`page=999`)도 같은 전체 수
 4. **속도** — 운영 실행 계획 3회: 전(전체 수 + 행) → 후(합친 질의). 밖에서 잰 A2 응답 시간(관리자 PC, 15번 중앙값, 앞 2회 버림 — 208 때 `timeapi.py` 방식) 전후. 흔들림이 차이보다 크면 그대로 적는다
 5. `SSOT.md` 10절에 전후 숫자와 「말하지 못하는 것」 한 줄
