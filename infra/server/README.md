@@ -461,6 +461,7 @@ kube-prometheus-stack(Prometheus · Grafana · node-exporter · kube-state-metri
    | 수집 | 5번의 수집 대상 명령 (EC2) | `gitlab-ci-exporter` 까지 모두 up |
    | 값 | Grafana 「CI 병목」 잡 표 | 잡 ID 를 눌러 연 GitLab 잡 화면의 Queued · Duration · Runner 와 같다 |
    | 요청 수 | 「CI 병목」 오른쪽 위 「GitLab 으로 보낸 요청 (시간당)」 | 3600(초당 1회 상한)보다 한참 아래. 붙으면 `config.yml` 의 읽는 범위를 줄인다 |
+   | 견주기 줄 (Jira S15P31A102-226) | 「CI 병목」 맨 위 접힌 줄 「여신보좌관과 견주기」를 펼침 | 막대 넷(3초 · 1분 · 5분 · 23분 안) · 기다림 최대 · 센 실행에 값이 나온다. 펼친 채 두면 1분마다 7일치를 다시 세니 보고 나서 접는다 |
 
    - 설정(`config.yml`)이나 대시보드(`ci-dashboard.json`)를 바꾼 뒤에도 같은 `apply -k` 한 줄. 설정이 바뀌면 ConfigMap 이름이 바뀌어 Pod 가 새로 뜨고 처음부터 다시 모은다. 옛 `gitlab-ci-exporter-config-<해시>` 는 남으니 `kubectl -n monitoring delete configmap` 으로 지운다
    - 토큰이 만료되거나 취소되면 로그에 401 이 찍힌다. 새 토큰으로 Secret 을 지우고 다시 만든 뒤 `kubectl -n monitoring rollout restart deploy/gitlab-ci-exporter`
