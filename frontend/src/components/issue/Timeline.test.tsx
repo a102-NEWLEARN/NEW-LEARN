@@ -752,3 +752,50 @@ test("도구줄에 이슈 화면이 준 보기 전환을 확대 · 축소 앞에
     viewSwitch.compareDocumentPosition(zoom) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 });
+
+// 휠이 늘 확대라 지도 위에서는 세로 스크롤이 막혀 아래 서브 흐름으로 내려갈 수 없었다 (2026-11-17 사용자, Jira 229).
+// 휠은 세로 스크롤, Shift+휠 · 가로 휠은 옆으로 옮기기, Ctrl/⌘+휠 · 핀치는 확대 · 축소
+const map = () => screen.getByRole("group", { name: "사건 타임라인" });
+
+test("그냥 휠은 확대하지 않고 세로 스크롤로 넘긴다 — 처음 한 번 확대하는 법을 알려 준다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  // fireEvent 는 막지(preventDefault) 않았으면 true 다 — 브라우저가 지도 칸을 스크롤한다
+  expect(fireEvent.wheel(map(), { deltaY: 100 })).toBe(true);
+  expect(zoomLevel()).toBe(start);
+  expect(screen.getByRole("status").textContent).toMatch(/Ctrl\+휠/);
+});
+
+test("Ctrl · ⌘ + 휠은 확대 · 축소한다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  expect(fireEvent.wheel(map(), { deltaY: -100, ctrlKey: true })).toBe(false);
+  expect(zoomLevel()).toBeGreaterThan(start);
+  const zoomed = zoomLevel();
+
+  fireEvent.wheel(map(), { deltaY: 100, metaKey: true });
+  expect(zoomLevel()).toBeLessThan(zoomed);
+});
+
+test("마우스 Ctrl+휠 한 칸은 조금씩 확대한다 — 트랙패드 핀치처럼 크게 뛰지 않는다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  fireEvent.wheel(map(), { deltaY: -100, ctrlKey: true });
+  expect(zoomLevel() / start).toBeLessThan(1.3);
+});
+
+test("Shift+휠 · 가로 휠은 배율을 그대로 두고 시간축을 따라 옆으로 옮긴다", async () => {
+  renderMany();
+  const start = zoomLevel();
+  const first = nodeXs()[0];
+
+  expect(fireEvent.wheel(map(), { deltaX: 200 })).toBe(false);
+  expect(nodeXs()[0]).toBeCloseTo(first - 200);
+
+  fireEvent.wheel(map(), { deltaY: 100, shiftKey: true });
+  expect(nodeXs()[0]).toBeCloseTo(first - 300);
+  expect(zoomLevel()).toBe(start);
+});
