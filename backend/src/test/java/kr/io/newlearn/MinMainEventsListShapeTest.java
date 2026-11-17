@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 // 메인 흐름 문턱의 LIST 모양 (Jira 224, 계획 docs/plans/2026-11-16-main-flow-issues.md)
 // 이슈 목록 질의는 기사 문턱이 1 이면 LIST, 2 이상이면 LIST_WITH_THRESHOLD 로 간다(IssueQueryRepository). 사이트 조합(기사 3)은
 // MinPublicEventsApiIntegrationTest 가 지키고, 여기는 기사 문턱 1 · 메인 문턱 1 로 LIST 에 붙인 having 을 지킨다 —
-// 한 모양만 고치면 전체 수(개수 질의)와 행이 어긋나도 다른 시험은 다 초록이다.
+// 한 모양만 고치면 전체 수와 행이 어긋나도 다른 시험은 다 초록이다(전체 수는 같은 목록 질의의 count(*) over (), Jira 227).
 //
 //   MAIN_ONE 메인 1 · 서브 1 → 보인다 / SUB_ONLY 서브 2 → 목록 · 전체 수 · 분야별 개수 · 검색 이슈 칸에서 빠진다
 @SpringBootTest(properties = "newlearn.query.min-main-events=1")
@@ -49,7 +49,7 @@ class MinMainEventsListShapeTest {
         event(224022, SUB_ONLY, "REACTION", "2026-10-08T00:00:00Z");
     }
 
-    // 개수 질의와 행 질의가 같은 규칙이어야 쪽 계산이 맞는다 — 서브만 이슈가 더 최근이라 행에 섞이면 맨 앞에 온다
+    // 행과 전체 수가 같은 규칙이어야 쪽 계산이 맞는다 — 서브만 이슈가 더 최근이라 행에 섞이면 맨 앞에 온다
     @Test
     void listRowsAndTotalBothLeaveOutTheIssueWithoutAMainEvent() throws Exception {
         mvc.perform(get("/api/v1/issues"))
