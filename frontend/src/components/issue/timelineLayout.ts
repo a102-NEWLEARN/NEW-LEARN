@@ -27,6 +27,15 @@ const STACK_GAP_BELOW_RAIL = 62;
 const LABEL_BOTTOM = 28;
 const RAIL_LABEL_BOTTOM = 42;
 const LANE_BOTTOM_ROOM = 12;
+/**
+ * 같은 시각 · 같은 레인 사건이 이만큼 이상이면 SHOWN_IN_FOLD 건만 놓고 나머지는 「+N건」 칩으로 접는다. 4건은 칩이 4번째 자리를
+ * 그대로 차지해 줄어드는 높이가 없어 접지 않는다. 스마트안경 이슈는 하루 메인 사건 10건이 쌓여 메인 흐름 레인이 562px 가 됐다
+ * (2026-11-17 사용자)
+ */
+const FOLD_FROM = 5;
+const SHOWN_IN_FOLD = 3;
+/** 칩은 쌓인 다음 자리 가운데에 놓이고 위아래로 이만큼 차지한다 */
+const CHIP_HALF = 12;
 
 /** 쌓인 순서(0 부터)의 사건이 첫 사건에서 아래로 떨어진 거리. 메인 흐름 첫 사건은 레인 선 위다 */
 const stackOffset = (lane: TimelineLane, index: number) =>
@@ -87,13 +96,38 @@ export type TimelineLayout = {
   /** 그리는 영역의 폭 (확대 · 축소 전) */
   width: number;
   months: MonthTick[];
+  /** 「+N건」 · 「접기」 칩 — 접을 만큼 쌓인 칸마다 하나 */
+  folds: StackFold[];
 };
+
+export type StackFold = {
+  /** 펼친 칸을 기억할 key — stackKey */
+  key: string;
+  lane: TimelineLane;
+  /** 그 칸 사건과 같은 가로 자리 (확대 · 축소 전) */
+  x: number;
+  /** 칩 가운데 높이 — 쌓인 마지막 사건의 다음 자리 */
+  y: number;
+  /** 숨긴 사건 수. 펼쳤으면 0 */
+  hidden: number;
+  expanded: boolean;
+  /** 그 칸의 날짜 — 칩 이름에 쓴다 */
+  dateLabel: string;
+};
+
+/** 같은 시각 · 같은 레인 사건을 한 칸으로 묶는 key */
+export const stackKey = (lane: TimelineLane, occurredAt: string) =>
+  `${lane}|${Date.parse(occurredAt)}`;
 
 type LayoutOptions = {
   /** 타임라인 자리의 폭(레인 이름 칸 포함). 넓으면 빈 자리를 채우게 늘린다 */
   width?: number;
   /** 날짜에 연도를 붙일지 가릴 오늘 */
   now?: Date;
+  /** 펼친 칸의 stackKey */
+  expanded?: ReadonlySet<string>;
+  /** 접어도 늘 보일 사건 id — 고른 사건 · 최신 사건 */
+  pinned?: readonly (number | null)[];
 };
 
 const timeOf = (event: TimelineEvent) => Date.parse(event.occurredAt);
@@ -121,7 +155,12 @@ function kstYearMonth(ms: number) {
 
 export function layoutTimeline(
   input: TimelineEvent[],
-  { width = 0, now = new Date() }: LayoutOptions = {},
+  {
+    width = 0,
+    now = new Date(),
+    expanded = new Set(),
+    pinned = [],
+  }: LayoutOptions = {},
 ): TimelineLayout {
   const sorted = [...input].sort(
     (a, b) => timeOf(a) - timeOf(b) || a.id - b.id,
@@ -166,32 +205,57 @@ export function layoutTimeline(
     return (xA + (xB - xA) * ratio) * scale;
   };
 
-  // 세로 — 같은 시각 · 같은 레인 사건은 첫 사건을 레인 자리에 두고 아래로 쌓는다(라벨끼리 12px 를 남기게, stackOffset). 마지막 라벨이 안 들어가면 레인을 늘린다
+  // 세로 — 같은 시각 · 같은 레인 사건은 첫 사건을 레인 자리에 두고 아래로 쌓는다(라벨끼리 12px 를 남기게, stackOffset).
+  // 많이 쌓인 칸은 접는다(FOLD_FROM). 마지막 라벨 · 칩이 안 들어가면 레인을 늘린다
   const stacks = new Map<string, TimelineEvent[]>();
   for (const event of sorted) {
-    const key = `${laneOf(event)}|${timeOf(event)}`;
+    const key = stackKey(laneOf(event), event.occurredAt);
     stacks.set(key, [...(stacks.get(key) ?? []), event]);
   }
+  // 접은 칸에 남길 사건 — 고른 사건 · 최신 사건 먼저, 그다음 기사 수 많은 순, 같으면 id 작은 순. 놓는 순서는 원래대로 둔다
+  const pinnedIds = new Set(pinned);
+  const shownOf = (stack: TimelineEvent[], key: string) => {
+    if (stack.length < FOLD_FROM || expanded.has(key)) return stack;
+    const kept = new Set(
+      [...stack]
+        .sort(
+          (a, b) =>
+            Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id)) ||
+            b.articleCount - a.articleCount ||
+            a.id - b.id,
+        )
+        .slice(0, SHOWN_IN_FOLD),
+    );
+    return stack.filter((event) => kept.has(event));
+  };
+  const shown = new Map(
+    [...stacks].map(([key, stack]) => [key, shownOf(stack, key)]),
+  );
+  const folded = (key: string) => stacks.get(key)!.length >= FOLD_FROM;
+
   const keys: TimelineLane[] = sorted.some((event) => laneOf(event) === "SUB")
     ? ["MAIN", "SUB"]
     : ["MAIN"];
   let top = 0;
   const lanes = keys.map((key): LaneBox => {
-    const tallest = Math.max(
-      1,
-      ...[...stacks.values()]
-        .filter((stack) => laneOf(stack[0]) === key)
-        .map((stack) => stack.length),
+    // 칸마다 아래 끝 — 칩이 있으면 칩 아래 끝, 없으면 마지막 라벨 아래 끝. 가장 깊은 칸이 레인 안에 들어오게 늘린다
+    const bottoms = [...shown]
+      .filter(([stackId]) => laneOf(stacks.get(stackId)![0]) === key)
+      .map(([stackId, events]) =>
+        folded(stackId)
+          ? stackOffset(key, events.length) + CHIP_HALF
+          : stackOffset(key, events.length - 1) +
+            (key === "MAIN" && events.length === 1
+              ? RAIL_LABEL_BOTTOM
+              : LABEL_BOTTOM),
+      );
+    const lastBottom = Math.max(
+      key === "MAIN" ? RAIL_LABEL_BOTTOM : LABEL_BOTTOM,
+      ...bottoms,
     );
-    // 가장 높이 쌓인 칸의 마지막 라벨이 레인 안에 들어오게 늘린다
-    const lastLabelBottom =
-      stackOffset(key, tallest - 1) +
-      (key === "MAIN" && tallest === 1 ? RAIL_LABEL_BOTTOM : LABEL_BOTTOM);
     const extra = Math.max(
       0,
-      lastLabelBottom +
-        LANE_BOTTOM_ROOM -
-        (LANES[key].height - LANES[key].nodeY),
+      lastBottom + LANE_BOTTOM_ROOM - (LANES[key].height - LANES[key].nodeY),
     );
     const lane = {
       key,
@@ -209,10 +273,13 @@ export function layoutTimeline(
     sorted.map((event) => event.occurredAt),
     now,
   );
-  const events = sorted.map((event, index): PlacedEvent => {
-    const lane = lanes.find((item) => item.key === laneOf(event))!;
-    const stack = stacks.get(`${lane.key}|${timeOf(event)}`)!;
+  const laneBox = (key: TimelineLane) =>
+    lanes.find((item) => item.key === key)!;
+  const placed = sorted.map((event, index): PlacedEvent | null => {
+    const lane = laneBox(laneOf(event));
+    const stack = shown.get(stackKey(lane.key, event.occurredAt))!;
     const offset = stack.indexOf(event);
+    if (offset < 0) return null;
     return {
       ...event,
       lane: lane.key,
@@ -222,6 +289,23 @@ export function layoutTimeline(
       estimated: event.occurredAtBasis === "FIRST_PUBLISHED",
     };
   });
+  const events = placed.filter((event): event is PlacedEvent => !!event);
+
+  const folds = [...stacks]
+    .filter(([key]) => folded(key))
+    .map(([key, stack]): StackFold => {
+      const lane = laneBox(laneOf(stack[0]));
+      const count = shown.get(key)!.length;
+      return {
+        key,
+        lane: lane.key,
+        x: xAt(timeOf(stack[0])),
+        y: lane.top + lane.nodeY + stackOffset(lane.key, count),
+        hidden: stack.length - count,
+        expanded: count === stack.length,
+        dateLabel: dateLabels[sorted.indexOf(stack[0])],
+      };
+    });
 
   return {
     events,
@@ -230,6 +314,7 @@ export function layoutTimeline(
     height: top + AXIS_HEIGHT,
     width: plotWidth,
     months: monthTicks(start, end, xAt, events[0]),
+    folds,
   };
 }
 

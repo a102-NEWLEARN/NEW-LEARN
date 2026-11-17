@@ -16,7 +16,7 @@
   — `fiveFailuresLockTheLoginIdForOneMinute` · `unknownIdIsCountedTooSoNothingLeaks` · `successResetsTheFailureCount` · `concurrentAttemptsStillCompareAtMostFiveTimes`
 - AC-7: A16 은 세션을 끝내고 204 를 준다. 끝난 세션이나 세션 없이 부르면 401 `UNAUTHORIZED`
   — `logoutEndsTheSession` · `logoutWithoutSessionIsUnauthorized`
-- AC-8: 세션은 Redis 에 있고 하루 뒤 만료된다. 세션 쿠키는 `HttpOnly` · `SameSite=Lax` · `Max-Age` 86400, 사이트에서는 `Secure`
+- AC-8: 세션은 Redis 에 있고 30분 동안 요청이 없으면 만료된다. 세션 쿠키는 `HttpOnly` · `SameSite=Lax` 이고 `Max-Age` 가 없는 브라우저 세션 쿠키다, 사이트에서는 `Secure` (2026-11-17 사용자 — 전에는 하루 · `Max-Age` 86400)
   — `sessionLivesInRedisForOneDay` · `SessionCookieHttpTest.sessionAndCsrfCookiesCarryTheirAttributes`
 - AC-9: 번호표 쿠키 `XSRF-TOKEN` 은 첫 POST 전에 아무 응답에서나 받고 화면이 읽을 수 있다(`HttpOnly` 아님). 그 값을 `X-XSRF-TOKEN` 헤더로 돌려보내야 POST 가 통과하고, 없거나 틀리면 403 `FORBIDDEN`. 가입 · 로그인 · 로그아웃 때 번호표가 바뀐다
   — `SecurityRulesTest.anyResponseHandsOutCsrfTokenCookie` · `csrfTokenCookieMustComeBackAsHeader` · `signupWithoutCsrfTokenIsForbidden` · `SessionCookieHttpTest.sessionAndCsrfCookiesCarryTheirAttributes`(가입) · `MemberAuthApiIntegrationTest.loginReturnsMemberAndIssuesNewSessionId`(로그인) · `logoutEndsTheSession`(로그아웃)

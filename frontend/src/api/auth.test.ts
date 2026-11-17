@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw/http";
 import { expect, test } from "vitest";
 import { login, logout } from "@/api/auth";
+import { clearTabLogin } from "@/lib/tabLogin";
 import { server } from "@/mocks/node";
 
 // A15 로그인 · A16 로그아웃 (docs/api-screen.md A15 · A16)
@@ -90,4 +91,27 @@ test("CSRF 번호표가 없거나 틀리면(403) 세션이 남았을 수 있어 
     status: 403,
     code: "FORBIDDEN",
   });
+});
+
+// 탭을 닫으면 로그아웃 — 로그인한 탭에 표시를 두고 로그아웃하면 지운다 (2026-11-17 사용자)
+test("로그인하면 이 탭에 로그인 표시를 둔다", async () => {
+  clearTabLogin();
+
+  await login({ loginId: "newlearn01", password: "password123" });
+  expect(sessionStorage.getItem("newlearn.tab-login")).toBe("1");
+});
+
+test("로그아웃하면 이 탭의 로그인 표시를 지운다 — 세션이 이미 없던(401) 때도", async () => {
+  sessionStorage.setItem("newlearn.tab-login", "1");
+  await logout();
+  expect(sessionStorage.getItem("newlearn.tab-login")).toBeNull();
+
+  sessionStorage.setItem("newlearn.tab-login", "1");
+  server.use(
+    http.post("/api/v1/auth/logout", () =>
+      HttpResponse.json({ status: 401, code: "UNAUTHORIZED" }, { status: 401 }),
+    ),
+  );
+  await logout();
+  expect(sessionStorage.getItem("newlearn.tab-login")).toBeNull();
 });
