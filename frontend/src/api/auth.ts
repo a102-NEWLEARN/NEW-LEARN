@@ -1,6 +1,7 @@
 import { api } from "@/api/client";
 import { ApiError } from "@/api/error";
 import type { Member } from "@/api/members";
+import { clearTabLogin, markTabLogin } from "@/lib/tabLogin";
 
 export type LoginRequest = { loginId: string; password: string };
 
@@ -9,7 +10,11 @@ export type LoginRequest = { loginId: string; password: string };
  * 오류는 401 LOGIN_FAILED · 400 VALIDATION_FAILED · 429 TOO_MANY_REQUESTS — 언제 나는지는 docs/api-screen.md A15
  */
 export function login(body: LoginRequest) {
-  return api.post<Member>("/auth/login", body).then((res) => res.data);
+  return api.post<Member>("/auth/login", body).then((res) => {
+    // 이 탭에서 로그인했다 — 탭을 다 닫았다 열면 로그아웃한다(lib/tabLogin)
+    markTabLogin();
+    return res.data;
+  });
 }
 
 /**
@@ -19,9 +24,10 @@ export function login(body: LoginRequest) {
 export function logout() {
   return api
     .post<void>("/auth/logout")
-    .then(() => undefined)
+    .then(() => clearTabLogin())
     .catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 401) return undefined;
+      if (error instanceof ApiError && error.status === 401)
+        return clearTabLogin();
       throw error;
     });
 }

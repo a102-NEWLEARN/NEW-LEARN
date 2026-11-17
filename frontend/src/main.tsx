@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { createQueryClient } from "@/api/query-client";
+import { answerOtherTabs } from "@/lib/tabLogin";
 import { AppProviders } from "@/providers";
 import { registerServiceWorker } from "@/pwa/registerServiceWorker";
 import { routes } from "@/routes";
@@ -33,6 +34,9 @@ async function enableMocking() {
 }
 
 const queryClient = createQueryClient();
+
+// 링크를 새 탭으로 열면 새 탭이 「로그인한 탭 있나」 묻는다 — 이 탭에서 로그인했으면 답해 새 탭도 로그인을 이어 간다 (lib/tabLogin)
+answerOtherTabs();
 
 void enableMocking().then(() => {
   // 가짜 API 가 주소를 바꾼 뒤에 만든다 — 라우터는 만들 때의 주소로 시작한다
