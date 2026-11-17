@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { CoachMarks } from "@/components/coach/CoachMarks";
 
@@ -156,7 +156,11 @@ test("설명은 다른 대상을 덮지 않는다", async () => {
 test("안내가 떠 있는 동안 화면이 스크롤되지 않고, 닫으면 돌아온다", async () => {
   setup();
   const dialog = await screen.findByRole("dialog");
-  expect(document.documentElement.style.overflow).toBe("hidden");
+  // 스크롤 막기는 안내를 그린 뒤 효과(useEffect)에서 건다 — 막이 보인 직후에는 아직일 수 있어 기다린다.
+  // 바로 보면 시험이 몰려 느릴 때 가끔 빈 값을 읽었다
+  await waitFor(() =>
+    expect(document.documentElement.style.overflow).toBe("hidden"),
+  );
   const wheel = new WheelEvent("wheel", { bubbles: true, cancelable: true });
   dialog.dispatchEvent(wheel);
   expect(wheel.defaultPrevented).toBe(true);
