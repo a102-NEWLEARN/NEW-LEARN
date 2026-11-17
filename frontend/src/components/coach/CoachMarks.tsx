@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 // 화면 안내(코치마크) — 처음 들어온 화면에서 어두운 막 위에 주요 기능을 한꺼번에 가리킨다.
 // 대상 둘레를 점선 알약으로 비우고, 옆 설명에서 휘어진 점선 화살표가 대상을 가리킨다.
-// 대상은 화면이 붙인 data-coach(또는 가입 가이드의 data-tour) 값으로 찾는다. 화면에 안 보이는 대상은 건너뛰고,
+// 대상은 화면이 붙인 data-coach 값으로 찾는다. 화면에 안 보이는 대상은 건너뛰고,
 // 하나도 없으면 띄우지 않는다. 설명끼리 · 설명과 다른 대상이 겹치지 않게 자리를 고르고, 떠 있는 동안은 화면이 스크롤되지 않는다.
 // 「다시 보지 않기」는 이 브라우저에 기억하고, 알겠어요 · Esc · 막 누르기는 이번만 닫는다
 
@@ -56,6 +56,18 @@ function seen(id: string) {
   }
 }
 
+/** 가입을 마쳤다 — 「다시 보지 않기」로 닫은 화면 안내도 새 회원에게 처음부터 다시 띄운다 (SignupPage, Jira 204) */
+export function resetCoachMarks() {
+  try {
+    const keys = Object.keys(window.localStorage).filter((key) =>
+      key.startsWith(keyOf("")),
+    );
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // 지우지 못하면 전처럼 닫힌 채로 둔다
+  }
+}
+
 function remember(id: string) {
   try {
     window.localStorage.setItem(keyOf(id), "done");
@@ -67,11 +79,7 @@ function remember(id: string) {
 // 같은 값이 여럿이면(탭마다 · 넓은/좁은 화면마다) 화면에 보이는 첫 것
 function find(target: string) {
   const vh = window.innerHeight;
-  return [
-    ...document.querySelectorAll(
-      `[data-coach="${target}"], [data-tour="${target}"]`,
-    ),
-  ]
+  return [...document.querySelectorAll(`[data-coach="${target}"]`)]
     .map((el) => el.getBoundingClientRect())
     .find((b) => b.width > 0 && b.bottom > 0 && b.top < vh);
 }
@@ -360,7 +368,23 @@ export function CoachMarks({ id, marks, delay = 900 }: Props) {
   useEffect(() => {
     if (!shown) return;
     okRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.isComposing) setOpen(false);
+      // 창(aria-modal)이라 포커스는 두 버튼 안에서만 돈다 — 막 아래 화면의 링크로 빠져 Enter 가 안 보이는 것을 누르지 않게
+      if (e.key !== "Tab") return;
+      const buttons = [...(rootRef.current?.querySelectorAll("button") ?? [])];
+      if (buttons.length === 0) return;
+      e.preventDefault();
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const step = e.shiftKey ? -1 : 1;
+      const next =
+        at < 0
+          ? e.shiftKey
+            ? buttons.length - 1
+            : 0
+          : (at + step + buttons.length) % buttons.length;
+      buttons[next].focus();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [shown]);
