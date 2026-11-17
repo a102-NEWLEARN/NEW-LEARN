@@ -16,6 +16,6 @@ resources:
 # 태그는 따옴표로 감싼다 — 숫자로만 된 번호(19187037)를 YAML 이 숫자로 읽으면 kustomize 가 실패한다 (Jira S15P31A102-108)
 images:
   - name: ghcr.io/kimzoo5676-del/newlearn-backend
-    newTag: "fa69e3f8"
+    newTag: "95d28de7"
   - name: ghcr.io/kimzoo5676-del/newlearn-frontend
-    newTag: "5b34893b"
+    newTag: "c095e1ba"
