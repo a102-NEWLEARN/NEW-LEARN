@@ -41,7 +41,7 @@ flowchart LR
 | WAS | Spring Boot 4.1.1 내장 Tomcat (backend 컨테이너, 8080). 별도 WAS 없음 | `backend/src/main/resources/application.yaml` — `server.shutdown: graceful`, `spring.lifecycle.timeout-per-shutdown-phase: 20s`, `jpa.hibernate.ddl-auto: validate`, `open-in-view: false`, 세션 Redis 1일 · 쿠키 HttpOnly · SameSite Lax |
 | JVM | Eclipse Temurin 25 JRE | `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70` (`infra/k8s/services/app/backend.yaml`). 메모리 요청 512Mi · 상한 1Gi |
 | AI 서버 | Uvicorn 0.54.0 (ai 컨테이너, 8000) | `infra/k8s/services/ai/ai.yaml` |
-| DB | PostgreSQL 18 + pgvector 0.8.7 (`pgvector/pgvector:0.8.7-pg18`), DB 이름 `newlearn` | StatefulSet, 저장 20Gi (`infra/k8s/services/data/postgres.yaml`). 스키마는 Flyway(V1 ~ V16) |
+| DB | PostgreSQL 18 + pgvector 0.8.7 (`pgvector/pgvector:0.8.7-pg18`), DB 이름 `newlearn` | StatefulSet, 저장 20Gi (`infra/k8s/services/data/postgres.yaml`). 스키마는 Flyway(V1 ~ V17) |
 | 캐시 · 작업 큐 | Redis 8.10.2 (AOF, `maxmemory 1gb`, `noeviction`) | `infra/k8s/services/data/redis.yaml` |
 | 배포(GitOps) | Argo CD v3.5.5 (차트 10.10.5) | 앱 목록 `infra/k8s/apps/`, 까는 법 `infra/server/bootstrap-argocd.sh` |
 | 비밀값 | Sealed Secrets v0.40.0 (차트 2.20.0) · kubeseal 0.40.0 | 봉인 스크립트 `infra/server/seal-secrets.sh` |
@@ -264,7 +264,7 @@ flowchart LR
 |---|---|
 | DB 접속 URL · 계정 (backend) | `backend/src/main/resources/application.yaml` — `spring.datasource.url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${POSTGRES_DB}`, `username · password: ${POSTGRES_USER} · ${POSTGRES_PASSWORD}` |
 | Redis 접속 · 세션 (backend) | 같은 파일 — `spring.data.redis`(`${REDIS_HOST}` · `${REDIS_PORT}`), `spring.session` |
-| DB 스키마 (ERD 의 실제 표) | `backend/src/main/resources/db/migration/` (Flyway V1 ~ V16). ERD 그림은 `docs/data-model.md` 의 erDiagram(설계) — 다르면 마이그레이션이 맞습니다 |
+| DB 스키마 (ERD 의 실제 표) | `backend/src/main/resources/db/migration/` (Flyway V1 ~ V17). ERD 그림은 `docs/data-model.md` 의 erDiagram(설계) — 다르면 마이그레이션이 맞습니다 |
 | 로컬 DB · Redis · 앱 컨테이너 | `compose.yaml`, 값은 루트 `.env` (이름은 `.env.example`) |
 | 운영 DB · Redis | `infra/k8s/services/data/postgres.yaml` · `redis.yaml` |
 | 운영 앱 환경 변수 | `infra/k8s/services/app/backend.yaml` · `services/ai/ai.yaml` · `services/ingest/news-ingest.yaml` |
