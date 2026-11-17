@@ -1,0 +1,2 @@
+# 포팅 매뉴얼의 DB 덤프는 크기가 커서 Git LFS 로 둔다 (Jira S15P31A102-225)
+files/db/*.dump filter=lfs diff=lfs merge=lfs -text
