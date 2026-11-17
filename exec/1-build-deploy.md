@@ -248,7 +248,7 @@ flowchart LR
 - **비밀값 키 백업**: Sealed Secrets 개인키를 잃으면 서버를 다시 만들 때 저장소의 봉인 Secret 을 못 풉니다. 키는 인프라 담당 PC 에 백업합니다(`infra/server/README.md` 「Sealed Secrets 키」). **다른 클러스터에 배포할 때는 자기 키로 모든 Secret 을 다시 봉인해야 합니다.**
 - **이미지 저장소가 비공개**: GHCR 패키지는 인프라 담당 개인 계정 아래 비공개입니다. 다른 곳에 배포하려면 자기 레지스트리로 `.gitlab-ci.yml` 의 `IMAGE_PREFIX` · CI 변수 · `ghcr-pull` Secret, 배포 태그 파일(`kustomization.yaml` 의 `images`), 그리고 Deployment 매니페스트의 이미지 이름(`infra/k8s/services/app/backend.yaml` · `frontend.yaml` · `services/ai/ai.yaml`)을 함께 바꿉니다 — kustomize 는 이미지 이름이 같을 때만 태그를 바꿉니다.
 - **토큰 만료**: GHCR 토큰 · `DEPLOY_MR_TOKEN` · Argo CD 배포 토큰 · CI 지표 토큰은 2026-11-30 에 만료됩니다.
-- **운영 서버는 발표 뒤 내립니다.** EC2 는 `terraform destroy` 로 지우고(멈추기만 하면 EBS · 탄력적 IP 요금이 나감), 서버 명령(`ssh newlearn …`, `kubectl …`)은 서버가 있을 때만 됩니다.
+- **서버 명령은 접속 권한이 있는 사람만**: `ssh newlearn …` · `kubectl …` 같은 운영 명령은 관리 서버 SSH 키와 허용된 IP 가 있어야 돕니다. 심사 · 재현은 1-2 로컬 실행과 3장 덤프로 합니다.
 - **새 클러스터를 처음부터 세우는 순서**: `infra/README.md`(Terraform apply) → `infra/server/README.md`(EC2 · Lightsail 받는 날 스크립트 → WireGuard → kubeadm · Cilium → 워커 join → Argo CD · Secret 봉인 → 러너 · 모니터링) 순서입니다.
 - **운영 DB 백업**: 매일 04:00 관리 서버 디스크(7일 보관), 매주 일요일 05:00 S3. 되살리는 법은 `infra/server/db-backup.md`.
 
