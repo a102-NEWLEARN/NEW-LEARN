@@ -1,0 +1,139 @@
+# postgres_exporter — PostgreSQL 통계 표(pg_stat_* · pg_statio_*)를 Prometheus 지표로 바꾼다 (Jira S15P31A102-189)
+# 그리고 분석 작업 표(analysis_job)를 세어 경보의 근거로 낸다 — queries.yaml (Jira S15P31A102-215)
+# 네임스페이스(monitoring)와 대시보드 · 질의 ConfigMap 은 kustomization.yaml 이 붙인다. 왜 두었나는 docs/plans/2026-11-11-query-performance.md
+#   · docs/plans/2026-11-15-analysis-job-alerts.md
+#
+# DB 에는 읽기 전용 역할 newlearn_monitor(pg_monitor + analysis_job 의 여섯 칸 SELECT)로 붙는다 — 역할 · 권한과 비밀번호 Secret 은 make-secret.sh 가 만든다
+# 길: data 네임스페이스 정책 postgres-ingress 에 이 Pod 이름표가 있어야 5432 에 닿는다 (infra/k8s/services/data/netpol.yaml)
+# 쿼리 문장은 내보내지 않는다 — 문장을 싣는 stat_statements 수집기는 기본으로 꺼져 있다(v0.20.1 README)
+# 🔴 이제 경보 근거다 — 이 exporter 가 꺼지면 NewlearnAnalysisMetricsMissing 이 운다(infra/k8s/alerts/rules.yaml)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  labels:
+    app.kubernetes.io/name: postgres-exporter
+spec:
+  # 한 대만. 두 대면 같은 통계를 두 번 읽고 같은 지표가 둘 생긴다
+  replicas: 1
+  # 옛 Pod 를 먼저 내린다 — Pod 하나가 DB 연결을 2개 쓰고(v0.20.1) 역할 상한이 3이라, 바꾸는 동안 두 대가 겹치면 연결이 모자란다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-exporter
+    spec:
+      # 모니터링 차트 · ci-exporter 와 같이 컨트롤 플레인 노드(관리 서버)를 고르고 taint 를 견딘다 (monitoring-values.yaml)
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      # 쿠버네티스 API 를 부르지 않는다
+      automountServiceAccountToken: false
+      # 이미지가 nobody(65534)로 돈다. fsGroup 으로 비밀번호 파일을 그 그룹이 읽게 한다
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: exporter
+          # v0.20.1 (2026-07-08). 태그는 사람이 읽으라고 남기고 받는 것은 digest 로 고정한다 (quay.io, 2026-11-11 확인)
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
+          env:
+            # 주소 · DB 만. 사용자 · 비밀번호는 아래 둘 (README 「DATA_SOURCE_URI」)
+            - name: DATA_SOURCE_URI
+              value: postgres.data.svc:5432/newlearn?sslmode=disable
+            - name: DATA_SOURCE_USER
+              value: newlearn_monitor
+            # 환경변수 대신 파일로 읽는다 — Pod 정의 · describe 에 값이 보이지 않게
+            - name: DATA_SOURCE_PASS_FILE
+              value: /etc/postgres-exporter/password
+            # 분석 작업 질의(queries.yaml). 비밀번호 폴더와 다른 곳에 붙인다 (Jira S15P31A102-215)
+            - name: PG_EXPORTER_EXTEND_QUERY_PATH
+              value: /etc/postgres-exporter-queries/queries.yaml
+          ports:
+            - name: http
+              containerPort: 9187
+          # DB 가 안 닿아도 웹 서버는 뜬다(pg_up 0). DB 상태는 대시보드 · pg_up 으로 본다
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          # 관리 서버 CPU 예약이 빠듯하다 — ci-exporter 와 같은 크기 (ci-exporter/exporter.yaml)
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: password
+              mountPath: /etc/postgres-exporter
+              readOnly: true
+            - name: queries
+              mountPath: /etc/postgres-exporter-queries
+              readOnly: true
+      volumes:
+        - name: password
+          secret:
+            secretName: postgres-exporter
+            defaultMode: 0440
+        # kustomization.yaml 의 configMapGenerator 가 만든다 — 이름 뒤 해시가 붙어 질의를 바꾸면 Pod 가 다시 뜬다
+        - name: queries
+          configMap:
+            name: postgres-exporter-queries
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  labels:
+    app.kubernetes.io/name: postgres-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: postgres-exporter
+  ports:
+    - name: http
+      port: 9187
+      targetPort: http
+---
+# Prometheus(kps)는 모든 네임스페이스의 ServiceMonitor 를 읽는다 (monitoring-values.yaml 의 serviceMonitorSelectorNilUsesHelmValues)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres-exporter
+  labels:
+    app.kubernetes.io/name: postgres-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-exporter
+  endpoints:
+    - port: http
+      interval: 30s
+      # 지표는 DB 이야기라 exporter Pod 이름 · 주소가 필요 없다. 남겨 두면 Pod 가 다시 뜰 때마다
+      # 같은 표가 이름표만 다른 시계열로 하나 더 생겨 대시보드에서 두 번 센다 (ci-exporter 와 같은 이유)
+      metricRelabelings:
+        - action: labeldrop
+          regex: pod|instance

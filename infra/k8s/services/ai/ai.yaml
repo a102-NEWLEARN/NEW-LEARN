@@ -1,0 +1,180 @@
+# ai 워커 (FastAPI) — Redis 작업 큐를 읽어 분석한다. 밖에는 열지 않는다
+# 실제 모드(LLM_MODE=gms) — EXTRACT 큐를 읽어 SSAFY GMS 를 부르고 W1 으로 결과를 보낸다. 켜고 끄는 법은 infra/server/ai-worker.md (Jira S15P31A102-115, 계획 docs/plans/2026-11-02-ai-real-mode-switch.md)
+# 임베딩 모델은 init 컨테이너가 PVC(model-cache.yaml)에 한 번 받아 두고 앱은 그 폴더에서 읽는다 — 계획 docs/plans/2026-10-26-ai-real-mode-infra.md
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai
+spec:
+  selector:
+    app: ai
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: ai
+  template:
+    metadata:
+      labels:
+        app: ai
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ai-model-cache
+      initContainers:
+        # 임베딩 모델을 PVC 에 받아 둔다. 다 받은 판은 .done 이 있어 건너뛴다 — 받는 것은 처음 한 번(약 2.3GB, 1분 안팎)
+        # 판(커밋)은 바뀌지 않게 고정한다(AI 팀 요청). 판마다 폴더를 두고 고정 이름 링크 /models/BGE-m3-ko 를 그 폴더로 바꿔 끼운다(mv -T 는 한 번에 바뀐다)
+        - name: model
+          image: ghcr.io/kimzoo5676-del/newlearn-ai
+          env:
+            - name: MODEL_REPO
+              value: dragonkue/BGE-m3-ko
+            - name: MODEL_REVISION
+              value: 7074d66aa46562342193ca4feb3d89bf9dad71b4
+            # hf 명령도 HF_HOME 에 확인 기록을 쓴다 — 이미지의 HOME 은 / 라서 쓸 수 없다
+            - name: HF_HOME
+              value: /models/hf
+            - name: HF_HUB_DISABLE_TELEMETRY
+              value: "1"
+          command:
+            - sh
+            - -ec
+            - |
+              d="/models/BGE-m3-ko-$MODEL_REVISION"
+              if [ -e "$d/.done" ]; then
+                echo "있음: $d"
+              else
+                start=$(date +%s)
+                hf download "$MODEL_REPO" --revision "$MODEL_REVISION" --local-dir "$d"
+                touch "$d/.done"
+                echo "받음: $d ($(( $(date +%s) - start ))초)"
+              fi
+              ln -sfn "BGE-m3-ko-$MODEL_REVISION" /models/.BGE-m3-ko.new
+              mv -T /models/.BGE-m3-ko.new /models/BGE-m3-ko
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: ai
+          image: ghcr.io/kimzoo5676-del/newlearn-ai
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: REDIS_HOST
+              value: redis.data.svc
+            - name: REDIS_PORT
+              value: "6379"
+            # mock 으로 되돌리면 워커가 큐를 읽지 않는다(WORKER_ALLOW_MOCK 없음 → /health 의 worker OFF)
+            - name: LLM_MODE
+              value: gms
+            # GMS 주소 · 모델은 비밀이 아니다(SSOT 10절). 키는 봉인 Secret gms-api(팀 공용키) — 없으면 Pod 가 뜨지 않아 옛 Pod 가 남는다
+            # seal-secrets.sh gms 가 키를 확인할 때 클러스터에 반영된 이 주소를 읽는다
+            - name: GMS_BASE_URL
+              value: https://gms.ssafy.io/gmsapi/api.openai.com/v1
+            - name: GMS_MODEL
+              value: gpt-6-luna
+            - name: GMS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gms-api
+                  key: GMS_API_KEY
+            # 임베딩 모델은 init 컨테이너가 받아 둔 /models 에서만 읽는다 — 앱이 허깅페이스에서 받지 않게
+            # 모델 경로는 AI 코드의 기본값(EMBED_MODEL_PATH=/models/BGE-m3-ko)이 이 폴더라 따로 넘기지 않는다
+            # EMBED · 판정을 2026-11-14 에 켰다 — 새 기사가 사건에 붙게(Jira S15P31A102-207, 계획 docs/plans/2026-11-13-event-issue-accuracy.md B절).
+            # 켜기 전에 기사 벡터 14,493건을 넣고(infra/server/data-load.md 10절), 밀린 EMBED 를 건너뛰고, embed 그룹을 스트림 끝으로 옮기고,
+            # 사건 · 이슈 스냅숏을 떴다(infra/server/ai-worker.md 「실시간 연결 켜기」). 되돌릴 때는 값을 "false" 로 — 이름을 지우지 않는다.
+            # EMBED: 켜면 모델(약 3GB)을 읽고, 실패하면 EMBED 만 멈춰 /health 가 503 (Jira S15P31A102-185)
+            - name: EMBED_WORKER_ENABLED
+              value: "true"
+            # 판정: GMS 를 부른다(EXTRACT 와 같은 키). 한 번에 한 건씩만 돈다 — 사건이 갈라지지 않게(MatchDispatcher).
+            # 운영 GMS 한 번이 가운데 14초라 시간당 약 240건이 한계다. 15분 수집이 시간당 200건을 넣으니 여유가 20% 안쪽 (Jira S15P31A102-186)
+            - name: MATCH_EVENT_WORKER_ENABLED
+              value: "true"
+            # 이슈: 새 사건을 이슈에 붙이거나(ATTACH) 한 흐름인 사건 3개 이상으로 새 이슈를 만든다(CREATE).
+            # 2026-11-14 에 켰다 — F07 사건 중심 이슈 에볼루션 맵이 실시간으로 돈다. 켜기 전에 백엔드에
+            # ISSUE_REWRITE_SUMMARY_ON_ATTACH=false 를 배포했다(backend.yaml) — ATTACH 가 사건만 넣고
+            # 발표에 쓸 이슈의 요약 · 분야는 건드리지 않는다(Jira S15P31A102-207)
+            - name: ISSUE_WORKER_ENABLED
+              value: "true"
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: HF_HOME
+              value: /models/hf
+            # 분석 결과를 W1 로 돌려줄 backend 주소와 직원용 문 출입증(워커 키, backend 의 INTERNAL_WORKER_KEY 와 같은 값) (Jira 30, docs/api-internal.md)
+            # 키가 비면 워커가 BLOCKED(/health 503), W1 이 401 · 403 이면 큐 읽기를 멈춘다 — 키를 바꾸면 Pod 를 다시 띄운다
+            - name: BACKEND_URL
+              value: http://backend.app.svc:8080
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api
+                  key: INTERNAL_API_KEY
+                  optional: true
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          # 모델을 읽는 동안 포트가 늦게 열려도 재시작하지 않게 — 3분(5초 × 36)까지 기다린 뒤 아래 두 확인이 시작한다
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          # /health 는 Redis 에 ping 한다 — Redis 가 안 되면 준비 안 됨(503)
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
+          # 임베딩(기사 앞 800자) 최대 약 3.1~3.6GB — AI 팀이 4GB 를 요청했다(2026-10-26). 워커에 들어가는지 계산은 계획 문서
+          # CPU 상한은 두지 않는다(다른 서비스와 같다). torch 는 기본 2스레드라 많아야 약 2코어를 쓴다
+          resources:
+            requests:
+              cpu: 500m
+              memory: 4Gi
+            limits:
+              memory: 5Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]

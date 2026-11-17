@@ -1,0 +1,120 @@
+<!-- @dsCard group="Iconography" height=780 page subtitle="전체 아이콘 검색 · 코드 복사" -->
+<!doctype html>
+<html lang="ko">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>Icon Library</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg-layer-default); color:var(--fg-neutral); font-family:var(--font-sans); }
+  .lib { padding:var(--dimension-x4); display:flex; flex-direction:column; gap:var(--dimension-x3); height:780px; }
+  .bar { display:flex; gap:var(--dimension-x2); align-items:center; flex-wrap:wrap; }
+  .search { flex:1 1 220px; height:40px; padding:0 var(--dimension-x3); font:inherit; font-size:15px; color:var(--fg-neutral);
+    background:var(--bg-layer-default); border:1px solid var(--stroke-neutral-weak); border-radius:var(--radius-r2); outline:none; }
+  .search::placeholder { color:var(--fg-placeholder); }
+  .search:focus-visible { outline:2px solid var(--stroke-focus-ring); outline-offset:1px; }
+  .seg { display:inline-flex; padding:2px; gap:2px; background:var(--bg-neutral-weak); border-radius:var(--radius-full); }
+  .seg button { font:inherit; font-size:14px; font-weight:500; height:36px; padding:0 var(--dimension-x4); border:0; border-radius:var(--radius-full);
+    background:transparent; color:var(--fg-neutral-muted); cursor:pointer;
+    transition:background-color var(--duration-color-transition) var(--timing-function-easing); }
+  .seg button[aria-pressed="true"] { background:var(--bg-neutral-solid); color:var(--fg-on-neutral-solid); }
+  .seg button:focus-visible, .tile:focus-visible, .copy:focus-visible { outline:2px solid var(--stroke-focus-ring); outline-offset:2px; }
+  .count { font-size:13px; line-height:18px; color:var(--fg-neutral-muted); }
+  .detail { display:flex; gap:var(--dimension-x4); align-items:center; padding:var(--dimension-x3) var(--dimension-x4);
+    background:var(--bg-neutral-muted); border-radius:var(--radius-r3); min-height:96px; }
+  .detail .big { flex:none; width:64px; height:64px; display:flex; align-items:center; justify-content:center;
+    background:var(--bg-layer-default); border-radius:var(--radius-r2); }
+  .detail .meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:var(--dimension-x1); }
+  .detail .nm { font-size:16px; line-height:22px; font-weight:700; }
+  .detail .kw { font-size:13px; line-height:18px; color:var(--fg-neutral-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .detail code { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; line-height:18px; color:var(--fg-neutral);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; user-select:all; }
+  .actions { display:flex; flex-direction:column; gap:var(--dimension-x1_5); flex:none; }
+  .copy { font:inherit; font-size:13px; font-weight:500; height:32px; padding:0 var(--dimension-x3); border:1px solid var(--stroke-neutral-weak);
+    border-radius:var(--radius-r2); background:var(--bg-layer-default); color:var(--fg-neutral); cursor:pointer; }
+  .copy:active { background:var(--bg-layer-default-pressed); }
+  .status { font-size:12px; line-height:16px; color:var(--fg-positive); min-height:16px; text-align:center; }
+  .grid { flex:1; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:var(--dimension-x1); align-content:start; }
+  .tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--dimension-x2); height:88px; padding:var(--dimension-x2) var(--dimension-x1);
+    border:1px solid transparent; border-radius:var(--radius-r2); background:transparent; color:var(--fg-neutral); cursor:pointer; font:inherit;
+    transition:background-color var(--duration-color-transition) var(--timing-function-easing); }
+  .tile:active { background:var(--bg-transparent-pressed); }
+  .tile[aria-pressed="true"] { background:var(--bg-brand-weak); border-color:var(--stroke-brand-solid); }
+  .tile span { font-size:11px; line-height:14px; color:var(--fg-neutral-muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .empty { grid-column:1 / -1; padding:var(--dimension-x8) 0; text-align:center; font-size:14px; color:var(--fg-neutral-muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.SeedDesign, h = React.createElement, useState = React.useState, useMemo = React.useMemo;
+
+  function copyText(text, done) {
+    function fallback() {
+      var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta); done(ok);
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+      else fallback();
+    } catch (e) { fallback(); }
+  }
+
+  function Library() {
+    var _q = useState(''), q = _q[0], setQ = _q[1];
+    var _k = useState('line'), kind = _k[0], setKind = _k[1];
+    var _s = useState({ name: 'heart', kind: 'line' }), sel = _s[0], setSel = _s[1];
+    var _m = useState(''), msg = _m[0], setMsg = _m[1];
+    var multi = kind === 'multicolor';
+    var list = useMemo(function () { return D.searchIcons(q, multi ? 'multicolor' : 'monochrome'); }, [q, multi]);
+
+    function draw(name, k, size) {
+      return k === 'multicolor' ? h(D.MulticolorIcon, { name: name, size: size }) : h(D.Icon, { name: name, variant: k, size: size });
+    }
+    var info = D.iconInfo(sel.name, sel.kind === 'multicolor' ? 'multicolor' : 'monochrome');
+    var jsx = sel.kind === 'multicolor'
+      ? '<MulticolorIcon name="' + sel.name + '" />'
+      : '<Icon name="' + sel.name + '"' + (sel.kind === 'fill' ? ' variant="fill"' : '') + ' />';
+    var comp = info ? (typeof info.seedComponent === 'string' ? info.seedComponent : info.seedComponent[sel.kind]) : '';
+    var seedImport = info ? 'import { ' + comp + ' } from "' + info.seedPackage + '";' : '';
+    function svgText() { return sel.kind === 'multicolor' ? D.multicolorIconSvg(sel.name) : D.iconSvg(sel.name, sel.kind); }
+    function doCopy(text, what) { copyText(text, function (ok) { setMsg(ok ? what + ' 복사됨' : '코드를 선택해 직접 복사하세요'); setTimeout(function () { setMsg(''); }, 1600); }); }
+
+    var seg = h('div', { className: 'seg', role: 'group', 'aria-label': '아이콘 종류' },
+      [['line', 'Line'], ['fill', 'Fill'], ['multicolor', 'Multicolor']].map(function (o) {
+        return h('button', { key: o[0], 'aria-pressed': kind === o[0], onClick: function () { setKind(o[0]); } }, o[1]);
+      }));
+
+    return h('div', { className: 'lib' },
+      h('div', { className: 'bar' },
+        h('input', { className: 'search', type: 'search', value: q, placeholder: '이름이나 키워드로 검색 (예: 하트, arrow, 알림)', 'aria-label': '아이콘 검색',
+          onChange: function (e) { setQ(e.target.value); } }),
+        seg,
+        h('span', { className: 'count' }, list.length + '개')),
+      h('div', { className: 'detail', 'aria-live': 'polite' },
+        h('div', { className: 'big' }, draw(sel.name, sel.kind, 40)),
+        h('div', { className: 'meta' },
+          h('div', { className: 'nm' }, sel.name + (sel.kind === 'multicolor' ? '' : ' · ' + sel.kind)),
+          h('div', { className: 'kw' }, info ? info.keywords : ''),
+          h('code', null, jsx),
+          h('code', null, seedImport)),
+        h('div', { className: 'actions' },
+          h('button', { className: 'copy', onClick: function () { doCopy(jsx, 'JSX'); } }, 'JSX 복사'),
+          h('button', { className: 'copy', onClick: function () { doCopy(svgText(), 'SVG'); } }, 'SVG 복사'),
+          h('div', { className: 'status' }, msg))),
+      h('div', { className: 'grid' },
+        list.length ? list.map(function (n) {
+          var on = sel.name === n && sel.kind === kind;
+          return h('button', { key: kind + n, className: 'tile', 'aria-pressed': on, title: n, onClick: function () { setSel({ name: n, kind: kind }); } },
+            draw(n, kind, 24), h('span', null, n));
+        }) : h('div', { className: 'empty' }, '“' + q + '”에 맞는 아이콘이 없어요.')));
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Library));
+</script>
+</body>
+</html>

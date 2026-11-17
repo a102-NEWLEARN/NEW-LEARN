@@ -1,0 +1,71 @@
+# Redis — 로컬 개발(compose.yaml)과 같은 판, AOF 로 디스크에 남긴다
+# 접속: redis.data.svc:6379. 세션 · 작업 큐(Streams) · 용어사전 결과 · 사전 하루 한도 셈 · 입구 요청 수 상한 셈(상한 서비스 envoy-ratelimit)을 담는다
+# 세션 · 작업 큐가 있어 가득 차도 지우지 않는다(noeviction) — 꽉 차면 쓰기가 오류로 돌아온다
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:8.10.2
+          # maxmemory 1gb 에 AOF 다시 쓰기(fork)가 메모리를 더 쓴다 — 그래서 컨테이너 상한은 2Gi
+          args: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "noeviction"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: newlearn-local
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

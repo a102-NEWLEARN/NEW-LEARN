@@ -1,0 +1,742 @@
+#!/usr/bin/env bash
+#
+# 커밋 전 게이트. 명령은 여기 박지 않고 .claude/stack.md 의 sh 블록에서 읽는다.
+#
+#   기본 모드          git commit 때 돈다. 실패하면 커밋을 막는다.
+#   --format-only      파일을 고친 직후 Claude Code 훅이 부른다. 포맷만 고치고 늘 통과한다.
+#   --ci [영역…]       설치부터 빌드까지 전부. 영역을 적으면 그것만 돈다 (영역마다 이미지가 다를 때).
+#   --ci-fast [영역…]  --ci 에서 테스트·빌드를 뺀다. MR 은 대개 형식에서 깨져서 이걸 먼저 돌린다.
+#   --changed-areas <기준>  기준 커밋 뒤로 바뀐 파일이 있는 영역 이름을 한 줄에 하나씩 찍는다.
+#                      검사는 안 돌린다. GitHub 영역별 잡이 이 목록으로 매트릭스를 만든다 (ci/github-actions.yml).
+#
+# 스택이 바뀌면 이 파일이 아니라 stack.md 를 고친다. CI 설정도 명령을 다시 적지 않고
+# 이 스크립트만 부른다. 그래야 로컬에서 되는 것이 CI 에서도 된다.
+#
+# 🔴 이 훅을 파이프로 받지 않는다 (... | tail). 종료코드가 tail 의 0 이라 실패가 통과로 보인다.
+# 파일로 받거나 ${PIPESTATUS[0]} 를 본다.
+#
+# 설치:  bash .claude/hooks/install.sh   (한 번만)
+# 우회:  git commit --no-verify          급할 때만. 쓴 사실을 PR 에 적는다.
+# 고친 뒤:  bash .claude/hooks/tests/test-pre-commit.sh
+
+set -uo pipefail
+
+MODE=gate
+TIER=all
+CI_AREAS=""
+BASE_REF=""
+case "${1:-}" in
+  --format-only)   MODE=format ;;
+  --ci)            MODE=ci; shift; CI_AREAS="$*" ;;
+  --ci-fast)       MODE=ci; TIER=fast; shift; CI_AREAS="$*" ;;
+  --changed-areas) MODE=changed; shift; BASE_REF="${1:-}" ;;
+esac
+
+say()  { printf '%s\n' "$*" >&2; }
+fail() { printf '!! %s\n' "$*" >&2; }
+
+# 편집 훅(settings.json)은 프로젝트가 아직 git 저장소가 아니어도 불린다. 그때는 조용히 빠진다.
+# CI 가 같이 빠지면 검사 0개짜리 초록이라 멈춘다. 영역 고르기도 빈 목록이면 검사를 안 돌리니 멈춘다.
+if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  case "$MODE" in ci|changed) ;; *) exit 0 ;; esac
+  fail "git 저장소를 못 읽는다 — 이미지에 git 이 없거나 safe.directory 에 막혔다"
+  git rev-parse --show-toplevel >/dev/null   # git 이 직접 대는 까닭을 같이 찍는다
+  exit 1
+fi
+
+# 기본값(core.quotePath=true)이면 git 이 한글 경로를 "\355…" 처럼 감싸 내놓는다.
+# 그러면 영역 판정이 빗나가 그 파일이 든 영역의 검사가 말없이 빠진다.
+git() { command git -c core.quotePath=false "$@"; }
+
+STACK="$ROOT/.claude/stack.md"
+SCAN="$ROOT/.claude/hooks/secret-scan.sh"
+
+val() { eval "printf '%s' \"\${${1}:-}\""; }
+
+# ---------------------------------------------------------------------------
+# stack.md 의 sh 블록을 읽는다
+# ---------------------------------------------------------------------------
+# 마크다운을 셸로 그대로 실행하면 안 되니 대입문만 남겨 읽는다.
+# 주석 · 빈 줄이 아니면 「이름=」 으로 시작해야 한다. 줄 앞 공백 · export · = 양옆 공백 ·
+# 안 바꾼 <영역> 이 있으면 대입문으로 안 보여 걸러지고 그 검사가 말없이 빠진다. 그래서 막는다.
+#
+# 남긴 줄은 「이름=값」 뒤에 # 주석만 올 수 있다. 값 뒤에 다른 글이 붙으면 셸은 그 글을
+# 명령으로 돌리고 대입은 버린다. 오류도 안 나서 그 단계만 말없이 빠진다.
+# DECL_HEAD_RE 는 「이름=값」 까지다. 뒤의 설명만 바뀐 줄을 같은 선언으로 볼 때 쓴다 (stack_areas).
+IFS= read -r DECL_HEAD_RE <<'RE'
+^[A-Za-z_][A-Za-z0-9_]*=("([^"\\]|\\.)*"|'[^']*'|[^[:space:]"'#;&|<>()`$\\]*)
+RE
+DECL_RE="${DECL_HEAD_RE}([[:space:]]+#.*)?[[:space:]]*\$"
+
+STACK_OK=0
+STACK_ERR=""   # 잘못 적은 것. 채우다 만 것과 달리 커밋도 막는다 (게이트 3단계)
+STACK_BLK=""   # sh 블록 원문. 검사 0개 영역에서 주석으로 남은 줄을 찾을 때 다시 본다 (게이트 6단계)
+load_stack() {
+  [ -f "$STACK" ] || return 1
+  local _tmp _bad _err _rc _n
+  # 훅 셋(pre-commit · commit-msg · mr-check)은 첫 ```sh 블록만 읽는다. §3 앞에 예시 블록이 생기면
+  # 엉뚱한 블록을 읽고 §3 의 규칙이 말없이 꺼진다. 여기서 막아 두면 커밋 · CI 가 같이 멈춘다.
+  _n="$(awk '{ sub(/\r$/, "") } /^```sh$/ { n++ } END { print n + 0 }' "$STACK")"
+  if [ "$_n" -gt 1 ]; then
+    STACK_ERR="stack.md 에 \`\`\`sh 블록이 ${_n}개다. 훅은 첫 블록만 읽는다 — §3 밖의 예시는 \`\`\`bash 로 바꾼다"
+    return 1
+  fi
+  # 머리 줄이 ```bash 거나 뒤에 공백이 붙으면 선언을 하나도 못 읽는다. 그러면 「안 채워짐」으로 보여
+  # 커밋 게이트가 검사 없이 통과하고 /harness-init 으로 채우라는 엉뚱한 안내가 뜬다.
+  if [ "$_n" -eq 0 ] && LC_ALL=C grep -qE '^[[:space:]]*AREAS=' "$STACK"; then
+    STACK_ERR="stack.md 에 AREAS= 줄은 있는데 머리 줄이 정확히 \`\`\`sh 인 블록이 없다. 훅은 그 블록만 읽는다 — §3 블록의 머리 줄을 \`\`\`sh 로 고친다 (\`\`\`bash · 뒤 공백 안 됨)"
+    return 1
+  fi
+  # CR 을 뗀다 — Windows 에서 받은 stack.md 를 Linux 에서 읽어도 선언이 살게.
+  # LC_ALL=C — 로캘이 바뀌어도 판정이 같게. UTF-8 로캘은 깨진 바이트가 든 줄을 통째로 못 맞춘다
+  STACK_BLK="$(awk '{ sub(/\r$/, "") } /^```sh$/{f=1;next} f&&/^```$/{exit} f' "$STACK")"
+  _bad="$(printf '%s\n' "$STACK_BLK" | LC_ALL=C grep -vE '^[[:space:]]*(#|$)' \
+    | LC_ALL=C grep -vE '^[A-Za-z_][A-Za-z0-9_]*=')"
+  if [ -n "$_bad" ]; then
+    STACK_ERR="stack.md §3 에 「이름=\"값\"」 으로 시작하지 않는 줄이 있다. 줄 앞 공백 · export · = 양옆 공백을 지우고 <영역> 은 실제 이름으로 바꾼다:
+$(printf '%s\n' "$_bad" | sed 's/^/     /')"
+    return 1
+  fi
+  _tmp="$(mktemp)" || return 1
+  printf '%s\n' "$STACK_BLK" | LC_ALL=C grep -E '^[A-Za-z_][A-Za-z0-9_]*=' > "$_tmp"
+  _bad="$(LC_ALL=C grep -vE "$DECL_RE" "$_tmp")"
+  if [ -n "$_bad" ]; then
+    STACK_ERR="stack.md §3 에 「이름=\"값\"   # 설명」 모양이 아닌 줄이 있다. 값 뒤의 설명은 # 뒤로 옮긴다:
+$(printf '%s\n' "$_bad" | sed 's/^/     /')"
+    rm -f "$_tmp"
+    return 1
+  fi
+  # 블록은 이 훅의 변수 공간에 읽힌다. 훅이 먼저 정한 이름을 덮으면 모드 · 경로가 바뀌어 엉뚱하게 돈다.
+  _bad="$(LC_ALL=C grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$_tmp" | tr -d = \
+    | LC_ALL=C grep -xE 'MODE|TIER|CI_AREAS|BASE_REF|ROOT|STACK|SCAN|DECL_RE|DECL_HEAD_RE|STACK_OK|STACK_ERR|STACK_BLK|IFS')"
+  if [ -n "$_bad" ]; then
+    STACK_ERR="stack.md §3 의 이름이 훅이 쓰는 이름과 겹친다. 다른 이름으로 바꾼다: $(printf '%s ' $_bad)"
+    rm -f "$_tmp"
+    return 1
+  fi
+  # 큰따옴표 값 속 $( ) · 백틱은 실행할 때가 아니라 이 블록을 읽을 때 돈다. 파일을 고칠 때마다 두 번씩 돈다.
+  _bad="$(LC_ALL=C grep -E '^[A-Za-z_][A-Za-z0-9_]*="([^"\\]|\\.)*(\$\(|`)' "$_tmp")"
+  if [ -n "$_bad" ]; then
+    STACK_ERR="stack.md §3 의 큰따옴표 값에 \$( ) 나 백틱이 있다. 명령을 돌릴 때 펼치려면 값을 작은따옴표로 감싼다:
+$(printf '%s\n' "$_bad" | sed 's/^/     /')"
+    rm -f "$_tmp"
+    return 1
+  fi
+  # 서브셸에서 먼저 읽어 본다. 값에 ${X:?} 가 있으면 셸이 그 자리에서 끝난다. 바로 읽으면
+  # 이 훅이 안내 없이 죽고 --format-only 도 rc=1 이라 편집할 때마다 hook error 가 뜬다.
+  # 값 속 $(…) 는 두 번 돈다.
+  # set -u 는 끄고 읽는다. 켜 두면 안 정한 변수(${X})에서도 셸이 끝난다. 끄면 손으로 돌릴 때처럼 빈 값이 된다.
+  # shellcheck disable=SC1090
+  _err="$( ( set +u; . "$_tmp" ) 2>&1 >/dev/null )"
+  _rc=$?
+  # shellcheck disable=SC1090
+  [ "$_rc" -eq 0 ] && { set +u; . "$_tmp"; _rc=$?; set -u; }
+  rm -f "$_tmp"
+  if [ "$_rc" -ne 0 ]; then
+    STACK_ERR="stack.md §3 의 sh 블록을 셸이 못 읽었다. 값에 \${X:?} 같은 펼침이 있으면 뺀다"
+    # 셸 오류 앞의 「임시 파일: line N:」 은 뗀다. 줄 번호가 stack.md 와 안 맞아 헷갈린다
+    [ -n "$_err" ] && STACK_ERR="$STACK_ERR:
+$(printf '%s\n' "$_err" | sed 's/^.*: line [0-9][0-9]*: //; s/^/     /')"
+    return 1
+  fi
+  # 공백만 적어도 「채웠다」로 보면 영역 0개를 돌고 초록이 뜬다
+  case "${AREAS:-}" in *[![:space:]]*) ;; *) return 1 ;; esac
+  case "$AREAS" in *"채워넣기"*) return 1 ;; esac
+  return 0
+}
+load_stack && STACK_OK=1
+
+# 영역 이름이 틀리면 val 이 엉뚱한 변수를 읽는다.
+if [ "$STACK_OK" -eq 1 ]; then
+  # 범위식(a-z)은 로캘에 따라 대문자까지 받아서 글자를 하나씩 적는다
+  case "$AREAS" in
+    *[!abcdefghijklmnopqrstuvwxyz0123456789_\ ]*)
+      STACK_ERR="stack.md §3 AREAS=\"$AREAS\" — 영역 이름은 영문 소문자 · 숫자 · 밑줄만 쓰고 공백으로 나눈다"
+      STACK_OK=0 ;;
+  esac
+fi
+if [ "$STACK_OK" -eq 1 ]; then
+  for a in $AREAS; do
+    case "$a" in
+      [0123456789]*)
+        STACK_ERR="stack.md §3 영역 이름 '$a' — 숫자로 시작할 수 없다 (셸 변수 이름이 된다)"
+        STACK_OK=0
+        break ;;
+    esac
+  done
+fi
+
+# CI 에 넘긴 영역 이름이 틀리면 여기서 멈춘다. 건너뛰면 아무것도 검사하지 않고 초록이 뜬다.
+if [ -n "$CI_AREAS" ] && [ "$STACK_OK" -eq 1 ]; then
+  for a in $CI_AREAS; do
+    case " $AREAS " in
+      *" $a "*) ;;
+      *) fail "영역 '$a' 이(가) stack.md §3 의 AREAS 에 없다 (있는 것: $AREAS)"; exit 1 ;;
+    esac
+  done
+  AREAS="$CI_AREAS"
+fi
+
+# 폴더 경로가 틀리면 커밋 게이트가 그 영역을 말없이 건너뛴다. 알리는 자리는 게이트 5단계.
+MISSING_DIRS=""
+if [ "$STACK_OK" -eq 1 ]; then
+  for a in $AREAS; do
+    p="$(val "${a}_PATH")"; p="${p#./}"
+    [ -d "$ROOT/${p:-.}" ] \
+      || MISSING_DIRS="${MISSING_DIRS}영역 '$a' 의 폴더가 없다 — ${p} (stack.md §3 ${a}_PATH)
+"
+  done
+fi
+
+# ---------------------------------------------------------------------------
+# 바뀐 파일 → 어떤 영역이 걸렸나
+# ---------------------------------------------------------------------------
+# --format-only 는 status --porcelain 을 쓰지 않는다. 공백이 든 경로를 "web/a b.js" 로 감싸서
+# 영역 판정이 빗나간다. 아래 셋은 core.quotePath=false 면 공백을 안 감싼다. 겹치는 줄은 둬도 된다.
+case "$MODE" in
+  format) FILES="$(git -C "$ROOT" diff --name-only; git -C "$ROOT" diff --cached --name-only
+                   git -C "$ROOT" ls-files -o --exclude-standard)" ;;
+  ci)      FILES="$(git -C "$ROOT" ls-files)" ;;
+  changed) FILES="" ;;   # 아래 「영역 고르기」가 기준 커밋과 비교해 채운다
+  # 지운 파일도 넣는다. 빼면 남이 쓰던 모듈을 지운 커밋이 「바뀐 파일 없음」으로 통과한다.
+  # 이름 바꾸기는 지움 + 새 파일로 본다. 다른 영역으로 옮기면 옛 영역도 검사해야 해서다.
+  *)       FILES="$(git -C "$ROOT" diff --cached --name-only --no-renames --diff-filter=ACDMT)" ;;
+esac
+if [ -z "$FILES" ] && [ "$MODE" != changed ]; then
+  # 빈 커밋에도 배너를 찍는다. 설치 안내문은 배너가 안 뜨면 설치가 안 된 것으로 본다.
+  [ "$MODE" = gate ] && say "── 커밋 전 게이트 ── 바뀐 파일 없음, 통과"
+  # CI 에서 추적 파일이 0개면 체크아웃이 잘못된 것이다. 말없이 초록으로 끝내지 않는다.
+  if [ "$MODE" = ci ]; then
+    fail "추적 중인 파일이 없다 — 체크아웃이나 작업 폴더를 확인한다"
+    exit 1
+  fi
+  exit 0
+fi
+
+# stack.md 의 바뀐 선언이 닿는 영역. 공백으로 나눈다 (게이트 6단계 · stack_areas 가 채운다)
+STACK_AREAS=""
+
+# also_match <패턴 목록> <파일> — 그 파일이 영역의 ALSO_PATHS(패턴 목록)에 맞으면 성공한다.
+# ALSO_PATHS 는 영역 폴더 밖에 있지만 그 영역 검사가 읽는 파일이다 (stack.md §3). 저장소 루트 기준
+# 경로를 case 패턴으로 맞춘다 — * 는 / 도 넘고, 끝이 / 면 그 폴더 아래 전부다.
+# 패턴을 펼치지 않는다(set -f). 펼치면 훅을 부른 폴더에 있는 파일 이름으로 바뀌어 빗나간다.
+also_match() {
+  local pat f="$2" rc=1 noglob=0
+  [ -n "$1" ] || return 1
+  case $- in *f*) noglob=1 ;; esac
+  set -f
+  for pat in $1; do
+    pat="${pat#./}"
+    case "$pat" in */) pat="$pat*" ;; esac
+    # shellcheck disable=SC2254  # 패턴으로 맞추려고 따옴표를 안 친다
+    case "$f" in $pat) rc=0; break ;; esac
+  done
+  [ "$noglob" -eq 1 ] || set +f
+  return $rc
+}
+
+# also_touched <영역> — 바뀐 파일 가운데 그 영역의 ALSO_PATHS 에 맞는 것이 있으면 성공한다.
+also_touched() {
+  local f pats
+  pats="$(val "${1}_ALSO_PATHS")"
+  [ -n "$pats" ] || return 1
+  while IFS= read -r f; do
+    [ -n "$f" ] && also_match "$pats" "$f" && return 0
+  done <<< "$FILES"
+  return 1
+}
+
+# CI 는 바뀐 파일로 거르지 않고 모든 영역을 돈다. 거르면 경로를 잘못 적은 영역이
+# 조용히 빠져서 아무것도 검사하지 않고 통과한다.
+area_touched() {
+  local p picked=0
+  [ "$MODE" = ci ] && return 0
+  p="$(val "${1}_PATH")"
+  p="${p#./}"; p="${p%/}"
+  [ -z "$p" ] && p="."
+  [ "$p" = "." ] && return 0
+  # grep -q 에 파이프로 넘기지 않는다. 목록이 64KB 를 넘으면 grep 이 먼저 끝나 printf 가
+  # SIGPIPE 로 죽는다. pipefail 이 그 141 을 결과로 삼아 영역이 안 걸린 것으로 보인다.
+  case $'\n'"$FILES" in
+    *$'\n'"$p/"*) return 0 ;;
+  esac
+  # 영역 폴더 밖에서 고른 영역 — ALSO_PATHS 에 맞는 파일 · stack.md 의 바뀐 선언.
+  # 포맷 전용 모드는 ALSO_PATHS 를 안 본다. 그 모드는 작업 폴더에 떠 있는 파일을 다 보므로, 안 올린
+  # 영역 밖 파일 하나 때문에 편집할 때마다 다른 영역의 포맷터가 돈다
+  [ "$MODE" != format ] && also_touched "$1" && picked=1
+  case " $STACK_AREAS " in *" $1 "*) picked=1 ;; esac
+  [ "$picked" -eq 1 ] || return 1
+  # 폴더가 없으면 뺀다 — 게이트 5단계가 이미 알렸고, 돌리면 cd 에서 실패해 커밋이 막힌다
+  [ -d "$ROOT/$p" ]
+}
+
+# outside_file — 어느 영역에도 안 드는 문서 아닌 파일 하나를 찍는다. 없으면 실패한다. 문서(*.md · docs/)는 뺀다.
+# CI 영역 고르기(--changed-areas)는 이런 파일이 있으면 전 영역을 고른다 — CI 는 모르면 넓게 본다.
+# 커밋 게이트는 영역 검사 없이 넘기고 그 사실만 찍는다. 영역 검사가 읽는 파일이면 <영역>_ALSO_PATHS 에 적는다.
+outside_file() {
+  local f a p inside
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    # 문서는 영역을 따지기 전에 뺀다. 결과는 같고, 문서가 많은 커밋에서 영역마다 val 을 부르지 않는다.
+    # 하네스 훅 · settings.json 은 커밋 게이트가 따로 본다 ([하네스]). --changed-areas 는 그 전에 .claude/ 로 전부를 고른다
+    case "$f" in *.md|*.MD|docs/*|.claude/hooks/*|.claude/settings.json) continue ;; esac
+    inside=0
+    for a in $AREAS; do
+      p="$(val "${a}_PATH")"; p="${p#./}"; p="${p%/}"
+      if [ -z "$p" ] || [ "$p" = . ]; then inside=1; break; fi
+      case "$f" in "$p"/*) inside=1; break ;; esac
+      also_match "$(val "${a}_ALSO_PATHS")" "$f" && { inside=1; break; }
+    done
+    [ "$inside" -eq 1 ] && continue
+    printf '%s' "$f"
+    return 0
+  done <<< "$FILES"
+  return 1
+}
+
+# stack_decls <git 개체> — 그 판 stack.md 의 첫 ```sh 블록에서 「이름=값」 만 찍는다 (뒤의 설명 · CR 을 뗀다).
+# 그 판이 없으면(첫 커밋 · 새 파일) 아무것도 안 찍는다. 블록 읽기는 load_stack 과 같다.
+stack_decls() {
+  git -C "$ROOT" show "$1" 2>/dev/null \
+    | awk '{ sub(/\r$/, "") } /^```sh$/{f=1;next} f&&/^```$/{exit} f' \
+    | LC_ALL=C grep -oE "$DECL_HEAD_RE"
+}
+
+# stack_areas — stack.md 가 바뀐 커밋에서 그 변화가 닿는 영역 이름을 한 줄에 하나씩 찍는다 (게이트 6단계).
+# 모든 영역을 돌아야 하면 「*:까닭」 한 줄만 찍는다.
+# HEAD 와 인덱스(커밋될 판)의 선언을 「이름=값」 으로 견준다. 주석 · 블록 밖 글 · CR · 선언 뒤 설명만 바뀌면 아무것도 안 찍는다.
+# 누가 그 값을 읽는지 확실할 때만 좁힌다. 모르면 모든 영역이다 — 검사 0개로 통과하는 쪽으로 틀리지 않게.
+#   - 선언 순서가 바뀌었거나 같은 이름을 두 번 적었다 → 모든 영역. 큰따옴표 값은 읽는 순서에 따라 펼쳐진 값이 달라진다
+#   - 바뀐 이름이 어느 선언의 값에든 나온다 → 모든 영역. 부르는 꼴이 여러 가지다 ($X · ${X} · ${#X} · ${!X})
+#   - <영역>_PATH · _FORMAT_CHECK · _LINT · _TEST → 그 영역.  AREAS → 새로 들어온 영역
+#   - 커밋 검사가 안 돌리는 영역 선언(_RUN · _BUILD · _INSTALL · _FORMAT_FIX · _ALSO_PATHS …)과
+#     다른 훅이 읽는 설정(COMMIT_TYPES · COMMIT_ISSUE_KEY · BRANCH_TYPES · DEFAULT_BRANCH · DOC_SIZE_EXEMPT) → 없음
+#   - 그 밖의 이름(공용 변수) → 모든 영역. 셸이 이미 내보낸 이름(PATH 등)을 다시 적으면 값이 명령의 환경으로 넘어간다
+stack_areas() {
+  local old new names vals n a v owned mine
+  old="$(stack_decls HEAD:.claude/stack.md)"
+  new="$(stack_decls :.claude/stack.md)"
+  names="$( { printf '%s\n' "$old" | sed 's/^/O /'; printf '%s\n' "$new" | sed 's/^/N /'; } | LC_ALL=C awk '
+    function nm(l) { sub(/=.*/, "", l); return l }
+    { tag = substr($0, 1, 1); line = substr($0, 3)
+      if (line == "") next
+      if (tag == "O") { o[++no] = line; inold[line] = 1; if (cnt_o[nm(line)]++) dup = 1 }
+      else            { n[++nn] = line; innew[line] = 1; if (cnt_n[nm(line)]++) dup = 1 } }
+    END {
+      if (dup) { print "*:같은 이름을 두 번 적은 선언이 있다"; exit }
+      for (i = 1; i <= no; i++) if (o[i] in innew) keep_o = keep_o "\n" o[i]; else hit[nm(o[i])] = 1
+      for (i = 1; i <= nn; i++) if (n[i] in inold) keep_n = keep_n "\n" n[i]; else hit[nm(n[i])] = 1
+      if (keep_o != keep_n) { print "*:선언 순서가 바뀌었다"; exit }
+      for (h in hit) print h
+    }')"
+  case "$names" in
+    '')  return 0 ;;
+    \**) printf '%s\n' "$names"; return 0 ;;
+  esac
+  # HEAD 판의 영역 목록. 값은 load_stack 이 영문 소문자 · 숫자 · 밑줄 · 공백만 받는다
+  v="$(printf '%s\n' "$old" | LC_ALL=C grep -E '^AREAS=' | tail -n 1)"
+  v="${v#AREAS=}"
+  case "$v" in
+    \"*) v="${v#\"}"; v="${v%%\"*}" ;;
+    \'*) v="${v#\'}"; v="${v%%\'*}" ;;
+  esac
+  owned="$AREAS $v"
+  vals="$(printf '%s\n' "$old" "$new" | sed 's/^[A-Za-z_][A-Za-z0-9_]*=//')"
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    # grep -q 에 파이프로 넘기지 않는다 (area_touched 와 같은 까닭)
+    if LC_ALL=C grep -qE "(^|[^A-Za-z0-9_])${n}([^A-Za-z0-9_]|\$)" <<< "$vals"; then
+      printf '*:%s 이(가) 선언의 값에 나온다 — 누가 읽는지 다 알 수 없다\n' "$n"
+      return 0
+    fi
+    case "$n" in
+      AREAS|COMMIT_TYPES|COMMIT_ISSUE_KEY|BRANCH_TYPES|DEFAULT_BRANCH|DOC_SIZE_EXEMPT) continue ;;
+    esac
+    mine=0
+    for a in $owned; do
+      case "$n" in "${a}_"*) mine=1; break ;; esac
+    done
+    if [ "$mine" -eq 0 ]; then
+      printf '*:공용 변수 %s 이(가) 바뀌었다 — 누가 읽는지 다 알 수 없다\n' "$n"
+      return 0
+    fi
+  done <<< "$names"
+  for a in $AREAS; do
+    case $'\n'"$names"$'\n' in
+      *$'\n'"${a}_PATH"$'\n'*|*$'\n'"${a}_FORMAT_CHECK"$'\n'*|*$'\n'"${a}_LINT"$'\n'*|*$'\n'"${a}_TEST"$'\n'*)
+        printf '%s\n' "$a"; continue ;;
+    esac
+    case $'\n'"$names"$'\n' in
+      *$'\n'AREAS$'\n'*) case " $v " in *" $a "*) ;; *) printf '%s\n' "$a" ;; esac ;;
+    esac
+  done
+}
+
+# ---------------------------------------------------------------------------
+# 영역 고르기 — --changed-areas <기준>
+# ---------------------------------------------------------------------------
+# 영역 경로는 stack.md 에만 있다. CI 설정에 경로를 다시 적지 않으려고 여기서 판정한다.
+# 찍는 것은 stdout 의 영역 이름뿐이다. 안내는 stderr 로 보내서 매트릭스에 섞이지 않게 한다.
+#
+# 🔴 모르면 전부를 고른다. 빈 목록은 「검사할 것 없음」이라 아무것도 안 돌고 초록이 된다.
+#   - 기준 커밋을 못 찾으면 (얕은 체크아웃 · 기본 브랜치 첫 push) → 전부
+#   - .claude/ · CI 설정이 바뀌면 → 전부 (검사 방법 자체가 바뀌었다)
+#   - 영역 밖의 문서 아닌 파일이 바뀌면 → 전부 (outside_file). <영역>_ALSO_PATHS 에 맞는 파일은 그 영역으로 친다
+# 영역 밖 문서(*.md · docs/)만 바뀌었으면 아무것도 안 찍는다. 시크릿 스캔은 늘 도는 잡이 따로 맡는다.
+if [ "$MODE" = changed ]; then
+  if [ -n "$STACK_ERR" ]; then
+    fail "$STACK_ERR"
+    exit 1
+  fi
+  if [ "$STACK_OK" -ne 1 ]; then
+    fail "stack.md 가 안 채워져 영역을 고를 수 없다 — Claude 채팅창에서 /harness-init 으로 채울 것"
+    exit 1
+  fi
+  if [ -z "$BASE_REF" ] || ! git -C "$ROOT" rev-parse -q --verify "${BASE_REF}^{commit}" >/dev/null; then
+    say "기준 커밋 '${BASE_REF}' 을(를) 못 찾았다 — 전 영역을 고른다 (체크아웃의 fetch-depth 를 늘리면 좁혀진다)"
+    printf '%s\n' $AREAS
+    exit 0
+  fi
+  if ! FILES="$(git -C "$ROOT" diff --name-only "${BASE_REF}...HEAD" 2>/dev/null)"; then
+    say "기준 커밋과의 공통 조상을 못 찾았다 — 전 영역을 고른다"
+    printf '%s\n' $AREAS
+    exit 0
+  fi
+  case $'\n'"$FILES" in
+    *$'\n'.claude/*|*$'\n'.github/*|*$'\n'.gitlab-ci.yml*)
+      say "하네스 · CI 설정이 바뀌었다 — 전 영역을 고른다"
+      printf '%s\n' $AREAS
+      exit 0 ;;
+  esac
+  if f="$(outside_file)"; then
+    say "영역 밖 파일이 바뀌었다 ($f) — 전 영역을 고른다"
+    printf '%s\n' $AREAS
+    exit 0
+  fi
+  for a in $AREAS; do
+    area_touched "$a" && printf '%s\n' "$a"
+  done
+  exit 0
+fi
+
+# clean_env — stack.md 명령을 돌리기 전에 그 서브셸 안에서 부른다 (run · 포맷 전용 모드).
+# 실패한 명령을 손으로 다시 돌렸을 때 결과가 같아야 한다. 그래서 위의 git 함수를 떼고
+# set -u 도 끈다. 켠 채로 두면 안 정한 변수를 읽는 스크립트(가상환경 activate 등)가 훅에서만 죽는다.
+# git 이 훅에 넘긴 저장소 변수(GIT_INDEX_FILE · GIT_DIR …)도 지운다 — git 문서(githooks)가 권하는 방법이다.
+# 남기면 git commit -a · git commit <경로> 때 임시 저장소를 만드는 테스트가 바깥 저장소의 인덱스에 쓴다.
+# 이 저장소 안에서 부르는 git 은 변수 없이도 폴더를 거슬러 올라가 저장소를 찾는다.
+# 게이트 명령은 검사만 한다 — 스테이지를 고치는 명령(lint-staged 등)은 여기 두지 않는다.
+clean_env() {
+  unset -f git
+  # shellcheck disable=SC2046  # 이름 목록을 낱말로 쪼개 unset 에 넘긴다
+  unset $(command git rev-parse --local-env-vars 2>/dev/null)
+  set +u
+}
+
+# run <설명> <명령> <작업디렉터리>. stack.md 에서 비워 둔 단계는 건너뛴다.
+run() {
+  local label="$1" cmd="$2" dir="$3" out rc
+  [ -z "$cmd" ] && return 0
+  # 빈칸 표시(아직 모르는 명령)를 돌리면 셸 문법 오류만 찍힌다. CI 는 멈추고 커밋 게이트는
+  # 알리고 넘어간다. 막으면 세팅 중에 그 영역의 커밋을 아무것도 못 한다.
+  case "$cmd" in
+    *채워넣기*)
+      if [ "$MODE" = ci ]; then
+        fail "$label — stack.md §3 에 빈칸 표시가 남아 있다"
+        return 1
+      fi
+      say "  ⚠️ $label 건너뜀 — stack.md §3 이 아직 빈칸이다"
+      return 0 ;;
+  esac
+  say "  → $label"
+  # pipefail 은 남긴다. 파이프 앞 명령이 실패해도 실패로 본다 (stack.md §3).
+  if [ "$MODE" = ci ]; then
+    # CI 는 출력을 그대로 흘린다. 모았다가 끝에 잘라 찍으면 앞쪽 원인이 잘리고, 시간 초과로 죽으면 하나도 안 남는다.
+    ( clean_env; cd "$ROOT/$dir" 2>/dev/null && eval "$cmd" ) >&2
+    rc=$?
+  else
+    out="$( clean_env; cd "$ROOT/$dir" 2>/dev/null && eval "$cmd" 2>&1 )"
+    rc=$?
+  fi
+  [ $rc -eq 0 ] && return 0
+  CMD_FAILED=1
+  fail "$label 실패:  (cd $dir && $cmd)"
+  [ "$MODE" = ci ] || printf '%s\n' "$out" | tail -n 30 >&2
+  # 127 은 명령을 못 찾았다는 뜻이다. 터미널 밖에서 뜬 GUI 는 셸 초기화를 안 읽어 PATH 가 다르다
+  if [ $rc -eq 127 ] && [ "$MODE" = gate ]; then
+    say "   명령을 못 찾았다. GUI 클라이언트로 커밋했다면 셸 초기화(PATH)가 안 읽힌 것일 수 있다 — 터미널에서 커밋해 볼 것"
+  fi
+  return 1
+}
+
+# 문서 크기 예산 (HARNESS.md 5절). 손대는 문서만 보고 경고만 한다.
+# 길다고 커밋을 막으면 훅을 꺼 버리게 되고 진짜 게이트까지 같이 꺼진다.
+# 200 · 500 은 HARNESS.md 5절 표에도 있다. 어긋나면 tests/test-pre-commit.sh 가 깨진다.
+check_doc_size() {
+  local f n limit e skip exempt
+  # 진실 문서(프로젝트에 참인 것을 전부 모은 문서 하나)는 쪼개 옮길 곳이 없어서 뺀다.
+  # 무엇을 뺄지는 stack.md §3 DOC_SIZE_EXEMPT 에 적는다. 경로를 이 파일에 적지 않는다.
+  exempt="$(val DOC_SIZE_EXEMPT)"
+  printf '%s\n' "$FILES" | grep -iE '\.md$' | while IFS= read -r f; do
+    [ -f "$ROOT/$f" ] || continue
+    skip=0
+    # 적은 이름을 글자 그대로 맞춘다. * 를 펼치면 훅을 부른 폴더에 따라 결과가 바뀐다
+    set -f
+    for e in $exempt; do
+      [ "$f" = "${e#./}" ] && skip=1
+    done
+    set +f
+    [ "$skip" -eq 1 ] && continue
+    n="$(wc -l < "$ROOT/$f" | tr -d ' ')"
+    # AGENTS.md 는 다른 AI 도구가 읽고 CLAUDE.md 가 불러온다. 매번 읽히는 것은 같다
+    case "$f" in
+      CLAUDE.md|*/CLAUDE.md|AGENTS.md|*/AGENTS.md) limit=200 ;;
+      *)                                           limit=500 ;;
+    esac
+    [ "$n" -gt "$limit" ] \
+      && say "  ⚠️ $f — ${n}줄 (상한 ${limit}줄). 쪼개거나 덜어낼 것 — HARNESS.md 5절"
+  done
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# 포맷 전용 모드
+# ---------------------------------------------------------------------------
+# 늘 통과한다. stack.md 가 틀렸으면 커밋 게이트가 알린다.
+if [ "$MODE" = format ]; then
+  [ "$STACK_OK" -eq 1 ] || exit 0
+  for a in $AREAS; do
+    area_touched "$a" || continue
+    dir="$(val "${a}_PATH")"; [ -z "$dir" ] && dir="."
+    cmd="$(val "${a}_FORMAT_FIX")"
+    [ -z "$cmd" ] && continue
+    case "$cmd" in *채워넣기*) continue ;; esac   # 빈칸 표시는 돌리지 않는다 (run 과 같다)
+    ( clean_env; cd "$ROOT/$dir" && eval "$cmd" ) >/dev/null 2>&1
+  done
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 게이트 모드
+# ---------------------------------------------------------------------------
+say ""
+if [ "$MODE" = ci ]; then
+  tier_label="전체"; [ "$TIER" = fast ] && tier_label="빠른 층 — 테스트·빌드 제외"
+  say "── CI 게이트 (${CI_AREAS:-모든 영역} · ${tier_label}) ──────"
+else
+  say "── 커밋 전 게이트 ──────────────────────────────"
+fi
+FAILED=0
+SECRET_FAILED=0   # 키가 든 커밋에 --no-verify 를 권하지 않으려고 따로 기억한다
+CMD_FAILED=0      # stack.md 명령이 돌다 실패했다. 끝 안내가 「찍힌 명령을 다시 돌린다」고 할 수 있는 때다
+
+# 시크릿에 걸려 막을 때의 끝 안내. 두 군데서 쓴다.
+secret_blocked() { fail "커밋을 막았다 — 위 시크릿 문제를 먼저 해결할 것. --no-verify 로 넘기지 않는다."; }
+
+# 1) 시크릿 스캔. 비밀값 유출은 되돌릴 수 없어서 stack.md 가 비어 있어도 제일 먼저 돈다.
+#    CI 는 커밋 하나가 아니라 저장소 상태를 판정하므로 추적 파일 전부를 본다.
+#
+# 🔴 영역을 좁힌 CI 잡은 스캔을 건너뛰어도 구멍이 없다. 영역 잡을 쓰는 예시(ci/)는 저장소 전체를
+# 보는 잡(GitLab secrets · GitHub harness)을 조건 없이 늘 같이 띄운다. 영역 잡마다 같은 스캔을
+# 되풀이하면 그만큼 러너를 붙든다 — 영역 잡 수만큼 같은 일을 하는 셈이다.
+# 로컬에는 그 잡이 없어서 GITLAB_CI · GITHUB_ACTIONS 가 정확히 true 일 때만 건너뛴다
+# (비었는지로 보면 false 도 걸린다).
+if [ -n "$CI_AREAS" ] && { [ "${GITLAB_CI:-}" = true ] || [ "${GITHUB_ACTIONS:-}" = true ]; }; then
+  say "  → 시크릿 스캔 건너뜀 — CI 의 secrets(GitLab) · harness(GitHub) 잡이 저장소 전체를 본다 (그 잡이 꺼져 있으면 아무도 안 본다)"
+elif [ ! -f "$SCAN" ]; then
+  # 커밋 게이트는 알리고 넘어간다. CI 는 시크릿을 안 본 초록을 내지 않는다.
+  if [ "$MODE" = ci ]; then
+    fail "secret-scan.sh 가 없다 — 시크릿 검사 없이 CI 를 통과시키지 않는다"
+    FAILED=1
+  else
+    say "⚠️ secret-scan.sh 가 없다 — 시크릿 검사를 건너뛰었다"
+  fi
+else
+  say "  → 시크릿 스캔"
+  if [ "$MODE" = ci ]; then
+    bash "$SCAN" --all || { FAILED=1; SECRET_FAILED=1; }
+    # PR · MR 이면 그 사이 커밋도 본다. 키를 넣었다가 다음 커밋에서 지우면 마지막 트리에는 없다.
+    # 기준은 CI 껍데기가 SCAN_BASE 로 넘긴다 (ci/*.yml). 못 찾으면 스캐너가 멈춘다.
+    if [ -n "${SCAN_BASE:-}" ]; then
+      say "  → 시크릿 스캔 — 이 PR 의 커밋 이력 (${SCAN_BASE:0:12}..HEAD)"
+      bash "$SCAN" --range "$SCAN_BASE" || { FAILED=1; SECRET_FAILED=1; }
+    fi
+  else
+    bash "$SCAN" || { FAILED=1; SECRET_FAILED=1; }
+  fi
+fi
+
+# 2) 문서 크기 경고. 영역 명령과 무관해서 stack.md 를 안 채워도 시크릿 스캔처럼 늘 돈다.
+check_doc_size
+
+# 3) stack.md 를 잘못 적었을 때. 커밋도 막는다. 그대로 두면 적어 둔 검사가 말없이 빠진 채
+#    초록이 뜬다. 고칠 곳이 분명해서 막아도 세팅이 멈추지 않는다.
+if [ -n "$STACK_ERR" ]; then
+  say ""
+  fail "$STACK_ERR"
+  [ "$MODE" = gate ] && say "   고친 뒤 다시 커밋한다."
+  say "────────────────────────────────────────────────"
+  exit 1
+fi
+
+# 4) stack.md 가 비었을 때. 커밋은 통과시킨다. 막으면 세팅 중에 아무것도 커밋할 수 없다.
+#    🔴 CI 는 실패시킨다. 검사한 것 없이 초록이 뜨면 CI 가 지켜 준다고 착각한다.
+if [ "$MODE" = ci ] && [ "$STACK_OK" -ne 1 ]; then
+  say ""
+  fail "stack.md 가 안 채워져 검사할 것이 없다."
+  say "   이대로 통과시키면 아무것도 검증하지 않은 초록이 된다."
+  say "   Claude 채팅창에서 /harness-init 으로 채울 것."
+  say "────────────────────────────────────────────────"
+  exit 1
+fi
+
+if [ "$STACK_OK" -ne 1 ]; then
+  say ""
+  say "⚠️ stack.md 가 아직 안 채워져 포맷·린트·테스트를 건너뛰었다."
+  say "   Claude 채팅창에서 /harness-init 으로 채울 것."
+  say "────────────────────────────────────────────────"
+  if [ "$SECRET_FAILED" -ne 0 ]; then
+    say ""
+    secret_blocked
+    say ""
+  fi
+  exit $FAILED
+fi
+
+# 5) 폴더가 없는 영역. CI 는 멈추고 커밋 게이트는 알리기만 한다.
+#    git 은 빈 폴더를 담지 않는다. 막으면 아직 파일이 없는 영역 때문에 동료의 커밋까지 막힌다.
+if [ -n "$MISSING_DIRS" ]; then
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    if [ "$MODE" = ci ]; then
+      fail "$m"
+    else
+      say "  ⚠️ $m. 오타면 이 영역의 검사가 안 돈다"
+    fi
+  done <<< "$MISSING_DIRS"
+  if [ "$MODE" = ci ]; then
+    say "────────────────────────────────────────────────"
+    exit 1
+  fi
+fi
+
+# 6) 커밋 게이트는 바뀐 영역만 본다. 전부 돌리면 느려서 결국 훅을 꺼 버린다. 무엇이 「바뀐 영역」인지는 stack.md §4.
+#    영역 밖 파일은 <영역>_ALSO_PATHS 에 적은 것만 그 영역으로 친다 (area_touched).
+#    stack.md 는 바뀐 선언이 닿는 영역만 돈다 — 고친 명령을 한 번도 안 돌린 채 커밋하지 않게 (stack_areas).
+#    하네스 훅 · settings.json 이 바뀌면 그 파일을 확인하는 하네스 테스트를 돈다 — 고친 훅을 한 번은 돌려 본 채로 커밋하게.
+#    CI 는 시간을 써도 되는 곳이라 모든 영역을 설치·빌드까지 한다.
+if [ "$MODE" = gate ]; then
+  case $'\n'"$FILES"$'\n' in
+    *$'\n'.claude/stack.md$'\n'*)
+      stack_pick="$(stack_areas)"
+      case "$stack_pick" in
+        \**)
+          STACK_AREAS="$AREAS"
+          say "  → stack.md 가 바뀌어 모든 영역을 돈다 — ${stack_pick#\*:}" ;;
+        *)
+          STACK_AREAS="$(printf '%s\n' "$stack_pick" | tr '\n' ' ')"
+          if [ -n "${STACK_AREAS// /}" ]; then
+            say "  → stack.md 에서 커밋 검사 선언이 바뀐 영역도 돈다 — ${STACK_AREAS% }"
+          else
+            say "  → stack.md 가 바뀌었지만 커밋 검사가 쓰는 선언은 그대로다"
+          fi ;;
+      esac ;;
+  esac
+  # 하네스 훅 · settings.json 이 바뀌면 그 파일을 확인하는 하네스 테스트만 돈다. 테스트 파일이 바뀌었으면
+  # 그 파일, 다른 파일이면 그 파일 이름을 본문에 적은 테스트 파일이다. 하네스 전체(tests/run.sh)는
+  # 이 저장소에서 10분쯤 걸려(2026-10-19 Windows PC 에서 597초) 커밋마다 돌리지 않는다 — CI 빠른 층이 돈다
+  hfiles="$(printf '%s\n' "$FILES" | LC_ALL=C grep -E '^\.claude/(hooks/|settings\.json$)')"
+  if [ -n "$hfiles" ]; then
+    say "[하네스]"
+    htests=""
+    while IFS= read -r f; do
+      found=""
+      case "$f" in
+        .claude/hooks/tests/test-*.sh)
+          [ -f "$ROOT/$f" ] && found="${f##*/}" ;;
+        *)
+          for t in "$ROOT"/.claude/hooks/tests/test-*.sh; do
+            [ -f "$t" ] && LC_ALL=C grep -qF -- "${f##*/}" "$t" && found="$found ${t##*/}"
+          done ;;
+      esac
+      [ -n "$found" ] || say "  ⚠️ $f 를 확인하는 하네스 테스트가 없다 — bash .claude/hooks/tests/run.sh 로 확인할 것"
+      htests="$htests $found"
+    done <<< "$hfiles"
+    for t in $(printf '%s\n' $htests | sort -u); do
+      run "하네스 검사 $t" "bash .claude/hooks/tests/$t" "." || FAILED=1
+    done
+  fi
+fi
+RAN_AREAS=0
+for a in $AREAS; do
+  area_touched "$a" || continue
+  RAN_AREAS=$((RAN_AREAS + 1))
+  dir="$(val "${a}_PATH")"; [ -z "$dir" ] && dir="."
+  say "[$a]"
+  # 검사 명령이 하나도 없으면 돌린 것 없이 통과한다. CI 는 그 초록을 믿게 되니 멈춘다.
+  # 빠른 층도 넷 전부를 본다. 테스트만 적은 영역을 빠른 층에서 떨어뜨리면 안 된다.
+  checks="FORMAT_CHECK LINT TEST"; [ "$MODE" = ci ] && checks="$checks BUILD"
+  has=0
+  for k in $checks; do
+    [ -n "$(val "${a}_$k")" ] && has=1
+  done
+  if [ "$has" -eq 0 ]; then
+    # 틀 줄을 복사해 <영역> 만 바꾸고 앞의 # 을 안 지웠으면 그 까닭을 댄다. 「AREAS 에서 뺀다」는 헛짚는다.
+    # grep -q 에 파이프로 넘기지 않는다 (area_touched 와 같은 까닭)
+    commented="$(printf '%s\n' "$STACK_BLK" | LC_ALL=C grep -E "^#[[:space:]]*${a}_[A-Z_]*=")"
+    if [ "$MODE" = ci ]; then
+      fail "검사 명령이 하나도 없다 — stack.md §3 의 ${a}_FORMAT_CHECK · ${a}_LINT · ${a}_TEST · ${a}_BUILD 가 다 비었다"
+      if [ -n "$commented" ]; then
+        say "   주석(# )으로 남은 ${a}_ 줄이 있다 — 앞의 # 을 지운다."
+      else
+        say "   검사할 것이 없는 영역이면 AREAS 에서 뺀다."
+      fi
+      FAILED=1
+      continue
+    fi
+    say "  ⚠️ 돌릴 검사가 없다 — stack.md §3 의 ${a}_FORMAT_CHECK · ${a}_LINT · ${a}_TEST 가 다 비었다"
+    [ -n "$commented" ] && say "     주석(# )으로 남은 ${a}_ 줄이 있다 — 앞의 # 을 지운다."
+  fi
+  if [ "$MODE" = ci ]; then
+    run "의존성 설치" "$(val "${a}_INSTALL")" "$dir" || FAILED=1
+  fi
+  run "포맷 검사" "$(val "${a}_FORMAT_CHECK")" "$dir" || FAILED=1
+  run "린트"      "$(val "${a}_LINT")"         "$dir" || FAILED=1
+  # 빠른 층은 여기까지다. 테스트·빌드가 게이트 시간의 대부분이라 그것만 뺀다.
+  if [ "$TIER" != fast ]; then
+    run "테스트"    "$(val "${a}_TEST")"         "$dir" || FAILED=1
+  fi
+  if [ "$MODE" = ci ] && [ "$TIER" != fast ]; then
+    run "빌드"    "$(val "${a}_BUILD")"        "$dir" || FAILED=1
+  fi
+done
+# 영역 검사를 하나도 안 돌았으면 그렇다고 찍는다. 말없이 「통과」만 뜨면 검사한 줄 안다
+if [ "$MODE" = gate ] && [ "$RAN_AREAS" -eq 0 ]; then
+  if f="$(outside_file)"; then
+    say "  → 영역 검사 없음 — 바뀐 파일이 어느 영역에도 안 든다 ($f). 영역 검사가 읽는 파일이면 stack.md §3 <영역>_ALSO_PATHS 에 적는다"
+  else
+    say "  → 영역 검사 없음 — 바뀐 영역이 없다"
+  fi
+fi
+
+say "────────────────────────────────────────────────"
+if [ "$FAILED" -ne 0 ]; then
+  say ""
+  # 빈칸 표시 · 검사 0개 · 시크릿은 명령을 안 찍고 실패한다. 그때 「찍힌 명령」을 가리키면 헛짚는다.
+  if [ "$MODE" = ci ] && [ "$CMD_FAILED" -eq 1 ]; then
+    fail "CI 게이트 실패. 위에 찍힌 명령을 로컬에서 그대로 돌려 재현할 수 있다."
+    say "   CI 와 로컬이 같은 명령을 쓴다 — 여기서 되면 CI 에서도 된다."
+  elif [ "$MODE" = ci ]; then
+    fail "CI 게이트 실패. 돌다 실패한 명령은 없다 — 위에 찍힌 까닭을 고친 뒤 다시 돌린다."
+  elif [ "$SECRET_FAILED" -ne 0 ]; then
+    secret_blocked
+  else
+    fail "커밋을 막았다. 위에 찍힌 명령을 직접 돌려 고칠 것."
+    say "   포맷만 어긋난 것이면 stack.md 의 FORMAT_FIX 명령을 돌리면 된다."
+    say "   정말 급하면 git commit --no-verify — 단, 쓴 사실을 PR 에 적는다."
+  fi
+  say ""
+  exit 1
+fi
+say "통과"
+exit 0

@@ -1,0 +1,62 @@
+<!-- @dsCard group="NEW:LEARN Patterns" height=640 width=640 subtitle="타임라인 노드 · NEW/REPEAT/UPDATE/CONFLICT" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>타임라인 노드 — NEW:LEARN</title>
+<style>
+  html, body { margin:0; background:var(--bg-layer-default); }
+  .stage { padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+
+</style>
+</head>
+<body class="nl-root">
+<div class="stage">
+<ol class="nl-timeline" style="max-width:560px">
+  <li class="nl-tl-item">
+    <span class="nl-tl-date">2026<br>09.02</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--new"><i data-icon="plus-small"></i>NEW</span></div><p class="nl-tl-title">정부, 반도체 지원 법안 초안 공개</p><p class="nl-tl-desc">설비 투자액의 최대 30%를 보조금으로 지원하는 안</p></div>
+  </li>
+  <li class="nl-tl-item">
+    <span class="nl-tl-date">09.20</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--repeat"><i data-icon="arrow-clockwise-circular"></i>REPEAT</span></div><p class="nl-tl-title">업계 간담회에서 지원 필요성 재확인</p><p class="nl-tl-desc">9월 2일 사건과 같은 내용의 반복 보도</p><span class="nl-tl-relation"><i data-icon="arrow-clockwise-circular"></i>09.02 사건 반복</span></div>
+  </li>
+  <li class="nl-tl-item is-branch">
+    <span class="nl-tl-date">09.24</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--update"><i data-icon="pencil"></i>UPDATE</span></div><p class="nl-tl-title">지역 공장 부지 선정 기준 발표</p><p class="nl-tl-desc">본 흐름에서 갈라진 관련 사건</p><span class="nl-tl-relation"><i data-icon="arrow-right-angled"></i>곁가지 · 관련 사건</span></div>
+  </li>
+  <li class="nl-tl-item is-selected">
+    <span class="nl-tl-date">10.08</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--update"><i data-icon="pencil"></i>UPDATE</span></div><p class="nl-tl-title">보조금 비율 30% → 20%로 조정</p><p class="nl-tl-desc">09.02 사건의 수치가 바뀜</p><span class="nl-tl-relation"><i data-icon="pencil"></i>09.02 사건 내용 변경</span></div>
+  </li>
+  <li class="nl-tl-item is-conflict">
+    <span class="nl-tl-date">10.14</span>
+    <span class="nl-tl-rail"><span class="nl-tl-node"></span></span>
+    <div class="nl-tl-body nl-tl-hit"><div class="nl-tl-head"><span class="nl-status nl-status--conflict"><i data-icon="arrow-right-arrow-left"></i>CONFLICT</span></div><p class="nl-tl-title">법 시행 시점 보도 엇갈림</p><p class="nl-tl-desc">2027년 1월 / 2028년 상반기 — 확인 필요</p><span class="nl-tl-relation"><i data-icon="arrow-right-arrow-left"></i>상충 후보 2건</span></div>
+  </li>
+</ol>
+<p class="note">메인 흐름 = 민트 선 + 채운 노드 · 곁가지 = 회색 점선 + 빈 노드(들여씀) · 선택 = 진한 청록 노드 + 연한 민트 배경 · CONFLICT 노드 = 주황 테두리</p>
+</div>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>

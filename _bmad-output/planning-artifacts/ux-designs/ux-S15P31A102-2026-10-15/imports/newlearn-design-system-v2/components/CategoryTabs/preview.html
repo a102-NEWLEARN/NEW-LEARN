@@ -1,0 +1,39 @@
+<!-- @dsCard group="NEW:LEARN Patterns" height=200 width=760 subtitle="카테고리 탭 · 필터 칩" -->
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<!-- standalone copy: loads tokens and the bundle by relative path -->
+<link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="../bundle.css"><script src="../lib/react.production.min.js"></script><script src="../lib/react-dom.production.min.js"></script><script src="../bundle.js"></script>
+<meta charset="utf-8">
+<title>카테고리 탭과 필터 — NEW:LEARN</title>
+<style>
+  html, body { margin:0; background:var(--bg-layer-default); }
+  .stage { padding:24px; display:flex; flex-direction:column; gap:16px; }
+  .note { font-size:12px; line-height:16px; color:var(--fg-neutral-muted); }
+
+</style>
+</head>
+<body class="nl-root">
+<div class="stage">
+<div style="max-width:720px; border:1px solid var(--stroke-neutral-weak); border-radius:var(--radius-r4); overflow:hidden">
+<div class="nl-tabs" role="tablist"><button class="nl-tab" role="tab" aria-selected="false">전체</button><button class="nl-tab" role="tab" aria-selected="false">정치</button><button class="nl-tab" role="tab" aria-selected="false">경제</button><button class="nl-tab" role="tab" aria-selected="true">산업</button><button class="nl-tab" role="tab" aria-selected="false">사회</button><button class="nl-tab" role="tab" aria-selected="false">국제</button><button class="nl-tab" role="tab" aria-selected="false">IT·과학</button></div>
+<div class="nl-filter-row" style="padding:16px 20px"><button class="nl-filter-chip" aria-pressed="false">이번 주<i data-icon="chevron-down-small"></i></button><button class="nl-filter-chip" aria-pressed="false">언론사<i data-icon="chevron-down-small"></i></button><button class="nl-filter-chip" aria-pressed="true"><i data-icon="checkmark"></i>변화 있는 이슈</button><button class="nl-filter-chip" aria-pressed="true"><i data-icon="checkmark"></i>상충 후보 포함</button><button class="nl-filter-reset">초기화</button></div>
+</div>
+<p class="note">탭 = 보고 있는 범주 전체를 바꿈(하나만 선택) · 필터 칩 = 지금 목록을 좁힘(여러 개 선택, 8px 모서리)</p>
+</div>
+<script>
+  // NEW:LEARN is light-theme only: keep this example in Light even if the viewer switches theme.
+  var root = document.documentElement;
+  function keepLight() { if (root.getAttribute('data-theme') !== 'light') root.setAttribute('data-theme', 'light'); }
+  keepLight(); new MutationObserver(keepLight).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  // <i data-icon="name" data-variant="fill"> -> Seed Icon SVG (inherits currentColor, sized by --seed-icon-size)
+  document.querySelectorAll('i[data-icon]').forEach(function (el) {
+    var markup = window.SeedDesign && window.SeedDesign.iconSvg(el.dataset.icon, el.dataset.variant || 'line');
+    if (!markup) { el.remove(); return; }
+    var t = document.createElement('template'); t.innerHTML = markup; var svg = t.content.firstChild;
+    svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('class', 'seed-icon'); svg.setAttribute('aria-hidden', 'true');
+    el.replaceWith(svg);
+  });
+</script>
+</body>
+</html>

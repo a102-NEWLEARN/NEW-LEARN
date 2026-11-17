@@ -1,0 +1,58 @@
+# local-path-provisioner — PVC 를 받으면 그 Pod 가 뜬 노드의 디스크에 폴더를 만들어 PV 로 준다 (SSOT 6절 「저장소·백업」)
+# 공식 Helm 저장소가 없어 GitHub 의 차트 폴더를 태그로 고정해 읽는다
+# 컨트롤 플레인 taint 때문에 쓰는 Pod(DB · Redis)는 워커에 뜨고, WaitForFirstConsumer 라 폴더도 워커에 생긴다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: local-path
+  namespace: argocd
+  annotations:
+    # data(3)보다 먼저
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rancher/local-path-provisioner.git
+    targetRevision: v0.0.37
+    path: deploy/chart/local-path-provisioner
+    helm:
+      valuesObject:
+        storageClass:
+          create: true
+          # 이 이름만 쓴다. 기본 StorageClass 로 두지 않는다 — PVC 마다 이름을 적게
+          name: newlearn-local
+          defaultClass: false
+          # PVC 를 지워도 PV 와 폴더를 남긴다 — DB 를 실수로 날리지 않게. 다시 쓰려면 claimRef 를 손으로 푼다 (infra/server/README.md 「서비스 배포」)
+          reclaimPolicy: Retain
+          volumeBindingMode: WaitForFirstConsumer
+        # 폴더를 만들고 지우는 보조 Pod 의 이미지 — 차트 기본은 latest 라 판을 고정한다
+        helperImage:
+          repository: busybox
+          tag: "1.37"
+        nodePathMap:
+          - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
+            paths:
+              - /var/lib/newlearn/local-path
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: local-path-storage
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

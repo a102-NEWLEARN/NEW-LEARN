@@ -1,0 +1,1488 @@
+{
+  "uid": "newlearn-ci-bottleneck",
+  "title": "CI 병목",
+  "description": "잡마다 기다림 · 걸린 시간 · 러너와 관리 서버 CPU (Jira S15P31A102-98)",
+  "tags": [
+    "newlearn",
+    "ci"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "label": "데이터 소스",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "type": "query",
+        "name": "ref",
+        "label": "ref (MR 번호 · 브랜치)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}, ref)",
+          "refId": "ref"
+        },
+        "definition": "label_values(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}, ref)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "sort": 4,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "읽는 법",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "잡마다 **기다림**(러너가 받기까지) · **걸린 시간** · **받은 러너**를 GitLab API 에서 60초마다 읽어 온다 (gitlab-ci-pipelines-exporter, Jira S15P31A102-98).\n\n- exporter 는 ref(MR 번호 · `dev`)마다 **가장 최근 잡의 값만** 낸다. 한 MR 에서 여러 번 돌았으면 기간 집계는 마지막 값이다. 잡 하나하나의 이력은 GitLab 이 진실이다\n- 열린 MR 과 `dev` 만 읽는다. `dev` 줄은 dev 에서 연 MR(분야 브랜치 반영)의 파이프라인으로 덮일 수 있다 — `source` 칸으로 가린다\n- 「서버」 줄은 EC2 러너의 잡만 보인다. 노트북 러너는 클러스터 밖이다\n- 「CI 측정 지표」 줄은 잡을 **실행마다 한 번씩** 센다(지난 7일) — 위의 「마지막 값」 집계와 셈이 다르다(Jira S15P31A102-226)"
+      },
+      "id": 1,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "GitLab 으로 보낸 요청 (시간당)",
+      "description": "exporter 가 SSAFY GitLab API 에 보낸 요청 수 — 최근 30분 평균을 시간당으로 환산. 상한은 초당 1회(시간당 3600)",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(rate(gcpe_gitlab_api_requests_count[30m])) * 3600",
+          "refId": "A",
+          "legendFormat": "요청",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1800
+              },
+              {
+                "color": "red",
+                "value": 3000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "row",
+      "title": "CI 측정 지표 — 잡 기다림, 지난 7일 (펼치면 7일치를 셈)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "id": 18,
+      "panels": [
+        {
+          "type": "text",
+          "title": "여신보좌관 기준선 · 우리 값 셈법",
+          "gridPos": {
+            "x": 0,
+            "y": 5,
+            "w": 10,
+            "h": 13
+          },
+          "id": 19,
+          "options": {
+            "mode": "markdown",
+            "content": "**여신보좌관 — 지난 프로젝트, 닫혀서 값이 고정**\n\n2026-10-20 에 GitLab API 로 그 프로젝트의 **최근 잡 1,500개**(2026-09-22 ~ 29, 파이프라인 297개)를 센 값. 1,500 은 가져온 개수이고 상태를 걸렀는지는 기록에 없다(같은 서버 CPU 4 에서 서비스와 함께 돌던 구성)\n\n| | 가운데값 | 상위 10% | 최대 |\n|---|---|---|---|\n| 잡 기다림 | 5분 | 23분 | 42분 |\n| 파이프라인(첫 잡 생성 → 마지막 잡 끝) | 약 11분 | 약 30분 | 약 2시간 6분 |\n\n그래서 여신보좌관은 **5분 안에 시작한 잡이 절반, 23분 안이 90%** 였다. 오른쪽 막대의 같은 칸과 견준다.\n\n**우리 — 오른쪽 패널, 지난 7일(Prometheus)**\n\n- exporter 는 잡마다 마지막 실행 값만 낸다. 그래서 `job_id` 가 바뀌거나 시계열이 사라진 2분 칸마다 **바로 앞 값을 끝난 실행 하나로** 센다(성공 · 실패만). 기다림은 여신보좌관 집계와 같은 `queued_duration` 이다\n- 실제보다 적게 센다 — 열린 MR 과 `dev` 만 읽고, 같은 2분 칸 안에 다음 실행이 앞 실행을 덮으면 앞 실행은 빠진다. 2026-11-17 GitLab 전수(11-10 15:00 ~ 11-17 15:00, 성공 · 실패 잡 1,243개)와 견주면 1,044개(84%)를 셌고, 비율은 1%p 안, 최대는 같았다(1,235초)\n- exporter 가 통째로 빈 칸(긁기 실패 · 재시작)에서는 사라짐을 세지 않는다. 다시 떠서 시계열이 일부만 돌아온 사이에는 한 번 더 셀 수 있다 — 위 7일에는 그런 칸이 없었다(`up` 0 인 칸 0). 러너 · 실패 이유 이름표가 바뀐 옛 시계열은 사라질 때 세져서 다른 7일 창에 들어갈 수 있다\n- 같은 날 GitLab 전수로 센 우리 가운데값 · 상위 10% 는 잡 기다림 2.4초 · 78.9초, 파이프라인 136초 · 576초. 파이프라인은 exporter 값(`duration`)이 「첫 잡 생성 → 마지막 잡 끝」과 뜻이 달라 여기서 세지 않는다\n- Prometheus 보존이 7일이라 그보다 길게는 못 본다. 이 줄은 펼칠 때만 질의하지만, **펼친 채 두면 1분마다 7일치를 다시 센다**(관리 서버에서 질의 하나에 약 1초) — 보고 나서 접어 둔다\n- 팀도 코드도 서버도 다르고 셈 범위도 다르다(여신보좌관은 최근 잡 1,500개, 우리는 성공 · 실패만 84%) — 전후 비교가 아니라 같은 계산법으로 잰 두 프로젝트다"
+          }
+        },
+        {
+          "type": "bargauge",
+          "title": "N 안에 시작한 잡 — 지난 7일",
+          "description": "잡이 러너에 받히기까지 기다린 시간(queued_duration)이 N 이하인 실행의 비율. 여신보좌관은 5분 안 50% · 23분 안 90%(가운데값 5분 · 상위 10% 23분). 셈법은 왼쪽 글",
+          "gridPos": {
+            "x": 10,
+            "y": 5,
+            "w": 8,
+            "h": 13
+          },
+          "id": 20,
+          "timeFrom": "7d",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(sum(count_over_time(((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1)) <= 3)[7d:2m])) or vector(0)) / sum(count_over_time((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1))[7d:2m]))",
+              "refId": "A",
+              "legendFormat": "3초 안",
+              "range": false,
+              "instant": true
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(sum(count_over_time(((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1)) <= 60)[7d:2m])) or vector(0)) / sum(count_over_time((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1))[7d:2m]))",
+              "refId": "B",
+              "legendFormat": "1분 안",
+              "range": false,
+              "instant": true
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(sum(count_over_time(((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1)) <= 300)[7d:2m])) or vector(0)) / sum(count_over_time((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1))[7d:2m]))",
+              "refId": "C",
+              "legendFormat": "5분 안 — 여신보좌관 50%",
+              "range": false,
+              "instant": true
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(sum(count_over_time(((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1)) <= 1380)[7d:2m])) or vector(0)) / sum(count_over_time((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1))[7d:2m]))",
+              "refId": "D",
+              "legendFormat": "23분 안 — 여신보좌관 90%",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "basic",
+            "showUnfilled": true,
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "decimals": 1,
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "잡 기다림 최대 — 지난 7일 (여신보좌관 42분)",
+          "description": "셈한 실행 가운데 가장 오래 기다린 값. 23분(여신보좌관 상위 10%)을 넘으면 주황, 42분(여신보좌관 최대)을 넘으면 빨강",
+          "gridPos": {
+            "x": 18,
+            "y": 5,
+            "w": 6,
+            "h": 6
+          },
+          "id": 21,
+          "timeFrom": "7d",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(max_over_time((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1))[7d:2m]))",
+              "refId": "A",
+              "legendFormat": "최대",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1380
+                  },
+                  {
+                    "color": "red",
+                    "value": 2520
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "센 실행 — 지난 7일 (성공 · 실패)",
+          "description": "비율의 분모. GitLab 전수보다 적게 센다(2026-11-17 에 84%). 여신보좌관 쪽은 최근 잡 1,500개(09-22 ~ 29)를 셌다 — 왼쪽 글",
+          "gridPos": {
+            "x": 18,
+            "y": 11,
+            "w": 6,
+            "h": 7
+          },
+          "id": 22,
+          "timeFrom": "7d",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(count_over_time((gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\"} offset 2m and ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m != gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) or ((gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"} offset 2m unless gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) and on() (count(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\"}) > 0))) and ignoring(status) (gitlab_ci_pipeline_job_status{project=\"s15-final/S15P31A102\", status=~\"success|failed\"} offset 2m == 1))[7d:2m]))",
+              "refId": "A",
+              "legendFormat": "실행",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "none",
+            "graphMode": "none",
+            "textMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "최근 파이프라인 — 잡마다",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 3,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "table",
+      "title": "잡 표 — 고른 기간 안의 마지막 값",
+      "description": "ref · 잡 이름마다 가장 최근 잡 하나. 잡 ID 를 누르면 GitLab 잡 화면이 열린다. 값은 GitLab 잡 API 의 queued_duration · duration · runner.description 그대로",
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
+          "refId": "A",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))",
+          "refId": "B",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "floor(topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))))",
+          "refId": "C",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range]))))) * 1000",
+          "refId": "D",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "project": true,
+              "topics": true,
+              "variables": true,
+              "tag_list": true,
+              "kind": true,
+              "stage": true
+            },
+            "indexByName": {
+              "Value #D": 0,
+              "ref": 1,
+              "kind": 2,
+              "source": 3,
+              "job_name": 4,
+              "runner_description": 5,
+              "Value #A": 6,
+              "Value #B": 7,
+              "Value #C": 8,
+              "stage": 9,
+              "failure_reason": 10
+            },
+            "renameByName": {
+              "ref": "ref (MR 번호 · 브랜치)",
+              "kind": "종류",
+              "source": "계기",
+              "stage": "단계",
+              "job_name": "잡",
+              "runner_description": "러너",
+              "failure_reason": "실패 까닭",
+              "Value #A": "기다림",
+              "Value #B": "걸린 시간",
+              "Value #C": "잡 ID",
+              "Value #D": "만든 시각"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "만든 시각",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "기다림"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 60
+                    },
+                    {
+                      "color": "red",
+                      "value": 120
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "걸린 시간"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 900
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "잡 ID"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "GitLab 잡",
+                    "url": "https://lab.ssafy.com/s15-final/S15P31A102/-/jobs/${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "만든 시각"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          }
+        ]
+      },
+      "id": 4,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "row",
+      "title": "갈래 — w0 규칙 · w12 영역 검사 · w3 backend · w4 이미지 굽기",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 5,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "갈래별 걸린 시간 — 평균 · 최대",
+      "description": "고른 기간 안에 만든 잡만. 잡 이름 앞머리(w0 · w12 · w3 · w4)로 묶는다",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg by (lane) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"lane\", \"$1\", \"job_name\", \"(w[0-9]+):.*\"))",
+          "refId": "A",
+          "legendFormat": "{{lane}} 평균",
+          "range": false,
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (lane) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"lane\", \"$1\", \"job_name\", \"(w[0-9]+):.*\"))",
+          "refId": "B",
+          "legendFormat": "{{lane}} 최대",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "id": 6,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "잡별 걸린 시간 — 평균",
+      "description": "고른 기간 안에 만든 잡만, ref 마다 마지막 잡의 평균",
+      "gridPos": {
+        "x": 8,
+        "y": 18,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg by (job_name) ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))))",
+          "refId": "A",
+          "legendFormat": "{{job_name}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "id": 7,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "잡별 테스트 시간 (JUnit) — 평균",
+      "description": "GitLab 테스트 리포트의 스위트 시간. GitLab 은 잡 이름을 스위트 이름으로 쓴다. JUnit 을 내는 잡(w12:ai · w3:backend)만",
+      "gridPos": {
+        "x": 16,
+        "y": 18,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg by (test_suite_name) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_test_suite_total_time{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and on (project, ref) (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))",
+          "refId": "A",
+          "legendFormat": "{{test_suite_name}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "id": 8,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "row",
+      "title": "러너 — newlearn-ec2-k8s(EC2) · newlearn-laptop(노트북)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "러너별 잡 수",
+      "description": "고른 기간 안에 만든 잡을 받은 러너로 센다 (ref · 잡 이름마다 마지막 잡)",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (runner_description) (label_replace((topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s)), \"runner_description\", \"(러너 아직 없음)\", \"runner_description\", \"\"))",
+          "refId": "A",
+          "legendFormat": "{{runner_description}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "id": 10,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "러너별 기다림 — 평균 · 최대",
+      "description": "잡이 만들어진 뒤 러너가 받기까지 (GitLab queued_duration)",
+      "gridPos": {
+        "x": 6,
+        "y": 28,
+        "w": 9,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "avg by (runner_description) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"runner_description\", \"(러너 아직 없음)\", \"runner_description\", \"\"))",
+          "refId": "A",
+          "legendFormat": "{{runner_description}} 평균",
+          "range": false,
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (runner_description) (label_replace((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_queued_duration_seconds{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) and (topk by (project, ref, job_name) (1, ((max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\", failure_reason!=\"\"}[$__range])) + 0.75) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", runner_description!=\"\"}[$__range])) + 0.5) or (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\", failure_reason!=\"\"}[$__range])) + 0.25) or max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_id{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])))) and (max without (pod, instance) (last_over_time(gitlab_ci_pipeline_job_timestamp{project=\"s15-final/S15P31A102\", ref=~\"$ref\"}[$__range])) > time() - $__range_s))), \"runner_description\", \"(러너 아직 없음)\", \"runner_description\", \"\"))",
+          "refId": "B",
+          "legendFormat": "{{runner_description}} 최대",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 18,
+        "maxVizHeight": 26,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 14
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "id": 11,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "EC2 러너 자리 사용",
+      "description": "EC2 러너(Kubernetes executor)가 지금 돌리는 잡 수와 자리(concurrent). 자리가 차면 다음 잡은 노트북 러너가 받거나 기다린다",
+      "gridPos": {
+        "x": 15,
+        "y": 28,
+        "w": 9,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(gitlab_runner_jobs)",
+          "refId": "A",
+          "legendFormat": "돌리는 잡",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(gitlab_runner_concurrent)",
+          "refId": "B",
+          "legendFormat": "자리",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "자리"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 12,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "row",
+      "title": "서버 — 두 노드(관리 서버 · 워커)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 13,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "노드 CPU 사용 (코어)",
+      "description": "모드별 사용 코어(관리 서버 · 워커 두 노드의 합). 빨간 점선은 지금 수집 중인 노드들의 코어 합 — 노드 하나가 수집에서 빠지면 위 선과 함께 줄어든다. 관리 서버는 2026-11-02 부터 CPU 크레딧 unlimited 라 크레딧으로 묶이지 않는다 — 그 뒤에도 steal 이 보이며 원인은 확인 못 함(SSOT 10절). 워커(Lightsail)는 버스트형이라 steal 이 크레딧 바닥일 수 있다",
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (mode) (rate(node_cpu_seconds_total{mode!=\"idle\"}[$__rate_interval]))",
+          "refId": "A",
+          "legendFormat": "{{mode}}",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(node_cpu_seconds_total{mode=\"idle\"})",
+          "refId": "B",
+          "legendFormat": "전체 코어",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "전체 코어"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 14,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU 예약 (요청 합, 코어)",
+      "description": "네임스페이스별 CPU 요청 합. gitlab-runner · gitlab-runner-build(Lightsail 굽기) 가 잡 Pod 몫이다. 빨간 점선(노드 전체)에 닿으면 새 잡 Pod 가 Pending",
+      "gridPos": {
+        "x": 12,
+        "y": 37,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (namespace) (namespace_cpu:kube_pod_container_resource_requests:sum)",
+          "refId": "A",
+          "legendFormat": "{{namespace}}",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(kube_node_status_allocatable{resource=\"cpu\"})",
+          "refId": "B",
+          "legendFormat": "노드 전체",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "노드 전체"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 15,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "잡 Pod CPU 사용 (코어)",
+      "description": "EC2 러너 잡 Pod 의 모든 컨테이너 합 (build · helper · services). 범례는 잡 이름 #잡 ID",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"gitlab-runner(-build)?\", pod=~\"runner-.*\", container!=\"\", container!=\"POD\"}[$__rate_interval])) * on (pod) group_left (annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) max by (pod, annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) (kube_pod_annotations{namespace=~\"gitlab-runner(-build)?\", annotation_job_runner_gitlab_com_name!=\"\"})",
+          "refId": "A",
+          "legendFormat": "{{annotation_job_runner_gitlab_com_name}} #{{annotation_job_runner_gitlab_com_id}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 16,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "잡 build 컨테이너 스로틀 비율",
+      "description": "CPU 상한(w0 0.5 · 나머지 1 코어)에 막힌 구간 비율 = throttled_periods ÷ periods. 높으면 CPU 가 모자란 잡",
+      "gridPos": {
+        "x": 12,
+        "y": 46,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=~\"gitlab-runner(-build)?\", container=\"build\"}[$__rate_interval])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=~\"gitlab-runner(-build)?\", container=\"build\"}[$__rate_interval]))) * on (pod) group_left (annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) max by (pod, annotation_job_runner_gitlab_com_name, annotation_job_runner_gitlab_com_id) (kube_pod_annotations{namespace=~\"gitlab-runner(-build)?\", annotation_job_runner_gitlab_com_name!=\"\"})",
+          "refId": "A",
+          "legendFormat": "{{annotation_job_runner_gitlab_com_name}} #{{annotation_job_runner_gitlab_com_id}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "max": 1
+        },
+        "overrides": []
+      },
+      "id": 17,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      }
+    }
+  ]
+}

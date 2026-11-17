@@ -1,0 +1,246 @@
+import { focusManager } from "@tanstack/react-query";
+import { act, fireEvent, screen, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw/http";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
+import { server } from "@/mocks/node";
+import { HomePage } from "@/pages/HomePage";
+import { stubScreen } from "@/test/media";
+import { expectMotionSafe } from "@/test/motion";
+import { renderRoute } from "@/test/render";
+
+// 셸 없이 홈만 연다. 주소(?category=)를 보려고 라우터를 쓴다
+function renderHome(path = "/home") {
+  return renderRoute(path, [{ path: "/home", element: <HomePage /> }]);
+}
+
+// 인사는 지금 시각을 본다. Date 만 고정하고 MSW · React Query 타이머는 그대로 둔다
+function setNow(iso: string) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(iso));
+}
+
+afterEach(() => vi.useRealTimers());
+
+function guestWith(status: number, code: string) {
+  server.use(
+    http.get("/api/v1/members/me", () =>
+      HttpResponse.json(
+        {
+          type: "about:blank",
+          title: code,
+          status,
+          detail: code,
+          instance: "/api/v1/members/me",
+          code,
+        },
+        { status },
+      ),
+    ),
+  );
+}
+
+test("제목 · 안내 한 줄 · 검색창을 보인다", async () => {
+  renderHome();
+
+  expect(
+    screen.getByRole("heading", {
+      level: 1,
+      name: "오늘의 이슈를 탐색해 보세요",
+    }),
+  ).toBeDefined();
+  // 부제는 넓은 화면만 — 폰 첫 화면에 글이 많았다 (2026-11-13 사용자, Jira 202). jsdom 은 미디어 쿼리 CSS 를 안 풀어 클래스로 본다
+  expect(
+    screen.getByText(
+      "검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.",
+    ).className,
+  ).toContain("max-md:hidden");
+  expect(
+    screen.getByRole("combobox", { name: "이슈, 사건, 기사 검색" }),
+  ).toBeDefined();
+});
+
+test.each([
+  ["2026-10-23T10:59:00+09:00", "김뉴런님, 좋은 아침이에요 · 10월 23일 금요일"],
+  ["2026-10-23T11:00:00+09:00", "김뉴런님, 좋은 오후예요 · 10월 23일 금요일"],
+  [
+    "2026-10-23T18:00:00+09:00",
+    "김뉴런님, 오늘 하루도 수고했어요 · 10월 23일 금요일",
+  ],
+])("회원이면 이름과 한국 시간대 인사를 붙인다 (%s)", async (now, text) => {
+  setNow(now);
+  renderHome();
+
+  expect(await screen.findByText(text)).toBeDefined();
+});
+
+test("손님(A17 401)이면 날짜만 보인다", async () => {
+  setNow("2026-10-23T09:00:00+09:00");
+  guestWith(401, "UNAUTHORIZED");
+  renderHome();
+
+  expect(await screen.findByText("10월 23일 금요일")).toBeDefined();
+  expect(screen.queryByText(/님,/)).toBeNull();
+});
+
+test("A17 회원 정보로 추천 이슈 제목과 관심 분야 탭을 정한다", async () => {
+  renderHome();
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 2,
+      name: "김뉴런님을 위한 추천 이슈",
+    }),
+  ).toBeDefined();
+  expect(
+    (await screen.findAllByRole("tab"))[0].getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(screen.getAllByRole("tab")[0].textContent).toBe("경제, 관심 분야");
+});
+
+test("손님이면 추천 이슈 제목에 이름이 없다", async () => {
+  guestWith(401, "UNAUTHORIZED");
+  renderHome();
+
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "추천 이슈" }),
+  ).toBeDefined();
+});
+
+test("A17 이 다른 오류로 실패해도 홈을 막지 않고 손님 문구로 보인다", async () => {
+  setNow("2026-10-23T09:00:00+09:00");
+  guestWith(500, "INTERNAL_ERROR");
+  renderHome();
+
+  expect(await screen.findByText("10월 23일 금요일")).toBeDefined();
+  expect(
+    await screen.findByRole("list", { name: "새로운 이슈" }),
+  ).toBeDefined();
+});
+
+test("창에 돌아와도 A17 을 다시 부르지 않아 탭 순서가 그대로다", async () => {
+  // SEED Tabs 는 방향키 순서를 탭을 처음 그릴 때만 읽는다. 순서가 바뀌면 방향키가 엇나간다
+  let calls = 0;
+  const count = ({ request }: { request: Request }) => {
+    if (new URL(request.url).pathname === "/api/v1/members/me") calls += 1;
+  };
+  server.events.on("request:start", count);
+  onTestFinished(() => {
+    server.events.removeListener("request:start", count);
+    focusManager.setFocused(undefined);
+  });
+  renderHome();
+  await screen.findByRole("tablist", { name: "분야" });
+
+  act(() => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  expect(calls).toBe(1);
+});
+
+test("추천 이슈 아래에 최신 기사를 둔다", async () => {
+  renderHome();
+
+  const headings = screen
+    .getAllByRole("heading", { level: 2 })
+    .map((heading) => heading.textContent);
+  expect(headings.at(-1)).toBe("최신 기사");
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+});
+
+// 첫 화면 뒤에 마인드맵 모양 배경을 깐다 — 프로토타입 v21 HomeHeroBg (Jira 168)
+test("「오늘의 이슈」 뒤에 장식 그림을 깐다", async () => {
+  renderHome();
+
+  const hero = await screen.findByRole("region", { name: "오늘의 이슈" });
+  const art = hero.querySelector('svg[viewBox="0 0 1200 360"]');
+  expect(art?.getAttribute("aria-hidden")).toBe("true");
+});
+
+// 좁은 화면 홈 보기 탭 (모바일 프로토타입 v1)
+const homeTabs = () => screen.findByRole("tablist", { name: "홈 보기" });
+
+test("넓은 화면에는 홈 보기 탭이 없다", async () => {
+  renderHome();
+
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+  expect(screen.queryByRole("tablist", { name: "홈 보기" })).toBeNull();
+});
+
+test("좁은 화면에서는 「추천 이슈 / 최신 기사」 탭으로 한 번에 한 부분만 보인다", async () => {
+  stubScreen("narrow");
+  renderHome();
+
+  const tabs = await homeTabs();
+  expect(
+    within(tabs)
+      .getAllByRole("tab")
+      // SEED Tabs 는 안 고른 탭에 aria-selected 를 두지 않는다
+      .map((tab) => [
+        tab.textContent,
+        tab.getAttribute("aria-selected") === "true",
+      ]),
+  ).toEqual([
+    ["추천 이슈", true],
+    ["최신 기사", false],
+  ]);
+  expect(
+    await screen.findByRole("heading", { level: 2, name: /추천 이슈/ }),
+  ).toBeDefined();
+  expect(screen.queryByRole("list", { name: "최신 기사" })).toBeNull();
+});
+
+test("좁은 화면에서 최신 기사 탭을 고르면 기록을 쌓지 않고 ?view=latest 로 바꾼다", async () => {
+  stubScreen("narrow");
+  const { router } = renderHome();
+
+  fireEvent.click(
+    within(await homeTabs()).getByRole("tab", { name: "최신 기사" }),
+  );
+
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+  expect(
+    screen.queryByRole("heading", { level: 2, name: /추천 이슈/ }),
+  ).toBeNull();
+  expect(router.state.location.search).toBe("?view=latest");
+  expect(router.state.historyAction).toBe("REPLACE");
+});
+
+test("좁은 화면에서 ?view=latest 로 열면 최신 기사 탭을 고른 채 연다", async () => {
+  stubScreen("narrow");
+  renderHome("/home?view=latest");
+
+  expect(
+    within(await homeTabs())
+      .getByRole("tab", { name: "최신 기사" })
+      .getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(await screen.findByRole("list", { name: "최신 기사" })).toBeDefined();
+});
+
+test("좁은 화면에서 홈 보기 탭을 바꾸면 그 내용이 180ms 에 나타난다", async () => {
+  stubScreen("narrow");
+  renderHome();
+  // 고른 탭 내용 칸의 맨 바깥 — 탭을 바꾸면 새로 그려져 다시 나타난다 (모바일 프로토타입 v1)
+  const shown = () =>
+    screen.getAllByRole("tabpanel").find((panel) => !panel.hidden)!
+      .firstElementChild!;
+
+  await screen.findByRole("heading", { level: 2, name: /추천 이슈/ });
+  expect(shown().getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-fade-in_180ms_/,
+  );
+
+  const before = shown();
+  fireEvent.click(
+    within(await homeTabs()).getByRole("tab", { name: "최신 기사" }),
+  );
+  await screen.findByRole("list", { name: "최신 기사" });
+  expect(shown()).not.toBe(before);
+  expect(shown().getAttribute("class")).toMatch(
+    /motion-safe:animate-\[newlearn-fade-in_180ms_/,
+  );
+  expectMotionSafe(shown().parentElement!);
+});

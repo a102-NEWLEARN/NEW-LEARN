@@ -1,0 +1,30 @@
+# Argo CD 3.5 (argo-cd 차트 10.10.5) 값 — kind 리허설과 실제 서버가 같이 쓴다
+
+# 로그인은 기본 admin 계정으로 충분하다 (SSO 를 안 쓴다)
+dex:
+  enabled: false
+# 알림은 실제 서버만 켠다 — Mattermost 배포 알림 (argocd-values.prod.yaml)
+notifications:
+  enabled: false
+
+# resource.exclusions 는 덮어쓰지 않는다 — 차트 기본 제외 목록에 Endpoints · Lease 와
+# Cilium 의 CiliumIdentity · CiliumEndpoint 가 이미 들어 있다. 더 뺄 것은 configs.cm 의 resourceExclusionsAdditional 로 덧붙인다
+
+configs:
+  cm:
+    # 앱 목록(app-of-apps)의 sync-wave 가 앞 앱이 실제로 준비될 때까지 기다리게 한다
+    # Argo CD 1.8 부터 Application 의 건강 상태를 따로 보지 않아, 없으면 앞 앱을 「만들기만」 하고 다음 wave 로 간다
+    # 예: cert-manager 는 envoy-gateway 가 Gateway CRD 를 깐 뒤에 떠야 Gateway 기능이 켜진다 (Argo CD 문서 「Health — Argo CD App」)
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil then
+        if obj.status.health ~= nil then
+          hs.status = obj.status.health.status
+          if obj.status.health.message ~= nil then
+            hs.message = obj.status.health.message
+          end
+        end
+      end
+      return hs

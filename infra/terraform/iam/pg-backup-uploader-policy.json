@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PutPgBackupOnly",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::newlearn-pg-backup-*/postgres/*",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": "<관리 서버 탄력적 IP>/32"
+        }
+      }
+    }
+  ]
+}

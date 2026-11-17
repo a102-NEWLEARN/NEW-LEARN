@@ -1,0 +1,33 @@
+# Dependabot — GitHub 용. 저장소 루트의 .github/dependabot.yml 로 둔다 (/harness-init 이 놓는다).
+#
+# 게이트의 액션은 커밋 SHA 로 고정돼 있다 (ci/github-actions.yml). 고정한 SHA 는 그대로 두면 낡는다.
+# Dependabot 이 새 버전의 SHA 와 버전 주석을 같이 바꾸는 PR 을 낸다. 모든 저장소에서 무료다.
+#
+# cooldown — 새 버전이 나오고 며칠은 기다린다. 악성 버전은 대개 며칠 안에 들켜 내려간다.
+# 보안 업데이트는 cooldown 과 상관없이 바로 온다.
+#
+# 영역의 패키지(npm · pip · uv · gradle · docker …)도 올리려면 아래 주석 블록을 영역마다 복사한다.
+# directory 는 stack.md §3 의 <영역>_PATH 와 같게 둔다.
+# GitLab 에는 Dependabot 이 없다. Renovate 를 직접 돌린다 (ci/gitlab-ci.yml 머리).
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:                  # 액션 업데이트를 PR 하나로 묶는다
+        patterns: ["*"]
+
+  # - package-ecosystem: npm    # pip · uv · gradle · maven · docker …
+  #   directory: /frontend      # stack.md §3 의 <영역>_PATH
+  #   schedule:
+  #     interval: weekly
+  #   cooldown:
+  #     default-days: 7
+  #   groups:
+  #     minor-and-patch:        # 작은 업데이트는 PR 하나로. 큰 버전은 따로 와서 따로 본다
+  #       update-types: [minor, patch]

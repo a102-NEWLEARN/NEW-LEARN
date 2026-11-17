@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "plansDirectory": "docs/plans",
+  "showClearContextOnPlanAccept": true,
+  "permissions": {
+    "allow": [
+      "Bash(rg *)",
+      "Bash(git add *)",
+      "Bash(bash .claude/hooks/secret-scan.sh *)",
+      "Bash(bash .claude/hooks/pre-commit *)",
+      "Bash(bash .claude/hooks/tests/run.sh)",
+      "Bash(bash .claude/hooks/tests/test-*.sh)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "PowerShell(git push *)",
+      "Bash(git reset --hard *)",
+      "PowerShell(git reset --hard *)",
+      "Bash(git clean *)",
+      "PowerShell(git clean *)",
+      "Bash(terraform apply*)",
+      "Bash(terraform destroy*)",
+      "Bash(terraform -chdir=* apply*)",
+      "Bash(terraform -chdir=* destroy*)",
+      "PowerShell(terraform apply*)",
+      "PowerShell(terraform destroy*)",
+      "PowerShell(terraform -chdir=* apply*)",
+      "PowerShell(terraform -chdir=* destroy*)",
+      "Edit(.github/workflows/**)",
+      "Edit(.github/dependabot.yml)",
+      "Edit(.gitlab-ci.yml)",
+      "Edit(.claude/hooks/**)",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/stack.md)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(*.env)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Read(*.p12)",
+      "Read(*.pfx)",
+      "Read(*.jks)",
+      "Read(*.keystore)",
+      "Read(*.p8)",
+      "Read(id_rsa*)",
+      "Read(id_dsa*)",
+      "Read(id_ecdsa*)",
+      "Read(id_ed25519*)",
+      "Read(*serviceAccount*.json)",
+      "Read(credentials.json)",
+      "Read(google-services.json)",
+      "Read(GoogleService-Info.plist)",
+      "Read(*.tfstate)",
+      "Read(*.tfstate.*)",
+      "Read(!*.example)",
+      "Read(!*.sample)",
+      "Read(!*.template)",
+      "Read(!*.dist)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/AppData/Roaming/gcloud/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.git-credentials)",
+      "Read(~/.netrc)",
+      "Read(~/.npmrc)",
+      "Read(~/.config/gh/**)",
+      "Read(~/AppData/Roaming/GitHub CLI/**)",
+      "Read(~/.config/glab-cli/**)",
+      "Read(~/AppData/Local/glab-cli/**)",
+      "Read(~/Library/Application Support/glab-cli/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f)",
+      "Bash(git push * -f *)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push * --force*)",
+      "PowerShell(git push -f *)",
+      "PowerShell(git push * -f)",
+      "PowerShell(git push * -f *)",
+      "Bash(git commit *--no-veri*)",
+      "Bash(git commit -n*)",
+      "Bash(git commit * -n)",
+      "Bash(git commit * -n -*)",
+      "Bash(git -C * commit *--no-veri*)",
+      "Bash(git -C * commit -n*)",
+      "Bash(git push *--no-veri*)",
+      "Bash(git -c core.hooks*)",
+      "Bash(git * -c core.hooks*)",
+      "Bash(git config core.hooks* *)",
+      "Bash(git config * core.hooks* *)",
+      "Bash(git config *unset* core.hooks*)",
+      "PowerShell(git commit *--no-veri*)",
+      "PowerShell(git commit -n*)",
+      "PowerShell(git commit * -n)",
+      "PowerShell(git commit * -n -*)",
+      "PowerShell(git -C * commit *--no-veri*)",
+      "PowerShell(git -C * commit -n*)",
+      "PowerShell(git push *--no-veri*)",
+      "PowerShell(git -c core.hooks*)",
+      "PowerShell(git * -c core.hooks*)",
+      "PowerShell(git config core.hooks* *)",
+      "PowerShell(git config * core.hooks* *)",
+      "PowerShell(git config *unset* core.hooks*)",
+      "Bash(git branch -D *)",
+      "PowerShell(git branch -D *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -r -f *)",
+      "Bash(rm -Rf *)",
+      "PowerShell(Remove-Item * -Recurse*)",
+      "PowerShell(Remove-Item -Recurse*)",
+      "Bash(chmod 777 *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 120,
+            "command": "c=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); p=$(git -C \"$CLAUDE_PROJECT_DIR\" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); [ -d \"$c\" ] && [ \"$c\" = \"$p\" ] && git rev-parse --show-toplevel >/dev/null 2>&1 || cd \"$CLAUDE_PROJECT_DIR\" || exit 1; bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit\" --format-only"
+          }
+        ]
+      }
+    ]
+  }
+}

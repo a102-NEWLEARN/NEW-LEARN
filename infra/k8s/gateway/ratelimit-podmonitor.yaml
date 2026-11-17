@@ -1,0 +1,49 @@
+# 입구 상한 서비스 · Envoy 의 상한 판정 지표를 Prometheus(monitoring, 관리 서버)가 모은다 (Jira S15P31A102-136)
+# 상한 서비스를 못 부르면 요청은 통과하고(failClosed 기본 false) health 도 200 이다 — 지표 없이는 상한이 풀린 것을 모른다
+# 확인 질의는 SSOT 6절 「외부 입구」. 경보는 infra/k8s/alerts/rules.yaml(상한 풀림 · 지표 끊김 — 이 수집이 끊겨도 잡는다)
+# Prometheus 는 모든 네임스페이스의 PodMonitor 를 이름표 조건 없이 읽는다(podMonitorNamespaceSelector 차트 기본값 {},
+#   bootstrap/monitoring-values.yaml 의 podMonitorSelectorNilUsesHelmValues false). CRD 는 그 모니터링 차트가 깐다 — cert-manager 앱의 ServiceMonitor 와 같은 의존이다
+# Pod 이름표 · 포트 이름(metrics, 19001)은 Envoy Gateway 가 붙인다(v1.9.2) — 판을 올리면 다시 본다
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-ratelimit
+  namespace: envoy-gateway-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: envoy-ratelimit
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      # 상한 판정 수(ratelimit_service_rate_limit_*) · 응답 시간 · Redis 연결만 남긴다 — Go 런타임 · statsd_exporter 자체 지표는 버린다
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: ratelimit_service_.*|ratelimit_redis_.*
+          action: keep
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-proxy-ratelimit
+  namespace: envoy-gateway-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: proxy
+      gateway.envoyproxy.io/owning-gateway-name: public
+  podMetricsEndpoints:
+    - port: metrics
+      path: /stats/prometheus
+      # Envoy 는 통계 전체(약 4,960줄 · 494KB)를 낸다. filter 로 상한 판정 통계만 받는다(6줄 · 577B, 2026-10-29)
+      #   envoy_cluster_ratelimit_{ok,over_limit,error,failure_mode_allowed} — 처음 쓰일 때 줄이 생기고 Envoy 가 다시 뜨면 처음부터 센다
+      #   (2026-10-29 에는 ok · over_limit 만 있었다 — 아직 풀린 적이 없어서)
+      #   envoy_cluster_name 의 rule 번호는 services/app/routes.yaml HTTPRoute app 의 규칙을 0 부터 센 순서다(rule/0 /api · 1 용어사전 · 2 로그인 · 3 가입)
+      params:
+        filter:
+          - '^cluster\..*\.ratelimit\.'
+      # filter 가 무시되는 판이 와도 Prometheus 에는 상한 판정 통계만 들어오게
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: envoy_cluster_ratelimit_.*
+          action: keep

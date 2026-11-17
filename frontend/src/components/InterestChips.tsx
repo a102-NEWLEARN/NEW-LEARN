@@ -1,0 +1,130 @@
+import {
+  IconCheckmarkLine,
+  IconExclamationmarkCircleFill,
+  IconPlusLine,
+} from "@karrotmarket/react-monochrome-icon";
+import { Skeleton } from "@seed-design/react";
+import { useQuery } from "@tanstack/react-query";
+import { type Ref, useId } from "react";
+import { categoriesQuery } from "@/api/categories";
+import { QueryState } from "@/components/state/QueryState";
+
+type InterestChipsProps = {
+  /** 고른 분야 코드 */
+  value: string[];
+  onValueChange: (codes: string[]) => void;
+  /** 마지막 남은 칩을 풀려고 했다 — 부모가 「관심 분야를 1개 이상 골라 주세요.」를 띄운다 */
+  onKeepOne: () => void;
+  /** 칩 묶음 아래에 띄울 오류 */
+  error?: string;
+  /** 바깥 제목의 id. 주면 「관심 분야 · 여러 개 고를 수 있어요」 줄을 두지 않고 그 제목을 묶음 이름으로 쓴다 (마이페이지) */
+  labelledBy?: string;
+  /** 오류가 났을 때 부모가 포커스를 옮길 곳 — 칩 묶음 */
+  ref?: Ref<HTMLDivElement>;
+};
+
+// 좁은 화면 좌우 12px — 14px 이면 393 폭 마이페이지 카드에서 관심 분야 칩이 2px 모자라 세 줄로 꺾였다
+// 누르는 동안 살짝 준다 — 색 전환과 같은 150ms. SEED 축소 값은 동작 줄이기면 1 이라 줄지 않는다 (EXPERIENCE.md 「호버 · 눌림」)
+const CHIP =
+  "t4-medium inline-flex h-[40px] items-center gap-x1 rounded-r2 border px-x3 transition-[color,background-color,border-color,scale] duration-[var(--seed-duration-color-transition)] active:[scale:var(--seed-scale-s97)] md:px-x3_5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring";
+
+/** 고를 수 있는 칩 모양 — 고른 것 · 안 고른 것. 가입의 사용 목적 칩도 같은 모양을 쓴다 */
+export function chipClassName(on: boolean) {
+  return `${CHIP} ${
+    on
+      ? "border-stroke-brand-solid bg-bg-brand-weak text-fg-brand-contrast active:bg-bg-brand-weak-pressed"
+      : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral hover:bg-bg-layer-default-pressed"
+  }`;
+}
+
+// 관심 분야 칩 — 가입 · 마이페이지 (EXPERIENCE.md Component Patterns 「관심 분야 칩」, 프로토타입 v21 AuthPage).
+// 여러 개 고른다(aria-pressed). 마지막 남은 칩은 풀리지 않는다.
+// 고른 칩 모양은 DESIGN.md 「선택된 필터 칩」, 높이 40px 은 [가정] (누르는 영역 44px 목표와 v21 38px 사이)
+export function InterestChips({
+  value,
+  onValueChange,
+  onKeepOne,
+  error,
+  labelledBy,
+  ref,
+}: InterestChipsProps) {
+  const ownLabelId = useId();
+  const errorId = useId();
+  const categories = useQuery(categoriesQuery);
+
+  function toggle(code: string) {
+    if (!value.includes(code)) {
+      onValueChange([...value, code]);
+    } else if (value.length === 1) {
+      onKeepOne();
+    } else {
+      onValueChange(value.filter((item) => item !== code));
+    }
+  }
+
+  return (
+    <div
+      ref={ref}
+      tabIndex={-1}
+      role="group"
+      aria-labelledby={labelledBy ?? ownLabelId}
+      aria-describedby={error ? errorId : undefined}
+      className="flex flex-col gap-x2_5 outline-none"
+    >
+      {!labelledBy && (
+        <div className="flex items-baseline gap-x2">
+          <span id={ownLabelId} className="t4-bold text-fg-neutral">
+            관심 분야
+          </span>
+          <span className="t3-regular text-fg-neutral-muted">
+            여러 개 고를 수 있어요
+          </span>
+        </div>
+      )}
+      <QueryState
+        query={categories}
+        loadingLabel="분야 불러오는 중"
+        skeleton={<Skeleton radius="8" width="full" height="x10" />}
+        errorTitle="분야를 불러오지 못했어요"
+      >
+        {(items) => (
+          <div className="flex flex-wrap gap-x2">
+            {items.map((category) => {
+              const on = value.includes(category.code);
+              return (
+                <button
+                  key={category.code}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggle(category.code)}
+                  className={chipClassName(on)}
+                >
+                  {on ? (
+                    <IconCheckmarkLine aria-hidden size={16} />
+                  ) : (
+                    <IconPlusLine
+                      aria-hidden
+                      size={14}
+                      className="text-fg-neutral-subtle"
+                    />
+                  )}
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </QueryState>
+      {error && (
+        // 글자 칸(SEED TextField)의 오류와 같은 모양 — 느낌표 아이콘과 문장
+        <p
+          id={errorId}
+          className="t3-regular flex items-center gap-x1 text-fg-critical"
+        >
+          <IconExclamationmarkCircleFill aria-hidden size={14} />
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

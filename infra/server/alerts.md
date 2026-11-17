@@ -1,0 +1,96 @@
+# 경보 — Alertmanager → Mattermost
+
+Alertmanager 가 우리 경보 열(`infra/k8s/alerts/rules.yaml`)만 Mattermost 「A102 배포알림」 채널로 보낸다. 차트 기본 경보는 평가만 하고 채널로는 안 보낸다 — 받는 길은 `infra/k8s/bootstrap/monitoring-values.yaml` 의 `alertmanager.config`. 왜 · 무엇을 고르나는 계획 `docs/plans/2026-10-30-alertmanager-mattermost.md`(Jira S15P31A102-138). 모니터링 설치는 `infra/server/README.md` 「모니터링」.
+
+## 켜는 순서
+
+1. **웹훅 주소 봉인** (관리자 PC 에서 — 주소를 물어 터미널이 붙어 있어야 한다). 배포 알림과 같은 「A102 배포알림」 채널의 들어오는 웹훅 주소를 넣는다. 채널에 연결 시험 글이 하나 올라간다
+
+   ```bash
+   ssh -t newlearn "bash infra/server/seal-secrets.sh alertmanager"
+   ```
+
+   주소를 Mattermost 에서 못 찾으면(들어오는 웹훅 목록에는 내가 만든 것만 보인다) 배포 알림 Secret 에 이미 있는 주소를 화면에 띄우지 않고 그대로 봉인한다 — 2026-10-30 이 방법으로 했다(채널 연결 시험 글은 안 씀)
+
+   ```bash
+   ssh newlearn "kubectl -n argocd get secret argocd-notifications-secret -o jsonpath='{.data.mattermost-url}' | base64 -d | kubectl create secret generic alertmanager-mattermost -n monitoring --from-file=url=/dev/stdin --dry-run=client -o yaml | kubeseal --controller-namespace sealed-secrets --format yaml > ~/sealed/sealed-alertmanager-mattermost.yaml && echo SEAL-DONE"
+   ```
+
+   ```bash
+   ssh newlearn 'cat ~/sealed/sealed-alertmanager-mattermost.yaml' > infra/k8s/alerts/sealed-alertmanager-mattermost.yaml
+   ```
+
+2. **커밋 · MR** — Argo CD 앱 `alerts` 가 Secret `alertmanager-mattermost` 와 규칙을 만든다. Secret 이 먼저 있어야 Alertmanager Pod 가 뜬다(파일로 붙인다)
+
+3. **Alertmanager 켜기** (EC2) — README 「모니터링」 「설치」의 `helm upgrade` 를 같은 판으로 한 번 더. Grafana Pod 가 한 번 다시 뜬다
+
+## 확인 (EC2)
+
+| 무엇을 | 명령 | 기대 |
+|---|---|---|
+| Pod | `kubectl -n monitoring get pod -l app.kubernetes.io/name=alertmanager` | Running, 재시작 0 |
+| 이어짐 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-prometheus:9090/proxy/api/v1/alertmanagers"` | `activeAlertmanagers` 하나 — 서비스 목록으로 채우는 값이라 실제로 닿는지는 아래 「보냄」으로 본다 |
+| 규칙 | 같은 길의 `/api/v1/rules` | `newlearn` 묶음 열이 `health: ok` |
+| 받는 곳 | `kubectl get --raw "/api/v1/namespaces/monitoring/services/kps-kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts/groups"` | 기본 경보(Watchdog 등)는 `receiver.name` 이 `null` |
+| 들어오는 길 정책 | `kubectl -n monitoring get cnp alertmanager-ingress` | `VALID` True |
+| 보냄 | 「이어짐」과 같은 길의 `/api/v1/query?query=sum(increase(prometheus_notifications_errors_total%5B10m%5D))` · 같은 식의 `…_sent_total` | 오류 0 · 보냄 0 보다 큼(늘 울리는 Watchdog 도 보낸다) — 정책의 Prometheus 이름표가 틀리면 경보가 소리 없이 끊긴다(`infra/k8s/alerts/alertmanager-netpol.yaml`) |
+
+## 디스크 경보가 오면 (`NewlearnDiskAlmostFull`, 80%)
+
+80% 는 미리 알리는 선이다. 85% 에서 kubelet 이 DiskPressure 가 된다(축출 `imagefs.available<15%` — 디스크가 하나라 루트 기준, 이미지 정리 85/80, 두 노드 `configz` 로 2026-11-02 확인). 그러면 안 쓰는 이미지(CI 이미지 포함)부터 지우고, 그래도 넘치면 Pod 를 내쫓는다. 그동안 노드에 `node.kubernetes.io/disk-pressure:NoSchedule` 테인트가 붙어, 관리 서버에 묶인 CI 잡(control-plane 테인트만 허용 — `gitlab-runner-values.yaml`)과 백업 CronJob 이 뜨지 못한다. 관리 서버(EC2) 기준이다. Prometheus 보존을 7일로 줄인 뒤에도 나머지(이미지 · CI 캐시 등으로 짐작)는 계속 는다.
+
+1. 큰 곳 — `df -h /` · `sudo du -xh --max-depth=2 /var/lib | sort -h | tail`. 평소에는 containerd(이미지) · `/var/lib/newlearn/prometheus`(보존 7일 · 8GB, `monitoring-values.yaml`) · `/var/lib/newlearn/ci-cache` 순이다
+2. 이미지 — 어떤 컨테이너도 안 쓰고 CI · 매니페스트가 부르지 않는 것만 이름으로 지운다(`sudo crictl rmi <이름>`). 다이제스트로 고정한 CI 잡 이미지(`.gitlab-ci.yml` 의 node · uv · gradle · buildpack-deps · terraform · python · kaniko · services 의 redis · pgvector)는 잡이 끝나면 「안 씀」으로 보이지만 다음 잡이 다시 받는다. 백업 CronJob 의 `amazon/aws-cli`(주 1회라 엿새는 「안 씀」으로 보인다) · `pgvector/pgvector`(`infra/k8s/services/data/postgres-backup.yaml`), pause · 러너 helper · webhook-certgen 도 남긴다. `crictl rmi --prune` 은 이것들까지 지워 쓰지 않는다
+3. Prometheus — `prometheus_tsdb_storage_blocks_bytes` 가 보존 안에서 멈춰 있나 본다. 수집 대상이 늘면 하루 증가분이 커진다
+4. 그래도 모자라면 디스크를 늘린다 — `infra/README.md` 「루트 디스크 늘리기」. 지금 크기는 `infra/terraform/variables.tf` 의 `root_volume_gb`
+
+## 로그 경보가 오면 (`NewlearnLogsDropped` · `NewlearnLogShipperMemoryHigh` · `NewlearnLogShipperDown`)
+
+셋 다 로그 수집기 Alloy(서버마다 하나) 이야기다. 구성은 `infra/server/logging.md`, 식과 까닭은 `rules.yaml` 주석(Jira S15P31A102-192). 서비스는 멀쩡하다. 로그가 Grafana › Explore 에 늦게 오거나 빠질 수 있다.
+
+- **버린 로그** — 사유(`reason`)부터 본다. 이 수는 Alloy 가 「Loki 가 받지 않았다」고 센 묶음의 줄 수다. 실제로 빠진 줄은 Loki 쪽 `kubectl get --raw /api/v1/namespaces/monitoring/services/loki:3100/proxy/metrics | grep loki_discarded_samples_total`
+  - `ingester_error`: Loki 가 429 · 5xx 가 아닌 오류(대개 400)로 답했다. Loki 는 그래도 받을 수 있는 줄은 저장하고 받는 창 밖(1시간 · 7일보다 오래된) 줄만 빼므로 실제로 빠진 줄보다 크다. 책갈피가 사라져 노드 로그를 처음부터 다시 보낼 때 흔하다
+  - `rate_limited`: Loki 상한(속도 · 스트림 수 — Loki 기본값이라 `loki-values.yaml` 에는 없다)에 걸려 429 를 받고 재시도를 다 썼다. 이건 실제로 빠진 줄이다. 어느 Pod 가 갑자기 많이 찍나 Explore 에서 `sum by (namespace, container) (bytes_over_time({namespace=~".+"}[5m]))`
+  - `stream_limited` · `queue_is_full` · `batch_too_large`: Alloy 쪽 보내기 한계(묶음 스트림 수 · 대기열 · 묶음 크기). 켠 뒤 지금까지 0 이다 — 울리면 Alloy 로그(`kubectl -n monitoring logs <Pod> -c alloy`)부터
+  - Loki 가 멈춰도 Alloy 가 재시도를 다 쓴 뒤(몇 분) 여기로 온다 — `kubectl -n monitoring get pod loki-0`
+  - Alloy 가 비정상 종료(OOMKill)로 다시 떴다면 새 줄이 없는 오래된 파일을 처음부터 다시 읽어 `ingester_error` 가 수천 줄 생길 수 있다 — 실제 손실이 아니다(`logging.md` 「겪은 것」 2026-11-11 반영). 재시작 경보가 같이 왔는지 본다
+  - 책갈피 자리 확인: `logging.md` 4절 「책갈피」 줄
+- **메모리 85%** — 프로그램이 쓰는 메모리(RSS)로 본다. `kubectl top` 은 파일 캐시까지 센 working set 이라 더 크게 나온다(관리 서버 Alloy 는 실행 파일 캐시로 0.88 까지 보였다). 컨테이너 안 `/sys/fs/cgroup/memory.stat` 의 `anon` 이 이 경보의 값이다. 로그 양이 늘었으면 위 Explore 식으로 어디서 늘었나 본다. 상한을 올리려면 `alloy-values.yaml` 의 `resources.limits.memory` 를 고쳐 `logging.md` 3절 alloy 명령(Go 메모리 한도는 상한의 90% 로 따라온다)
+- **멈춤** — `kubectl -n monitoring get pod -l app.kubernetes.io/name=alloy -o wide` 로 어느 노드인지, `describe pod` · `logs --previous` 로 까닭. Pod 는 Running 인데 울리면 지표 수집 실패다 — Prometheus 화면 Status › Targets 의 `monitoring/alloy`
+- 한계: 수집 대상이 통째로 사라지면(ServiceMonitor 를 지움) 버린 로그 경보는 조용하다 — job 이름이 반영 뒤에 정해져 `absent()` 를 쓰지 않았다
+
+## 분석 작업 경보가 오면 (`NewlearnAnalysisJobFailed` · `NewlearnAnalysisLineStuck` · `NewlearnAnalysisMetricsMissing`)
+
+셋 다 분석 작업 표(`analysis_job`) 이야기다. backend 에는 지표가 없어서 postgres_exporter 가 DB 를 직접 센다(`infra/k8s/bootstrap/pg-exporter/queries.yaml`). 식과 까닭은 `rules.yaml` 주석, 왜 이 길인가는 계획 `docs/plans/2026-11-15-analysis-job-alerts.md`(Jira S15P31A102-215). 사이트는 멀쩡하다 — 새 기사의 마인드맵이나 사건 · 이슈 연결이 빠지거나 늦는다.
+
+- **끝내 실패**(`JobFailed`, warning) — 그 기사는 다시 걸리지 않는다. EXTRACT 면 마인드맵이 영영 없고, 판정 · 이슈면 그 기사 · 사건이 묶이지 않는다. 바탕값은 하루 1 ~ 3건, 전부 EXTRACT `LLM_OUTPUT_INVALID`(2026-11-15 기준). 어느 기사 · 어떤 오류인지:
+
+  ```bash
+  kubectl -n data exec -i postgres-0 -- psql -X -U newlearn -d newlearn -c "select j.stage, j.article_id, j.error_code, left(j.error_message, 80) as 메시지, j.finished_at at time zone 'Asia/Seoul' as 끝난시각, left(a.title, 40) as 제목 from analysis_job j join article a on a.id = j.article_id where j.status = 'FAILED' and j.retry_at is null and j.error_code is distinct from 'BACKLOG_SKIPPED' order by j.finished_at desc limit 10"
+  ```
+
+  오류 코드마다 다시 거는 규칙은 backend `RetryPolicy`(재시도를 다 쓴 뒤에 여기 온다). 몰려서 오면 GMS 상태와 AI 워커 로그(`kubectl -n ai logs deploy/ai --since=1h`)를 본다
+- **줄 멈춤**(`LineStuck`, critical) — 판정(MATCH_EVENT) · 이슈(ISSUE)는 한 번에 하나씩이라 하나가 막히면 뒤 기사가 전부 기다린다. 먼저 일부러 끈 것인지 본다(아래 🔴). 아니면
+  1. AI 워커 — `kubectl -n ai get pod` · `kubectl -n ai logs deploy/ai --since=1h`. 그 단계 소비자가 떠 있나, W1 을 보냈나
+  2. backend 멈춤 WARN — Grafana › Explore › Loki 에서 `{namespace="app"} |= "줄이 멈췄을 수 있다"`. 막힌 작업 번호가 나온다
+  3. `retry_at` 이 지났는데 안 걸림(FAILED + retry_at) — backend 1분 스케줄러가 못 도는 것이다. backend 로그의 「실패한 작업을 다시 걸지 못했다」 · 「차례를 건너뛴다」 WARN
+  4. 푸는 법은 `docs/api-internal.md` 3절 「큐 모양과 순서」의 「`MATCH_EVENT` 는 한 번에 하나씩」 대목(40분 멈춤 · 푸는 법)
+- **지표 없음**(`MetricsMissing`, warning) — 질의가 깨졌거나(권한 · 칸 이름) exporter 가 멈췄다. 이 동안 위 둘은 울리지 않는다. `stage` 이름표가 EXTRACT 면 실패 수 지표, MATCH_EVENT 면 줄 멈춤 지표가 빠진 것이다. `kubectl -n monitoring logs deploy/postgres-exporter` 에서 `queryNamespaceMappings` 오류를 찾는다(권한이면 `permission denied`). 권한은 `infra/server/perf/README.md` 「exporter 올리기」 2번의 한 줄로 다시 준다
+- 🔴 **AI 워커의 단계 플래그를 일부러 끄면 약 45분 뒤(40분을 넘고 5분 이어지면) `LineStuck` 이 울리고 12시간마다 다시 온다.** 고르기는 플래그와 상관없이 작업을 큐에 넣고, 꺼진 단계는 소비자가 없어 `QUEUED` 로 남는다. 끄는 MR 과 함께 silence 를 건다(관리 서버에서)
+
+  ```bash
+  kubectl -n monitoring exec statefulset/alertmanager-kps-kube-prometheus-stack-alertmanager -c alertmanager -- amtool silence add --alertmanager.url=http://localhost:9093 alertname=NewlearnAnalysisLineStuck stage=ISSUE --duration=24h --author=<이름> --comment="ISSUE 플래그 끔 — MR !<번호>"
+  ```
+
+  다시 켜면 `amtool silence expire <ID>`(ID 는 `amtool silence query`). **Alertmanager 가 다시 뜨면 silence 는 사라진다** — 디스크를 붙이지 않았다(`monitoring-values.yaml` 의 Alertmanager 주석). 그때 다시 건다
+- 한계: 메시지를 잃어(큐에 못 넣음) 다시 넣어도 `queued_at` 은 그대로라, W1 이 올 때까지 최대 15분 동안 줄 멈춤이 남을 수 있다. 고르기가 작업을 만들기 전에 예외로 계속 실패하면 진행 중 작업이 0 이라 이 경보는 못 잡는다(그때는 backend 로그)
+
+## 바꿀 때
+
+- 경보 식을 바꿀 때는 먼저 Prometheus 에 그대로 물어 지금 값을 본다. 규칙만 바꾸면 MR 하나(Argo CD 가 반영)
+- 식이나 주석(summary · description)을 바꾸면 단위 시험 `infra/ci/alert_rules_test.yaml` 도 같이 고친다. `infra/` 에서 `bash ci/alert_rules.sh test`(promtool 이 PATH 에 있어야 한다 — 판은 스크립트의 `PROM_VERSION`), CI `w12:infra` 도 같은 시험을 돈다
+- 받는 길 · 글 모양(`monitoring-values.yaml`)을 바꾸면 「켜는 순서」 3 을 다시. 먼저 관리자 PC 에서 그린 설정을 같은 판 `amtool check-config` · `amtool config routes test` 로 본다. 글 틀은 `amtool template render --template.glob=<빈 .tmpl 파일> --template.text=<틀> --template.data=<경보 JSON>` 에 울림 · 풀림이 섞인 묶음을 넣어 그려 본다 — `--template.glob` 은 빈 파일이라도 꼭 준다(없으면 amtool 이 멈춤). JSON 모양은 Alertmanager `template.Data`
+- Alertmanager API 를 새 Pod 에서 불러야 하면 `alertmanager-netpol.yaml` 에 그 길을 더한다 — 지금은 Prometheus · Grafana 만 받는다
+- 🔴 웹훅 주소를 배포 알림(`argocd-notifications-secret`)과 같이 쓴다. 주소가 새면 Mattermost 에서 지우고 새로 만든 뒤 README 「GitLab 웹훅 · Mattermost 배포 알림」의 봉인과 「켜는 순서」 1 을 둘 다 다시 한다
+- Alertmanager 가 죽으면 경보가 하나도 안 온다 — 늘 울리는 Watchdog 을 바깥에서 받는 「죽음 감지」는 아직 없다
+- 🔴 끌 때 순서: 먼저 `monitoring-values.yaml` 의 `alertmanager.enabled: false` 로 helm upgrade → 그다음 규칙 · 봉인 Secret(Argo CD 앱 `alerts`) 제거. 거꾸로 하면 Secret 이 지워진 뒤 Alertmanager Pod 가 다시 뜰 때 ContainerCreating 에 멈춘다(Secret 을 필수 볼륨으로 붙임)

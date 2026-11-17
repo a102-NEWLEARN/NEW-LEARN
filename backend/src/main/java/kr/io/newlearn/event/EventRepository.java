@@ -1,0 +1,76 @@
+package kr.io.newlearn.event;
+
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import kr.io.newlearn.common.PublicEventSql;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+public interface EventRepository extends JpaRepository<Event, Long> {
+
+    // 고른 사건 중 메인 흐름(MAIN)이 몇 개인가 — 이슈 판정 CREATE 의 만들기 가드(IssueResultHandler, Jira S15P31A102-224)
+    long countByIdInAndRole(Collection<Long> ids, EventRole role);
+    // A4 타임라인 — 공개 기사가 minPublicArticles 건 이상인 사건만, 발생 시점 · ID 오름차순(docs/api.md 1절, Jira 179 · 206)
+    @Query("select e from Event e where e.issue.id = :issueId and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE
+            + " order by e.occurredAt asc, e.id asc")
+    List<Event> findPublicByIssueId(Long issueId, int minPublicArticles);
+
+    @EntityGraph(attributePaths = "issue")
+    Optional<Event> findWithIssueById(Long id);
+
+    // 같은 날(KST) 이름이 글자까지 같은 사건. 판정이 NEW 로 답했을 때 새로 만들기 전에 본다(Jira 211).
+    // 판정 후보는 기사 유사도 top-5 사건이라, 한 이슈에 가까운 사건이 여럿이면 정작 맞는 사건이 후보에서 밀려난다 —
+    // 2026-11-15 운영에서 「세무사 수석 합격자, 경찰에 자수서 제출」이 22분 차이로 두 번 생겼다(4834 · 4862).
+    // 날까지 보는 것은 「뉴욕증시 3대 지수 상승 출발」처럼 이름이 같아도 날이 다르면 진짜 별개 사건이기 때문이다.
+    // 날짜는 화면과 같은 KST 로 가른다(ApiTime). 먼저 생긴 것에 붙인다
+    @Query(value = """
+                    select * from event e where e.title = :title
+                      and (e.occurred_at at time zone 'Asia/Seoul')::date
+                        = (cast(:occurredAt as timestamptz) at time zone 'Asia/Seoul')::date
+                    order by e.id limit 1
+                    """, nativeQuery = true)
+    Optional<Event> findSameDayTwin(String title, Instant occurredAt);
+
+    // 시각이 같은 사건도 ID로 가른다. A4와 같은 순서(공개 기사가 있는 사건만)에서 인접한 한 건만 읽는다.
+    @Query("""
+            select e from Event e where e.issue.id = :issueId
+            and (e.occurredAt < :occurredAt or (e.occurredAt = :occurredAt and e.id < :id))
+            """ + " and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE + """
+            order by e.occurredAt desc, e.id desc
+            """)
+    List<Event> findPrevious(Long issueId, Instant occurredAt, Long id, int minPublicArticles, Pageable pageable);
+
+    @Query("""
+            select e from Event e where e.issue.id = :issueId
+            and (e.occurredAt > :occurredAt or (e.occurredAt = :occurredAt and e.id > :id))
+            """ + " and " + PublicEventSql.JPQL_EVENT_HAS_PUBLIC_ARTICLE + """
+            order by e.occurredAt asc, e.id asc
+            """)
+    List<Event> findNext(Long issueId, Instant occurredAt, Long id, int minPublicArticles, Pageable pageable);
+
+    // 판정(EXISTING)이 더 이른 기사를 붙이면 발행 시각으로 채운 시점(FIRST_PUBLISHED)을 그 발행 시각으로 당긴다
+    // (Jira 35, data-model.md event 「다시 계산한다」). 엔티티를 고쳐 저장하면 모든 칸을 다시 써서, 그사이 이슈 붙이기(Jira 40)가
+    // 바꾼 issue_id 를 옛 값으로 덮을 수 있다 — 바꿀 칸만 조건부로 고친다.
+    // clearAutomatically 를 쓰지 않는다 — W1 이 잠근 작업 엔티티가 떨어져 나가면 성공 표시가 저장되지 않는다
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Event e set e.occurredAt = :publishedAt, e.updatedAt = :now
+            where e.id = :id and e.occurredAtBasis = :basis and e.occurredAt > :publishedAt
+            """)
+    int pullOccurredAt(Long id, Instant publishedAt, OccurredAtBasis basis, Instant now);
+
+    // ISSUE ATTACH · CREATE — 아직 이슈 밖인 사건만 이슈에 넣는다(Jira 40, api-internal.md 5절). 확인과 바꾸기가 한 문장이라
+    // 돌려받은 수가 보낸 사건 수보다 작으면 그사이 다른 이슈에 들어간 사건이 있다 — 부른 쪽이 되돌린다.
+    // pullOccurredAt 처럼 바꿀 칸만 고치고 clearAutomatically 를 쓰지 않는다
+    @Modifying(flushAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            update event set issue_id = :issueId, updated_at = :now
+            where id in (:eventIds) and issue_id is null
+            """)
+    int assignIssue(long issueId, Collection<Long> eventIds, Instant now);
+}

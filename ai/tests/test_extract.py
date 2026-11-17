@@ -1,0 +1,428 @@
+import hashlib
+import json
+
+import pytest
+
+from app.extract.occurred_at import resolve_occurred_at
+from app.extract.postprocess import OutputInvalid, postprocess
+from app.extract.preprocess import (
+    build_user_message,
+    is_analyzable,
+    paragraphs_of,
+    split_sentences,
+)
+from app.extract.prompt import PROMPT_VERSION, SYSTEM_PROMPT
+
+PUB = "2026-10-16T11:32:00+09:00"
+
+
+# ---------------------------------------------------------------- 전처리
+
+
+def test_sentences_keep_paragraph_position_and_original_text():
+    body = "기관은 16일 조사 결과를 발표했다. 업계는 우려했다.\n\n▶ 관련 기사 보기\n둘째 문단이다."
+    sentences, dropped = split_sentences(body)
+
+    assert [s["id"] for s in sentences] == ["s1", "s2", "s3"]
+    assert [(s["paragraphIndex"], s["sentenceIndex"]) for s in sentences] == [
+        (0, 0),
+        (0, 1),
+        (2, 0),  # 안내 문구 줄도 문단 번호에는 센다
+    ]
+    paras = paragraphs_of(body)
+    assert all(s["text"] in paras[s["paragraphIndex"]] for s in sentences)
+    assert dropped == ["▶ 관련 기사 보기"]
+
+
+def test_inline_copyright_is_cut_from_one_line_body():
+    sentences, _ = split_sentences("본문 문장이다. Copyright © 어느신문 무단전재 금지")
+    assert [s["text"] for s in sentences] == ["본문 문장이다."]
+
+
+def test_noise_only_body_is_not_analyzable():
+    sentences, _ = split_sentences("ⓒ 어느신문\n▶ 영상 시청")
+    assert not is_analyzable(sentences)
+
+
+def test_user_message_numbers_sentences():
+    sentences, _ = split_sentences("첫 문장이다. 둘째 문장이다.")
+    message = build_user_message("제목", "언론사", PUB, sentences)
+    assert "[s1] 첫 문장이다." in message and "[s2] 둘째 문장이다." in message
+
+
+def test_content_line_starting_with_arrow_is_kept():
+    # 방송 기사의 "▶ 인터뷰: …"는 내용이다. 첫 글자만 보고 버리지 않는다
+    sentences, dropped = split_sentences(
+        "▶ 인터뷰: 주민 A씨는 대피했다고 말했다.\n▶ 관련 기사 보기"
+    )
+    assert [s["text"] for s in sentences] == ["▶ 인터뷰: 주민 A씨는 대피했다고 말했다."]
+    assert dropped == ["▶ 관련 기사 보기"]
+
+
+def test_one_line_body_keeps_text_after_photo_credit():
+    # 본문이 한 줄뿐인 데이터에서 앞머리 사진 출처 때문에 기사 전체가 사라지면 안 된다
+    body = (
+        "ⓒ뉴시스 러시아 빙상계가 빅토르 안을 상징으로 꼽았다. "
+        + "그는 귀화 선수다. " * 10
+    )
+    sentences, dropped = split_sentences(body)
+    assert sentences[0]["text"] == "러시아 빙상계가 빅토르 안을 상징으로 꼽았다."
+    assert sentences[0]["text"] in paragraphs_of(body)[0]
+    assert dropped == ["ⓒ뉴시스"]
+
+
+def test_split_after_da_followed_by_digit_or_quote():
+    sentences, _ = split_sentences(
+        "평가했다.17일 발표했다.“좋다”고 말했다. 비율은 3.5%다."
+    )
+    assert [s["text"] for s in sentences] == [
+        "평가했다.",
+        "17일 발표했다.",
+        "“좋다”고 말했다.",
+        "비율은 3.5%다.",
+    ]
+
+
+def test_title_html_entities_are_restored_for_llm_only():
+    sentences, _ = split_sentences("본문이다.")
+    message = build_user_message(
+        "권성동 quot;민주당amp;#91;단독amp;#93; #039;특검#039;",
+        "언론사",
+        PUB,
+        sentences,
+    )
+    assert message.startswith("제목: 권성동 \"민주당[단독] '특검'")
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        "김용희 기자 kimyh@hani.co.kr",
+        "◎공감언론 뉴시스 [email protected] Copyright © NEWSIS.COM, 무단 전재 및 재배포 금지",
+        (
+            "연합뉴스TV 기사문의 및 제보 : 카톡/라인 jebo23 이지현(ji@yna.co.kr) "
+            "당신이 담은 순간이 뉴스입니다! ⓒ연합뉴스TV, 무단 전재-재배포, AI 학습 및 활용 금지 "
+            "- 좋아요 0 - 응원해요 후속 원해요 0"
+        ),
+        "김현민 기자 minkim@etnews.com - ET Events",
+        "[ⓒ 세계일보 & Segye.com, 무단전재 및 재배포 금지]",
+        "영문기사 보기 (View English Article)",
+        "/문영수 기자([email protected])",
+    ],
+)
+def test_tail_notices_of_one_line_body_are_cut(tail):
+    # NewsData 실제 응답(S15P31A102-126)의 꼬리 문구. 본문은 원문 그대로 남는다
+    body = f"첫 문장이다. 끝 문장이다. {tail}"
+    sentences, dropped = split_sentences(body)
+    assert [s["text"] for s in sentences] == ["첫 문장이다.", "끝 문장이다."]
+    assert all(s["text"] in body for s in sentences) and dropped
+
+
+def test_copyright_mention_inside_body_is_kept():
+    body = (
+        "기자는 ⓒ 표기와 무단 전재 금지 문구를 설명했다. "
+        "이어 여러 사례를 길게 소개하며 저작권 문제를 짚었다고 밝혔다."
+    )
+    sentences, dropped = split_sentences(body)
+    assert len(sentences) == 2 and not dropped
+
+
+# ---------------------------------------------------------------- 발생 시점
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("16일", "2026-10-16T00:00:00+09:00"),
+        ("지난 6일", "2026-10-06T00:00:00+09:00"),
+        ("14일 오후 2시 30분", "2026-10-14T14:30:00+09:00"),
+        ("16일 오전 10시", "2026-10-16T10:00:00+09:00"),
+        ("어제", "2026-10-15T00:00:00+09:00"),
+        ("이날", "2026-10-16T00:00:00+09:00"),
+        ("10월 6일", "2026-10-06T00:00:00+09:00"),
+        ("현지시간 15일", "2026-10-15T00:00:00+09:00"),
+        ("지난 28일", "2026-09-28T00:00:00+09:00"),  # 발행일보다 큰 날 → 지난달
+        ("6~7일", "2026-10-06T00:00:00+09:00"),
+        ("지난달", None),
+        ("올해 초", None),
+        ("지난주", None),
+        ("다음 달 3일", None),  # 이미 일어난 일인데 발행일 뒤
+        ("16일 오후 3시", None),  # 같은 날이지만 발행 시각(11:32)보다 뒤
+        ("16일과 17일", None),  # 날짜가 둘
+        (None, None),
+        ("3시간 전", None),
+    ],
+)
+def test_resolve_occurred_at(text, expected):
+    assert resolve_occurred_at(text, PUB)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["오는 11월 2일", "오는 28일", "11월 2일", "내일", "다음 주 월요일", "28일 예정"],
+)
+def test_future_expressions_are_not_turned_into_past_dates(text):
+    # MR !272 리뷰: 10/27 기사의 '오는 11월 2일'이 2025-11-02, '오는 28일'이 9/28 로 계산됐다
+    assert resolve_occurred_at(text, "2026-10-27T10:00:00+09:00")[0] is None
+
+
+def test_occurred_at_year_rollover():
+    jan = "2027-01-03T09:00:00+09:00"
+    assert resolve_occurred_at("지난달 28일", jan)[0] == "2026-12-28T00:00:00+09:00"
+    assert resolve_occurred_at("지난 30일", jan)[0] == "2026-12-30T00:00:00+09:00"
+    assert resolve_occurred_at("12월 31일", jan)[0] == "2026-12-31T00:00:00+09:00"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "15일(현지시각) 오후 11시",
+            "2026-10-15T00:00:00+09:00",
+        ),  # 현지 시각은 버리고 날짜만
+        ("15일(현지시각) 기준 전날", "2026-10-14T00:00:00+09:00"),
+        ("오전 9시 47분", "2026-10-16T09:47:00+09:00"),  # 날짜 없이 시각만 → 발행일
+        ("오후 2시", None),  # 발행 시각(11:32)보다 뒤
+        ("다음날 오전 9시", None),  # 무엇의 다음날인지 모른다
+        ("이튿날", None),
+    ],
+)
+def test_local_time_anchor_and_time_only(text, expected):
+    assert resolve_occurred_at(text, PUB)[0] == expected
+
+
+def test_utc_published_at_is_read_in_korean_time():
+    # NewsData 의 pubDate 는 UTC. 10/15 20:00 UTC = 10/16 05:00 KST 이므로 「오늘」은 16일이다
+    assert (
+        resolve_occurred_at("오늘", "2026-10-15T20:00:00+00:00")[0]
+        == "2026-10-16T00:00:00+09:00"
+    )
+
+
+# ---------------------------------------------------------------- 결과 검사
+
+
+SENTENCES = [
+    {
+        "id": "s1",
+        "text": "기관은 16일 조사 결과를 발표했다.",
+        "paragraphIndex": 0,
+        "sentenceIndex": 0,
+    },
+    {"id": "s2", "text": "업계는 우려했다.", "paragraphIndex": 1, "sentenceIndex": 0},
+]
+
+
+def raw(**kw):
+    base = {
+        "summary": "요약",
+        "branches": [],
+        "primaryCoreIndex": None,
+        "eventTimeText": None,
+    }
+    return json.dumps(base | kw, ensure_ascii=False)
+
+
+def run(text):
+    return postprocess(text, SENTENCES, PUB)
+
+
+def test_orders_branches_dedupes_leaves_and_moves_primary_to_front():
+    result, diag = run(
+        raw(
+            branches=[
+                {
+                    "type": "REACTION",
+                    "items": [{"text": "업계: 우려", "evidence": ["[s2]"]}],
+                },
+                {
+                    "type": "CORE",
+                    "items": [
+                        {"text": "중복 잎", "evidence": ["s1"]},
+                        {"text": "중복  잎", "evidence": []},
+                        {
+                            "text": "10/16 기관, 조사 결과 발표",
+                            "evidence": ["s1", "s9"],
+                        },
+                    ],
+                },
+                {"type": "OUTLOOK", "items": []},
+            ],
+            primaryCoreIndex=2,
+            eventTimeText="16일",
+        )
+    )
+
+    assert [b["type"] for b in result["mindmap"]["branches"]] == ["CORE", "REACTION"]
+    core = result["mindmap"]["branches"][0]["items"]
+    # 중복 잎을 지워 대표는 1번이 되고, B안대로 맨 앞으로 옮긴다
+    assert [i["text"] for i in core] == ["10/16 기관, 조사 결과 발표", "중복 잎"]
+    assert result["primaryCoreIndex"] == 0 and diag["primary_moved_from"] == 1
+    assert core[0]["evidence"] == [
+        {
+            "text": "기관은 16일 조사 결과를 발표했다.",
+            "paragraphIndex": 0,
+            "sentenceIndex": 0,
+        }
+    ]
+    assert diag["evidence_dropped"] == ["CORE: 's9'"]  # 없는 번호는 근거만 지운다
+    assert result["occurredAt"] == "2026-10-16T00:00:00+09:00"
+    assert result["schemaVersion"] == "mindmap-v1"
+
+
+def test_primary_pointing_to_removed_duplicate_follows_survivor():
+    result, _ = run(
+        raw(
+            branches=[
+                {
+                    "type": "CORE",
+                    "items": [{"text": "A", "evidence": ["s1"]}, {"text": "A"}],
+                }
+            ],
+            primaryCoreIndex=1,
+        )
+    )
+    assert result["primaryCoreIndex"] == 0
+    assert len(result["mindmap"]["branches"][0]["items"]) == 1
+
+
+def test_null_primary_keeps_summary_and_drops_time():
+    result, diag = run(
+        raw(
+            summary="  후임 후보 4명 거론  ",
+            branches=[
+                {"type": "CORE", "items": [{"text": "임명", "evidence": ["s1"]}]}
+            ],
+            eventTimeText="16일",
+        )
+    )
+    assert result["summary"] == "후임 후보 4명 거론"
+    assert result["primaryCoreIndex"] is None and result["occurredAt"] is None
+    assert diag["warnings"]
+
+
+def test_strips_star_marker_and_omits_empty_evidence():
+    result, _ = run(
+        raw(branches=[{"type": "CORE", "items": [{"text": "★ 10/16 발표"}]}])
+    )
+    leaf = result["mindmap"]["branches"][0]["items"][0]
+    assert leaf == {"text": "10/16 발표"}
+
+
+def test_merges_repeated_branch_type():
+    result, _ = run(
+        raw(
+            branches=[
+                {"type": "CORE", "items": [{"text": "A"}]},
+                {"type": "CORE", "items": [{"text": "B"}]},
+            ],
+            primaryCoreIndex=1,
+        )
+    )
+    assert len(result["mindmap"]["branches"]) == 1
+    assert [i["text"] for i in result["mindmap"]["branches"][0]["items"]] == ["B", "A"]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "not json",
+        raw(branches=[]),
+        raw(branches=[{"type": "CORE", "items": [{"text": " "}]}]),
+        raw(branches=[{"type": "WHO", "items": [{"text": "A"}]}]),
+        raw(branches=[{"type": "CORE", "items": [{"text": "A"}]}], primaryCoreIndex=1),
+        raw(
+            branches=[{"type": "REACTION", "items": [{"text": "A"}]}],
+            primaryCoreIndex=0,
+        ),
+    ],
+)
+def test_invalid_outputs_ask_for_one_more_call(bad):
+    with pytest.raises(OutputInvalid):
+        run(bad)
+
+
+def test_duplicate_leaf_keeps_evidence_of_both():
+    result, _ = run(
+        raw(
+            branches=[
+                {
+                    "type": "CORE",
+                    "items": [
+                        {"text": "같은 잎", "evidence": ["s1"]},
+                        {"text": "같은  잎", "evidence": ["s2", "s1"]},
+                    ],
+                }
+            ]
+        )
+    )
+    items = result["mindmap"]["branches"][0]["items"]
+    assert len(items) == 1 and len(items[0]["evidence"]) == 2
+
+
+def test_repeated_reaction_speaker_is_warned_not_merged():
+    result, diag = run(
+        raw(
+            branches=[
+                {"type": "CORE", "items": [{"text": "A", "evidence": ["s1"]}]},
+                {
+                    "type": "REACTION",
+                    "items": [
+                        {"text": "홍길동: 비판", "evidence": ["s2"]},
+                        {"text": "홍길동 : 우려", "evidence": ["s2"]},
+                        {"text": "업계: 우려", "evidence": ["s2"]},
+                    ],
+                },
+            ]
+        )
+    )
+    assert len(result["mindmap"]["branches"][1]["items"]) == 3
+    assert any("홍길동" in w for w in diag["warnings"])
+
+
+# ---------------------------------------------------------------- 프롬프트 문자열 고정 검사 — 모델의 규칙 준수는 별도 실험으로 확인한다
+
+
+def test_prompt_is_the_confirmed_v413_text():
+    # 실험에서 확인한 문자열 그대로여야 한다(한 글자라도 바꾸면 PROMPT_VERSION 을 올리고 다시 확인한다)
+    assert PROMPT_VERSION == "extract-v4.14-mindmap"
+    digest = hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()
+    assert digest == "8965556276e31fa9e5d9716be2e63d48b2d24ff133c619b74775afcb2798d72c"
+
+
+def test_prompt_carries_confirmed_rules():
+    for phrase in (
+        "① 먼저 null 인 기사인지 본다",  # 판단 순서: null 기사 → 중심 완료 행위 → 시점
+        "단순 모집 · 행사 · 이벤트 · 출시 · 공연",  # 예고 · 안내 기사는 null
+        "새 정책 · 제도의 신설 · 변경 · 시행",
+        "장 마감",
+        "출처 기관의 발표로 바꾸지 않는다",
+        "CORE 한 잎에 보존한다",
+        "한 주체는 반드시 한 잎",
+        "이미 보도했어도 된다",
+        "발생 · 신고 접수 · 발표 · 보도 시점을 구분",
+        "취재 · 확인 서술",
+        # v4.13(판정기준 v9)
+        "부고 안내 단신 · [인사] 명단",  # 3-3
+        "증권사 · 애널리스트 종목 · 업종 리포트",  # 3-1 ③
+        "대담 · 토론 정리",  # 3-3 종합 기사
+        "첫 문장 우선은 ① 을 통과한 뒤에만",  # 2-0 순서
+        "첫 두 문장(앵커",  # 2-1 규칙 C
+        "제목을 보조 단서로 쓴다",  # 2-3
+        "발언자 · 발언일로 대신하지 않는다",  # 2-4 주체 · 시점은 행위 기준
+        "행위자가 원문에 없으면 채우지 않는다",
+        "단순 전달만으로 REACTION 잎을 만들지 않는다",
+        "같은 기관 · 기간 · 지표의 공개 행위",  # 2-5 예외
+        "사고 · 사망 발생과 그에 따른 신고 · 수사 착수",
+        "밝힌 날이라, 주체가 같아도 행위 시점으로 쓰지 않는다",
+        # v4.14(판정기준 v10)
+        "발생이 이미 지칭된 사건으로 다른 행위를 꾸미는 배경일 때",  # 2-3 발생 vs 착수
+        "수행 기관은 괄호로 붙인다",  # 2-5 공개 주체 표기
+        "공개 주체 미상",
+        "다른 언론의 재보도는 원래 공개한 쪽을 주체로 둔다",
+        "여러 조사 결과를 묶은 기사는 종합 기사라",
+    ):
+        assert phrase in SYSTEM_PROMPT, phrase
+    assert "★" not in SYSTEM_PROMPT.split("[예시")[1]
+    # v4.12 의 "종목 하락 = 대표" 예시는 v9 3-3 과 반대라 바뀌어야 한다
+    assert 'primaryCoreIndex: 0 · eventTimeText: "20일 장중"' not in SYSTEM_PROMPT

@@ -1,0 +1,32 @@
+# PostgreSQL(pgvector) · Redis — 서비스가 쓰는 저장소 (infra/k8s/services/data)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: data
+  namespace: argocd
+  annotations:
+    # local-path(0) · Sealed Secrets(-1) 뒤, 앱(4) 앞
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL 이 없다" .Values.repoURL }}
+    targetRevision: {{ required "targetRevision 이 없다" .Values.targetRevision }}
+    path: infra/k8s/services/data
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

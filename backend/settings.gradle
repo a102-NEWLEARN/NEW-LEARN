@@ -1,0 +1,6 @@
+plugins {
+	// 호스트 JDK 가 25 가 아니면 Gradle 이 JDK 25 를 받아 쓴다 (build.gradle 의 toolchain)
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'backend'

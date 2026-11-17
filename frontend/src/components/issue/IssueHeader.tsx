@@ -1,0 +1,186 @@
+import { Skeleton } from "@seed-design/react";
+import type { UseQueryResult } from "@tanstack/react-query";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
+import { ActionButton } from "seed-design/ui/action-button";
+import type { IssueDetail } from "@/api/issue";
+import { AiBadge } from "@/components/AiBadge";
+import { InterestButton } from "@/components/issue/InterestButton";
+import { meaningProps } from "@/components/meaning/meaningProps";
+import { errorDescription } from "@/components/state/ErrorState";
+import { kstYear } from "@/lib/date";
+import { enterAt, RISE } from "@/components/motion/screenMotion";
+
+type IssueHeaderProps = {
+  /** A3 이슈 헤더 */
+  query: UseQueryResult<IssueDetail>;
+  /** 제목(h1)이 포커스를 받거나 잃을 때 — 찾을 수 없음 화면으로 바뀔 때 포커스를 넘길지 화면이 가린다 */
+  onTitleFocusChange?: (focused: boolean) => void;
+};
+
+// 「경제 · 2026」 — 분야와 첫 사건 연도. 사건이 없으면 분야만. 분야는 청록 굵은 글자다 — 이슈 카드의 분야와 같은 색
+// (2026-11-12 사용자 QA, Jira 197 — 회색 작은 글자라 눈에 안 띄었다)
+function CategoryLine({ issue }: { issue: IssueDetail }) {
+  const year = issue.firstEventAt && kstYear(issue.firstEventAt);
+  return (
+    <>
+      {issue.categories.map((category, index) => (
+        <Fragment key={category.code}>
+          {index > 0 && " · "}
+          <span className="t3-bold text-fg-brand">{category.name}</span>
+        </Fragment>
+      ))}
+      {year && (issue.categories.length > 0 ? ` · ${year}` : year)}
+    </>
+  );
+}
+
+// 이슈를 받으면 분야 → 제목 → 요약이 이 차례(ms)로 떠오른다 (components/motion/screenMotion.ts)
+const HEADER_AT = { category: 0, title: 70, summary: 140 };
+
+// 이슈 헤더 — 분야 · 연도, 제목과 관심 이슈 별, 요약 (프로토타입 v21 IssueHeader). 요약에는 AI 생성 표시를 붙인다. 관점 비교 · 알림은 아직 없다.
+// h1 은 데이터를 기다리지 않고 첫 렌더에 그린다 — 화면을 옮기면 셸이 첫 렌더 뒤 h1 에 포커스한다 (AppShell)
+export function IssueHeader({ query, onTitleFocusChange }: IssueHeaderProps) {
+  const [more, setMore] = useState(false);
+  const issue = query.data;
+  const failed = !issue && query.isError;
+
+  // 요약은 한 줄로 줄이고 잘렸으면 *더보기* 로 펼치고 *접기* 로 다시 접는다 (프로토타입 v21 두 줄 → 2026-11-13 세 줄 · Jira 202 →
+  // 2026-11-16 한 줄 · Jira 221 — 이슈 흐름이 더 보이게). 잘렸는지는 글자 수가 아니라 화면에서 잰다. 폭이 바뀌면 다시 잰다
+  const summaryRef = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+  const summary = issue?.summary;
+  useLayoutEffect(() => {
+    const element = summaryRef.current;
+    if (!element || more) return;
+    const measure = () =>
+      setClamped(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [summary, more]);
+
+  return (
+    // 넓은 화면(1024px~)은 양옆 64px — 32px 는 화면 끝에 붙어 보였다 (2026-11-13 사용자, Jira 202). 이슈 흐름 카드와 같다
+    <header className="relative px-x5 pt-x6 pb-x5 md:px-x8 md:pt-x5 md:pb-x4 lg:px-[64px]">
+      {/* 분야 줄 · 제목 | 관심 이슈 별. 좁은 화면은 별이 두 줄 오른쪽 위에 붙고 제목은 그 왼쪽 칸에서 꺾인다 — 기사 머리 북마크와 같은 자리.
+          32px 제목 줄과 40px 별의 위를 맞추면 별이 4px 내려가 보였다 (2026-11-12 사용자, Jira 195).
+          넓은 화면은 제목 바로 옆(프로토타입 v21 IssueHeader) — 첫 칸이 제목 폭만큼이라 별이 제목 끝에 붙고, 줄이 바뀌면 첫 줄 높이에 남는다 */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-x2 md:grid-cols-[minmax(0,max-content)_auto] md:gap-x-x1">
+        {issue ? (
+          <p
+            className={`t3-medium col-start-1 row-start-1 text-fg-neutral-muted tabular-nums ${RISE}`}
+            style={enterAt(HEADER_AT.category)}
+          >
+            <CategoryLine issue={issue} />
+          </p>
+        ) : (
+          !failed && <Skeleton radius="8" width="x16" height="lineHeight.t3" />
+        )}
+        <h1
+          tabIndex={-1}
+          onFocus={() => onTitleFocusChange?.(true)}
+          onBlur={() => onTitleFocusChange?.(false)}
+          className="t9-bold md:t12-bold col-start-1 row-start-2 mt-x1_5 min-w-0 text-fg-neutral outline-none"
+        >
+          {issue ? (
+            // 제목 글만 떠오른다 — h1 은 첫 렌더부터 있어서 셸이 포커스를 둔다. 드래그하면 용어사전 말풍선이 뜬다
+            <span
+              className={`block ${RISE}`}
+              style={enterAt(HEADER_AT.title)}
+              {...meaningProps("ISSUE", issue.id)}
+            >
+              {issue.title}
+            </span>
+          ) : failed ? (
+            "이슈를 불러오지 못했어요"
+          ) : (
+            <>
+              <span className="sr-only">이슈 불러오는 중</span>
+              <Skeleton
+                radius="8"
+                width="full"
+                height="lineHeight.t12"
+                className="max-w-[420px]"
+              />
+            </>
+          )}
+        </h1>
+        {issue && (
+          <InterestButton
+            issueId={issue.id}
+            interested={issue.interested}
+            className="col-start-2 row-start-1 -mt-[8px] -mr-[8px] self-start max-md:row-span-2 md:row-start-2 md:mt-x1 md:mr-0"
+          />
+        )}
+      </div>
+      {failed && (
+        <div className="mt-x2 flex flex-wrap items-center gap-x3">
+          <p className="t4-regular text-fg-neutral-muted">
+            {errorDescription(query.error)}
+          </p>
+          <ActionButton
+            variant="neutralOutline"
+            size="small"
+            className="border-stroke-neutral-weak"
+            onClick={() => void query.refetch()}
+          >
+            다시 시도
+          </ActionButton>
+        </div>
+      )}
+      {issue?.summary && (
+        <div
+          className={`mt-x3 max-w-[960px] ${RISE}`}
+          style={enterAt(HEADER_AT.summary)}
+        >
+          {/* 요약은 진한 글자에 왼쪽 민트 막대 — 회색은 눈에 덜 띄었다 (2026-11-12 사용자 QA, Jira 197).
+              글자는 16px 로 한 단계 줄이고 줄 간격 1.7 · 폭 960px (2026-11-13 사용자, Jira 202). 한 줄만 보인다 (2026-11-16 사용자, Jira 221) */}
+          <p
+            ref={summaryRef}
+            className={`t5-regular text-fg-neutral border-l-[3px] border-bg-brand-accent pl-x3 leading-[1.7] ${more ? "" : "line-clamp-1"}`}
+            {...meaningProps("ISSUE", issue.id)}
+          >
+            {issue.summary}
+          </p>
+          {/* AI 생성 표시는 요약 문단 밖에 둔다 — v21 처럼 문장 끝에 붙이면 두 줄로 잘릴 때 가려진다.
+              좁은 화면은 *더보기* 와 같은 줄, 넓은 화면은 머리 오른쪽 위(아래). 넓은 화면은 잘렸을 때만 이 줄을 둔다 */}
+          <div
+            className={`mt-x1 flex items-center gap-x2 pl-x3 ${clamped || more ? "" : "md:hidden"}`}
+          >
+            <span className="inline-flex md:hidden">
+              <AiBadge />
+            </span>
+            {(clamped || more) && (
+              <button
+                type="button"
+                aria-expanded={more}
+                onClick={() => setMore((open) => !open)}
+                className="t2-medium rounded-r1 px-x1 text-fg-neutral-muted hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+              >
+                {more ? "접기" : "더보기"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {/* 넓은 화면 AI 생성 표시 — 머리 오른쪽 위, 분야 줄 높이. 좁은 화면은 관심 이슈 별이 그 자리를 써서 요약 아래에 둔다 */}
+      {issue?.summary && (
+        <div
+          className={`absolute top-[20px] right-[32px] max-md:hidden lg:right-[64px] ${RISE}`}
+          style={enterAt(HEADER_AT.summary)}
+        >
+          <AiBadge />
+        </div>
+      )}
+      {!issue && !failed && (
+        <Skeleton
+          radius="8"
+          width="full"
+          height="lineHeight.t6"
+          className="mt-x2 max-w-[560px]"
+        />
+      )}
+    </header>
+  );
+}

@@ -1,0 +1,96 @@
+package kr.io.newlearn.event;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
+import kr.io.newlearn.article.dto.ArticleSummaryResponse;
+import kr.io.newlearn.common.security.MemberPrincipal;
+import kr.io.newlearn.common.web.ApiProblem;
+import kr.io.newlearn.common.web.OpenApiConfig;
+import kr.io.newlearn.common.web.PageQuery;
+import kr.io.newlearn.common.web.PageResponse;
+import kr.io.newlearn.event.dto.EventPanelResponse;
+import org.jspecify.annotations.Nullable;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = OpenApiConfig.TAG_EVENT)
+@RestController
+public class EventController {
+    private final EventService service;
+
+    public EventController(EventService service) {
+        this.service = service;
+    }
+
+    @Operation(
+            summary = "[확정] A5 사건 패널",
+            description =
+                    "저장된 사건 요약과 투입 기사 집계를 줍니다. 공개 기사가 하나도 없는 사건은 404 입니다. 언론사는 코드 오름차순이며, 앞뒤 사건은 같은 이슈에서 A4 타임라인에 오르는 사건(공개 기사가 `QUERY_MIN_PUBLIC_ARTICLES` 건 이상)의 발생 시각·ID 순서입니다.")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "400",
+            description = "VALIDATION_FAILED — eventId 가 숫자가 아님",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "EVENT_NOT_FOUND — 없는 사건 · 공개 기사가 하나도 없는 사건",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @GetMapping("/api/v1/events/{eventId}")
+    public EventPanelResponse get(
+            @Parameter(description = "사건 ID (A4 사건의 id)", example = "1") @PathVariable long eventId) {
+        return service.get(eventId);
+    }
+
+    @Operation(
+            summary = "[확정] A6 사건 관련 기사",
+            description =
+                    "투입 기사만 발행 시각·ID 순서로 줍니다. 기본은 오름차순(sort=oldest)이고 sort=latest 면 내림차순입니다. 공개 기사가 하나도 없는 사건은 404 입니다. 처음 5건은 size=5 로 요청합니다. 기사 요약·상태는 A7·A8과 같습니다.")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "400",
+            description = "VALIDATION_FAILED — eventId · page · size 가 숫자가 아니거나 page · size 범위를 벗어남, sort 가 정해진 값이 아님",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "EVENT_NOT_FOUND — 없는 사건 · 공개 기사가 하나도 없는 사건",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @GetMapping("/api/v1/events/{eventId}/articles")
+    public PageResponse<ArticleSummaryResponse> articles(
+            @Parameter(description = "사건 ID (A5의 id)", example = "1") @PathVariable long eventId,
+            @Parameter(
+                            description = "정렬. oldest(기본) 발행 시각 오름차순 · latest 발행 시각 내림차순. 같으면 id 가 같은 방향",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {"oldest", "latest"},
+                                            defaultValue = "oldest"))
+                    @RequestParam(required = false)
+                    @Pattern(regexp = "oldest|latest", message = "sort는 oldest 또는 latest로 보내 주세요")
+                    @Nullable
+                    String sort,
+            @ParameterObject @Valid PageQuery query,
+            @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.articles(eventId, sort == null ? "oldest" : sort, query, me == null ? null : me.id());
+    }
+}

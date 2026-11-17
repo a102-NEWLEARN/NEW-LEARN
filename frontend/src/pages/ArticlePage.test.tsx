@@ -1,0 +1,496 @@
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw/http";
+import { expect, onTestFinished, test, vi } from "vitest";
+import { fetchArticle } from "@/api/article";
+import type { MindmapStatus } from "@/api/types";
+import { server } from "@/mocks/node";
+import { stubScreen } from "@/test/media";
+import { renderRoute } from "@/test/render";
+
+// 앱과 같은 라우트로 연다 — 셸 · 손님 가드까지 함께 본다.
+// 11901 은 119번 사건(한빛반도체 텍사스 공장 착공식)의 첫 기사다 (src/mocks/handlers.ts)
+const PATH = "/articles/11901";
+
+function problem(status: number, code: string, instance: string) {
+  return HttpResponse.json(
+    { type: "about:blank", title: code, status, detail: code, instance, code },
+    { status },
+  );
+}
+
+// A9 가 결과 없음(404 MINDMAP_NOT_FOUND)이고 A8 의 마인드맵 상태가 이것이다
+function noMindmap(mindmapStatus: MindmapStatus) {
+  server.use(
+    http.get("/api/v1/articles/11901/mindmap", ({ request }) =>
+      problem(404, "MINDMAP_NOT_FOUND", new URL(request.url).pathname),
+    ),
+    http.get("/api/v1/articles/11901", async ({ request }) => {
+      const real = await fetch(request.url.replace("11901", "11902"));
+      return HttpResponse.json({
+        ...(await real.json()),
+        id: 11901,
+        mindmapStatus,
+      });
+    }),
+  );
+}
+
+// A9 응답을 바꾼다
+function mindmapWith(change: object) {
+  server.use(
+    http.get("/api/v1/articles/11901/mindmap", async ({ request }) => {
+      const real = await fetch(request.url.replace("11901", "11902"));
+      return HttpResponse.json({ ...(await real.json()), ...change });
+    }),
+  );
+}
+
+// A8 응답을 바꾼다
+function articleWith(change: object) {
+  server.use(
+    http.get("/api/v1/articles/11901", async ({ request }) => {
+      const real = await fetch(request.url.replace("11901", "11902"));
+      return HttpResponse.json({
+        ...(await real.json()),
+        id: 11901,
+        ...change,
+      });
+    }),
+  );
+}
+
+const heading = () =>
+  screen.findByRole("heading", {
+    level: 1,
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+const tab = (name: string) => screen.getByRole("tab", { name });
+const flow = () => screen.findByRole("group", { name: "기사 흐름지도" });
+const map = () => screen.findByRole("group", { name: "기사 마인드맵" });
+const noDrawing = () => {
+  expect(screen.queryByRole("group", { name: "기사 흐름지도" })).toBeNull();
+  expect(screen.queryByRole("group", { name: "기사 마인드맵" })).toBeNull();
+};
+
+test("셸 안에 기사 헤더와 흐름지도 보기(기본)를 띄우고 탭 제목을 기사 제목으로 바꾼다", async () => {
+  renderRoute(PATH);
+
+  expect(await heading()).toBeDefined();
+  expect(screen.getByRole("link", { name: "나의 뉴스함" })).toBeDefined();
+  expect(await flow()).toBeDefined();
+  expect(tab("흐름지도").getAttribute("aria-selected")).toBe("true");
+  expect(screen.getByText("AI 생성")).toBeDefined();
+  await waitFor(() =>
+    expect(document.title).toBe("한빛반도체 텍사스 공장 착공식 | NEW:LEARN"),
+  );
+});
+
+// 흐름지도 머리 줄이 h1 과 같은 기사 제목이라 같은 글이 두 번 보였다 (2026-11-12 사용자 QA, Jira 197)
+test("흐름지도 머리 줄은 기사 제목이 아니라 이 기사의 AI 한 줄 요지(A8 summary)다", async () => {
+  const article = await fetchArticle(11901);
+  renderRoute(PATH);
+
+  const view = await flow();
+  expect(article.summary).toBeTruthy();
+  expect(within(view).getByText(article.summary!)).toBeDefined();
+  expect(within(view).queryByText(article.title)).toBeNull();
+});
+
+// 용어사전 안내 — 탭 줄 오른쪽에 ! 아이콘, 처음에는 말풍선이 떠 있다 (2026-11-12 사용자 QA, Jira 197)
+test("탭 줄에 용어사전 안내 아이콘을 두고, 처음에는 「드래그하면 뜻을 알려줘요」 말풍선이 떠 있다", async () => {
+  renderRoute(PATH);
+
+  await flow();
+  expect(
+    screen
+      .getByRole("button", { name: "용어사전 안내" })
+      .closest('[role="tablist"]'),
+  ).toBeNull();
+  expect(screen.getByRole("note").textContent).toContain(
+    "모르는 단어는 드래그하면 뜻을 알려줘요!",
+  );
+});
+
+test("마인드맵 탭을 고르면 주소에 ?view=map 을 남기고 기록은 쌓지 않는다", async () => {
+  const { router } = renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(tab("마인드맵"));
+
+  await waitFor(() => expect(router.state.location.search).toBe("?view=map"));
+  expect(router.state.historyAction).toBe("REPLACE");
+  expect(await map()).toBeDefined();
+  expect(screen.queryByRole("group", { name: "기사 흐름지도" })).toBeNull();
+
+  fireEvent.click(tab("흐름지도"));
+  await waitFor(() => expect(router.state.location.search).toBe("?view=flow"));
+  expect(await flow()).toBeDefined();
+});
+
+test("주소의 ?view=map 으로 열면 마인드맵 탭이 골라져 있다", async () => {
+  renderRoute(`${PATH}?view=map`);
+
+  expect(await map()).toBeDefined();
+  expect(tab("마인드맵").getAttribute("aria-selected")).toBe("true");
+});
+
+// 가운데에 긴 기사 제목을 한 번 더 두니 잘렸다 → 대표 사건 제목을 둔다. 사건 제목은 A26 의 기사 화면 글이 아니라
+// 가운데 글은 사건 문맥으로 뜻을 찾는다 (2026-11-16 디자인 피드백, Jira 216)
+test("마인드맵 가운데는 대표 사건 제목이고, 드래그하면 그 사건의 문맥으로 뜻을 찾는다", async () => {
+  articleWith({
+    event: {
+      id: 119,
+      title: "착공식 열고 양산 예고",
+      label: "착공식",
+      occurredAt: "2026-10-06T00:00:00+09:00",
+    },
+  });
+  renderRoute(`${PATH}?view=map`);
+
+  const center = await within(await map()).findByText("착공식 열고 양산 예고");
+  expect(center.closest("text")!.getAttribute("data-meaning")).toBe(
+    "EVENT:119",
+  );
+});
+
+test("대표 사건이 없는 기사는 가운데에 A9 title 을 두고 기사의 문맥으로 뜻을 찾는다", async () => {
+  articleWith({ event: null, eventMatchStatus: "NO_EVENT", issue: null });
+  mindmapWith({ title: "짧은 기사 제목" });
+  renderRoute(`${PATH}?view=map`);
+
+  const center = await within(await map()).findByText("짧은 기사 제목");
+  expect(center.closest("text")!.getAttribute("data-meaning")).toBe(
+    "ARTICLE:11901",
+  );
+});
+
+// 폰에서 마인드맵 칸이 기사 머리 아래에서 시작해 가운데 원이 화면 아래 끝에 놓였다 →
+// 마인드맵 탭을 누르면 탭 줄이 맨 위에 붙을 때까지 내려 그래프 칸 전체를 보인다 (2026-11-12 사용자, Jira 195).
+// jsdom 에는 scrollIntoView 가 없어 흉내 낸다
+function spyScrollIntoView() {
+  const spy = vi.fn();
+  Element.prototype.scrollIntoView = spy;
+  onTestFinished(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+  return spy;
+}
+
+test("좁은 화면에서 마인드맵 탭을 누르면 탭 줄이 맨 위에 오게 내린다", async () => {
+  stubScreen("narrow");
+  const scroll = spyScrollIntoView();
+  renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(tab("마인드맵"));
+  await map();
+
+  await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+  expect(scroll.mock.contexts[0]).toBe(
+    screen.getByRole("tablist", { name: "보기" }).parentElement,
+  );
+  expect(scroll.mock.calls[0][0]).toMatchObject({ block: "start" });
+});
+
+test.each([
+  ["넓은 화면에서 마인드맵 탭을 눌러도", "wide", PATH, true],
+  [
+    "좁은 화면이어도 주소로 바로 연 마인드맵은",
+    "narrow",
+    `${PATH}?view=map`,
+    false,
+  ],
+] as const)("%s 내리지 않는다", async (_, width, path, click) => {
+  stubScreen(width);
+  const scroll = spyScrollIntoView();
+  renderRoute(path);
+  if (click) {
+    await flow();
+    fireEvent.click(tab("마인드맵"));
+  }
+  await map();
+
+  expect(scroll).not.toHaveBeenCalled();
+});
+
+test("마인드맵 탭에서도 같은 상태 문구를 둔다", async () => {
+  noMindmap("QUEUED");
+  renderRoute(`${PATH}?view=map`);
+
+  expect(await screen.findByText("기사를 분석하고 있어요")).toBeDefined();
+  noDrawing();
+});
+
+test.each([
+  ["QUEUED", "기사를 분석하고 있어요"],
+  ["NONE", "이 기사의 마인드맵이 아직 없어요"],
+  ["FAILED", "이 기사의 마인드맵이 아직 없어요"],
+  ["NOT_ANALYZABLE", "이 기사의 마인드맵이 아직 없어요"],
+] as const)(
+  "마인드맵 결과가 없고 분석 상태가 %s 면 「%s」",
+  async (status, message) => {
+    noMindmap(status);
+    renderRoute(PATH);
+
+    expect(await screen.findByText(message)).toBeDefined();
+    noDrawing();
+  },
+);
+
+test("모르는 판의 마인드맵은 그리지 않고 안내한다", async () => {
+  mindmapWith({ schemaVersion: "mindmap-v9" });
+  renderRoute(PATH);
+
+  expect(
+    await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요"),
+  ).toBeDefined();
+  noDrawing();
+});
+
+test("가지가 하나도 없으면 안내한다", async () => {
+  mindmapWith({ branches: [] });
+  renderRoute(PATH);
+
+  expect(
+    await screen.findByText("이 기사에서 정리한 내용이 없어요"),
+  ).toBeDefined();
+});
+
+test("마인드맵을 불러오지 못하면 그 자리에 안내와 다시 시도를 둔다", async () => {
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/articles/11901/mindmap", async ({ request }) => {
+      calls += 1;
+      if (calls === 1)
+        return problem(500, "INTERNAL_ERROR", new URL(request.url).pathname);
+      const real = await fetch(request.url.replace("11901", "11902"));
+      return HttpResponse.json(await real.json());
+    }),
+  );
+  renderRoute(PATH);
+
+  expect(await screen.findByText("마인드맵을 불러오지 못했어요")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+
+  expect(await flow()).toBeDefined();
+});
+
+test("없는 기사면 화면 전체를 찾을 수 없음으로 바꾼다", async () => {
+  renderRoute("/articles/999999");
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "기사를 찾을 수 없어요",
+    }),
+  ).toBeDefined();
+  await waitFor(() =>
+    expect(document.title).toBe("기사를 찾을 수 없어요 | NEW:LEARN"),
+  );
+});
+
+test("주소의 id 가 숫자가 아니면 찾을 수 없음이다", async () => {
+  renderRoute("/articles/abc");
+
+  expect(
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "기사를 찾을 수 없어요",
+    }),
+  ).toBeDefined();
+});
+
+// 손님도 둘러보기는 다 한다 (EXPERIENCE.md 이동 규칙, 2026-11-13 Jira 205)
+test("손님이 기사 주소를 열면 로그인 화면으로 보내지 않고 그 기사를 띄운다", async () => {
+  server.use(
+    http.get("/api/v1/members/me", () =>
+      problem(401, "UNAUTHORIZED", "/api/v1/members/me"),
+    ),
+  );
+  const { router } = renderRoute(`${PATH}?view=map`);
+
+  await heading();
+  expect(router.state.location.pathname).toBe(PATH);
+  expect(router.state.location.search).toBe("?view=map");
+});
+
+test("헤더의 이슈 보기를 누르면 그 사건 패널이 열린 이슈 화면으로 간다", async () => {
+  const { router } = renderRoute(PATH);
+  await heading();
+
+  fireEvent.click(
+    within(screen.getByRole("main")).getByRole("link", {
+      name: "이 기사가 속한 이슈 보기",
+    }),
+  );
+
+  await waitFor(() =>
+    expect(router.state.location.pathname).toMatch(/^\/issues\/\d+$/),
+  );
+  expect(router.state.location.search).toBe("?event=119");
+});
+
+test("기사를 불러오지 못했는데 마인드맵 결과도 없으면 「아직 없어요」를 둔다 — 끝없이 불러오는 중이 아니다", async () => {
+  server.use(
+    http.get("/api/v1/articles/11901", ({ request }) =>
+      problem(500, "INTERNAL_ERROR", new URL(request.url).pathname),
+    ),
+    http.get("/api/v1/articles/11901/mindmap", ({ request }) =>
+      problem(404, "MINDMAP_NOT_FOUND", new URL(request.url).pathname),
+    ),
+  );
+  renderRoute(PATH);
+
+  expect(
+    await screen.findByText("이 기사의 마인드맵이 아직 없어요"),
+  ).toBeDefined();
+  expect(
+    screen.queryByRole("status", { name: "마인드맵 불러오는 중" }),
+  ).toBeNull();
+});
+
+test("모르는 판이라 그리지 않으면 「AI 생성」을 붙이지 않는다", async () => {
+  mindmapWith({ schemaVersion: "mindmap-v9" });
+  renderRoute(PATH);
+
+  await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요");
+  expect(screen.queryByText("AI 생성")).toBeNull();
+});
+
+// 「AI 생성」은 탭 줄이 아니라 그린 보기 맨 위에 하나 — 기사 머리 가까이 두면 기사를 AI 가 쓴 것처럼 읽힌다 (2026-11-12 사용자, Jira 195)
+test("두 보기 모두 그렸으면 그 보기 안에 「AI 생성」을 하나 붙인다", async () => {
+  renderRoute(PATH);
+  await flow();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("AI 생성"),
+  ).toBeDefined();
+  expect(screen.getAllByText("AI 생성")).toHaveLength(1);
+
+  fireEvent.click(tab("마인드맵"));
+
+  await map();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("AI 생성"),
+  ).toBeDefined();
+  expect(screen.getAllByText("AI 생성")).toHaveLength(1);
+});
+
+test("보기 탭을 오가도 마인드맵의 숨긴 가지 · 라벨 표시는 남는다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  const chip = (name: string) =>
+    within(screen.getByRole("group", { name: "가지 보기" })).getByRole(
+      "button",
+      { name },
+    );
+  const labels = () => {
+    fireEvent.click(screen.getByRole("button", { name: "탐색 설정" }));
+    return within(screen.getByRole("dialog", { name: "탐색 설정" })).getByRole(
+      "switch",
+      { name: "라벨 표시" },
+    ) as HTMLInputElement;
+  };
+  fireEvent.click(chip("원인·배경"));
+  fireEvent.click(labels());
+
+  fireEvent.click(tab("흐름지도"));
+  await flow();
+  fireEvent.click(tab("마인드맵"));
+  await map();
+
+  expect(chip("원인·배경").getAttribute("aria-pressed")).toBe("false");
+  expect(labels().checked).toBe(false);
+});
+
+// 크게 보기 — 흐름지도 · 마인드맵을 화면을 꽉 채운 창으로 다시 그린다 (2026-11-12 사용자, Jira 195).
+// 아이폰 사파리는 Fullscreen API 를 영상에만 허락해서 브라우저 전체 화면 대신 화면을 덮는 창이다
+const expandButton = () => screen.getByRole("button", { name: "크게 보기" });
+
+test("흐름지도를 크게 보기로 열면 기사 제목을 이름으로 한 창에 흐름지도를 다시 그리고, 작게 보기로 닫으면 버튼으로 포커스가 돌아온다", async () => {
+  renderRoute(PATH);
+  await flow();
+
+  fireEvent.click(expandButton());
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  expect(
+    within(dialog).getByRole("group", { name: "기사 흐름지도" }),
+  ).toBeDefined();
+  expect(within(dialog).getByText("AI 생성")).toBeDefined();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "작게 보기" }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+    ).toBeNull(),
+  );
+  await waitFor(() => expect(document.activeElement).toBe(expandButton()));
+});
+
+test("마인드맵을 크게 보기로 열면 숨긴 가지가 그대로이고, Esc 로 닫힌다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  fireEvent.click(
+    within(screen.getByRole("group", { name: "가지 보기" })).getByRole(
+      "button",
+      { name: "원인·배경" },
+    ),
+  );
+
+  fireEvent.click(expandButton());
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  expect(
+    within(dialog).getByRole("group", { name: "기사 마인드맵" }),
+  ).toBeDefined();
+  expect(
+    within(within(dialog).getByRole("group", { name: "가지 보기" }))
+      .getByRole("button", { name: "원인·배경" })
+      .getAttribute("aria-pressed"),
+  ).toBe("false");
+
+  fireEvent.keyDown(dialog, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+    ).toBeNull(),
+  );
+});
+
+test("그리지 못한 마인드맵이면 크게 보기를 두지 않는다", async () => {
+  mindmapWith({ schemaVersion: "mindmap-v9" });
+  renderRoute(PATH);
+
+  await screen.findByText("이 마인드맵은 지금 보여 드릴 수 없어요");
+  expect(screen.queryByRole("button", { name: "크게 보기" })).toBeNull();
+});
+
+// Esc 는 맨 위에 열린 것 하나만 닫는다 (EXPERIENCE.md Interaction Primitives) — 크게 보기 안의 탐색 설정 창이 먼저다.
+// SEED Dialog 는 먼저 받은 쪽이 막은(preventDefault) Esc 도 받아서 창이 같이 닫혔다 (리뷰, Jira 195)
+test("크게 보기 안에서 탐색 설정을 연 채 Esc 를 누르면 설정 창만 닫히고 크게 보기는 남는다", async () => {
+  renderRoute(`${PATH}?view=map`);
+  await map();
+  fireEvent.click(expandButton());
+  const dialog = await screen.findByRole("dialog", {
+    name: "한빛반도체 텍사스 공장 착공식",
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "탐색 설정" }));
+  const settings = within(dialog).getByRole("dialog", { name: "탐색 설정" });
+
+  fireEvent.keyDown(within(settings).getByRole("switch"), { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      within(dialog).queryByRole("dialog", { name: "탐색 설정" }),
+    ).toBeNull(),
+  );
+  expect(
+    screen.getByRole("dialog", { name: "한빛반도체 텍사스 공장 착공식" }),
+  ).toBeDefined();
+});

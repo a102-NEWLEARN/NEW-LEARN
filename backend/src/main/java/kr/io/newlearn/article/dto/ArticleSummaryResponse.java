@@ -1,0 +1,29 @@
+package kr.io.newlearn.article.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.OffsetDateTime;
+import kr.io.newlearn.category.dto.CategoryRef;
+import kr.io.newlearn.press.Press;
+import org.jspecify.annotations.Nullable;
+
+// A6·A7·A22의 항목과 A8의 공통 필드. 49번에서도 ArticleSummaryAssembler와 함께 사용한다.
+public record ArticleSummaryResponse(
+        long id,
+        String title,
+        PublisherRef publisher,
+        OffsetDateTime publishedAt,
+        @Nullable CategoryRef category,
+        @Nullable String summary,
+        String url,
+        // enum 을 eventMatchStatus 와 같이 써서 문서에는 이 칸에 나오는 값만 적는다 (ArticleAnalysisStatus 주석)
+        @Schema(allowableValues = {"NONE", "QUEUED", "SUCCEEDED", "FAILED", "NOT_ANALYZABLE"})
+        ArticleAnalysisStatus mindmapStatus,
+
+        boolean bookmarked) {
+    public record PublisherRef(String code, String name) {
+
+        public static PublisherRef from(Press press) {
+            return new PublisherRef(press.getCode(), press.getName());
+        }
+    }
+}

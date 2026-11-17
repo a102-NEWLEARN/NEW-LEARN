@@ -1,0 +1,282 @@
+import { Skeleton } from "@seed-design/react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router";
+import { ApiError } from "@/api/error";
+import { eventQuery } from "@/api/event";
+import { type IssueDetail, issueQuery } from "@/api/issue";
+import { timelineQuery } from "@/api/timeline";
+import { EventDetailPane } from "@/components/issue/EventDetailPane";
+import { IssueFlowSplit } from "@/components/issue/IssueFlowSplit";
+import { IssueHeader } from "@/components/issue/IssueHeader";
+import {
+  type IssueView,
+  IssueViewSwitch,
+} from "@/components/issue/IssueViewSwitch";
+import { Timeline } from "@/components/issue/Timeline";
+import { TimelineList } from "@/components/issue/TimelineList";
+import { EmptyState } from "@/components/state/EmptyState";
+import { ErrorState } from "@/components/state/ErrorState";
+import { LoadingState } from "@/components/state/LoadingState";
+import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
+import { usePageTitle } from "@/components/usePageTitle";
+import { track } from "@/lib/analytics";
+import { formatPeriod } from "@/lib/date";
+import { toId } from "@/lib/id";
+import { metaLine } from "@/lib/meta";
+import { NotFoundPage } from "@/pages/NotFoundPage";
+import { type CoachMark, CoachMarks } from "@/components/coach/CoachMarks";
+
+// 이슈 화면 안내 — 처음 들어오면 한 번 띄운다
+const ISSUE_COACH: CoachMark[] = [
+  {
+    target: "event",
+    title: "사건을 눌러 보세요",
+    body: "같은 사건을 다룬 기사와 흐름을 자세히 보여줘요",
+  },
+  {
+    target: "glossary",
+    title: "모르는 단어는?",
+    body: "드래그하면 뜻을 알려줘요",
+    side: "bottom",
+  },
+];
+
+const NOT_FOUND_TITLE = "이슈를 찾을 수 없어요";
+
+// 넓은 화면 이슈 흐름의 보기 — view 가 없으면 가로 지도다(2026-11-16 사용자). 세로 보기는 `?view=list`
+// (Jira 221 — 「흐름을 한눈에 보기엔 세로가 편하다」는 피드백으로 더했다)
+const DEFAULT_VIEW: IssueView = "map";
+const toView = (raw: string | null): IssueView =>
+  raw === "list" || raw === "map" ? raw : DEFAULT_VIEW;
+
+const isNotFound = (error: unknown) =>
+  error instanceof ApiError && error.code === "ISSUE_NOT_FOUND";
+
+// 이슈 화면 `/issues/:issueId` — 이슈 헤더(A3)와 F07 사건 중심 이슈 에볼루션 맵 타임라인(A4)
+// (EXPERIENCE.md Information Architecture, 프로토타입 v21 IssueScreen).
+// 고른 사건은 `?event=` 에 두고, 고르면 사건 패널(A5 · A6)이 열린다. 셸이 <main> 을 줄 것이라 여기서는 쓰지 않는다
+export function IssuePage() {
+  const issueId = toId(useParams().issueId);
+  if (issueId === null) return <NotFoundPage title={NOT_FOUND_TITLE} />;
+  // 이슈를 바꾸면 화면 상태(펼친 요약 · 포커스 기억)를 새로 시작한다
+  return <IssueView key={issueId} issueId={issueId} />;
+}
+
+function IssueView({ issueId }: { issueId: number }) {
+  const issue = useQuery(issueQuery(issueId));
+  const timeline = useQuery(timelineQuery(issueId));
+  const notFound = isNotFound(issue.error) || isNotFound(timeline.error);
+  usePageTitle(notFound ? NOT_FOUND_TITLE : (issue.data?.title ?? "이슈"));
+  // 제목에 포커스가 있던 채 404 를 받으면 찾을 수 없음 제목으로 포커스를 넘긴다
+  const [titleFocused, setTitleFocused] = useState(false);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = toId(searchParams.get("event"));
+  // 화면 안에서 사건을 골랐나 — 그때만 패널을 열며 패널 제목으로 포커스를 옮긴다
+  const [picked, setPicked] = useState(false);
+  // 고르기는 기록을 쌓지 않는다 — 뒤로 가기는 앞 화면으로 간다
+  const setEvent = useCallback(
+    (eventId: number | null) => {
+      setPicked(true);
+      setSearchParams(
+        (params) => {
+          if (eventId === null) params.delete("event");
+          else params.set("event", String(eventId));
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  // 보기 바꾸기도 기록을 쌓지 않는다. 기본(지도)이면 쿼리를 지운다 — 홈 ?view=latest 와 같다 (EXPERIENCE.md 이동 규칙).
+  // 좁은 화면은 늘 세로 목록이라 보기를 보지 않는다
+  const view = toView(searchParams.get("view"));
+  const setView = useCallback(
+    (next: IssueView) => {
+      // 세로 보기를 얼마나 고르는지 GA 로 보낸다
+      track("issue_view_switch", { view: next });
+      setSearchParams(
+        (params) => {
+          if (next === DEFAULT_VIEW) params.delete("view");
+          else params.set("view", next);
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  // 사건 패널 — 고른 사건이 있으면 열린다 (EXPERIENCE.md 앱 셸 「오른쪽 패널」). 넓은 화면 세로 보기(?view=list)는 패널 대신
+  // 오른쪽 칸에 늘 보인다(IssueFlowSplit)
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const splitView = !narrow && view === "list";
+  // 좁은 화면 시트는 닫히며 미끄러져 내려가는 동안(SEED) 마지막 사건을 그대로 보인다
+  const [sheetEventId, setSheetEventId] = useState(selectedId);
+  if (selectedId !== null && selectedId !== sheetEventId)
+    setSheetEventId(selectedId);
+  const panelOpen = selectedId !== null;
+  // 주소의 사건이 다른 이슈의 사건이면 그 이슈 주소로 바꾼다 — 검색 · 기사 링크가 어긋나도 맞는 타임라인이 열리게
+  const navigate = useNavigate();
+  const selectedEvent = useQuery({
+    ...eventQuery(selectedId ?? 0),
+    enabled: selectedId !== null,
+  });
+  const otherIssueId =
+    selectedEvent.data?.issue && selectedEvent.data.issue.id !== issueId
+      ? selectedEvent.data.issue.id
+      : null;
+  // 기본이 아닌 보기(세로)면 옮긴 주소에도 그 보기를 남긴다
+  const viewQuery = view === DEFAULT_VIEW ? "" : `view=${view}&`;
+  useEffect(() => {
+    if (otherIssueId !== null && selectedId !== null)
+      navigate(`/issues/${otherIssueId}?${viewQuery}event=${selectedId}`, {
+        replace: true,
+      });
+  }, [otherIssueId, selectedId, navigate, viewQuery]);
+  // 닫으면 포커스를 그 사건 노드로 돌린다 (Accessibility Floor). 타임라인에 없는 사건이면 이슈 제목으로
+  const pageRef = useRef<HTMLDivElement>(null);
+  const closePanel = useCallback(() => {
+    const closed = selectedId;
+    // 열려 있지 않으면(타임라인 빈 곳을 그냥 누른 것) 아무것도 하지 않는다
+    if (closed === null) return;
+    setEvent(null);
+    const page = pageRef.current;
+    const node = page?.querySelector<SVGElement>(`[data-event-id="${closed}"]`);
+    (node ?? page?.querySelector<HTMLElement>("h1"))?.focus();
+  }, [selectedId, setEvent]);
+
+  if (notFound)
+    return <NotFoundPage title={NOT_FOUND_TITLE} focusTitle={titleFocused} />;
+
+  return (
+    // 좁은 화면은 화면 전체가 한 번에 스크롤한다 — 머리가 위로 지나가고 세로 타임라인이 화면을 다 쓴다.
+    // 넓은 화면은 높이를 채우고 가로 지도가 남은 자리를 쓴다
+    <div
+      ref={pageRef}
+      className={narrow ? "flex min-h-full" : "flex h-full min-h-[520px]"}
+    >
+      <div className="flex min-w-0 flex-1 flex-col">
+        <IssueHeader query={issue} onTitleFocusChange={setTitleFocused} />
+        <CoachMarks id="issue" marks={ISSUE_COACH} />
+        {/* 넓은 화면은 이슈 흐름을 머리와 같은 좌우 여백(32px) 안의 카드로 둔다 — 지도가 화면 끝에 붙어 보였다
+            (2026-11-13 사용자 「양쪽 패딩이 너무 좁다」, Jira 202). 좁은 화면은 세로 목록이 제 여백을 갖는다 */}
+        <div
+          className={`flex min-h-0 flex-1 flex-col ${narrow ? "border-t border-stroke-neutral-subtle" : "px-x8 pb-x6 lg:px-[64px]"}`}
+        >
+          {timeline.data ? (
+            timeline.data.events.length === 0 ? (
+              <Centered>
+                <EmptyState message="아직 이 이슈에 정리된 사건이 없어요" />
+              </Centered>
+            ) : // 좁은 화면은 가로 지도 대신 세로 타임라인 — 폰에서 가로 지도는 라벨이 잘리고 옆으로 계속 밀어야 한다
+            narrow ? (
+              <TimelineList
+                events={timeline.data.events}
+                selectedId={selectedId}
+                onSelect={setEvent}
+                summary={issue.data && summaryOf(issue.data)}
+              />
+            ) : splitView ? (
+              // 넓은 화면 세로 보기 ?view=list — 왼쪽 세로 흐름 + 오른쪽 고른 사건 칸 (Jira 221)
+              <IssueFlowSplit
+                events={timeline.data.events}
+                selectedId={selectedId}
+                onSelect={setEvent}
+                summary={issue.data && summaryOf(issue.data)}
+                viewSwitch={<IssueViewSwitch view={view} onChange={setView} />}
+              />
+            ) : (
+              <Timeline
+                events={timeline.data.events}
+                selectedId={selectedId}
+                onSelect={setEvent}
+                onDeselect={closePanel}
+                summary={issue.data && summaryOf(issue.data)}
+                viewSwitch={<IssueViewSwitch view={view} onChange={setView} />}
+              />
+            )
+          ) : timeline.isError ? (
+            <Centered>
+              <ErrorState
+                title="타임라인을 불러오지 못했어요"
+                error={timeline.error}
+                onRetry={() => void timeline.refetch()}
+              />
+            </Centered>
+          ) : (
+            <TimelineSkeleton />
+          )}
+        </div>
+      </div>
+      {narrow
+        ? sheetEventId !== null && (
+            <EventDetailPane
+              open={panelOpen && otherIssueId === null}
+              eventId={sheetEventId}
+              narrow
+              focusOnOpen={picked}
+              onClose={closePanel}
+              onSelectEvent={setEvent}
+            />
+          )
+        : !splitView &&
+          panelOpen &&
+          otherIssueId === null && (
+            <EventDetailPane
+              open
+              eventId={selectedId}
+              narrow={false}
+              focusOnOpen={picked}
+              onClose={closePanel}
+              onSelectEvent={setEvent}
+            />
+          )}
+    </div>
+  );
+}
+
+// 「2026.08.04 ~ 10.09 · 사건 8 · 기사 31」 — 사건이 없으면 기간 없이, 개수가 0이면 그 항목을 뺀다.
+// 좁은 화면에서 점 뒤에서만 꺾인다 (metaLine)
+function summaryOf(issue: IssueDetail) {
+  return metaLine([
+    issue.firstEventAt &&
+      issue.lastEventAt &&
+      formatPeriod(issue.firstEventAt, issue.lastEventAt),
+    issue.eventCount > 0 && `사건 ${issue.eventCount}`,
+    issue.articleCount > 0 && `기사 ${issue.articleCount}`,
+  ]);
+}
+
+function Centered({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-1 items-center justify-center">{children}</div>
+  );
+}
+
+// 타임라인 자리 — 도구줄과 레인 두 줄 모양
+function TimelineSkeleton() {
+  return (
+    <LoadingState label="타임라인 불러오는 중">
+      <div className="flex flex-col gap-x6 px-x5 py-x3 md:px-x8">
+        <Skeleton
+          radius="8"
+          width="full"
+          height="x8"
+          className="max-w-[320px]"
+        />
+        <Skeleton radius="8" width="full" height="x40" />
+        <Skeleton radius="8" width="full" height="x16" />
+      </div>
+    </LoadingState>
+  );
+}

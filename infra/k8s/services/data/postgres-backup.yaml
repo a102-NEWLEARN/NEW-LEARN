@@ -1,0 +1,161 @@
+# PostgreSQL 백업 — 매일 관리 서버 디스크에 pg_dump(7일 보관), 매주 그중 하나를 S3 에 (Jira S15P31A102-109)
+# 관리 서버(EC2)에 떠서 postgres.data.svc 에 붙어 덤프를 받는다 — DB(워커)와 다른 서버에 남긴다
+# PV(pg-backup-local)와 폴더는 Argo CD 밖에서 손으로 — infra/k8s/bootstrap/pg-backup-pv.yaml
+# 손으로 한 번 돌리기 · 확인 명령 · 되살리는 법은 infra/server/db-backup.md
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pg-backup
+spec:
+  storageClassName: newlearn-local-manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pg-backup-local
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+spec:
+  schedule: "0 4 * * *"
+  timeZone: Asia/Seoul
+  # 앞 백업이 안 끝났으면 겹쳐 돌지 않는다
+  concurrencyPolicy: Forbid
+  # 그 시각에 못 돌았으면(서버 재시작 등) 1시간 안에는 늦게라도 돈다
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          # data/netpol.yaml 의 postgres-ingress 가 이 이름표만 5432 로 들인다 (Jira S15P31A102-121)
+          labels:
+            app: postgres-backup
+        spec:
+          restartPolicy: Never
+          # 관리 서버에만 뜬다 — 백업 폴더(PV)가 거기 있다. 컨트롤 플레인 taint 를 견딘다 (Prometheus 와 같은 방식)
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          # 폴더 주인과 같은 postgres 이미지 사용자
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+          containers:
+            - name: pg-dump
+              # DB 와 같은 이미지 — pg_dump 판이 서버(18)와 맞아야 덤프가 된다
+              image: pgvector/pgvector:0.8.7-pg18
+              envFrom:
+                - secretRef:
+                    name: postgres-auth
+              env:
+                - name: PGHOST
+                  value: postgres.data.svc
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  export PGPASSWORD="$POSTGRES_PASSWORD"
+                  name="newlearn-$(TZ=Asia/Seoul date +%Y%m%d-%H%M).dump"
+                  # 다 쓰고 읽히는 것을 본 뒤에야 이름을 붙인다 — 반쯤 쓴 파일이 백업으로 남지 않게
+                  pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f "/backup/$name.part"
+                  pg_restore --list "/backup/$name.part" > /dev/null
+                  mv "/backup/$name.part" "/backup/$name"
+                  # 7일 넘은 백업과 실패해 남은 .part 를 지운다
+                  find /backup -maxdepth 1 \( -name 'newlearn-*.dump' -o -name 'newlearn-*.dump.part' \) -mtime +7 -print -delete
+                  ls -l "/backup/$name"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: pg-backup
+---
+# 매주 일요일 05:00 — 그날 04:00 의 매일 백업 하나를 S3 에도 올린다. 두 서버를 다 잃어도 남는 사본 (Jira S15P31A102-109)
+# 버킷은 infra/terraform/backup.tf(보관 기간은 SSOT.md 6절 「저장소·백업」), 키는 올리기만 되는 IAM 사용자 — 봉인 Secret pg-backup-s3
+# (infra/server/seal-secrets.sh pg-backup-s3). 키가 PutObject 만이라 아래는 `aws s3 cp` 만 쓴다. 키에 관리 서버 IP 조건이 있어 이 잡은 관리 서버에서만 돌아야 한다
+# (다른 IP 에서 거절되는지는 확인 못 함 — SSOT.md 10절). 같은 이름으로 덮어써도 버킷 버전 관리로 이전 판이 남는다(Jira S15P31A102-147)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup-s3
+spec:
+  schedule: "0 5 * * 0"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          # 매일 백업 폴더(관리 서버)를 읽어야 해서 같은 노드에 뜬다
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.37.11
+              envFrom:
+                - secretRef:
+                    name: pg-backup-s3
+              env:
+                - name: AWS_DEFAULT_REGION
+                  value: ap-northeast-2
+                # 집 폴더가 없는 사용자라 aws 설정 · 캐시 자리를 /tmp 로
+                - name: HOME
+                  value: /tmp
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  # 매일 백업 중 가장 새 파일 하나. 이틀 안 것이 없으면 매일 백업이 멈춘 것이라 실패로 남긴다
+                  f=$(find /backup -maxdepth 1 -name 'newlearn-*.dump' -mtime -2 -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2)
+                  [ -n "$f" ] || { echo "이틀 안의 매일 백업이 없다 — postgres-backup 잡부터 본다" >&2; exit 1; }
+                  key="postgres/$(basename "$f")"
+                  aws s3 cp "$f" "s3://$S3_BUCKET/$key" --only-show-errors
+                  echo "올림: s3://$S3_BUCKET/$key ($(stat -c %s "$f") 바이트, sha256 $(sha256sum "$f" | cut -d' ' -f1))"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                  readOnly: true
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: pg-backup

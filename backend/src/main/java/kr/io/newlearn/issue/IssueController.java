@@ -1,0 +1,126 @@
+package kr.io.newlearn.issue;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
+import kr.io.newlearn.common.security.MemberPrincipal;
+import kr.io.newlearn.common.web.ApiProblem;
+import kr.io.newlearn.common.web.OpenApiConfig;
+import kr.io.newlearn.common.web.PageQuery;
+import kr.io.newlearn.common.web.PageResponse;
+import kr.io.newlearn.issue.dto.IssueCardResponse;
+import kr.io.newlearn.issue.dto.IssueHeaderResponse;
+import kr.io.newlearn.issue.dto.TimelineResponse;
+import org.jspecify.annotations.Nullable;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = OpenApiConfig.TAG_ISSUE)
+@RestController
+public class IssueController {
+    private final IssueService service;
+
+    public IssueController(IssueService service) {
+        this.service = service;
+    }
+
+    @Operation(
+            summary = "[확정] A3 이슈 헤더",
+            description =
+                    "이슈 화면 맨 위 헤더입니다. 공개 기사가 문턱(기본 1 · 사이트 3)을 넘는 사건만 셉니다. 공개 기사가 모자란 사건만 있는 이슈는 404 입니다(사이트는 사건마다 3건 이상, `QUERY_MIN_PUBLIC_ARTICLES`).")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "400",
+            description = "VALIDATION_FAILED — issueId 가 숫자가 아님",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 문턱보다 적은 사건만 있는 이슈",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @GetMapping("/api/v1/issues/{issueId}")
+    public IssueHeaderResponse get(
+            @Parameter(description = "이슈 ID (A2 항목의 id)", example = "1") @PathVariable long issueId,
+            @Parameter(hidden = true) @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.get(issueId, me == null ? null : me.id());
+    }
+
+    @Operation(
+            summary = "[확정] A4 이슈 타임라인",
+            description =
+                    "이슈의 사건을 페이지 없이 한 번에, 발생 시점 오름차순(같으면 id 오름차순)으로 줍니다. 공개 기사가 있는 사건만 나오고, 그런 사건이 하나도 없는 이슈는 404 입니다.")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "400",
+            description = "VALIDATION_FAILED — issueId 가 숫자가 아님",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "ISSUE_NOT_FOUND — 없는 이슈 · 공개 기사가 문턱보다 적은 사건만 있는 이슈",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @GetMapping("/api/v1/issues/{issueId}/timeline")
+    public TimelineResponse timeline(
+            @Parameter(description = "이슈 ID (A2 항목의 id)", example = "1") @PathVariable long issueId) {
+        return service.timeline(issueId);
+    }
+
+    @Operation(
+            summary = "[확정] A2 이슈 목록",
+            description =
+                    "카테고리별 이슈 목록 · 홈 이슈 카드 · 검색창 아래 「새로 생성된 이슈」(sort=createdAt)에 씁니다. 공개 기사가 있는 이슈만 나오고, 사건 수 · 기간 · 최근 사건도 공개 기사가 있는 사건으로 셉니다. 보이는 사건이 문턱(기본 1 · 사이트 3, `QUERY_MIN_PUBLIC_EVENTS`)보다 적은 이슈와, 보이는 사건 중 메인 흐름(MAIN) 사건이 없는 이슈(기본 0 = 끔 · 사이트 1, `QUERY_MIN_MAIN_EVENTS`)는 이 목록과 전체 수에서 빠집니다 — 다만 그 이슈의 A3 · A4 는 그대로 200 이고 A5 · A8 의 이슈 링크도 남습니다.")
+    @ApiResponse(responseCode = "200", description = "성공")
+    @ApiResponse(
+            responseCode = "400",
+            description = "VALIDATION_FAILED — page · size 가 숫자가 아니거나 범위를 벗어남, sort 가 정해진 값이 아님. errors[] 에 칸 이름과 이유",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "CATEGORY_NOT_FOUND — 없는 카테고리 코드 · 빈 문자열",
+            content =
+                    @Content(
+                            mediaType = OpenApiConfig.PROBLEM_JSON,
+                            schema = @Schema(implementation = ApiProblem.class)))
+    @GetMapping("/api/v1/issues")
+    public PageResponse<IssueCardResponse> list(
+            @Parameter(description = "카테고리 코드(A1 의 code). 보내지 않으면 전체", example = "economy")
+                    @RequestParam(required = false)
+                    @Nullable
+                    String category,
+            @Parameter(
+                            description = "정렬. lastEventAt(기본) 마지막 사건 최신순 · createdAt 이슈가 만들어진 최신순. 같으면 id 내림차순",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {"lastEventAt", "createdAt"},
+                                            defaultValue = "lastEventAt"))
+                    @RequestParam(required = false)
+                    @Pattern(regexp = "lastEventAt|createdAt", message = "sort는 lastEventAt 또는 createdAt으로 보내 주세요")
+                    @Nullable
+                    String sort,
+            @ParameterObject @Valid PageQuery query,
+            @Parameter(hidden = true) @AuthenticationPrincipal @Nullable MemberPrincipal me) {
+        return service.list(category, sort == null ? "lastEventAt" : sort, query, me == null ? null : me.id());
+    }
+}

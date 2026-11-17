@@ -1,0 +1,348 @@
+# CI 파이프라인 — Jira S15P31A102-92. 계획은 docs/plans/2026-10-20-ci-pipeline.md, 정한 것은 SSOT.md 6절
+#
+# 하네스 껍데기(.claude/ci/gitlab-ci.yml)를 바탕으로 했다. 검사 명령은 여기 적지 않는다.
+# 영역 잡은 .claude/hooks/pre-commit --ci <영역> 으로 .claude/stack.md §3 의 명령을 그대로 돌린다.
+#
+# 잡을 「무엇에 막히나」로 나눈 갈래마다 CPU · 메모리 요청과 상한을 따로 준다 (잡 이름 앞머리).
+#   w0  규칙 — 시크릿 스캔 · MR 규칙 · 하네스 자체 검사. 거의 안 막힌다
+#   w12 영역 정적 검사 + DB 없는 테스트 — frontend · ai · infra
+#   w3  DB · Redis 가 필요한 테스트 — backend (services 로 DB · Redis 를 잡 옆에 띄운다)
+#   w4  운영 이미지 굽기 — dev 에서 굽고 GHCR 에 올린다. 굽기 전용 러너(워커 노드)에서만 돈다 (Jira S15P31A102-96 · 106, 아래 「w4」)
+#   w5  배포 태그 MR — w4 가 올린 영역만 배포 설정의 태그를 바꾸는 MR 을 연다. 머지는 사람이 (Jira S15P31A102-105, 아래 「w5」)
+# KUBERNETES_* 변수는 쿠버네티스 러너 둘(EC2 검사 · 워커 굽기)만 읽는다. 러너 값의 *_overwrite_max_allowed 를 넘으면
+# 잡이 실패한다 (infra/k8s/bootstrap/gitlab-runner-values.yaml · gitlab-runner-build-values.yaml).
+# 노트북 러너(Docker executor)는 자기 설정의 상한을 쓴다.
+#
+# 껍데기와 다른 점
+#   - 영역마다 fast · slow 두 잡이 아니라 한 잡이다. 러너 자리가 1개라 두 잡이면 Pod 와 설치가 두 번 돈다
+#     (ai 의존성 약 1 GB). 게이트가 포맷 → 린트 → 테스트 순서라 포맷 오류는 여전히 먼저 실패한다
+#   - 하네스 자체 검사(run.sh)는 .claude/ 가 바뀐 MR 과 dev 에서만 돈다. 한 번에 수 분 걸린다
+#
+# 머지 막기(Pipelines must succeed)는 아직 켜지 않았다. 며칠 돌려 본 뒤 정한다 (SSOT.md 6절).
+# 이미지는 digest 로 고정한다 (2026-10-20 확인). 태그는 사람이 읽으라고 남긴다.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      auto_cancel:
+        on_new_commit: interruptible
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+    - when: never
+
+default:
+  interruptible: true
+  # 러너가 죽거나 멈췄을 때만 한 번 더 돈다. 테스트 실패를 재시도하면 흔들리는 테스트가 가려진다
+  retry:
+    max: 1
+    when: [runner_system_failure, stuck_or_timeout_failure]
+  # 잡이 CPU 상한에 얼마나 막혔는지 로그에 남긴다 — cpu.max 는 상한, cpu.stat 의 nr_throttled · throttled_usec 가 막힌 양
+  after_script:
+    - cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat 2>/dev/null || true
+
+# 모든 잡에 합쳐지는 변수 — default: 는 variables 를 받지 않아 여기에 둔다
+variables:
+  # Git LFS 파일은 받지 않고 가리킴 파일로 둔다. 까닭은 SSOT.md 6절 「CI 파이프라인」 (Jira S15P31A102-164)
+  # 파일 내용이 필요한 잡이 생기면 그 잡의 variables 에서만 "false" 로 덮어쓴다
+  GIT_LFS_SKIP_SMUDGE: "true"
+
+stages:
+  - rules
+  - check
+  - build
+  - deploy
+
+# ---------------------------------------------------------------------------
+# 갈래별 자원
+# ---------------------------------------------------------------------------
+.w0:
+  variables:
+    KUBERNETES_CPU_REQUEST: "100m"
+    KUBERNETES_CPU_LIMIT: "500m"
+    KUBERNETES_MEMORY_REQUEST: "128Mi"
+    KUBERNETES_MEMORY_LIMIT: "256Mi"
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w0"
+
+.area:
+  stage: check
+  variables:
+    KUBERNETES_CPU_REQUEST: "250m"
+    KUBERNETES_CPU_LIMIT: "1"
+    KUBERNETES_MEMORY_REQUEST: "1Gi"
+    KUBERNETES_MEMORY_LIMIT: "2Gi"
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w12"
+  script:
+    - bash .claude/hooks/pre-commit --ci "$AREA"
+
+# 배포 태그 MR(deploy/app · deploy/ai)을 머지한 dev 커밋은 태그 한 줄만 바뀐다 — 영역 검사를 다시 돌지 않는다 (Jira S15P31A102-106)
+# w0:rules · w12:infra 는 돈다(바뀐 파일이 infra/ 다). 머지 커밋 제목 모양이 바뀌면 그냥 검사가 다시 돈다
+.skip-deploy-merge:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^Merge branch 'deploy\/(app|ai)' into 'dev'$/
+      when: never
+
+# dev → 분야 브랜치 맞추기 MR 은 dev 에서 이미 검사한 커밋을 그대로 가져온다 — 무거운 잡을 다시 돌지 않는다 (Jira S15P31A102-131)
+# MR 파이프라인은 출발 브랜치 끝 커밋, 곧 dev 의 커밋에서 돈다. 2026-10-20 ~ 28 맞추기 MR 파이프라인 123개가 모두
+# dev push 파이프라인이 이미 통과한 같은 커밋이었고 잡 시간의 26% 였다 (SSOT.md 10절). w0:rules(시크릿 · MR 규칙)는 돈다
+.skip-dev-sync-mr:
+  rules:
+    - if: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == $CI_DEFAULT_BRANCH
+      when: never
+
+# ---------------------------------------------------------------------------
+# w0 규칙
+# ---------------------------------------------------------------------------
+# 영역을 좁혀 부르면 게이트가 시크릿 스캔을 건너뛴다. 저장소 전체와 MR 이력은 여기서 한 번만 본다
+w0:rules:
+  extends: .w0
+  stage: rules
+  image: buildpack-deps:trixie-scm@sha256:4241005cb2c47ea99750627baeb06714f6fde7f01a69ce451d85f8dccf0f5691
+  variables:
+    GIT_DEPTH: 0   # MR 의 커밋 이력을 기준 커밋까지 받는다
+  script:
+    - bash .claude/hooks/secret-scan.sh --all
+    - if [ -n "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" ]; then bash .claude/hooks/secret-scan.sh --range "$CI_MERGE_REQUEST_DIFF_BASE_SHA"; fi
+    # 커밋 제목 · MR 제목 규칙 (stack.md §3 COMMIT_TYPES)
+    - if [ "$CI_PIPELINE_SOURCE" = merge_request_event ]; then bash .claude/hooks/mr-check.sh; fi
+
+w0:harness:
+  extends: .w0
+  stage: check
+  image: buildpack-deps:trixie-scm@sha256:4241005cb2c47ea99750627baeb06714f6fde7f01a69ce451d85f8dccf0f5691
+  variables:
+    KUBERNETES_CPU_REQUEST: "250m"
+    KUBERNETES_CPU_LIMIT: "1"
+    KUBERNETES_MEMORY_REQUEST: "512Mi"
+    KUBERNETES_MEMORY_LIMIT: "1Gi"
+  script:
+    - bash .claude/hooks/tests/run.sh
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - !reference [.skip-deploy-merge, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: [".claude/**/*"]
+
+# ---------------------------------------------------------------------------
+# w12 · w3 영역
+# ---------------------------------------------------------------------------
+# changes: 는 영역 폴더 · stack.md §3 의 <영역>_ALSO_PATHS · .claude/ · 이 파일이다. ALSO_PATHS 를 바꾸면 여기도 맞춘다.
+# dev 는 changes: 없이 전 영역을 돈다. MR 에서 놓친 것을 거기서 잡는다
+# 내려받은 의존성은 /ci-cache 에 도구가 직접 쌓는다 — 러너가 잡마다 붙이는 디스크다(EC2 는 infra/k8s/bootstrap/ci-cache-pv.yaml).
+# GitLab cache: 는 잡마다 압축해 다시 저장해서 ai 는 저장에만 98초가 들었다 — 잰 값은 SSOT.md 10절
+# 러너에 /ci-cache 가 없으면 잡 안에 빈 폴더가 생겨 캐시 없이 돈다
+w12:frontend:
+  extends: .area
+  image: node:26.12.1-trixie@sha256:97fa0f1b59035c6072721a88d55be1371c7cb1cc942b521e1cc5c72ec87655f4   # Node 26.12.1 — Node2Shell 보안 판 (Jira S15P31A102-158)
+  variables:
+    AREA: frontend
+    npm_config_cache: /ci-cache/npm
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - !reference [.skip-deploy-merge, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["frontend/**/*", .editorconfig, ".prettierrc*", "prettier.config.*", package.json, package-lock.json, ".claude/**/*", .gitlab-ci.yml]
+
+w12:ai:
+  extends: .area
+  image: ghcr.io/astral-sh/uv:0.13.1-python3.14-trixie@sha256:6863df3d2e87426f81a136ecb2ae6a7e567b2c413a6bf623af89d75a63a00405   # Python 3.14.8
+  variables:
+    AREA: ai
+    UV_PYTHON_DOWNLOADS: never   # 이미지의 Python 3.14 를 쓴다 (ai/.python-version)
+    PYTEST_ADDOPTS: "--junitxml=$CI_PROJECT_DIR/ai-junit.xml"   # 테스트마다 시간이 MR 화면에 남는다
+    UV_CACHE_DIR: /ci-cache/uv
+    UV_LINK_MODE: copy   # 캐시와 가상환경이 다른 파일 시스템이라 하드 링크 대신 복사
+  artifacts:
+    when: always
+    reports:
+      junit: ai-junit.xml
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - !reference [.skip-deploy-merge, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["ai/**/*", pyproject.toml, uv.lock, ".claude/**/*", .gitlab-ci.yml]
+
+w12:infra:
+  extends: .area
+  image:
+    name: hashicorp/terraform:1.16.6@sha256:bfffc1ded5fbf0a17beaaf22eb4793980abdb19d0761ff6a3a0efb2ab4d9b316
+    entrypoint: [""]   # 기본 진입점이 terraform 이라 노트북 러너(Docker executor)에서 셸이 안 뜬다
+  variables:
+    AREA: infra
+  # Terraform 플러그인 캐시는 뺐다 — 쓰면 설치가 오히려 느렸다(20 → 28초, SSOT.md 10절)
+  before_script:
+    # alpine 이라 bash 가 없고 grep 은 busybox 다. 게이트는 bash 와 GNU grep 을 쓴다
+    # python3 는 태그 MR 스크립트 시험(infra/ci, stack.md infra_TEST)에 쓴다
+    - apk add --no-cache bash grep python3
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["infra/**/*", ".claude/**/*", .gitlab-ci.yml]
+
+# 로컬은 Testcontainers 로 DB · Redis 를 띄우지만 잡에는 Docker 가 없다.
+# NEWLEARN_TEST_TESTCONTAINERS=false 로 그 설정을 끄고(backend/src/test/java/kr/io/newlearn/TestcontainersConfiguration.java)
+# 잡 옆에 띄운 services 에 application.yaml 의 DB_HOST · REDIS_HOST 로 붙는다. 이미지는 compose.yaml 과 같은 태그
+w3:backend:
+  extends: .area
+  image: gradle:9.8.1-jdk25@sha256:4a80c8083135754f689c3e31bb858a22282c66f5625cafb09ed217814b363ee5   # JDK 25.0.4
+  services:
+    - name: pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+      alias: postgres
+    - name: redis:8.10.2@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6
+      alias: redis
+  variables:
+    AREA: backend
+    KUBERNETES_CPU_REQUEST: "300m"
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w3"
+    NEWLEARN_TEST_TESTCONTAINERS: "false"
+    # 잡과 함께 생겼다 사라지는 시험용 DB 의 값이다. 비밀이 아니다
+    POSTGRES_DB: newlearn
+    POSTGRES_USER: newlearn
+    POSTGRES_PASSWORD: ci-test-only
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    GRADLE_USER_HOME: /ci-cache/gradle   # Gradle 배포판과 받은 라이브러리. 여러 잡이 같이 써도 Gradle 이 잠금으로 막는다
+  before_script:
+    # 서비스가 받을 준비가 될 때까지 기다린다 (최대 60초). PostgreSQL 은 초기화를 마친 뒤에야 TCP 를 연다
+    - for i in $(seq 1 60); do (exec 3<>/dev/tcp/postgres/5432) 2>/dev/null && (exec 3<>/dev/tcp/redis/6379) 2>/dev/null && echo "services ready ${i}s" && break; sleep 1; done
+  artifacts:
+    when: always
+    reports:
+      junit: backend/build/test-results/test/TEST-*.xml
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - !reference [.skip-deploy-merge, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: ["backend/**/*", ".claude/**/*", .gitlab-ci.yml]
+
+# ---------------------------------------------------------------------------
+# w4 운영 이미지 굽기 (Jira S15P31A102-96) — 정한 것은 SSOT.md 6절, 계획은 docs/plans/2026-10-21-image-build.md
+# ---------------------------------------------------------------------------
+# dev: 그 영역 폴더나 이 파일이 바뀌면 굽고 GHCR 에 커밋 짧은 SHA 태그로 올린다. latest 는 안 붙인다
+# MR: 그 영역의 Dockerfile · .dockerignore(frontend 는 nginx.conf 도)나 이 파일이 바뀌면 올리지 않고 굽기만 한다.
+#     Dockerfile 이 깨진 채 dev 에 들어가지 않게 하려는 것이다
+# GHCR_USER · GHCR_TOKEN 은 GitLab CI 변수(protected · masked)다 — 보호 브랜치(dev) 파이프라인에만 들어온다.
+# 그래서 MR 은 토큰 없이, 캐시도 없이 굽는다
+# Kaniko 는 Docker 데몬도 특권도 없이 컨테이너 안 root 로 Dockerfile 의 RUN 을 돈다
+# 굽기 전용 러너(태그 newlearn-build)에서만 돈다 — 잡 Pod 는 워커 노드, 네임스페이스 gitlab-runner-build 는 바깥 인터넷만 나간다
+# (infra/k8s/bootstrap/gitlab-runner-build-values.yaml · build-netpol.yaml, Jira S15P31A102-106). 노트북은 GHCR 받기가 느렸다(SSOT.md 10절)
+# 🔴 태그를 빼면 EC2 · 노트북 러너로 가는데, 그때는 자원을 1 · 2Gi 로 같이 내려야 한다 — 상한을 넘으면 잡이 실패한다
+.w4:
+  stage: build
+  tags: [newlearn-build]
+  image:
+    name: ghcr.io/osscontainertools/kaniko:v1.28.6-debug@sha256:7ab44d0131c3051b6dea128067e258c7afb5c4815082a93b9cf6c624f2140bf0
+    entrypoint: [""]   # 기본 진입점이 executor 라 셸이 안 뜬다 (debug 판은 /busybox 에 셸이 있다)
+  variables:
+    # 굽기 러너의 덮어쓰기 상한과 같다. 갈래 이름표(w4)는 러너가 고정으로 붙인다
+    KUBERNETES_CPU_REQUEST: "500m"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_REQUEST: "1Gi"
+    KUBERNETES_MEMORY_LIMIT: "3Gi"
+    IMAGE_PREFIX: ghcr.io/kimzoo5676-del/newlearn
+  script:
+    # w5:deploy-mr 이 읽는 「올린 태그」 — 올리지 않는 MR 이나 실패한 잡은 빈 값 (dotenv 는 성공한 잡의 것만 넘어간다)
+    - echo "DEPLOY_TAG_$AREA=" > "$CI_PROJECT_DIR/deploy.env"
+    - |
+      if [ "${W4_PUSH:-}" = "true" ]; then
+        mkdir -p /kaniko/.docker
+        printf '{"auths":{"ghcr.io":{"username":"%s","password":"%s"}}}' "$GHCR_USER" "$GHCR_TOKEN" > /kaniko/.docker/config.json
+        set -- --destination "$IMAGE_PREFIX-$AREA:$CI_COMMIT_SHORT_SHA" --cache=true --cache-repo "$IMAGE_PREFIX-kaniko-cache"
+      else
+        set -- --no-push
+      fi
+      # --use-new-run · --compressed-caching=false — 메모리를 덜 쓰게. 둘 없이 EC2(메모리 2Gi)에서 ai 가
+      # 의존성 설치 뒤 파일 시스템 스냅샷 중 OOMKilled 됐다 (2026-10-21, MR !60). 압축을 다시 켤지는 굽기 러너에서 잰 뒤 정한다
+      # 받기 · 풀기 · 올리기 재시도 — 받는 중 stream error 로 굽기가 통째로 실패했다 (2026-10-22, SSOT.md 10절)
+      /kaniko/executor --context "$CI_PROJECT_DIR/$AREA" --dockerfile "$CI_PROJECT_DIR/$AREA/Dockerfile" \
+        --custom-platform linux/amd64 --snapshot-mode redo --use-new-run --compressed-caching=false \
+        --image-download-retry=3 --image-fs-extract-retry=3 --push-retry=3 \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
+        "$@"
+      # 올리기까지 성공했을 때만 태그를 남긴다 (executor 가 실패하면 여기 오지 않는다)
+      if [ "${W4_PUSH:-}" = "true" ]; then echo "DEPLOY_TAG_$AREA=$CI_COMMIT_SHORT_SHA" > "$CI_PROJECT_DIR/deploy.env"; fi
+    # CPU 막힘 · 최대 메모리 기록을 여기서 남긴다. Kaniko 가 잡 컨테이너의 파일을 최종 이미지로 바꿔 놓아
+    # EC2 러너에서는 after_script 가 시작 폴더(/workspace)를 못 찾고 실패한다 (2026-10-21 겪음)
+    # memory.peak 는 디스크 캐시까지 세어 상한에 닿아도 모자란 것인지 모른다 — oom_kill 횟수와 실제 쓴 양(anon)을 같이 본다
+    - cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events 2>/dev/null || true
+    - grep -E '^(anon|file) ' /sys/fs/cgroup/memory.stat 2>/dev/null || true
+  after_script: []
+  artifacts:
+    reports:
+      dotenv: deploy.env
+    expire_in: 1 day
+
+# needs — 그 영역 검사가 통과해야 굽는다. MR 에서 검사 잡이 없을 때도 돌게 optional
+w4:backend:
+  extends: .w4
+  variables:
+    AREA: backend
+  needs: [{ job: "w3:backend", optional: true }]
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: ["backend/**/*", .gitlab-ci.yml]
+      variables:
+        W4_PUSH: "true"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [backend/Dockerfile, backend/.dockerignore, .gitlab-ci.yml]
+
+w4:frontend:
+  extends: .w4
+  variables:
+    AREA: frontend
+  needs: [{ job: "w12:frontend", optional: true }]
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: ["frontend/**/*", .gitlab-ci.yml]
+      variables:
+        W4_PUSH: "true"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [frontend/Dockerfile, frontend/.dockerignore, frontend/nginx.conf, .gitlab-ci.yml]
+
+w4:ai:
+  extends: .w4
+  variables:
+    AREA: ai
+  needs: [{ job: "w12:ai", optional: true }]
+  rules:
+    - !reference [.skip-dev-sync-mr, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: ["ai/**/*", .gitlab-ci.yml]
+      variables:
+        W4_PUSH: "true"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [ai/Dockerfile, ai/.dockerignore, .gitlab-ci.yml]
+
+# ---------------------------------------------------------------------------
+# w5 — 배포 태그 MR (Jira S15P31A102-105, SSOT.md 6절 「배포 흐름」)
+# dev 에서 이미지를 GHCR 에 올린 영역만 infra/k8s/services/<app|ai>/kustomization.yaml 의 태그를 바꾸는 MR 을 연다.
+# kustomization 마다 고정 브랜치(deploy/app · deploy/ai)를 dev 위에 덮어쓰고, 열린 MR 이 있으면 갱신한다. 머지는 사람이 한다
+# 무엇을 하는지는 infra/ci/deploy_mr.py. 바꾼 파일이 infra/ 뿐이라 그 MR 을 머지해도 w4 · w5 가 다시 돌지 않는다
+# DEPLOY_MR_TOKEN — 프로젝트 액세스 토큰(Developer · api, 만료 2026-11-30). 보호 · 가림 변수라 dev 파이프라인에만 들어온다
+# ---------------------------------------------------------------------------
+w5:deploy-mr:
+  extends: .w0
+  stage: deploy
+  image: python:3.14.8-slim-trixie@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170   # ai 실행 이미지와 같은 바탕
+  variables:
+    KUBERNETES_POD_LABELS_1: "newlearn.io/workload=w5"
+    IMAGE_PREFIX: ghcr.io/kimzoo5676-del/newlearn
+    PYTHONIOENCODING: utf-8
+  needs:
+    - { job: "w4:backend", optional: true }
+    - { job: "w4:frontend", optional: true }
+    - { job: "w4:ai", optional: true }
+  # w4 와 같은 때 돈다. 굽기가 하나 실패해도 성공한 영역은 반영한다(when: always) — 실패한 잡은 태그를 넘기지 않는다
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: ["backend/**/*", "frontend/**/*", "ai/**/*", .gitlab-ci.yml]
+      when: always
+  # dev 파이프라인 둘이 같은 브랜치를 동시에 덮지 않게 줄 세운다
+  resource_group: deploy-mr
+  interruptible: false
+  script:
+    - python3 infra/ci/deploy_mr.py

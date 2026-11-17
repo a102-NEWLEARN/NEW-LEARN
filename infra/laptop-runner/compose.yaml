@@ -1,0 +1,21 @@
+# 노트북 「큰 러너」 — Docker Desktop 안에서 GitLab Runner 를 컨테이너로 돌린다 (Jira S15P31A102-92)
+# 켜져 있을 때만 EC2 러너에 더해지는 러너다. 쓰는 법 · 등록은 infra/laptop-runner/README.md
+# 러너 판은 GitLab(18.11.5)과 major.minor 를 맞춘다 — EC2 러너(infra/k8s/bootstrap/gitlab-runner-values.yaml)와 같은 18.11.4
+name: newlearn-runner
+
+services:
+  runner:
+    image: gitlab/gitlab-runner:v18.11.4@sha256:96fbcefea955010d39e22408abd71e76c4da0c732bc200506fbef1c001c4d1c6
+    restart: unless-stopped
+    volumes:
+      # 등록하면 토큰이 든 config.toml 이 생긴다. 저장소 밖 Docker 볼륨에만 둔다
+      - config:/etc/gitlab-runner
+      - ./config.template.toml:/templates/config.template.toml:ro
+      # 러너가 잡 컨테이너를 만들려고 Docker Desktop 의 엔진에 붙는다. 잡 컨테이너에는 넘기지 않는다
+      - /var/run/docker.sock:/var/run/docker.sock
+    # docker compose stop 은 SIGQUIT 를 보내 도는 잡을 끝까지 기다린다 (러너의 우아한 종료). 최대 20분 = 잡 시간 상한
+    stop_signal: SIGQUIT
+    stop_grace_period: 20m
+
+volumes:
+  config:

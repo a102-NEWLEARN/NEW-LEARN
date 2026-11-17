@@ -1,0 +1,241 @@
+# kube-prometheus-stack 92.10.1 (Prometheus Operator v0.94.1) 값 — 관리 서버(EC2)에만 올린다 (Jira S15P31A102-95)
+# 쓰는 곳: infra/server/README.md 「모니터링」. 왜 · 무엇을 보나는 SSOT.md 6절 · docs/plans/2026-10-20-monitoring.md
+# 값의 뜻은 차트 92.10.1 과 하위 차트(grafana · kube-state-metrics · prometheus-node-exporter)의 values.yaml 로 확인했다 (2026-10-20)
+# 차트를 올리면 경보 규칙 시험의 promtool 판도 새 Prometheus 판으로 올린다 — infra/ci/alert_rules.sh 의 PROM_VERSION · sha256 둘, docs/dev-environment.md 인프라 행
+#
+# 노드가 컨트롤 플레인 하나뿐이라 모든 Pod 가 control-plane taint 를 견디고 그 노드를 고른다. 워커가 붙으면 옮길지 다시 정한다
+# CPU 예약은 작게 — 노드 예약 1000m(컨트롤 플레인 950m + 러너 50m) + 모니터링 + CI 잡 550m 가 2000m 안에 들어야 CI 잡이 뜬다
+
+# 경보 — Mattermost 「A102 배포알림」 채널로 (2026-10-30 사용자, Jira 138). 규칙은 infra/k8s/alerts/rules.yaml(Argo CD 앱 alerts)
+# 차트 기본 경보 규칙(defaultRules)은 그대로 평가하지만 채널로는 안 보낸다 — notify: mattermost 이름표가 붙은 우리 규칙만 보낸다
+#   켜던 날 기본 경보 넷이 이미 울리고 있었다(Watchdog · Alertmanager 에 안 이어짐 · CPU · 메모리 예약 과다) — 다 보내면 채널이 묻힌다
+# 웹훅 주소는 봉인 Secret alertmanager-mattermost(키 url, seal-secrets.sh alertmanager)를 파일로 붙여 읽는다 — 이 파일 · 저장소에 주소가 없다
+#   Mattermost 들어오는 웹훅은 Slack 모양 글을 받아 slack_configs 를 쓴다. 글쓴이는 웹훅을 만든 사람 이름에 BOT 표시(SSOT 6절 「배포 흐름」)
+# 이 값을 바꾸면 늘 하던 helm upgrade(infra/server/README.md 「모니터링」) — 설정은 Pod 안의 reloader 가 다시 읽는다
+alertmanager:
+  enabled: true
+  config:
+    route:
+      receiver: "null"
+      group_by: [alertname]
+      # 처음 30초 모아 보내고, 같은 묶음의 새 경보는 5분마다, 계속 울리면 12시간마다 다시
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      routes:
+        - receiver: mattermost
+          matchers:
+            - notify = "mattermost"
+    receivers:
+      - name: "null"
+      - name: mattermost
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/alertmanager-mattermost/url
+            send_resolved: true
+            # 제목은 묶음에 하나라도 울리면 🔴 이다. 한 묶음(같은 경보 이름)에 울림 · 풀림이 섞이면 풀린 것은 「✅ 풀림」 줄 아래에 따로 (Jira S15P31A102-139)
+            #   글 모양을 바꿀 때는 같은 판 amtool 의 check-config · template render 로 먼저 본다(infra/server/alerts.md 「바꿀 때」)
+            title: '{{ if eq .Status "firing" }}🔴 경보{{ else }}✅ 풀림{{ end }} — {{ .CommonLabels.alertname }}'
+            text: '{{ range .Alerts.Firing }}{{ .Annotations.summary }}{{ if .Annotations.description }} — {{ .Annotations.description }}{{ end }}{{ "\n" }}{{ end }}{{ if and .Alerts.Firing .Alerts.Resolved }}{{ "\n" }}✅ 풀림{{ "\n" }}{{ end }}{{ range .Alerts.Resolved }}{{ .Annotations.summary }}{{ if .Annotations.description }} — {{ .Annotations.description }}{{ end }}{{ "\n" }}{{ end }}'
+  alertmanagerSpec:
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    # 노드 CPU 예약이 켜던 날 1330m / 2000m(CI 잡 550m 를 더하면 1880m) — 작게
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+    # /etc/alertmanager/secrets/<이름>/<키> 로 붙는다
+    secrets:
+      - alertmanager-mattermost
+    # 디스크 없음 — 다시 뜨면 잠시 꺼 둔 경보(silence) 기록만 사라진다
+
+# kubeadm 은 etcd · controller-manager · scheduler 를 127.0.0.1 에만 열고, kube-proxy 는 없다(Cilium 이 대신함) — 못 긁는 대상과 그 규칙을 끈다
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    alertmanager: false
+    etcd: false
+    kubeControllerManager: false
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    windows: false
+
+prometheusOperator:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  # 설치 · 업그레이드 때 인증서를 만드는 잡도 같은 노드에서 돌아야 한다
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    # 30초면 CI 잡(분 단위)을 보기에 충분하고, 15초보다 CPU 를 덜 쓴다
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    # 7일 — 관리 서버 디스크(29G)가 하루 약 1.2%p 늘었고 그중 약 0.9%p 가 Prometheus 기록이었다(블록 하루 약 0.27GB, 2026-11-02 3일 값).
+    #   15일을 다 채우면 Prometheus 몫만으로 80% 근처까지 갈 것으로 봐서 줄였다. 나머지(이미지 · CI 캐시 등으로 짐작)는 그 뒤에도 늘어난다.
+    #   운영은 발표(11-18), 길어야 12월까지라 7일이면 된다(2026-11-02 사용자, Jira S15P31A102-141). 그 전 잰 숫자는 SSOT 10절에 글로 있다
+    retention: 7d
+    retentionSize: 8GB
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    # 다른 네임스페이스(gitlab-runner)의 ServiceMonitor 도 읽는다 — 안 바꾸면 이 차트가 만든 것만 읽는다
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    # Pod 를 다시 띄워도 데이터가 남게 — 관리 서버 디스크의 정적 PV(prometheus-pv.yaml)에 묶는다. 프로비저너는 깔지 않는다
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: newlearn-local-manual
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus-local
+
+grafana:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  # 대시보드를 몇 개 열자 Grafana 컨테이너가 30분 최대 368.5MiB 까지 올랐다(2026-10-20) — 처음 잡은 상한 384Mi 는 너무 빠듯했다
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 640Mi
+  # helm test 용 Pod 는 만들지 않는다 (toleration 이 없어 뜨지 못한다)
+  testFramework:
+    enabled: false
+  # 관리자 아이디 · 비밀번호는 저장소에 두지 않는다 — 사람이 서버에서 만든 Secret 을 읽는다
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  # 하위 경로를 쓰면 /metrics 가 root_url(localhost)로 넘겨져 수집이 실패한다 — 하위 경로째 긁는다 (2026-10-20 겪음)
+  serviceMonitor:
+    path: /grafana/metrics
+  # 대시보드는 저장소의 설정으로 그린다 — Grafana 자체 디스크는 두지 않는다
+  persistence:
+    enabled: false
+  # 로그 창고 Loki 를 자료원으로 — Explore 에서 로그를 찾는다 (Jira S15P31A102-128, loki-values.yaml · infra/server/logging.md)
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      jsonData:
+        maxLines: 1000
+  grafana.ini:
+    server:
+      # 공개 주소 — 앞단 팝업(기본 인증) 뒤 (infra/k8s/admin-ui/grafana.yaml, Jira 93). SSH 터널로 들어와도 로그인 뒤 이 주소로 넘어간다
+      domain: newlearn.io.kr
+      root_url: https://newlearn.io.kr/grafana/
+      serve_from_sub_path: true
+    users:
+      allow_sign_up: false
+      # 팝업 아이디로 처음 들어온 사람은 보기 권한
+      auto_assign_org_role: Viewer
+      # Viewer 도 Explore 에서 로그(Loki)를 찾게 — 대시보드를 화면에서 잠깐 고쳐 볼 수는 있지만 저장은 못 한다
+      # 기본값(false)이면 Viewer 는 Explore 로 들어가지 못하고 첫 화면으로 돌아온다 (2026-10-28 겪음, Jira S15P31A102-128, 사용자 결정)
+      viewers_can_edit: true
+    # 팝업을 지난 아이디를 Envoy 가 이 머리로 넘긴다 — 그 아이디로 바로 들어간다(따로 로그인 화면 없음)
+    # 손님이 같은 머리를 꾸며 보내면 Envoy 가 맨 앞에서 지운다 (infra/k8s/gateway/client-traffic.yaml)
+    # Envoy 를 거치지 않고 클러스터 안에서 오는 길은 네트워크 정책이 막는다 (infra/k8s/admin-ui/grafana-netpol.yaml)
+    # 관리자(grafana-admin)는 머리 없이 들어오는 SSH 터널에서 로그인 화면으로
+    auth.proxy:
+      enabled: true
+      header_name: X-WEBAUTH-USER
+      header_property: username
+      auto_sign_up: true
+    auth.anonymous:
+      enabled: false
+    analytics:
+      check_for_updates: false
+      reporting_enabled: false
+
+kube-state-metrics:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  # CI 잡 Pod 의 갈래 이름표와 러너가 붙인 잡 주석(잡 ID · 이름 · ref)을 지표로 낸다 — 스로틀 패널이 잡 이름으로 보인다 (Jira S15P31A102-98)
+  # 지표 이름표는 kube_pod_labels 의 label_newlearn_io_workload, kube_pod_annotations 의 annotation_job_runner_gitlab_com_name 처럼 바뀐다
+  # 값 이름은 하위 차트 kube-state-metrics 8.6.0 그대로 — Labels 는 소문자 l, Annotations 는 대문자 L
+  metricLabelsAllowlist:
+    - pods=[newlearn.io/workload]
+  metricAnnotationsAllowList:
+    - pods=[job.runner.gitlab.com/id,job.runner.gitlab.com/name,job.runner.gitlab.com/ref]
+
+# node-exporter 는 차트 기본값이 NoSchedule taint 를 견딘다
+prometheus-node-exporter:
+  # NIC(ENA) 의 AWS 상한 초과 카운터 다섯 개만 모은다 — 받기 대역 · 패킷 수 상한에 걸려 줄 서거나 버려진 패킷 수(AWS 문서
+  # 「Monitor network performance for ENA settings」). `ethtool -S ens5` 누적값뿐이라 끊긴 시각과 맞출 수 없어서 넣었다 (Jira S15P31A102-116)
+  # 지표 이름은 node_ethtool_<카운터>. 두 노드 모두 ens5 다
+  # 목록은 덮어쓰기라 차트 92.10.1 기본값 두 줄(파일 시스템 빼기)을 그대로 옮겨 둔다 — `helm get values kps --all` 로 확인
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+    - --collector.ethtool
+    - --collector.ethtool.device-include=^ens5$
+    - --collector.ethtool.metrics-include=_allowance_exceeded$
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
