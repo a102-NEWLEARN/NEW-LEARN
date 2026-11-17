@@ -310,7 +310,9 @@ class InterestIssueApiIntegrationTest {
             clearInvocations(jdbc);
             mvc.perform(get("/api/v1/issues").param("size", String.valueOf(size)))
                     .andExpect(status().isOk());
-            verify(jdbc, times(4)).sql(anyString());
+            // 이슈 목록은 목록(행 + 전체 수 한 질의) · 분야 · 최근 사건 셋이다 — 전체 수를 따로 세던 넷째 질의는
+            // 목록 질의의 count(*) over () 로 들어갔다(Jira 227). 끝을 넘은 쪽만 하나 더 돈다
+            verify(jdbc, times(3)).sql(anyString());
             assertThat(stats.getPrepareStatementCount()).isZero();
             em.clear();
             stats.clear();
@@ -319,7 +321,7 @@ class InterestIssueApiIntegrationTest {
                             .param("size", String.valueOf(size))
                             .cookie(mine))
                     .andExpect(status().isOk());
-            verify(jdbc, times(4)).sql(anyString());
+            verify(jdbc, times(3)).sql(anyString());
             assertThat(stats.getPrepareStatementCount()).isEqualTo(1);
             em.clear();
             stats.clear();
