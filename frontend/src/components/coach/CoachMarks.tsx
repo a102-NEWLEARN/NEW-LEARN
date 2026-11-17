@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 // 화면 안내(코치마크) — 처음 들어온 화면에서 어두운 막 위에 주요 기능을 한꺼번에 가리킨다.
 // 대상 둘레를 점선 알약으로 비우고, 옆 설명에서 휘어진 점선 화살표가 대상을 가리킨다.
-// 대상은 화면이 붙인 data-coach(또는 가입 가이드의 data-tour) 값으로 찾는다. 화면에 안 보이는 대상은 건너뛰고,
+// 대상은 화면이 붙인 data-coach 값으로 찾는다. 화면에 안 보이는 대상은 건너뛰고,
 // 하나도 없으면 띄우지 않는다. 설명끼리 · 설명과 다른 대상이 겹치지 않게 자리를 고르고, 떠 있는 동안은 화면이 스크롤되지 않는다.
 // 「다시 보지 않기」는 이 브라우저에 기억하고, 알겠어요 · Esc · 막 누르기는 이번만 닫는다
 
@@ -56,6 +56,18 @@ function seen(id: string) {
   }
 }
 
+/** 가입을 마쳤다 — 「다시 보지 않기」로 닫은 화면 안내도 새 회원에게 처음부터 다시 띄운다 (SignupPage, Jira 204) */
+export function resetCoachMarks() {
+  try {
+    const keys = Object.keys(window.localStorage).filter((key) =>
+      key.startsWith(keyOf("")),
+    );
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // 지우지 못하면 전처럼 닫힌 채로 둔다
+  }
+}
+
 function remember(id: string) {
   try {
     window.localStorage.setItem(keyOf(id), "done");
@@ -67,13 +79,25 @@ function remember(id: string) {
 // 같은 값이 여럿이면(탭마다 · 넓은/좁은 화면마다) 화면에 보이는 첫 것
 function find(target: string) {
   const vh = window.innerHeight;
-  return [
-    ...document.querySelectorAll(
-      `[data-coach="${target}"], [data-tour="${target}"]`,
-    ),
-  ]
+  return [...document.querySelectorAll(`[data-coach="${target}"]`)]
     .map((el) => el.getBoundingClientRect())
     .find((b) => b.width > 0 && b.bottom > 0 && b.top < vh);
+}
+
+// 설명이 덮으면 안 되는 글 — 화면이 data-coach-avoid 를 붙인다(홈 제목 등). 대상이 아니라 비우지는 않는다.
+// 글자가 차지한 자리만 본다 — 블록 상자로 보면 줄 끝 빈자리까지 막는다. 글자 상자를 못 재면(jsdom) 블록 상자로 본다
+function avoided(): Box[] {
+  return [...document.querySelectorAll("[data-coach-avoid]")].flatMap((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const b =
+      typeof range.getBoundingClientRect === "function"
+        ? range.getBoundingClientRect()
+        : el.getBoundingClientRect();
+    return b.width > 0 && b.height > 0
+      ? [{ left: b.left, top: b.top, right: b.right, bottom: b.bottom }]
+      : [];
+  });
 }
 
 // 설명을 실제 글꼴로 한 번 그려 크기를 잰다 — 몇 줄로 접히는지 알아야 겹침을 볼 수 있다
@@ -176,7 +200,7 @@ function candidate(
 }
 
 // 설명마다 자리를 정한다. 원하는 쪽 → 화살표를 늘려서 → 맞춤을 뒤집어서 → 반대쪽 순으로 보고,
-// 화면 밖 · 아래 버튼 줄 · 다른 대상 · 앞서 놓은 설명과 화살표에 닿지 않는 첫 자리를 쓴다
+// 화면 밖 · 아래 버튼 줄 · 다른 대상 · 피할 글 · 앞서 놓은 설명과 화살표에 닿지 않는 첫 자리를 쓴다
 function place(marks: CoachMark[]): Placed[] {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -185,6 +209,7 @@ function place(marks: CoachMark[]): Placed[] {
     return r ? [{ m, r }] : [];
   });
   const holes = found.map(({ r }) => grow(r, PAD));
+  const avoid = avoided();
 
   const first = found.map(({ m, r }) => {
     let side: Side =
@@ -231,6 +256,7 @@ function place(marks: CoachMark[]): Placed[] {
       const near = grow(box, SPACE);
       const line = curve(s, head, tail);
       if ([own, ...others].some((h) => hits(near, h))) return false;
+      if (avoid.some((a) => hits(near, a))) return false;
       if (labels.some((l) => hits(near, l))) return false;
       if (arrows.some((a) => a.some((pt) => inside(pt, near)))) return false;
       const blocked = [...others, ...labels.map((l) => grow(l, SPACE))];
@@ -360,7 +386,23 @@ export function CoachMarks({ id, marks, delay = 900 }: Props) {
   useEffect(() => {
     if (!shown) return;
     okRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.isComposing) setOpen(false);
+      // 창(aria-modal)이라 포커스는 두 버튼 안에서만 돈다 — 막 아래 화면의 링크로 빠져 Enter 가 안 보이는 것을 누르지 않게
+      if (e.key !== "Tab") return;
+      const buttons = [...(rootRef.current?.querySelectorAll("button") ?? [])];
+      if (buttons.length === 0) return;
+      e.preventDefault();
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const step = e.shiftKey ? -1 : 1;
+      const next =
+        at < 0
+          ? e.shiftKey
+            ? buttons.length - 1
+            : 0
+          : (at + step + buttons.length) % buttons.length;
+      buttons[next].focus();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [shown]);
