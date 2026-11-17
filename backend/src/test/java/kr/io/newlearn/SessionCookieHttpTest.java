@@ -66,9 +66,11 @@ class SessionCookieHttpTest {
                 HttpResponse.BodyHandlers.ofString());
         assertThat(signUp.statusCode()).as(signUp.body()).isEqualTo(201);
 
-        // 세션 쿠키 — 자바스크립트가 못 읽고(HttpOnly), 다른 사이트에서 온 POST 에는 안 붙고(SameSite=Lax),
-        // 로그인한 때부터 하루(Max-Age), https 로만(Secure)
-        assertThat(setCookie(signUp, "SESSION=")).contains("HttpOnly", "SameSite=Lax", "Max-Age=86400", "Secure");
+        // 세션 쿠키 — 자바스크립트가 못 읽고(HttpOnly), 다른 사이트에서 온 POST 에는 안 붙고(SameSite=Lax), https 로만(Secure).
+        // 유효기간이 없는 브라우저 세션 쿠키라 브라우저를 닫으면 사라진다(2026-11-17 사용자 — 전에는 Max-Age 하루)
+        assertThat(setCookie(signUp, "SESSION="))
+                .contains("HttpOnly", "SameSite=Lax", "Secure")
+                .doesNotContain("Max-Age", "Expires");
         // 로그인 상태가 바뀌어 번호표도 새로 왔다
         assertThat(setCookie(signUp, "XSRF-TOKEN=")).doesNotStartWith("XSRF-TOKEN=" + token + ";");
     }
