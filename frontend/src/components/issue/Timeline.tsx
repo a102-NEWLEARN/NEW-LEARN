@@ -53,8 +53,11 @@ import { useKeyboardInput } from "@/components/useKeyboardInput";
 import { track } from "@/lib/analytics";
 import { prefersReducedMotion } from "@/lib/motion";
 
-// 확대 · 축소 범위와 버튼 한 번의 배율 (프로토타입 v21)
+// 확대 · 축소 범위와 버튼 한 번의 배율 (프로토타입 v21). 줄이는 하한은 50% 지만, 사건이 많아 50% 로도 다 안 들어오면
+// 다 들어오는 배율까지 줄인다 — 전체 보기로 시작부터 끝이 딱 보이게 (2026-11-16 사용자, Jira 223)
 const SCALE_EXTENT: [number, number] = [0.5, 4];
+// 다 들어오는 배율이 이보다 작아지지는 않게 — 아주 좁은 폭에서 0 이나 음수가 되지 않게
+const MIN_FIT = 0.05;
 const ZOOM_OUT = 0.8;
 const ZOOM_IN = 1.25;
 // 잴 수 없을 때(jsdom) 쓰는 타임라인 자리 크기
@@ -144,15 +147,29 @@ export function Timeline({
   );
   // 최신 사건 — 노드를 짙은 청록으로 칠한다 (2026-11-16 디자인 피드백, Jira 216)
   const latestId = useMemo(() => latestEventId(events), [events]);
-  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치. 그린 뒤 옮겨 둔다
+  // 다 들어오는 배율 — 첫 사건부터 마지막 사건의 이름표 자리(LABEL_ROOM)까지 화면에 들어온다. 100% 보다 키우지 않는다.
+  // 줄이는 하한은 50% 와 이 배율 중 작은 것이다 (Jira 223)
+  const fitScale = useMemo(() => {
+    const last = Math.max(0, ...layout.events.map((event) => event.x));
+    if (last === 0) return 1;
+    return Math.min(1, Math.max(MIN_FIT, (width - GUTTER - LABEL_ROOM) / last));
+  }, [layout, width]);
+  const minScale = Math.min(SCALE_EXTENT[0], fitScale);
+  // d3-zoom 과 이벤트 처리가 그때그때 읽는 최신 크기 · 배치 · 배율. 그린 뒤 옮겨 둔다
   const sizeRef = useRef({ width, height });
   const layoutRef = useRef(layout);
+  const fitScaleRef = useRef(fitScale);
+  const minScaleRef = useRef(minScale);
+  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown>>(null);
   useLayoutEffect(() => {
     sizeRef.current = { width, height };
     layoutRef.current = layout;
-  }, [width, height, layout]);
+    fitScaleRef.current = fitScale;
+    minScaleRef.current = minScale;
+    // 처음에는 아래 d3-zoom 을 붙일 때 하한을 읽는다. 그 뒤 배치 · 폭이 바뀌면 여기서 고친다
+    zoomRef.current?.scaleExtent([minScale, SCALE_EXTENT[1]]);
+  }, [width, height, layout, fitScale, minScale]);
 
-  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown>>(null);
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
   // − · + 버튼이 노리는 배율. 움직임이 끝나면 비운다
   const targetScale = useRef<number | null>(null);
@@ -168,8 +185,13 @@ export function Timeline({
   // TIP — 레인 뜻 · 「추정」 뜻. 창은 타임라인 오른쪽 위에 띄운다
   const tip = useTimelineTip({
     panelClassName: "absolute top-[12px] right-[12px] z-20 w-[300px]",
-    howTo: "휠이나 끌기로 옮기고, 사건을 누르면 그 사건을 골라요.",
+    howTo:
+      "휠로 위아래, Shift+휠이나 끌기로 옆으로 옮겨요. Ctrl+휠(맥은 ⌘+휠)이나 두 손가락 벌리기로 확대해요. 사건을 누르면 그 사건을 골라요.",
   });
+
+  // 그냥 휠을 처음 굴렸을 때 한 번 — 확대는 Ctrl/⌘+휠로 옮겨 갔다고 알린다 (Jira 229)
+  const [wheelHint, setWheelHint] = useState(false);
+  const wheelHinted = useRef(false);
 
   // 화면 가로 자리 — 레인 이름 칸 오른쪽에서 시작해 확대 · 축소를 따른다
   const screenX = (x: number) => transform.applyX(GUTTER + x);
@@ -178,15 +200,25 @@ export function Timeline({
   useEffect(() => {
     const svg = svgRef.current!;
     const behavior = zoom<SVGSVGElement, unknown>()
-      .scaleExtent(SCALE_EXTENT)
-      // d3 기본 조건(Ctrl 은 휠만 · 왼쪽 버튼만)에 하나를 더한다 — 사건 이름 위에서 마우스를 누르면 지도를 끌지 않고
-      // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 휠 확대와 터치 이동은 그대로다
-      .filter(
-        (event: MouseEvent) =>
-          (!event.ctrlKey || event.type === "wheel") &&
-          !event.button &&
-          !(event.type === "mousedown" && isMeaningText(event.target)),
+      .scaleExtent([minScaleRef.current, SCALE_EXTENT[1]])
+      // 휠은 Ctrl · ⌘ 를 누른 것만 확대 · 축소한다 — 트랙패드 핀치도 브라우저가 Ctrl+휠로 보낸다. 그냥 휠은 아래 onWheel 이
+      // 세로 스크롤 · 옆으로 옮기기로 쓴다. 휠이 늘 확대라 아래 서브 흐름으로 내려갈 수 없었다 (2026-11-17 사용자, Jira 229).
+      // 그 밖은 d3 기본 조건(Ctrl 없이 · 왼쪽 버튼만)에 하나를 더한다 — 사건 이름 위에서 마우스를 누르면 지도를 끌지 않고
+      // 글을 고른다(F13 용어사전). 빈 곳 · 노드에서는 지금처럼 끈다. 터치 이동 · 확대는 그대로다
+      .filter((event: MouseEvent) =>
+        event.type === "wheel"
+          ? event.ctrlKey || event.metaKey
+          : !event.ctrlKey &&
+            !event.button &&
+            !(event.type === "mousedown" && isMeaningText(event.target)),
       )
+      // d3 기본값은 Ctrl 이면 10배로 키운다(작게 움직이는 핀치용). 마우스 Ctrl+휠 한 칸(100 안팎)까지 10배가 되면
+      // 한 칸에 4배씩 뛰어서, 크게 움직인 것은 핀치가 아니라 휠 한 칸으로 본다
+      .wheelDelta((event: WheelEvent) => {
+        const unit = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
+        const pinch = event.ctrlKey && Math.abs(event.deltaY) < 50;
+        return -event.deltaY * unit * (pinch ? 10 : 1);
+      })
       .extent(() => [
         [0, 0],
         [sizeRef.current.width, sizeRef.current.height],
@@ -205,7 +237,41 @@ export function Timeline({
       );
     select(svg).call(behavior).on("dblclick.zoom", null);
     zoomRef.current = behavior;
+
+    // Ctrl · ⌘ 없는 휠 — Shift+휠 · 가로로 더 큰 휠(트랙패드 좌우)은 시간축을 따라 옆으로 옮기고, 세로 휠은 막지 않아
+    // 브라우저가 지도 칸을 스크롤한다. 처음 세로로 굴리면 확대하는 법을 잠깐 알린다
+    let hintTimer = 0;
+    const onWheel = (wheel: WheelEvent) => {
+      if (wheel.ctrlKey || wheel.metaKey) return;
+      const dx = wheel.shiftKey ? wheel.deltaX || wheel.deltaY : wheel.deltaX;
+      const sideways =
+        wheel.shiftKey || Math.abs(wheel.deltaX) > Math.abs(wheel.deltaY);
+      if (sideways && dx !== 0) {
+        wheel.preventDefault();
+        const unit =
+          wheel.deltaMode === 1
+            ? 16
+            : wheel.deltaMode
+              ? sizeRef.current.width
+              : 1;
+        targetScale.current = null;
+        reopening.current = false;
+        select(svg).call(
+          behavior.translateBy,
+          -(dx * unit) / transformRef.current.k,
+          0,
+        );
+        return;
+      }
+      if (wheel.deltaY === 0 || wheelHinted.current) return;
+      wheelHinted.current = true;
+      setWheelHint(true);
+      hintTimer = window.setTimeout(() => setWheelHint(false), 2500);
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
     return () => {
+      svg.removeEventListener("wheel", onWheel);
+      window.clearTimeout(hintTimer);
       select(svg).interrupt().on(".zoom", null);
     };
   }, []);
@@ -226,7 +292,8 @@ export function Timeline({
   // 버튼 배율은 움직이는 중의 배율이 아니라 앞 버튼이 노린 배율에서 잰다 — 빠르게 두 번 눌러도 두 번 다 먹게
   const scaleBy = (factor: number) => {
     reopening.current = false;
-    const [min, max] = SCALE_EXTENT;
+    const min = minScaleRef.current;
+    const max = SCALE_EXTENT[1];
     const from = targetScale.current ?? transformRef.current.k;
     const next = Math.min(max, Math.max(min, from * factor));
     targetScale.current = next;
@@ -243,11 +310,11 @@ export function Timeline({
           if (targetScale.current === next) targetScale.current = null;
         });
   };
-  // 전체 보기 — 그리는 영역이 다 들어오게. 100% 보다 키우지 않고 50% 아래로 줄이지 않는다
+  // 전체 보기 — 첫 사건부터 마지막 사건의 이름표까지 다 들어오는 배율로 맞춘다. 100% 보다 키우지 않는다.
+  // 전에는 50% 아래로 줄이지 않아 사건이 많은 이슈는 오른쪽이 잘렸다 (2026-11-16 사용자, Jira 223)
   const fit = () => {
     reopening.current = false;
-    const room = sizeRef.current.width - GUTTER - 60;
-    apply(atScale(Math.max(0.5, Math.min(1, room / layoutRef.current.width))));
+    apply(atScale(fitScaleRef.current));
   };
   // 그 사건이 화면 가운데쯤 오게 가로로 옮긴다. 배율은 그대로
   const centerOn = (event: PlacedEvent, duration = 300) => {
@@ -408,7 +475,7 @@ export function Timeline({
   return (
     <section
       aria-labelledby="timeline-title"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-r3 border border-stroke-neutral-subtle"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-r3 border border-stroke-neutral-subtle"
     >
       <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-subtle bg-bg-layer-default px-x4 py-x2_5">
         <div className="mr-auto flex flex-wrap items-baseline gap-x2_5">
@@ -856,6 +923,19 @@ export function Timeline({
         )}
         {tip.panel}
       </div>
+      {/* 그냥 휠을 처음 굴렸을 때 — 지도 칸 아래 가운데. 스크롤해도 제자리에 있게 스크롤 칸 밖에 둔다 */}
+      <p
+        role="status"
+        className="pointer-events-none absolute inset-x-0 bottom-[16px] z-20 flex justify-center"
+      >
+        {wheelHint && (
+          <span
+            className={`t4-medium block whitespace-nowrap rounded-full border border-stroke-neutral-weak bg-bg-layer-floating px-x4 py-x2 text-fg-neutral shadow-s2 ${FADE_IN}`}
+          >
+            Ctrl+휠(맥은 ⌘+휠)로 확대 · 축소해요
+          </span>
+        )}
+      </p>
     </section>
   );
 }

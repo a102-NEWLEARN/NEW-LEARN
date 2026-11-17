@@ -1,15 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { meQuery } from "@/api/members";
 import { HomeGreeting } from "@/components/home/HomeGreeting";
 import { HomeHeroBackground } from "@/components/home/HomeHeroBackground";
 import { type HomeView, HomeViewTabs } from "@/components/home/HomeViewTabs";
 import { LatestArticles } from "@/components/home/LatestArticles";
-import {
-  ONBOARDING_KEY,
-  OnboardingTour,
-} from "@/components/home/OnboardingTour";
 import { type CoachMark, CoachMarks } from "@/components/coach/CoachMarks";
 import { NewIssues } from "@/components/home/NewIssues";
 import { RecommendedIssues } from "@/components/home/RecommendedIssues";
@@ -18,7 +14,7 @@ import { NARROW_SCREEN, useMediaQuery } from "@/components/shell/useMediaQuery";
 import { focusSearchRequest } from "@/components/shell/useQuickSearch";
 import { usePageTitle } from "@/components/usePageTitle";
 
-// 홈 화면 안내 — 처음 들어오면 한 번 띄운다. 대상은 data-coach · data-tour 로 찾는다
+// 홈 화면 안내 — 처음 들어오면 한 번 띄운다. 대상은 data-coach 로 찾는다
 const HOME_COACH: CoachMark[] = [
   {
     target: "bookmarks",
@@ -47,20 +43,10 @@ const HOME_COACH: CoachMark[] = [
   },
 ];
 
-// 가입 직후 단계식 가이드(OnboardingTour)가 뜨는 날은 화면 안내를 띄우지 않는다 — 막이 두 겹 뜨지 않게
-function touring() {
-  try {
-    return window.localStorage.getItem(ONBOARDING_KEY) === "pending";
-  } catch {
-    return false;
-  }
-}
-
 // 홈 — 인사 · 검색창 · 「새로운 이슈」 · 추천 이슈 · 최신 기사 (EXPERIENCE.md Information Architecture, 프로토타입 v21).
 // 좁은 화면은 추천 이슈 · 최신 기사를 탭으로 하나씩 보인다 (모바일 프로토타입 v1).
 // 셸이 <main> 을 줄 것이라 여기서는 쓰지 않는다
 export function HomePage() {
-  const [tour] = useState(touring);
   usePageTitle("홈");
   // A17 — 200 이면 회원, 401 이면 손님(null). 다른 오류로 실패해도 홈 전체를 막지 않고 손님 문구로 보인다
   const me = useQuery(meQuery);
@@ -91,15 +77,9 @@ export function HomePage() {
       { replace: true },
     );
   const recommended = (
-    <div data-tour="issues">
-      <RecommendedIssues member={member} pending={me.isPending} />
-    </div>
+    <RecommendedIssues member={member} pending={me.isPending} />
   );
-  const latest = (
-    <div data-tour="articles">
-      <LatestArticles />
-    </div>
-  );
+  const latest = <LatestArticles />;
 
   return (
     <>
@@ -112,8 +92,8 @@ export function HomePage() {
         {/* 위아래 여백 — 검색 영역이 첫 화면을 덜 차지하고 아래 추천 카드가 더 보이게 줄였다 (2026-11-16 디자인 피드백, Jira 216) */}
         <div className="relative mx-auto max-w-[780px] px-x5 pt-x8 pb-x7 text-center md:px-x6 md:pt-x10 md:pb-x8">
           <HomeGreeting member={member} pending={me.isPending} />
-          {/* 처음 가입한 사람 가이드가 비추는 자리(data-tour) — OnboardingTour */}
-          <div data-tour="search">
+          {/* 화면 안내가 가리키는 자리(data-coach) */}
+          <div data-coach="search">
             <SearchBox focusRequest={focusRequest} />
           </div>
           <NewIssues />
@@ -137,8 +117,7 @@ export function HomePage() {
           </>
         )}
       </div>
-      <OnboardingTour />
-      {!tour && <CoachMarks id="home" marks={HOME_COACH} />}
+      <CoachMarks id="home" marks={HOME_COACH} />
     </>
   );
 }

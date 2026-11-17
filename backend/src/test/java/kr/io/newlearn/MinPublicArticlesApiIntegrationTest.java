@@ -86,7 +86,7 @@ class MinPublicArticlesApiIntegrationTest {
                 .andExpect(jsonPath("$.items[?(@.code=='world')].issueCount").value(contains(0)));
     }
 
-    // 총수(개수 질의)와 행(목록 질의)이 같은 규칙이어야 쪽 계산이 맞는다
+    // 행과 전체 수(같은 목록 질의, 끝을 넘은 쪽만 개수 질의)가 같은 규칙이어야 쪽 계산이 맞는다
     @Test
     void issueListCountsOnlyEventsAtTheThresholdAndTotalMatchesRows() throws Exception {
         mvc.perform(get("/api/v1/issues"))

@@ -258,6 +258,7 @@ test("사용 목적은 하나만 고르고, 다시 누르면 푼다", async () =
 });
 
 test("가입하면 다듬은 값을 보내고, 알림을 띄우고 next 화면으로 간다", async () => {
+  localStorage.setItem("newlearn.coach.home", "done");
   asGuest();
   const bodies: SignUpRequest[] = [];
   server.use(
@@ -295,8 +296,8 @@ test("가입하면 다듬은 값을 보내고, 알림을 띄우고 next 화면�
   ]);
   expect(queryClient.getQueryData(["members", "me"])).toEqual(newMember);
   expect(await screen.findByText("가입을 마쳤어요")).toBeDefined();
-  // 다음 홈에서 처음 가입한 사람 가이드를 띄운다 (Jira 204)
-  expect(localStorage.getItem("newlearn.onboarding")).toBe("pending");
+  // 「다시 보지 않기」로 닫은 화면 안내도 새 회원에게 다시 띄운다 (Jira 204)
+  expect(localStorage.getItem("newlearn.coach.home")).toBeNull();
 });
 
 test("사용 목적을 고르지 않아도 가입한다", async () => {

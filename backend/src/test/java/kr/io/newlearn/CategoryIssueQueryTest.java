@@ -85,6 +85,10 @@ class CategoryIssueQueryTest {
         var empty = issues.findCards(null, "lastEventAt", PageRequest.of(100, 1));
         assertThat(empty).isEmpty();
         assertThat(empty.getTotalElements()).isEqualTo(3);
+        // 끝을 넘은 쪽은 행이 없어 목록 질의가 전체 수를 못 준다 — 따로 세는 질의도 같은 분야로 세야 한다(Jira 227)
+        var politicsEmpty = issues.findCards("politics", "lastEventAt", PageRequest.of(5, 1));
+        assertThat(politicsEmpty).isEmpty();
+        assertThat(politicsEmpty.getTotalElements()).isEqualTo(2);
         assertThat(issues.findCategories(List.of())).isEmpty();
         assertThat(issues.findLastEvents(List.of())).isEmpty();
     }

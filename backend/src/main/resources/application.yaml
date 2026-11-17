@@ -11,6 +11,17 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
+    hikari:
+      data-source-properties:
+        # backend 연결에만 넘기는 PostgreSQL 세션 설정(PgJDBC options). 사이트 값은 infra/k8s/services/app/backend.yaml 의
+        # DB_OPTIONS 가 정한다 — Jira S15P31A102-230 에서 "-c jit=off" 로 둔다.
+        # 화면 쿼리는 수 ms 짜리인데, 추정 비용이 JIT 문턱(기본 10만)을 넘으면 실행마다 컴파일했다 — 2026-11-17 운영에서
+        # 앱 SQL 을 PREPARE 해 잰 값: A1 분야별 이슈 수 28.6 → 13.3 ms · A13 검색 이슈 칸 14.2 → 0.9 · 사건 칸 10.9 → 4.7.
+        # 비면 빈 options 가 가서 서버 기본값 그대로다(로컬 · CI). DB 서버 설정 · psql 스크립트는 건드리지 않는다.
+        # 운영 · CI 에서는 Flyway 도 이 연결을 써서 마이그레이션도 같은 설정이다 — DDL 은 JIT 대상이 아니고, 데이터를 고치는
+        # 마이그레이션(UPDATE · INSERT)은 JIT 없이 돌아 속도만 다르고 결과는 같다. 로컬 Testcontainers 의 Flyway 는 따로 붙어 값이 안 간다.
+        # 되돌리기는 backend.yaml 의 DB_OPTIONS 값을 "" 로
+        options: ${DB_OPTIONS:}
   jpa:
     open-in-view: false
     hibernate:
@@ -96,6 +107,10 @@ newlearn:
     # 기사 문턱과 달리 목록에서만 뺀다 — A2 · A1 · A13 의 이슈 칸. 이슈 페이지(A3 · A4)와 이슈 링크(A5 · A8),
     # 관심 이슈(A23 · A25)는 그대로다. 주소를 알고 들어오면 열린다
     min-public-events: ${QUERY_MIN_PUBLIC_EVENTS:1}
+    # 이슈가 목록에 나오려면 보이는 사건 중 메인 흐름(MAIN) 사건이 몇 개 있어야 하는가 (Jira S15P31A102-224). 0 이면 끔(지금까지와 같다).
+    # 서브 흐름(반응 · 평가 · 여론)만 있으면 「무슨 일이 있었나」가 없어 흐름이 서지 않는다 — 2026-11-16 운영에서 보이는 이슈
+    # 201개 중 10개(정치권 공방이 대부분). 사이트는 1 로 켠다(201 → 191). 사건 수 문턱과 같은 자리(A2 · A1 · A13 이슈 칸)에서만 뺀다
+    min-main-events: ${QUERY_MIN_MAIN_EVENTS:0}
   analysis:
     issue:
       # 이슈 붙이기(ATTACH)가 기존 이슈의 요약을 다시 쓰고 분야를 다시 계산할지 (Jira S15P31A102-207).
@@ -106,6 +121,10 @@ newlearn:
       # 2026-11-14 측정: 이슈에 잘못 붙은 34건 중 넷이 유사도 0.60(거리 0.40) 아래였고, 그 아래를 버려도
       # 맞게 붙은 1,364건은 하나도 잃지 않는다. 사이트는 0.40 으로 켠다
       max-candidate-distance: ${ISSUE_MAX_CANDIDATE_DISTANCE:2.0}
+      # 이슈 판정 CREATE 의 사건 중 메인 흐름(MAIN)이 몇 개 있어야 이슈를 만드는가 (Jira S15P31A102-224). 0 이면 끔.
+      # 모자라면 이슈를 만들지 않고 NONE 처럼 끝낸다(사건은 이슈 밖에 남아 다음 새 사건 때 다시 후보가 된다). 사이트는 1.
+      # 되돌려도 그동안 막힌 묶음은 다시 생기지 않는다 — ISSUE 는 새 사건에만 걸린다
+      create-min-main-events: ${ISSUE_CREATE_MIN_MAIN_EVENTS:0}
 
 # Swagger(springdoc) — 개발하는 동안 로그인 없이 연다 (SSOT.md 6절 「공개 화면」, Jira 107)
 # 내부 API(/internal/v1)는 밖에 열지 않는 주소라 문서에서도 뺀다

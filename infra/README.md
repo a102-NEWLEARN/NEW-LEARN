@@ -121,7 +121,7 @@ aws sts decode-authorization-message --encoded-message <메시지> --profile new
 ```
 
 - 새 Ubuntu 이미지가 나와도 서버를 바꿔 끼우지 않는다 (`compute.tf` 의 `ignore_changes`). OS 갱신은 서버 안에서 한다
-- **최종 발표(11/18) 뒤 `terraform destroy` 로 지운다.** 서버를 멈추기만 하면 EBS · 탄력적 IP 요금이 계속 나간다. 상태 버킷은 destroy 가 끝난 뒤 버전까지 비우고 지운다
+- **서버는 2026-11-27 에 회수된다. EC2 는 `terraform destroy` 로 지운다.** 서버를 멈추기만 하면 EBS · 탄력적 IP 요금이 계속 나간다. 상태 버킷은 destroy 가 끝난 뒤 버전까지 비우고 지운다
 - DB 백업 버킷은 `force_destroy` 를 꺼 두어 안에 백업이 있으면 destroy 가 멈춘다(실수 방지). 남길 백업을 받은 뒤 S3 콘솔(루트 계정)에서 「비우기」로 이전 판까지 비우고 destroy 한다(버전 관리 버킷, Jira S15P31A102-147) — apply 키에는 백업을 지우는 권한을 주지 않았다
 - 손으로 찍은 EBS 스냅샷(예: 디스크 늘리기 전 `jira-146-before-50gib`)은 Terraform 밖이라 destroy 로 지워지지 않고 요금이 남는다 — EC2 콘솔(루트 계정) → 스냅샷에서 지운다
 
@@ -226,7 +226,7 @@ aws ec2 describe-instance-credit-specifications --instance-ids "$(terraform -chd
 
 w4 잡이 `error checking push permissions ... DENIED: requested access to the resource is denied` 로 실패하면 잡에 토큰이 안 들어온 것이다. Variables 목록에 두 줄이 있는지 본다 — 서랍 맨 아래 **Add variable** 을 눌러야 저장된다 (2026-10-21 겪음). 넣은 뒤 실패한 w4 잡만 다시 돌리면 같은 커밋 태그로 올라간다
 
-### 11/18 뒤 정리
+### 서버 회수(2026-11-27) 뒤 정리
 
 - GitHub › Packages 에서 `newlearn-` 패키지 넷을 지운다 (패키지 › Package settings › Delete this package)
 - 토큰을 지운다 (Developer settings › Tokens (classic)), GitLab 변수 두 개를 지운다

@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
-import { fetchTimeline } from "@/api/timeline";
+import { fetchTimeline, type TimelineEvent } from "@/api/timeline";
 import { Timeline } from "@/components/issue/Timeline";
 import { enterDelay, expectMotionSafe, lastEnterEnd } from "@/test/motion";
 
@@ -192,6 +192,69 @@ test("+ · − 로 확대 · 축소하고 전체 보기로 다 들어오게 맞�
   await waitFor(() => expect(zoomLevel()).toBeGreaterThan(100));
   fireEvent.click(screen.getByRole("button", { name: "전체 보기" }));
   await waitFor(() => expect(zoomLevel()).toBeLessThanOrEqual(100));
+});
+
+// 사건 20개를 하루에 하나씩 — 시험 화면 폭(1000px)에서는 50% 로 줄여도 가로로 다 안 들어온다
+function manyEvents(count = 20): TimelineEvent[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: index + 1,
+    title: `많은 사건 ${index + 1}`,
+    label: `사건 ${index + 1}`,
+    lane: "MAIN",
+    occurredAt: new Date(Date.UTC(2026, 9, 1 + index)).toISOString(),
+    occurredAtBasis: "EXTRACTED",
+    articleCount: 3,
+    publisherCount: 2,
+  }));
+}
+const renderMany = () =>
+  render(
+    <Timeline
+      events={manyEvents()}
+      selectedId={null}
+      onSelect={vi.fn()}
+      onDeselect={vi.fn()}
+    />,
+  );
+const xOfNode = (button: Element) =>
+  Number(/translate\(([-\d.]+),/.exec(button.getAttribute("transform")!)![1]);
+const nodeXs = () =>
+  screen.getAllByRole("button", { name: /메인 흐름/ }).map(xOfNode);
+const lastNodeX = () => Math.max(...nodeXs());
+
+test("사건이 많아 50% 로도 다 안 들어오면, 전체 보기가 더 줄여 첫 사건부터 마지막 사건의 이름표까지 다 보이게 한다 (Jira 223)", async () => {
+  renderMany();
+
+  fireEvent.click(screen.getByRole("button", { name: "전체 보기" }));
+
+  // 레인 이름 칸(140px) 오른쪽부터, 마지막 사건은 오른쪽에 이름표 자리(210px)를 남기고 — 시험 화면 폭 1000px
+  await waitFor(() => expect(lastNodeX()).toBeLessThanOrEqual(1000 - 210));
+  expect(lastNodeX()).toBeGreaterThan(1000 - 210 - 5);
+  expect(Math.min(...nodeXs())).toBeGreaterThanOrEqual(140);
+  expect(zoomLevel()).toBeLessThan(50);
+});
+
+test("− 로는 다 들어오는 배율까지만 줄어든다 — 그보다 작게는 줄지 않는다", async () => {
+  renderMany();
+  fireEvent.click(screen.getByRole("button", { name: "전체 보기" }));
+  await waitFor(() => expect(lastNodeX()).toBeLessThanOrEqual(1000 - 210));
+  const fitted = zoomLevel();
+
+  fireEvent.click(screen.getByRole("button", { name: "확대" }));
+  await waitFor(() => expect(zoomLevel()).toBeGreaterThan(fitted));
+  for (let i = 0; i < 4; i++)
+    fireEvent.click(screen.getByRole("button", { name: "축소" }));
+
+  await waitFor(() => expect(zoomLevel()).toBe(fitted));
+});
+
+test("사건이 적어 50% 로 다 들어오면 지금처럼 50% 아래로는 줄지 않는다", async () => {
+  await renderTimeline();
+
+  for (let i = 0; i < 6; i++)
+    fireEvent.click(screen.getByRole("button", { name: "축소" }));
+
+  await waitFor(() => expect(zoomLevel()).toBe(50));
 });
 
 test("TIP 을 열면 레인 뜻과 「추정」 뜻을 보여 주고 닫을 수 있다", async () => {
@@ -688,4 +751,51 @@ test("도구줄에 이슈 화면이 준 보기 전환을 확대 · 축소 앞에
   expect(
     viewSwitch.compareDocumentPosition(zoom) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
+});
+
+// 휠이 늘 확대라 지도 위에서는 세로 스크롤이 막혀 아래 서브 흐름으로 내려갈 수 없었다 (2026-11-17 사용자, Jira 229).
+// 휠은 세로 스크롤, Shift+휠 · 가로 휠은 옆으로 옮기기, Ctrl/⌘+휠 · 핀치는 확대 · 축소
+const map = () => screen.getByRole("group", { name: "사건 타임라인" });
+
+test("그냥 휠은 확대하지 않고 세로 스크롤로 넘긴다 — 처음 한 번 확대하는 법을 알려 준다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  // fireEvent 는 막지(preventDefault) 않았으면 true 다 — 브라우저가 지도 칸을 스크롤한다
+  expect(fireEvent.wheel(map(), { deltaY: 100 })).toBe(true);
+  expect(zoomLevel()).toBe(start);
+  expect(screen.getByRole("status").textContent).toMatch(/Ctrl\+휠/);
+});
+
+test("Ctrl · ⌘ + 휠은 확대 · 축소한다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  expect(fireEvent.wheel(map(), { deltaY: -100, ctrlKey: true })).toBe(false);
+  expect(zoomLevel()).toBeGreaterThan(start);
+  const zoomed = zoomLevel();
+
+  fireEvent.wheel(map(), { deltaY: 100, metaKey: true });
+  expect(zoomLevel()).toBeLessThan(zoomed);
+});
+
+test("마우스 Ctrl+휠 한 칸은 조금씩 확대한다 — 트랙패드 핀치처럼 크게 뛰지 않는다", async () => {
+  await renderTimeline();
+  const start = zoomLevel();
+
+  fireEvent.wheel(map(), { deltaY: -100, ctrlKey: true });
+  expect(zoomLevel() / start).toBeLessThan(1.3);
+});
+
+test("Shift+휠 · 가로 휠은 배율을 그대로 두고 시간축을 따라 옆으로 옮긴다", async () => {
+  renderMany();
+  const start = zoomLevel();
+  const first = nodeXs()[0];
+
+  expect(fireEvent.wheel(map(), { deltaX: 200 })).toBe(false);
+  expect(nodeXs()[0]).toBeCloseTo(first - 200);
+
+  fireEvent.wheel(map(), { deltaY: 100, shiftKey: true });
+  expect(nodeXs()[0]).toBeCloseTo(first - 300);
+  expect(zoomLevel()).toBe(start);
 });

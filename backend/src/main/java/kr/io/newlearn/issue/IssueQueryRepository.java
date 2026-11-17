@@ -11,8 +11,8 @@ import kr.io.newlearn.common.PublicEventSql;
 import kr.io.newlearn.common.PublicEventThreshold;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -42,9 +42,13 @@ public class IssueQueryRepository {
     // 아래 LIST_WITH_THRESHOLD 로 간다(findCards 의 삼항). 이 상수를 지키는 CategoryIssueQueryTest 도 기본값 1 로 돌아
     // 여기만 검사한다 — **A2 를 고칠 때 여기만 고치면 시험은 전부 초록인데 사이트는 안 고쳐진다.** 둘을 같이 고친다.
     // 하나로 합치는 것은 Jira S15P31A102-210 (발표 뒤) — 문턱 1 이면 두 질의의 결과가 같다
+    //
+    // 두 모양 모두 바깥 select 의 count(*) over () 가 전체 수다. 창 함수는 order by · limit 전에 계산되므로 자르기 전
+    // 문턱을 넘은 이슈 수가 된다 — 정렬하려고 어차피 모두 집계하니 따로 세는 질의가 필요 없다(Jira S15P31A102-227)
     private static final String LIST = """
             select i.id, i.title, i.summary, i.created_at,
-                c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at
+                c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at,
+                count(*) over () as total_count
             from (
                 select e.issue_id,
                     count(distinct e.id) as event_count, count(distinct a.id) as article_count,
@@ -57,6 +61,7 @@ public class IssueQueryRepository {
                     select 1 from issue_category ic where ic.issue_id = e.issue_id and ic.category_code = :category))
                 group by e.issue_id
                 having count(distinct e.id) >= :minPublicEvents
+                    and count(distinct e.id) filter (where e.role = 'MAIN') >= :minMainEvents
             ) c
             join issue i on i.id = c.issue_id
             order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
@@ -69,14 +74,15 @@ public class IssueQueryRepository {
     // 문턱 1 이면 LIST 를 그대로 써서 지금과 같은 계획으로 돈다
     private static final String LIST_WITH_THRESHOLD = """
             select i.id, i.title, i.summary, i.created_at,
-                c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at
+                c.event_count, c.article_count, c.publisher_count, c.first_event_at, c.last_event_at,
+                count(*) over () as total_count
             from (
                 select x.issue_id,
                     count(distinct x.id) as event_count, count(distinct x.aid) as article_count,
                     count(distinct x.press_code) as publisher_count,
                     min(x.occurred_at) as first_event_at, max(x.occurred_at) as last_event_at
                 from (
-                    select e.id, e.issue_id, e.occurred_at, a.id as aid, a.press_code,
+                    select e.id, e.issue_id, e.occurred_at, e.role, a.id as aid, a.press_code,
                         count(*) over (partition by e.id) as public_articles
                     from event e
                     join article_event ae on ae.event_id = e.id
@@ -87,6 +93,7 @@ public class IssueQueryRepository {
                 where x.public_articles >= :minPublicArticles
                 group by x.issue_id
                 having count(distinct x.id) >= :minPublicEvents
+                    and count(distinct x.id) filter (where x.role = 'MAIN') >= :minMainEvents
             ) c
             join issue i on i.id = c.issue_id
             order by case when :sort = 'createdAt' then i.created_at else c.last_event_at end desc nulls last,
@@ -106,27 +113,43 @@ public class IssueQueryRepository {
         this.threshold = threshold;
     }
 
+    // 행과 전체 수를 한 질의로 읽는다(Jira S15P31A102-227). 2026-11-17 운영 실행 계획으로 따로 세는 질의(71 ~ 79 ms)가
+    // 빠지고 목록 질의는 그대로였다(행만 59 ~ 67 ms · 전체 수를 같이 57 ~ 60 ms).
+    // 사건 수 · 메인 흐름 문턱은 두 모양 모두 having 으로 거르므로 :minPublicEvents · :minMainEvents 를 늘 넣는다
+    // (안 넣으면 첫 요청에서 깨진다). 메인 흐름은 count(distinct …) filter 라 끔(0)이면 늘 참이다
     public Page<CardRow> findCards(@Nullable String category, String sort, Pageable pageable) {
-        long total = jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS
-                        + " and " + CATEGORY_FILTER)
-                .param("category", category, Types.VARCHAR)
-                .param("publicArticleSkip", threshold.skip())
-                .param("publicEventSkip", threshold.eventSkip())
-                .query(Long.class)
-                .single();
-        // 수를 세는 질의와 행을 가져오는 질의가 따로다 — 둘에 같은 문턱을 묶지 않으면 총수와 쪽이 어긋난다.
-        // 사건 수 문턱은 두 모양 모두 having 으로 거르므로 :minPublicEvents 를 늘 넣는다(안 넣으면 첫 요청에서 깨진다)
-        List<CardRow> rows = jdbc.sql(threshold.isOff() ? LIST : LIST_WITH_THRESHOLD)
+        List<CountedCard> rows = jdbc.sql(threshold.isOff() ? LIST : LIST_WITH_THRESHOLD)
                 .param("category", category, Types.VARCHAR)
                 .param("minPublicArticles", threshold.minArticles())
                 .param("minPublicEvents", threshold.minEvents())
+                .param("minMainEvents", threshold.minMainEvents())
                 .param("sort", sort)
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset())
-                .query(IssueQueryRepository::mapCard)
+                .query((rs, rowNum) -> new CountedCard(mapCard(rs, rowNum), rs.getLong("total_count")))
                 .list();
-        return new PageImpl<>(rows, pageable, total);
+        // getPage 는 덜 찬 쪽이면 행 수(첫 쪽)나 offset + 행 수(그 밖의 쪽)로 끝내고, 꽉 찬 쪽과 끝을 넘은 쪽에서만
+        // 전체 수를 묻는다. 끝을 넘은 쪽은 행이 없어 창 함수가 값을 못 주므로 그때만 따로 센다
+        return PageableExecutionUtils.getPage(
+                rows.stream().map(CountedCard::card).toList(),
+                pageable,
+                () -> rows.isEmpty() ? countCards(category) : rows.getFirst().total());
     }
+
+    // 끝을 넘은 쪽에서만 쓴다. 목록 질의와 같은 문턱을 묶지 않으면 그 쪽의 전체 수만 어긋난다
+    private long countCards(@Nullable String category) {
+        return jdbc.sql("select count(*) from issue i where " + PublicEventSql.ISSUE_HAS_ENOUGH_PUBLIC_EVENTS + " and "
+                        + PublicEventSql.ISSUE_HAS_ENOUGH_MAIN_EVENTS + " and " + CATEGORY_FILTER)
+                .param("category", category, Types.VARCHAR)
+                .param("publicArticleSkip", threshold.skip())
+                .param("publicEventSkip", threshold.eventSkip())
+                .param("minMainEvents", threshold.minMainEvents())
+                .param("mainEventSkip", threshold.mainEventSkip())
+                .query(Long.class)
+                .single();
+    }
+
+    private record CountedCard(CardRow card, long total) {}
 
     public Optional<CardRow> findHeader(long issueId) {
         return jdbc.sql(AGGREGATE + " where i.id = :id group by i.id")
