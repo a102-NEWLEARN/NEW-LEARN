@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { CoachMarks } from "@/components/coach/CoachMarks";
+import { CoachMarks, resetCoachMarks } from "@/components/coach/CoachMarks";
 
 // 화면 안내(코치마크) — 어두운 막 위에 주요 기능을 한꺼번에 점선으로 가리킨다
 
@@ -50,6 +50,17 @@ test("다시 보지 않기를 누르면 닫히고 다음에도 뜨지 않는다"
   setup();
   await new Promise((r) => setTimeout(r, 50));
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("가입하면(resetCoachMarks) 다시 보지 않기로 닫은 안내도 다시 뜬다", async () => {
+  const { unmount } = setup();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "다시 보지 않기" }),
+  );
+  unmount();
+  resetCoachMarks();
+  setup();
+  expect(await screen.findByRole("dialog")).toBeTruthy();
 });
 
 test("알겠어요는 이번만 닫는다", async () => {
