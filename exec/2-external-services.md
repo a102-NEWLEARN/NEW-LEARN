@@ -77,7 +77,6 @@
 - 프로젝트 전용 팀 AWS 계정입니다. 루트 계정은 MFA 를 걸고 결제 · 비상시에만 씁니다. 처음 한 번 하는 일은 `infra/README.md` 「처음 한 번」.
 - 서비스 서버(워커)는 SSAFY 가 지급한 Lightsail xlarge(4 vCPU · 16 GB)입니다. 콘솔 없이 도메인과 접속 키(`*.pem`)만 받았습니다. 받는 날 할 일은 `infra/server/README.md` 「Lightsail」.
 - 두 서버는 WireGuard 터널로 잇고, 쿠버네티스 포트는 바깥에 열지 않습니다.
-- 발표 뒤 EC2 는 `terraform destroy` 로 지웁니다.
 
 ## 2-6. 가비아 · Let's Encrypt — 도메인 · HTTPS
 
