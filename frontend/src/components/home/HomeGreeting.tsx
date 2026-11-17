@@ -28,7 +28,7 @@ function TypedLine({ text }: { text: string }) {
   const cursor = caret && <span aria-hidden data-caret className={CARET} />;
 
   return (
-    <p className="t3-medium text-fg-neutral-muted">
+    <p data-coach-avoid className="t3-medium text-fg-neutral-muted">
       {typing ? (
         <span className="inline-grid">
           <span className="col-start-1 row-start-1 pr-[3px] opacity-0">
@@ -53,7 +53,8 @@ function TypedLine({ text }: { text: string }) {
   );
 }
 
-// 홈 맨 위 — 인사 줄 · 제목 · 안내 한 줄 (프로토타입 v21). 검색창은 그 아래 SearchBox
+// 홈 맨 위 — 인사 줄 · 제목 · 안내 한 줄 (프로토타입 v21). 검색창은 그 아래 SearchBox.
+// 셋 다 화면 안내 설명이 덮지 않게 data-coach-avoid 를 붙인다 (CoachMarks)
 export function HomeGreeting({ member, pending }: HomeGreetingProps) {
   const now = new Date();
   const today = formatLongDate(now);
@@ -77,13 +78,17 @@ export function HomeGreeting({ member, pending }: HomeGreetingProps) {
       {/* 화면을 옮기면 셸이 포커스를 여기로 옮긴다 (AppShell).
           제목 · 부제는 줄 길이를 고르게 꺾는다 — 좁은 화면에서 「보세요.」 한 단어만 다음 줄로 넘어갔다 */}
       <h1
+        data-coach-avoid
         tabIndex={-1}
         className="t10-bold md:t13-bold mt-x2_5 text-balance text-fg-neutral outline-none"
       >
         오늘의 이슈를 탐색해 보세요
       </h1>
       {/* 부제는 넓은 화면만 — 폰 첫 화면에 글이 많았다 (2026-11-13 사용자, Jira 202) */}
-      <p className="t5-regular mt-x2_5 text-balance text-fg-neutral-muted max-md:hidden">
+      <p
+        data-coach-avoid
+        className="t5-regular mt-x2_5 text-balance text-fg-neutral-muted max-md:hidden"
+      >
         검색하거나, 아래 추천 이슈에서 사건의 흐름을 따라가 보세요.
       </p>
     </>

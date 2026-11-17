@@ -84,6 +84,22 @@ function find(target: string) {
     .find((b) => b.width > 0 && b.bottom > 0 && b.top < vh);
 }
 
+// 설명이 덮으면 안 되는 글 — 화면이 data-coach-avoid 를 붙인다(홈 제목 등). 대상이 아니라 비우지는 않는다.
+// 글자가 차지한 자리만 본다 — 블록 상자로 보면 줄 끝 빈자리까지 막는다. 글자 상자를 못 재면(jsdom) 블록 상자로 본다
+function avoided(): Box[] {
+  return [...document.querySelectorAll("[data-coach-avoid]")].flatMap((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const b =
+      typeof range.getBoundingClientRect === "function"
+        ? range.getBoundingClientRect()
+        : el.getBoundingClientRect();
+    return b.width > 0 && b.height > 0
+      ? [{ left: b.left, top: b.top, right: b.right, bottom: b.bottom }]
+      : [];
+  });
+}
+
 // 설명을 실제 글꼴로 한 번 그려 크기를 잰다 — 몇 줄로 접히는지 알아야 겹침을 볼 수 있다
 function measure(m: CoachMark, maxWidth: number) {
   const el = document.createElement("div");
@@ -184,7 +200,7 @@ function candidate(
 }
 
 // 설명마다 자리를 정한다. 원하는 쪽 → 화살표를 늘려서 → 맞춤을 뒤집어서 → 반대쪽 순으로 보고,
-// 화면 밖 · 아래 버튼 줄 · 다른 대상 · 앞서 놓은 설명과 화살표에 닿지 않는 첫 자리를 쓴다
+// 화면 밖 · 아래 버튼 줄 · 다른 대상 · 피할 글 · 앞서 놓은 설명과 화살표에 닿지 않는 첫 자리를 쓴다
 function place(marks: CoachMark[]): Placed[] {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -193,6 +209,7 @@ function place(marks: CoachMark[]): Placed[] {
     return r ? [{ m, r }] : [];
   });
   const holes = found.map(({ r }) => grow(r, PAD));
+  const avoid = avoided();
 
   const first = found.map(({ m, r }) => {
     let side: Side =
@@ -239,6 +256,7 @@ function place(marks: CoachMark[]): Placed[] {
       const near = grow(box, SPACE);
       const line = curve(s, head, tail);
       if ([own, ...others].some((h) => hits(near, h))) return false;
+      if (avoid.some((a) => hits(near, a))) return false;
       if (labels.some((l) => hits(near, l))) return false;
       if (arrows.some((a) => a.some((pt) => inside(pt, near)))) return false;
       const blocked = [...others, ...labels.map((l) => grow(l, SPACE))];

@@ -93,7 +93,9 @@ const LABEL = { w: 120, h: 50 };
 function setupRow(rects: Record<string, [number, number, number, number]>) {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
     function (this: Element) {
-      const t = this.getAttribute("data-coach");
+      const t =
+        this.getAttribute("data-coach") ??
+        this.getAttribute("data-coach-avoid");
       if (t && rects[t]) {
         const [left, top, right, bottom] = rects[t];
         return {
@@ -177,6 +179,26 @@ test("설명은 다른 대상을 덮지 않는다", async () => {
   await screen.findByText("나");
   expect(
     overlap(boxOf("나"), { left: 14, top: 294, right: 706, bottom: 366 }),
+  ).toBe(false);
+});
+
+test("설명은 피하라고 표시한 글(data-coach-avoid)을 덮지 않는다", async () => {
+  // b 바로 아래에 큰 제목이 있다 — 대상은 아니지만 설명이 덮으면 둘 다 읽기 어렵다
+  setupRow({ b: [400, 200, 440, 240], title: [300, 290, 640, 340] });
+  render(
+    <>
+      <h1 data-coach-avoid="title">제목</h1>
+      <div data-coach="b" />
+      <CoachMarks
+        id="avoid"
+        marks={[{ target: "b", title: "나", body: "나 설명", side: "bottom" }]}
+        delay={0}
+      />
+    </>,
+  );
+  await screen.findByText("나");
+  expect(
+    overlap(boxOf("나"), { left: 300, top: 290, right: 640, bottom: 340 }),
   ).toBe(false);
 });
 
