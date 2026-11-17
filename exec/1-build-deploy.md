@@ -1,20 +1,7 @@
 # 1. 빌드 · 배포
 
-GitLab 저장소를 클론해 로컬에서 빌드 · 실행하는 방법과, 운영 서버에 배포되는 방식을 정리했습니다. 기준일은 2026-11-17 이고, 값의 원본은 각 절 끝에 적은 파일입니다.
+GitLab 저장소를 클론해 로컬에서 빌드 · 실행하는 방법과, 운영 서버에 배포되는 방식을 정리했습니다. 기준일은 2026-11-18 이고, 값의 원본은 각 절 끝에 적은 파일입니다.
 
-```mermaid
-flowchart LR
-  U["사용자"] --> G["Envoy Gateway<br/>HTTPS · 요청 수 상한"]
-  G -->|"/"| F["frontend<br/>nginx + React 빌드"]
-  G -->|"/api"| B["backend<br/>Spring Boot"]
-  B --> P[("PostgreSQL 18<br/>+ pgvector")]
-  B --> R[("Redis 8<br/>세션 · 캐시 · 작업 큐")]
-  W["ai 워커<br/>FastAPI"] --> R
-  W -->|"분석 결과"| B
-  W --> L["SSAFY GMS<br/>LLM"]
-  B -->|"용어사전 문맥 뜻"| L
-  C["news-ingest<br/>CronJob 15분"] -->|"기사 적재 · 분석 등록"| B
-```
 
 ---
 
@@ -55,12 +42,11 @@ flowchart LR
 
 ### 개발 도구 (IDE)
 
-저장소에는 IDE 설정 파일이 없습니다. 개발 환경은 컨테이너로 돌아서 특정 IDE 에 묶이지 않습니다. 운영 이미지 · CI 이미지의 JDK · Node · Python 판은 위 표처럼 고정돼 있고, 로컬 compose 의 `node:26-alpine` · `eclipse-temurin:25-jdk` 는 판을 고정하지 않습니다(`docs/dev-environment.md`). 관리자 PC 에서 확인한 판은 아래와 같습니다.
+저장소에는 IDE 설정 파일이 없고 특정 IDE 에 묶이지 않습니다. 관리자 PC 에서 쓴 판입니다.
 
 | 도구 | 판 |
 |---|---|
 | Visual Studio Code | 1.146.0 |
-| Claude Code | 2.1.284 |
 | Docker Desktop | 4.83.0 (Engine 29.6.2) |
 | Git | 2.55.0 |
 
@@ -159,7 +145,7 @@ docker compose --profile full up -d --wait
 | `DB_PORT` · `REDIS_PORT` · `BACKEND_PORT` · `AI_PORT` · `FRONTEND_PORT` | 내 PC 에 여는 포트 | 기본 5432 · 6379 · 8080 · 8000 · 5173 |
 | `SESSION_COOKIE_SECURE` | 세션 쿠키에 Secure 를 붙일지 (로컬 false, 운영 true) | false |
 | `INTERNAL_WORKER_KEY` · `INTERNAL_BATCH_KEY` | 직원용 문(`/internal/v1`) 출입증 — 워커 · 수집 배치 | 직원용 API 가 모두 막힘 |
-| `STDICT_API_KEY` | 국립국어원 표준국어대사전 키 (2장 — 지금 화면은 안 씀) | 사전 API 502 |
+| `STDICT_API_KEY` | 국립국어원 표준국어대사전 키 (지금 화면은 안 씀) | 사전 API 502 |
 | `NEWSDATA_API_KEY` | 수집 배치를 로컬에서 돌려 볼 때만 | |
 | `LLM_MODE` · `GMS_MODEL` | AI 워커의 LLM. `mock` 이면 워커가 GMS 를 부르지 않고 모의 응답 | 워커가 GMS 를 안 부름 |
 | `GMS_API_KEY` · `GMS_BASE_URL` | GMS 키 · 주소. backend 의 용어사전 문맥 뜻(A26)은 `LLM_MODE` 를 보지 않고 이 둘이 있으면 부름(비용이 듦) | 문맥 뜻 502 |
@@ -193,17 +179,6 @@ docker compose --profile full up -d --wait
 
 봉인 명령은 EC2 에서 `bash infra/server/seal-secrets.sh <명령>` 입니다. 값을 물어 받아 공개키로 잠근 `sealed-*.yaml` 만 저장소에 남깁니다.
 
-봉인하지 않고 사람이 서버에서 직접 만드는 Secret 도 있습니다. 저장소에는 이름과 만드는 명령만 있습니다.
-
-| Secret | 무엇 | 만드는 곳 |
-|---|---|---|
-| `repo-newlearn` (argocd) | Argo CD 가 저장소를 읽는 GitLab 배포 토큰 | `infra/server/bootstrap-argocd.sh` 가 물음 |
-| `argocd-initial-admin-secret` (argocd) | Argo CD admin 첫 비밀번호 — 설치 때 Argo CD 가 만들고, 바꾼 뒤 지움 | `infra/server/README.md` 「Argo CD 깔기」 |
-| `gitlab-runner-token` · `gitlab-runner-build-token` | GitLab Runner 토큰 | `infra/server/README.md` 「GitLab Runner」 |
-| `grafana-admin` (monitoring) | Grafana 관리자 계정 | `infra/server/README.md` 「모니터링」 |
-| `gitlab-ci-exporter` (monitoring) | CI 잡 지표용 GitLab 읽기 토큰 | 같은 곳 |
-| `postgres-exporter` (monitoring) | DB 통계 읽기 계정 `newlearn_monitor` | `infra/k8s/bootstrap/pg-exporter/make-secret.sh` |
-
 원본: `infra/k8s/services/*`, `infra/server/seal-secrets.sh`, `.env.example`, `compose.yaml`, `.gitlab-ci.yml`, `SSOT.md` 6 · 7절
 
 ---
@@ -212,33 +187,11 @@ docker compose --profile full up -d --wait
 
 ### 배포 흐름
 
-```mermaid
-flowchart LR
-  A["dev 에 MR 머지"] --> B["GitLab CI<br/>검사 w0 ~ w3"]
-  B --> C["w4 이미지 굽기<br/>Kaniko → GHCR<br/>태그 = 커밋 짧은 SHA"]
-  C --> D["w5 배포 태그 MR<br/>deploy/app · deploy/ai"]
-  D -->|"사람이 머지"| E["Argo CD 가 dev 를 읽어<br/>순차 교체(무중단)"]
-  E --> F["Mattermost<br/>배포 알림"]
-```
-
 1. 작업 브랜치 → 분야 브랜치 → `dev` 로 MR 이 머지되면 GitLab CI 가 돕니다. MR 은 바뀐 영역만, dev 는 전부 검사합니다.
 2. dev 에서 영역 폴더가 바뀌었으면 `w4` 가 그 영역 이미지를 굽고 GHCR 에 올립니다. `latest` 는 쓰지 않습니다.
 3. `w5:deploy-mr` 이 `infra/k8s/services/app/kustomization.yaml` · `services/ai/kustomization.yaml` 의 태그를 바꾸는 MR 을 엽니다. **사람이 이 MR 을 머지해야 반영됩니다.**
 4. GitLab 웹훅이 Argo CD 에 알리고, Argo CD 가 dev 브랜치를 읽어 바뀐 Deployment 를 하나씩 교체합니다. 결과는 Mattermost 「A102 배포알림」 채널로 옵니다.
 5. 되돌릴 때는 배포 태그 커밋을 Git 에서 되돌립니다. Argo CD 가 이전 이미지로 맞춥니다.
-
-### 운영 구성 (쿠버네티스 네임스페이스)
-
-| 네임스페이스 | 워크로드 | 노드 |
-|---|---|---|
-| `app` | backend · frontend · news-ingest(CronJob) | 워커 |
-| `ai` | ai 워커 (EXTRACT · EMBED · MATCH_EVENT · ISSUE) | 워커 |
-| `data` | postgres · redis (StatefulSet), DB 백업 CronJob 둘 | 워커 (백업 Pod 는 관리 서버) |
-| `envoy-gateway-system` | Envoy Gateway · 상한 서비스 · HTTPS 인증서(Certificate) | 워커 |
-| `cert-manager` · `local-path-storage` | cert-manager · local-path-provisioner | 워커 |
-| `argocd` · `sealed-secrets` | Argo CD · Sealed Secrets 컨트롤러 | 워커 |
-| `monitoring` | Prometheus · Grafana · Alertmanager · Loki · Alloy | 관리 서버 (Alloy 는 두 서버 모두) |
-| `gitlab-runner` · `gitlab-runner-build` | CI 러너 | 관리 서버 (굽기 잡은 워커) |
 
 ### 배포 시 특이사항
 
@@ -247,10 +200,8 @@ flowchart LR
 - **AI 워커 첫 기동**: init 컨테이너가 임베딩 모델(약 2.3GB)을 Hugging Face 에서 PVC 로 한 번 받습니다(1분 안팎). 그 뒤에는 오프라인으로 뜹니다.
 - **비밀값 키 백업**: Sealed Secrets 개인키를 잃으면 서버를 다시 만들 때 저장소의 봉인 Secret 을 못 풉니다. 키는 인프라 담당 PC 에 백업합니다(`infra/server/README.md` 「Sealed Secrets 키」). **다른 클러스터에 배포할 때는 자기 키로 모든 Secret 을 다시 봉인해야 합니다.**
 - **이미지 저장소가 비공개**: GHCR 패키지는 인프라 담당 개인 계정 아래 비공개입니다. 다른 곳에 배포하려면 자기 레지스트리로 `.gitlab-ci.yml` 의 `IMAGE_PREFIX` · CI 변수 · `ghcr-pull` Secret, 배포 태그 파일(`kustomization.yaml` 의 `images`), 그리고 Deployment 매니페스트의 이미지 이름(`infra/k8s/services/app/backend.yaml` · `frontend.yaml` · `services/ai/ai.yaml`)을 함께 바꿉니다 — kustomize 는 이미지 이름이 같을 때만 태그를 바꿉니다.
-- **토큰 만료**: GHCR 토큰 · `DEPLOY_MR_TOKEN` · Argo CD 배포 토큰 · CI 지표 토큰은 2026-11-30 에 만료됩니다.
 - **서버 명령은 접속 권한이 있는 사람만**: `ssh newlearn …` · `kubectl …` 같은 운영 명령은 관리 서버 SSH 키와 허용된 IP 가 있어야 돕니다. 심사 · 재현은 1-2 로컬 실행과 3장 덤프로 합니다.
 - **새 클러스터를 처음부터 세우는 순서**: `infra/README.md`(Terraform apply) → `infra/server/README.md`(EC2 · Lightsail 받는 날 스크립트 → WireGuard → kubeadm · Cilium → 워커 join → Argo CD · Secret 봉인 → 러너 · 모니터링) 순서입니다.
-- **운영 DB 백업**: 매일 04:00 관리 서버 디스크(7일 보관), 매주 일요일 05:00 S3. 되살리는 법은 `infra/server/db-backup.md`.
 
 원본: `SSOT.md` 6절(배포 흐름 · 무중단 배포 조건 · 저장소 · 백업), `infra/server/README.md`, `.gitlab-ci.yml`
 
@@ -269,7 +220,6 @@ flowchart LR
 | 운영 DB · Redis | `infra/k8s/services/data/postgres.yaml` · `redis.yaml` |
 | 운영 앱 환경 변수 | `infra/k8s/services/app/backend.yaml` · `services/ai/ai.yaml` · `services/ingest/news-ingest.yaml` |
 | 운영 비밀값 (봉인) | `infra/k8s/services/*/sealed-*.yaml`, 관리 화면 · 알림 `infra/k8s/admin-ui/sealed-*.yaml`, 경보 `infra/k8s/alerts/sealed-alertmanager-mattermost.yaml`. 만드는 스크립트 `infra/server/seal-secrets.sh` |
-| 서버에서 직접 만드는 Secret | 1-3 끝의 표 |
 | AI 워커 설정 | `ai/app/config.py` (기본값), 로컬 값은 루트 `.env` |
 | 화면 설정 | `frontend/vite.config.ts` (개발 서버 `/api` 프록시), `frontend/nginx.conf` (운영) |
 | 입구 · 인증서 | `infra/k8s/services/app/routes.yaml` · `ratelimit.yaml`, `infra/k8s/gateway/` |
@@ -284,11 +234,3 @@ flowchart LR
 | `newlearn_monitor` (읽기 전용, `pg_monitor`) | postgres_exporter — 조회 성능 대시보드 | 운영 Secret `postgres-exporter`(사람이 서버에서 만듦, `infra/server/perf/README.md`) |
 
 Redis 는 비밀번호가 없고 쿠버네티스 NetworkPolicy 로 같은 클러스터의 정해진 Pod 만 받습니다.
-
-### 관리 화면 계정
-
-| 계정 | 쓰는 곳 | 있는 곳 |
-|---|---|---|
-| 관리 화면 팝업 계정 | `https://newlearn.io.kr/argocd` · `/grafana` 앞의 브라우저 팝업(HTTP 기본 인증) | 봉인 Secret `basic-auth`(`seal-secrets.sh basic-auth`) — 아이디 · 비밀번호는 팀에 따로 알림 |
-| Argo CD admin | 동기화 · 설정 변경 | 인프라 담당만 앎(첫 비밀번호는 바꾼 뒤 지움) |
-| Grafana 관리자 | 대시보드 관리 — SSH 터널로만 | Secret `grafana-admin` |
