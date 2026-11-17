@@ -368,7 +368,23 @@ export function CoachMarks({ id, marks, delay = 900 }: Props) {
   useEffect(() => {
     if (!shown) return;
     okRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.isComposing) setOpen(false);
+      // 창(aria-modal)이라 포커스는 두 버튼 안에서만 돈다 — 막 아래 화면의 링크로 빠져 Enter 가 안 보이는 것을 누르지 않게
+      if (e.key !== "Tab") return;
+      const buttons = [...(rootRef.current?.querySelectorAll("button") ?? [])];
+      if (buttons.length === 0) return;
+      e.preventDefault();
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const step = e.shiftKey ? -1 : 1;
+      const next =
+        at < 0
+          ? e.shiftKey
+            ? buttons.length - 1
+            : 0
+          : (at + step + buttons.length) % buttons.length;
+      buttons[next].focus();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [shown]);

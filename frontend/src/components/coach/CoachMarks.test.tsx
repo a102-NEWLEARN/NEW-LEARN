@@ -63,6 +63,22 @@ test("가입하면(resetCoachMarks) 다시 보지 않기로 닫은 안내도 다
   expect(await screen.findByRole("dialog")).toBeTruthy();
 });
 
+test("Tab · Shift+Tab 은 두 버튼 안에서만 돈다 — 막 아래 화면으로 빠지지 않는다", async () => {
+  setup();
+  const ok = await screen.findByRole("button", { name: "알겠어요" });
+  const never = screen.getByRole("button", { name: "다시 보지 않기" });
+  // 처음 포커스도 효과(useEffect)에서 옮긴다 — 스크롤 막기 시험과 같은 까닭으로 기다린다
+  await waitFor(() => expect(document.activeElement).toBe(ok));
+  fireEvent.keyDown(ok, { key: "Tab" });
+  expect(document.activeElement).toBe(never);
+  fireEvent.keyDown(never, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(ok);
+  fireEvent.keyDown(ok, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(never);
+  fireEvent.keyDown(never, { key: "Tab" });
+  expect(document.activeElement).toBe(ok);
+});
+
 test("알겠어요는 이번만 닫는다", async () => {
   const { unmount } = setup();
   fireEvent.click(await screen.findByRole("button", { name: "알겠어요" }));
