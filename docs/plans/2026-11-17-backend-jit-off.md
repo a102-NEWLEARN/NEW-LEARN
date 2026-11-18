@@ -46,10 +46,10 @@ PostgreSQL JDBC 드라이버의 `options` 속성으로 **backend 가 여는 연�
 
 ## 작업 순서
 
-- [ ] **C1** (시험 · 커밋 · MR ① 까지 끝 — 2026-11-17 19:15, 리뷰 조수 통과) 새 시험 둘 — `DbSessionOptionsTest` 가 설정 줄 없이 단언에서 빨간지 → `application.yaml` → `backend_LINT` · `backend_TEST`(verifier 조수) → 되돌림 확인(설정 줄을 빼면 빨개짐) → MR ① → reviewer 조수 → 파이프라인 → 머지(직전 dev SHA · 열린 MR) → 배포 태그 MR(**바뀌는 줄이 backend 태그 하나인지** — 제목 「backend …」만인지 · `newTag` 줄 수로 확인, 228 때 실수) → 새 Pod Ready · 사이트 200
-- [ ] **바탕값(새 이미지, JIT 켬)** — 관리 서버에서 `infra/server/perf/bench.py`(몸풀기 20 + 100번, User-Agent `newlearn-bench/1`, A7 기사 목록이 JIT 를 안 타는 대조군) · 그 앞뒤로 `postgres-0` 의 `/sys/fs/cgroup/cpu.stat` `usage_usec` 를 읽고, 같은 길이의 쉬는 창 값을 뺀 DB CPU ms / 요청. 15분 수집 회차를 피하고 CI 잡이 없을 때
-- [ ] **MR ②** `backend.yaml` 한 줄 · exec → 머지 → Argo CD 가 backend 를 다시 띄움 → 새 Pod 의 `DB_OPTIONS` 값 확인 → 같은 방법으로 다시 재기
-- [ ] 문서 MR → Jira 완료 → 분야 브랜치 넷 맞추기
+- [x] **C1** (시험 · 커밋 · MR ① 까지 끝 — 2026-11-17 19:15, 리뷰 조수 통과) 새 시험 둘 — `DbSessionOptionsTest` 가 설정 줄 없이 단언에서 빨간지 → `application.yaml` → `backend_LINT` · `backend_TEST`(verifier 조수) → 되돌림 확인(설정 줄을 빼면 빨개짐) → MR ① → reviewer 조수 → 파이프라인 → 머지(직전 dev SHA · 열린 MR) → 배포 태그 MR(**바뀌는 줄이 backend 태그 하나인지** — 제목 「backend …」만인지 · `newTag` 줄 수로 확인, 228 때 실수) → 새 Pod Ready · 사이트 200 — !1135 머지 11-17 19:35 → 배포 !1134(frontend ed380543 도 함께, 사용자 승인) → backend `f16b4d72` 19:52 Ready · 사이트 200
+- [x] **바탕값(새 이미지, JIT 켬)** — 관리 서버에서 `infra/server/perf/bench.py`(몸풀기 20 + 100번, User-Agent `newlearn-bench/1`, A7 기사 목록이 JIT 를 안 타는 대조군) · 그 앞뒤로 `postgres-0` 의 `/sys/fs/cgroup/cpu.stat` `usage_usec` 를 읽고, 같은 길이의 쉬는 창 값을 뺀 DB CPU ms / 요청. 15분 수집 회차를 피하고 CI 잡이 없을 때 — 11-17 19:52: A1 p50 40.7 · A13(반도체) 34.3 · A7 24.5 ms, 요청당 DB CPU 25.7 ms(그때 CI 잡 1개)
+- [x] **MR ②** `backend.yaml` 한 줄 · exec → 머지 → Argo CD 가 backend 를 다시 띄움 → 새 Pod 의 `DB_OPTIONS` 값 확인 → 같은 방법으로 다시 재기 — !1136 머지 11-17 20:37(팀원) → 같은 이미지 재시작 · `DB_OPTIONS=-c jit=off` 확인 → 11-18 07:17 · 07:19 다시 잼: A1 23.9 · 23.5 · A13 12.0 · 12.3 · A7 12.8 · 11.9 ms
+- [x] 문서 MR → Jira 완료 → 분야 브랜치 넷 맞추기 — `SSOT.md` 10절 2026-11-18 · `docs/testing.md` 2절
 
 ## 안 바꿀 것
 

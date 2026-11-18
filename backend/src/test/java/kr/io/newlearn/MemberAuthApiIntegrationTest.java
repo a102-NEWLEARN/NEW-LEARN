@@ -38,7 +38,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 // 가입(A14) · 로그인(A15) · 로그아웃(A16) — 실제 PostgreSQL · Redis(세션) 위에서 (Jira 62, docs/api-screen.md A14 ~ A16)
-// 시험마다 DB 는 되돌리고(@Transactional), 세션은 Redis 에 남지만 하루 뒤 만료된다. 실패 횟수 · 잠금 키는 시험마다 지운다
+// 시험마다 DB 는 되돌리고(@Transactional), 세션은 Redis 에 남지만 30분 뒤 만료된다. 실패 횟수 · 잠금 키는 시험마다 지운다
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -158,7 +158,7 @@ class MemberAuthApiIntegrationTest {
 
     @Test
     void signUpRejectsLongNameBlankPasswordAndPasswordOver72Bytes() throws Exception {
-        // 이름은 세션에도 실려 하루 동안 Redis 에 남는다 — 20자까지
+        // 이름은 세션에도 실려 Redis 에 남는다 — 20자까지
         signUp(signUpBody("reader_04", "password1", "가".repeat(21), "economy"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[?(@.field == 'name')].reason").value(hasItem("이름은 20자까지예요")));
@@ -254,15 +254,16 @@ class MemberAuthApiIntegrationTest {
         assertThat(result.getResponse().getHeaders("Set-Cookie")).anyMatch(h -> h.startsWith("XSRF-TOKEN="));
     }
 
+    // 30분 동안 요청이 없으면 끝난다 — Redis 세션 만료는 마지막 요청부터 잰다 (2026-11-17 사용자, 전에는 하루)
     @Test
-    void sessionLivesInRedisForOneDay() throws Exception {
+    void sessionLivesInRedisForThirtyIdleMinutes() throws Exception {
         var joined = signUp(signUpBody("login_02", "password1", "독자", "world")).andReturn();
         // 쿠키 값은 세션 ID 를 Base64 로 감싼 것이다(Spring Session 기본)
         String sessionId = new String(
                 Base64.getDecoder().decode(sessionCookie(joined.getResponse()).getValue()), StandardCharsets.UTF_8);
         String key = "spring:session:sessions:" + sessionId;
         assertThat(redis.hasKey(key)).isTrue();
-        assertThat(redis.getExpire(key, TimeUnit.SECONDS)).isBetween(86_000L, 86_400L);
+        assertThat(redis.getExpire(key, TimeUnit.SECONDS)).isBetween(1_700L, 1_800L);
     }
 
     @Test

@@ -4,26 +4,22 @@
 
 **소셜 로그인은 쓰지 않습니다.** 회원은 서비스 안에서 아이디 · 비밀번호로 가입하고 로그인합니다(비밀번호는 해시만 DB 에 저장, 로그인 세션은 Redis). 외부 인증 서비스 가입은 필요 없습니다.
 
-「지금 쓰나」는 2026-11-17 dev 브랜치의 코드 · 매니페스트와 운영 문서로 확인했습니다.
-
-| 서비스 | 쓰는 곳 | 지금 쓰나 | 필요한 설정 (환경 변수 / Secret) |
-|---|---|---|---|
-| SSAFY GMS (OpenAI 호환 LLM) | AI 워커의 마인드맵 추출 · 동일 사건 판정 · 이슈 판단, backend 의 용어사전 문맥 뜻 | 씀 | `GMS_API_KEY`(Secret `gms-api`) · `GMS_BASE_URL` · `GMS_MODEL` |
-| NewsData.io News API | 뉴스 수집 배치(15분마다) | 씀 | `NEWSDATA_API_KEY`(Secret `newsdata-api`) |
-| 국립국어원 표준국어대사전 Open API | backend 의 사전 API(A19 `GET /api/v1/dictionary`) | **안 씀** — 키 · 코드 · Secret 은 연결돼 있지만 화면이 부르지 않음 | `STDICT_API_KEY`(Secret `stdict-api`) |
-| Hugging Face | 임베딩 모델 `dragonkue/BGE-m3-ko` 받기 | 씀 (워커 첫 기동 때 한 번) | 없음 — 공개 모델, 판(커밋)을 매니페스트에 고정 |
-| AWS (EC2 · S3 · Budgets · IAM) | 관리 서버, Terraform 상태 파일, DB 주간 백업, 예산 알림 | 씀 | 관리자 PC `~/.aws/credentials`(apply 전용 키), Secret `pg-backup-s3` |
-| SSAFY 지급 서버 (AWS Lightsail) | 서비스 서버(쿠버네티스 워커) | 씀 | 접속 키 `*.pem`(저장소 밖) |
-| 가비아 | 도메인 `newlearn.io.kr` DNS | 씀 | 없음 (가비아 화면에서 A 레코드) |
-| Let's Encrypt | HTTPS 인증서 | 씀 | 없음 (cert-manager 가 받음) |
-| GitHub | 이미지 저장소(GHCR 비공개 패키지), 화면 공개 미러(Vercel 데모 원본) | 씀 | CI 변수 `GHCR_USER` · `GHCR_TOKEN`, Secret `ghcr-pull` |
-| Vercel | 서버 없이 보는 화면 데모 | 씀 (데모만) | 없음 (`frontend/vercel.json`) |
-| Google Analytics 4 | 사용 분석 | 씀 (운영 도메인에서만) | 없음 (`frontend/public/analytics.js`) |
-| Microsoft Clarity | 화면 사용 기록 분석 | 씀 (운영 도메인에서만) | 없음 (`frontend/public/analytics.js`) |
-| SSAFY GitLab (lab.ssafy.com) | 소스 · MR · CI, Argo CD 가 읽는 저장소 | 씀 | 러너 토큰 · 배포 토큰 · 프로젝트 액세스 토큰(1-3) |
-| Mattermost (SSAFY) | 배포 알림 · 경보 | 씀 | Secret `argocd-notifications-secret` · `alertmanager-mattermost` |
-| Anthropic Claude Code | 운영 작업: 매일 아침 기사 분야 라벨을 제목으로 정함(서비스 코드 밖, 인프라 담당 PC) | 씀 (운영 작업만) | 없음 — 인프라 담당 계정. 절차는 `infra/server/category-labels.md` |
-| 공개 패키지 저장소 (Docker Hub · GHCR 공개 이미지 · npm · PyPI · PyTorch CPU 색인 · Maven Central · Gradle 배포판) | 이미지 · 의존성 받기 | 씀 | 없음 — 가입 없이 받음 |
+| 서비스 | 쓰는 곳 | 필요한 설정 (환경 변수 / Secret) |
+|---|---|---|
+| SSAFY GMS (OpenAI 호환 LLM) | AI 워커의 마인드맵 추출 · 동일 사건 판정 · 이슈 판단, backend 의 용어사전 문맥 뜻 | `GMS_API_KEY`(Secret `gms-api`) · `GMS_BASE_URL` · `GMS_MODEL` |
+| NewsData.io News API | 뉴스 수집 배치(15분마다) | `NEWSDATA_API_KEY`(Secret `newsdata-api`) |
+| Hugging Face | 임베딩 모델 `dragonkue/BGE-m3-ko` 받기 (워커 첫 기동 때 한 번) | 없음 — 공개 모델, 판(커밋)을 매니페스트에 고정 |
+| AWS (EC2 · S3 · Budgets · IAM) | 관리 서버, Terraform 상태 파일, DB 주간 백업, 예산 알림 | 관리자 PC `~/.aws/credentials`(apply 전용 키), Secret `pg-backup-s3` |
+| SSAFY 지급 서버 (AWS Lightsail) | 서비스 서버(쿠버네티스 워커) | 접속 키 `*.pem`(저장소 밖) |
+| 가비아 | 도메인 `newlearn.io.kr` DNS | 없음 (가비아 화면에서 A 레코드) |
+| Let's Encrypt | HTTPS 인증서 | 없음 (cert-manager 가 받음) |
+| GitHub | 이미지 저장소(GHCR 비공개 패키지), 화면 공개 미러(Vercel 데모 원본) | CI 변수 `GHCR_USER` · `GHCR_TOKEN`, Secret `ghcr-pull` |
+| Vercel | 서버 없이 보는 화면 데모 | 없음 (`frontend/vercel.json`) |
+| Google Analytics 4 | 사용 분석 (운영 도메인에서만) | 없음 (`frontend/public/analytics.js`) |
+| Microsoft Clarity | 화면 사용 기록 분석 (운영 도메인에서만) | 없음 (`frontend/public/analytics.js`) |
+| SSAFY GitLab (lab.ssafy.com) | 소스 · MR · CI, Argo CD 가 읽는 저장소 | 러너 토큰 · 배포 토큰 · 프로젝트 액세스 토큰(2-8) |
+| Mattermost (SSAFY) | 배포 알림 · 경보 | Secret `argocd-notifications-secret` · `alertmanager-mattermost` |
+| Anthropic Claude Code | 운영 작업: 매일 아침 기사 분야 라벨을 제목으로 정함(서비스 코드 밖, 인프라 담당 PC) | 없음 — 인프라 담당 계정. 절차는 `infra/server/category-labels.md` |
 
 ---
 
@@ -53,19 +49,13 @@
 - 수집 배치는 DB 에 직접 쓰지 않고 backend 직원용 API 로 넣습니다(적재 B2 · 분석 등록 B1, `INTERNAL_BATCH_KEY`). 쓰는 법은 `infra/server/ingest.md`.
 - 새 환경에서는 newsdata.io 에서 가입해 키를 받습니다.
 
-## 2-3. 국립국어원 표준국어대사전 Open API — 지금 안 씀
-
-- **2026-11-10 부터 화면은 이 API 를 부르지 않습니다.** 용어사전은 사전 뜻 대신 그 글 문맥에 맞는 뜻 하나를 GMS 로 보여 주는 A26 으로 바뀌었습니다. 화면 코드(`frontend/src/api/dictionary.ts`)는 `/dictionary/meaning` 만 부릅니다.
-- backend 의 A19(`GET /api/v1/dictionary`) · 키(`STDICT_API_KEY`, 봉인 Secret `stdict-api`) · 입구 길(`routes.yaml` 의 `dictionary`)은 되돌릴 때를 위해 남겨 두었습니다.
-- 키는 stdict.korean.go.kr 「개발 지원(Open API)」에서 신청합니다(무료, 계정당 하나, 하루 50,000건). 사전 텍스트는 CC BY-SA 2.0 KR 이라 쓸 때는 출처를 표시해야 합니다.
-
-## 2-4. Hugging Face — 임베딩 모델
+## 2-3. Hugging Face — 임베딩 모델
 
 - 같은 사건 후보를 찾는 임베딩 모델 `dragonkue/BGE-m3-ko`(1024차원, CPU)를 받습니다. 판(커밋)은 `infra/k8s/services/ai/ai.yaml` 의 `MODEL_REVISION` 에 고정했습니다.
 - ai Pod 의 init 컨테이너가 처음 한 번 PVC(`ai-model-cache`, 10Gi)에 받고(약 2.3GB, 1분 안팎), 워커는 `HF_HUB_OFFLINE=1` 로 받은 파일만 씁니다.
 - 공개 모델이라 가입 · 토큰이 필요 없습니다.
 
-## 2-5. AWS · SSAFY 지급 서버
+## 2-4. AWS · SSAFY 지급 서버
 
 | 자원 | 무엇 | 만드는 곳 |
 |---|---|---|
@@ -78,25 +68,25 @@
 - 서비스 서버(워커)는 SSAFY 가 지급한 Lightsail xlarge(4 vCPU · 16 GB)입니다. 콘솔 없이 도메인과 접속 키(`*.pem`)만 받았습니다. 받는 날 할 일은 `infra/server/README.md` 「Lightsail」.
 - 두 서버는 WireGuard 터널로 잇고, 쿠버네티스 포트는 바깥에 열지 않습니다.
 
-## 2-6. 가비아 · Let's Encrypt — 도메인 · HTTPS
+## 2-5. 가비아 · Let's Encrypt — 도메인 · HTTPS
 
 - 도메인 `newlearn.io.kr` 의 DNS 는 가비아에 있습니다. A 레코드 `@` · `www` → 서비스 서버 공인 IP(TTL 600). `www` 와 `http://` 는 `https://newlearn.io.kr` 로 넘깁니다(`infra/k8s/gateway/redirects.yaml`).
 - 인증서는 cert-manager 가 Let's Encrypt 에서 HTTP-01 로 받고, 만료 30일 전에 알아서 다시 받습니다. 가입은 필요 없습니다. 가비아는 DNS 를 프로그램으로 바꾸는 API 가 없어 DNS-01 은 쓰지 않습니다.
 
-## 2-7. GitHub · Vercel
+## 2-6. GitHub · Vercel
 
 | 쓰임 | 내용 |
 |---|---|
 | GHCR | 운영 이미지 `newlearn-backend` · `newlearn-frontend` · `newlearn-ai` 를 인프라 담당 개인 GitHub 계정의 비공개 패키지로 둡니다. SSAFY GitLab 은 컨테이너 레지스트리가 꺼져 있어서입니다. 올리기는 CI 변수 `GHCR_USER` · `GHCR_TOKEN`(classic 토큰 `write:packages` · `read:packages`), 받기는 봉인 Secret `ghcr-pull`(`seal-secrets.sh ghcr`). 토큰 만료 2026-11-30 |
 | 공개 미러 · Vercel 데모 | 화면 코드를 GitHub 공개 미러에 올리고, Vercel 이 그 미러의 `frontend` 브랜치를 데모 빌드(`npm run build -- --mode demo`)로 올립니다. 서버 없이 2026-11-16 실제 기사 스냅샷으로 화면만 볼 수 있고, 회원 · 용어사전은 가짜 응답입니다(`frontend/README.md`, `docs/plans/2026-11-16-demo-snapshot.md`) |
 
-## 2-8. Google Analytics 4 · Microsoft Clarity — 사용 분석
+## 2-7. Google Analytics 4 · Microsoft Clarity — 사용 분석
 
 - `frontend/public/analytics.js` 가 운영 도메인(`newlearn.io.kr`)에서만 두 스크립트를 띄웁니다. 로컬 · 데모에서는 돌지 않습니다.
 - 측정 ID 는 화면에 실리는 공개 값이라 그 파일에 있습니다. 새 환경에서는 각 서비스에서 속성 · 프로젝트를 만들고 파일의 ID 를 바꿉니다.
 - 응답 보안 머리(CSP)가 두 서비스의 주소를 허용합니다(`infra/k8s/services/app/routes.yaml`). 주소를 바꾸면 CSP 도 같이 바꿉니다.
 
-## 2-9. SSAFY GitLab · Mattermost
+## 2-8. SSAFY GitLab · Mattermost
 
 - 저장소 `lab.ssafy.com/s15-final/S15P31A102`, 기본 브랜치 `dev`. 이 프로젝트가 쓸 공유 러너가 없어 GitLab Runner 를 관리 서버 클러스터 안에 직접 둡니다(`infra/server/README.md` 「GitLab Runner」).
 - Argo CD 는 읽기 전용 배포 토큰(`read_repository`)으로 dev 를 읽고, GitLab 프로젝트 웹훅(Push events)이 `https://newlearn.io.kr/argocd/api/webhook` 으로 바로 알립니다.

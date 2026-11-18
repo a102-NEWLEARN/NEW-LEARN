@@ -10,6 +10,7 @@ import {
   type ZoomTransform,
 } from "d3";
 import {
+  Fragment,
   type KeyboardEvent,
   type ReactNode,
   useEffect,
@@ -26,6 +27,7 @@ import {
   layoutTimeline,
   RIGHT_ROOM,
   type PlacedEvent,
+  type StackFold,
 } from "@/components/issue/timelineLayout";
 import {
   LANE_MEANING,
@@ -141,12 +143,33 @@ export function Timeline({
   const measured = useElementSize(wrapRef);
   const width = measured.width || FALLBACK_SIZE.width;
   const height = measured.height || FALLBACK_SIZE.height;
-  const layout = useMemo(
-    () => layoutTimeline(events, { width }),
-    [events, width],
-  );
   // 최신 사건 — 노드를 짙은 청록으로 칠한다 (2026-11-16 디자인 피드백, Jira 216)
   const latestId = useMemo(() => latestEventId(events), [events]);
+  // 펼친 칸 — 같은 날 쌓인 사건이 많으면 3건만 보이고 「+N건」 칩으로 접는다. 칩을 누르면 그 칸만 펼친다.
+  // 고른 사건 · 최신 사건은 접어도 늘 보인다 (2026-11-17 사용자, 스마트안경 이슈)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const layout = useMemo(
+    () =>
+      layoutTimeline(events, {
+        width,
+        expanded,
+        pinned: [selectedId, latestId],
+      }),
+    [events, width, expanded, selectedId, latestId],
+  );
+  // 처음 열 때 그린 사건 — 펼치거나 골라서 나중에 나온 사건은 여는 차례를 기다리지 않고 바로 튀어나온다
+  const [openedIds] = useState(
+    () => new Set(layout.events.map((event) => event.id)),
+  );
+  const toggleFold = (fold: StackFold) =>
+    setExpanded((before) => {
+      const next = new Set(before);
+      if (fold.expanded) next.delete(fold.key);
+      else next.add(fold.key);
+      return next;
+    });
   // 다 들어오는 배율 — 첫 사건부터 마지막 사건의 이름표 자리(LABEL_ROOM)까지 화면에 들어온다. 100% 보다 키우지 않는다.
   // 줄이는 하한은 50% 와 이 배율 중 작은 것이다 (Jira 223)
   const fitScale = useMemo(() => {
@@ -180,6 +203,8 @@ export function Timeline({
   const [hoverId, setHoverId] = useState<number | null>(null);
   // 키보드로 포커스한 노드 — 포커스 테두리와 툴팁을 띄운다
   const [focusId, setFocusId] = useState<number | null>(null);
+  // 키보드로 포커스한 「+N건」 · 「접기」 칩
+  const [focusFold, setFocusFold] = useState<string | null>(null);
   // 키보드로 받은 포커스에만 테두리 · 툴팁을 띄운다
   const keyboardInput = useKeyboardInput();
   // TIP — 레인 뜻 · 「추정」 뜻. 창은 타임라인 오른쪽 위에 띄운다
@@ -395,7 +420,7 @@ export function Timeline({
     track("timeline_node_click", {
       lane: placed.lane,
       position: layout.events.filter((other) => other.x < placed.x).length + 1,
-      total: layout.events.length,
+      total: events.length,
       via,
     });
     onSelect(placed.id);
@@ -460,7 +485,83 @@ export function Timeline({
     return { at, duration };
   }, [layout]);
   const enterOf = (event: PlacedEvent) =>
-    Math.round(sweep.at(event.x) + (event.lane === "SUB" ? SUB_AFTER : 0));
+    openedIds.has(event.id)
+      ? Math.round(sweep.at(event.x) + (event.lane === "SUB" ? SUB_AFTER : 0))
+      : 0;
+  // 칩은 그 칸의 마지막 사건 바로 뒤에 그린다 — Tab 차례가 그 칸 사건 다음이 되게
+  const foldAfter = new Map(
+    layout.folds.map((fold) => {
+      const stacked = layout.events.filter(
+        (event) => event.lane === fold.lane && event.x === fold.x,
+      );
+      return [stacked[stacked.length - 1]?.id, fold] as const;
+    }),
+  );
+  const onFoldKeyDown = (event: KeyboardEvent, fold: StackFold) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleFold(fold);
+  };
+  // 「+7건」 · 「접기」 칩 — 그 칸 사건 노드의 왼쪽 끝에 맞춰 알약으로 그린다
+  const foldChip = (fold: StackFold) => {
+    const text = fold.expanded ? "접기" : `+${fold.hidden}건`;
+    const chipWidth = Math.round(textWidth(text, 13) + 20);
+    const left = screenX(fold.x) - (fold.lane === "MAIN" ? 10 : 8);
+    const where = `${fold.dateLabel} ${LANE_NAME[fold.lane]} 사건`;
+    return (
+      <g
+        key={`fold-${fold.key}`}
+        transform={`translate(${left},${fold.y})`}
+        role="button"
+        tabIndex={0}
+        data-fold={fold.key}
+        aria-expanded={fold.expanded}
+        aria-label={
+          fold.expanded ? `${where} 접기` : `${where} ${fold.hidden}건 더 보기`
+        }
+        className="group/fold cursor-pointer outline-none"
+        onClick={(mouse) => {
+          mouse.stopPropagation();
+          toggleFold(fold);
+        }}
+        onKeyDown={(key) => onFoldKeyDown(key, fold)}
+        onFocus={() => {
+          if (keyboardInput.current) setFocusFold(fold.key);
+        }}
+        onBlur={() => setFocusFold(null)}
+      >
+        <rect
+          x={0}
+          y={-12}
+          width={chipWidth}
+          height={24}
+          rx={12}
+          strokeWidth={1}
+          className="fill-bg-layer-default stroke-stroke-neutral-weak transition-[fill] duration-[var(--seed-duration-color-transition)] group-hover/fold:fill-bg-neutral-weak"
+        />
+        <text
+          x={chipWidth / 2}
+          y={1}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="fill-fg-neutral-muted text-[0.8125rem] font-bold tabular-nums"
+        >
+          {text}
+        </text>
+        {focusFold === fold.key && (
+          <rect
+            x={-3}
+            y={-15}
+            width={chipWidth + 6}
+            height={30}
+            rx={15}
+            strokeWidth={2}
+            className="fill-none stroke-stroke-focus-ring"
+          />
+        )}
+      </g>
+    );
+  };
 
   const selected = layout.events.find((event) => event.id === selectedId);
   const tipEvent = layout.events.find(
@@ -617,164 +718,167 @@ export function Timeline({
               const shown = fitText(event.label, label.width, NAME_SIZE);
               const meta = joined(dateText(event), articlesText(event));
               const enter = enterOf(event);
+              const fold = foldAfter.get(event.id);
               return (
-                <g
-                  key={event.id}
-                  transform={`translate(${x},${event.y})`}
-                  role="button"
-                  data-coach="event"
-                  tabIndex={0}
-                  data-event-id={event.id}
-                  data-latest={isLatest || undefined}
-                  aria-current={isSelected ? "true" : undefined}
-                  aria-label={[
-                    `${dateText(event)} ${event.title}`,
-                    LANE_NAME[event.lane],
-                    articlesText(event),
-                    isLatest ? "최신 사건" : null,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                  className="cursor-pointer outline-none"
-                  onClick={(mouse) => {
-                    mouse.stopPropagation();
-                    // 사건 이름을 드래그한 끝의 클릭(용어사전)은 사건 고르기가 아니다
-                    if (!isTextDragClick(mouse)) selectEvent(event, "click");
-                  }}
-                  onKeyDown={(key) => onNodeKeyDown(key, event)}
-                  onMouseEnter={() => setHoverId(event.id)}
-                  onMouseLeave={() => setHoverId(null)}
-                  onFocus={() => {
-                    if (!keyboardInput.current) return;
-                    setFocusId(event.id);
-                    keepInView(event);
-                  }}
-                  onBlur={() => setFocusId(null)}
-                >
-                  {/* 누르는 영역을 노드보다 넓게 */}
-                  <circle r={r + 14} className="fill-transparent" />
-                  {/* 선 끝이 지나갈 때 튀어나온다 */}
-                  <g className={SPRING_IN} style={enterAt(enter)}>
-                    {/* 고르면 채움은 그대로 두고 옅은 민트 바탕 · 짙은 청록 고리가 튀어나오며 둘레에 파문이 번진다.
+                <Fragment key={event.id}>
+                  <g
+                    transform={`translate(${x},${event.y})`}
+                    role="button"
+                    data-coach="event"
+                    tabIndex={0}
+                    data-event-id={event.id}
+                    data-latest={isLatest || undefined}
+                    aria-current={isSelected ? "true" : undefined}
+                    aria-label={[
+                      `${dateText(event)} ${event.title}`,
+                      LANE_NAME[event.lane],
+                      articlesText(event),
+                      isLatest ? "최신 사건" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                    className="cursor-pointer outline-none"
+                    onClick={(mouse) => {
+                      mouse.stopPropagation();
+                      // 사건 이름을 드래그한 끝의 클릭(용어사전)은 사건 고르기가 아니다
+                      if (!isTextDragClick(mouse)) selectEvent(event, "click");
+                    }}
+                    onKeyDown={(key) => onNodeKeyDown(key, event)}
+                    onMouseEnter={() => setHoverId(event.id)}
+                    onMouseLeave={() => setHoverId(null)}
+                    onFocus={() => {
+                      if (!keyboardInput.current) return;
+                      setFocusId(event.id);
+                      keepInView(event);
+                    }}
+                    onBlur={() => setFocusId(null)}
+                  >
+                    {/* 누르는 영역을 노드보다 넓게 */}
+                    <circle r={r + 14} className="fill-transparent" />
+                    {/* 선 끝이 지나갈 때 튀어나온다 */}
+                    <g className={SPRING_IN} style={enterAt(enter)}>
+                      {/* 고르면 채움은 그대로 두고 옅은 민트 바탕 · 짙은 청록 고리가 튀어나오며 둘레에 파문이 번진다.
                         전에는 노드를 짙은 청록으로 채워 최신 사건과 헷갈렸다 (2026-11-16 디자인 피드백, Jira 216) */}
-                    {isSelected && (
-                      <>
+                      {isSelected && (
+                        <>
+                          <rect
+                            x={-r}
+                            y={-r}
+                            width={2 * r}
+                            height={2 * r}
+                            rx={3}
+                            fill="none"
+                            strokeWidth={2}
+                            className={`stroke-bg-brand-solid ${RIPPLE_ONCE}`}
+                          />
+                          <rect
+                            data-selected-ring
+                            x={-r - 5}
+                            y={-r - 5}
+                            width={2 * r + 10}
+                            height={2 * r + 10}
+                            rx={5}
+                            strokeWidth={2}
+                            className={`fill-bg-brand-weak stroke-bg-brand-solid ${SPRING_IN}`}
+                          />
+                        </>
+                      )}
+                      {isHovered && !isSelected && (
                         <rect
-                          x={-r}
-                          y={-r}
-                          width={2 * r}
-                          height={2 * r}
-                          rx={3}
-                          fill="none"
-                          strokeWidth={2}
-                          className={`stroke-bg-brand-solid ${RIPPLE_ONCE}`}
-                        />
-                        <rect
-                          data-selected-ring
                           x={-r - 5}
                           y={-r - 5}
                           width={2 * r + 10}
                           height={2 * r + 10}
                           rx={5}
-                          strokeWidth={2}
-                          className={`fill-bg-brand-weak stroke-bg-brand-solid ${SPRING_IN}`}
+                          strokeWidth={1.5}
+                          className="fill-none stroke-stroke-brand-weak"
                         />
-                      </>
-                    )}
-                    {isHovered && !isSelected && (
-                      <rect
-                        x={-r - 5}
-                        y={-r - 5}
-                        width={2 * r + 10}
-                        height={2 * r + 10}
-                        rx={5}
-                        strokeWidth={1.5}
-                        className="fill-none stroke-stroke-brand-weak"
-                      />
-                    )}
-                    {/* 마우스를 올리면 넘치며 커진다 (프로토타입 v21 1.15배) */}
-                    <g
-                      className={`${HOVER_SPRING} ${isHovered && !isSelected ? "motion-safe:scale-[1.15]" : ""}`}
-                    >
-                      <rect
-                        data-node
-                        x={-r}
-                        y={-r}
-                        width={2 * r}
-                        height={2 * r}
-                        rx={3}
-                        strokeWidth={main ? 3 : 2}
-                        className={`transition-[fill,stroke] duration-[var(--seed-duration-color-transition)] ${
-                          isLatest
-                            ? "fill-bg-brand-solid stroke-palette-static-white"
-                            : main
-                              ? "fill-bg-brand-accent stroke-palette-static-white"
-                              : "fill-palette-static-white stroke-palette-gray-600"
-                        }`}
-                      />
+                      )}
+                      {/* 마우스를 올리면 넘치며 커진다 (프로토타입 v21 1.15배) */}
+                      <g
+                        className={`${HOVER_SPRING} ${isHovered && !isSelected ? "motion-safe:scale-[1.15]" : ""}`}
+                      >
+                        <rect
+                          data-node
+                          x={-r}
+                          y={-r}
+                          width={2 * r}
+                          height={2 * r}
+                          rx={3}
+                          strokeWidth={main ? 3 : 2}
+                          className={`transition-[fill,stroke] duration-[var(--seed-duration-color-transition)] ${
+                            isLatest
+                              ? "fill-bg-brand-solid stroke-palette-static-white"
+                              : main
+                                ? "fill-bg-brand-accent stroke-palette-static-white"
+                                : "fill-palette-static-white stroke-palette-gray-600"
+                          }`}
+                        />
+                      </g>
+                      {isFocused && (
+                        <rect
+                          x={-r - 7}
+                          y={-r - 7}
+                          width={2 * r + 14}
+                          height={2 * r + 14}
+                          rx={6}
+                          strokeWidth={2}
+                          className="fill-none stroke-stroke-focus-ring"
+                        />
+                      )}
                     </g>
-                    {isFocused && (
-                      <rect
-                        x={-r - 7}
-                        y={-r - 7}
-                        width={2 * r + 14}
-                        height={2 * r + 14}
-                        rx={6}
-                        strokeWidth={2}
-                        className="fill-none stroke-stroke-focus-ring"
-                      />
-                    )}
-                  </g>
-                  {/* 라벨은 사건이 나온 뒤 떠오른다 — 자리를 잡는 transform 과 움직임을 다른 묶음에 둔다.
+                    {/* 라벨은 사건이 나온 뒤 떠오른다 — 자리를 잡는 transform 과 움직임을 다른 묶음에 둔다.
                       라벨도 누르는 영역이다 — 전에는 노드 둘레만 눌려 제목 · 날짜를 눌러도 사건이 안 열렸다 (2026-11-05 UI 점검) */}
-                  <g transform={`translate(${label.dx},${label.dy})`}>
-                    <g className={RISE} style={enterAt(enter + LABEL_AFTER)}>
-                      {/* 글자 사이 빈 곳도 받게 라벨 칸 전체를 투명하게 덮는다 */}
-                      <rect
-                        x={-4}
-                        y={-3}
-                        width={label.width + 8}
-                        height={40}
-                        className="fill-transparent"
-                      />
-                      {label.below && (
+                    <g transform={`translate(${label.dx},${label.dy})`}>
+                      <g className={RISE} style={enterAt(enter + LABEL_AFTER)}>
+                        {/* 글자 사이 빈 곳도 받게 라벨 칸 전체를 투명하게 덮는다 */}
                         <rect
                           x={-4}
                           y={-3}
                           width={label.width + 8}
                           height={40}
-                          rx={6}
-                          className="fill-bg-layer-default opacity-95"
+                          className="fill-transparent"
                         />
-                      )}
-                      {/* 사건 이름은 드래그 대상이다(용어사전). 칸에 맞춰 「…」로 줄였으면 그 표시를 준다 */}
-                      <text
-                        dominantBaseline="hanging"
-                        className={`cursor-text stroke-bg-layer-default text-[0.9375rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
-                        paintOrder="stroke"
-                        strokeWidth={4}
-                        strokeLinejoin="round"
-                        {...meaningProps(
-                          "EVENT",
-                          event.id,
-                          shown !== event.label,
+                        {label.below && (
+                          <rect
+                            x={-4}
+                            y={-3}
+                            width={label.width + 8}
+                            height={40}
+                            rx={6}
+                            className="fill-bg-layer-default opacity-95"
+                          />
                         )}
-                      >
-                        {shown}
-                      </text>
-                      <text
-                        y={19}
-                        dominantBaseline="hanging"
-                        className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.8125rem] tabular-nums"
-                        paintOrder="stroke"
-                        strokeWidth={4}
-                        strokeLinejoin="round"
-                      >
-                        {label.width >= 110 ? meta : dateText(event)}
-                      </text>
+                        {/* 사건 이름은 드래그 대상이다(용어사전). 칸에 맞춰 「…」로 줄였으면 그 표시를 준다 */}
+                        <text
+                          dominantBaseline="hanging"
+                          className={`cursor-text stroke-bg-layer-default text-[0.9375rem] select-text ${isSelected ? "fill-fg-brand font-bold" : main ? "fill-fg-neutral font-bold" : "fill-fg-neutral font-semibold"}`}
+                          paintOrder="stroke"
+                          strokeWidth={4}
+                          strokeLinejoin="round"
+                          {...meaningProps(
+                            "EVENT",
+                            event.id,
+                            shown !== event.label,
+                          )}
+                        >
+                          {shown}
+                        </text>
+                        <text
+                          y={19}
+                          dominantBaseline="hanging"
+                          className="fill-fg-neutral-muted stroke-bg-layer-default text-[0.8125rem] tabular-nums"
+                          paintOrder="stroke"
+                          strokeWidth={4}
+                          strokeLinejoin="round"
+                        >
+                          {label.width >= 110 ? meta : dateText(event)}
+                        </text>
+                      </g>
                     </g>
                   </g>
-                </g>
+                  {fold && foldChip(fold)}
+                </Fragment>
               );
             })}
           </g>
