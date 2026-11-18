@@ -16,8 +16,10 @@
 
 [![Live](https://img.shields.io/badge/Live-newlearn.io.kr-28CDAA?style=for-the-badge&logo=googlechrome&logoColor=white)](https://newlearn.io.kr)
 [![Demo](https://img.shields.io/badge/Demo-목_서버_·_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://newlearn-issue.vercel.app/home)
+[![발표자료](https://img.shields.io/badge/발표자료-PDF_다운로드-E5252A?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xOSA5aC00VjNIOXY2SDVsNyA3IDctN3pNNSAxOHYyaDE0di0ySDV6Ii8%2BPC9zdmc%2B)](https://github.com/a102-NEWLEARN/NEW-LEARN/raw/main/.github/presentation/NEWLEARN-%EB%B0%9C%ED%91%9C%EC%9E%90%EB%A3%8C.pdf)
 
-<sub>Demo 는 서버 없이 도는 판입니다. 2026-11-16 실제 서비스에서 받은 기사 스냅샷(이슈 16 · 기사 1,938)에 목 서버(MSW)가 답하고, 로그인은 아무 아이디 · 비밀번호로 됩니다.</sub>
+<sub>Demo 는 서버 없이 도는 판입니다. 2026-11-16 실제 서비스에서 받은 기사 스냅샷(이슈 16 · 기사 1,938)에 목 서버(MSW)가 답하고, 로그인은 아무 아이디 · 비밀번호로 됩니다.</sub><br>
+<sub>발표자료는 2026-11-18 최종 발표 슬라이드(PDF 71쪽 · 16MB)입니다. 받지 않고 <a href="presentation/NEWLEARN-%EB%B0%9C%ED%91%9C%EC%9E%90%EB%A3%8C.pdf">GitHub 에서 바로 볼 수도</a> 있습니다.</sub>
 
 <a href="#-주요-기능">주요 기능</a> ·
 <a href="#-팀원">팀원</a> ·
